@@ -29,6 +29,10 @@ npm.cmd run build
 
 ## การป้องกันฐานข้อมูล
 
+หากพอร์ตทดสอบชนกับโปรแกรมอื่น ตั้ง TEST_WEB_PORT และ TEST_API_PORT ใน .env.local เป็นพอร์ตว่างคนละค่า เช่น 15174 และ 18788 ตัว runner จะตั้ง base URL, API proxy และ APP_ORIGIN ให้ตรงกัน ห้ามใช้พอร์ต dev 5173/8787
+
+Neon Schema only อาจคัดลอกตารางมาแต่ไม่คัดลอกข้อมูลใน drizzle.__drizzle_migrations ทำให้การ migrate เริ่มต้นชนกับตารางที่มีอยู่ ต้องตรวจโครงสร้างและความว่างก่อนเตรียมฐาน test ใหม่ ห้ามแก้ด้วยการล้าง dev/production หรือบันทึก migration ว่าผ่านโดยไม่ได้ตรวจโครงสร้าง
+
 Tests ต้องมี URL แยกและอนุญาต reset ชัดเจน หากขาดค่าจะหยุดก่อนเชื่อมต่อฐาน เปรียบเทียบ hostname/port/database โดยไม่นับ username/password และปรับ Neon pooler/direct hostname ให้เทียบกันได้ บล็อก reset เมื่อ NODE_ENV=production หรือรันบน Vercel
 
 Guard ตรวจไม่ได้ว่า endpoint อื่นที่ผู้ใช้ใส่เป็น production จริงหรือไม่ จึงต้องตรวจ mapping ใน Neon ก่อนอนุญาต reset หากมี PRODUCTION_DATABASE_URL ใน environment จะตรวจไม่ให้ test ตรงกับค่านั้นด้วย แต่ไม่จำเป็นต้องแจก credential production ให้เครื่องพัฒนา

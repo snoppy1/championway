@@ -146,3 +146,10 @@ build ด้วย `BASE_PATH=/championway/` แล้วเสิร์ฟ `dis
 `npm.cmd run test:safety` ผ่าน 5/5 กรณี: ยอมรับฐานแยก, ปฏิเสธค่าที่ขาด, ปฏิเสธ production/Vercel, เทียบ Neon pooled/direct endpoint และไม่แสดง credential ในข้อความ URL ผิดรูปแบบ `npm.cmd run build` ผ่าน
 
 ตรวจ `npm.cmd test` ด้วย environment ปัจจุบันแล้วหยุดก่อนเชื่อมต่อฐานเพราะไม่มี TEST_DATABASE_URL ตามที่ออกแบบ จึงยังไม่ได้รัน browser suite กับฐาน test จริง ไม่ได้ migrate/seed ฐานที่มีอยู่ และยังไม่ได้ยืนยัน Preview deployment ดูขั้นตอนใน [environments.md](environments.md)
+## ยืนยันฐาน test แยก — 13 กันยายน 2569
+
+หลังบันทึกค่า environment ตรวจ guard ผ่านและเชื่อมต่อฐาน test ได้ พบ schema-only clone มี 16 ตารางว่างและไม่มี migration records จึงตรวจชื่อตาราง/enum ตรงกับ migration แรกและจำนวนแถวทุกตารางเป็นศูนย์ ก่อนสร้างโครงสร้าง test ใหม่ด้วย migration มาตรฐานสำเร็จ ไม่ได้แก้ฐาน dev/production
+
+พอร์ต 5174 มีโปรแกรมอื่นใช้ จึงเพิ่ม TEST_WEB_PORT / TEST_API_PORT และตั้งในเครื่องเป็น 15174 / 18788 โดยไม่หยุดโปรแกรมเดิม ชุดทดสอบเต็มได้ 85 ผ่าน 4 ข้าม และ 1 timeout ระหว่าง Vite reload จากการบันทึก .env.local; รันเคส desktop application visual QA ที่สะดุดซ้ำผ่าน รวมยืนยันครบ 86 เคสที่เปิดใช้ ข้าม 4 เคสตามเงื่อนไขเดิม
+
+`npm.cmd run test:safety` ผ่าน 5/5 และ `npm.cmd run build` ผ่าน การตรวจนี้ยืนยันการทำงานในเครื่องกับฐาน test ไม่ใช่ผลตรวจ API บน Vercel Preview ที่ต้องล็อกอิน

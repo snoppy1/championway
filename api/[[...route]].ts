@@ -7,8 +7,8 @@ import { handle } from 'hono/vercel';
    เพราะ Vercel จับคู่ไฟล์กับเส้นทางตามชื่อไฟล์ api/index.ts จะรับแค่ /api พอดี ๆ
    ส่วน /api/health และเส้นทางอื่นจะกลายเป็น 404 ของ Vercel ก่อนถึงโค้ดเรา
 
-   ต้องใช้ Node runtime ไม่ใช่ Edge เพราะไดรเวอร์ Postgres ต่อผ่าน TCP */
-export const config = { runtime: 'nodejs' };
+   ไม่ประกาศ runtime เอง ไฟล์ .ts ใน api/ ใช้ Node runtime เป็นค่าเริ่มต้นอยู่แล้ว
+   ซึ่งเป็นสิ่งที่ต้องการ เพราะไดรเวอร์ Postgres ต่อผ่าน TCP ใช้ Edge ไม่ได้ */
 
 /* ต้อง export ผลของ handle() ตรง ๆ เท่านั้น ถ้าห่อด้วยฟังก์ชันของตัวเอง
    Vercel จะแยกไม่ออกว่าเป็น handler แบบ Web แล้วคำขอจะค้างจนหมดเวลา

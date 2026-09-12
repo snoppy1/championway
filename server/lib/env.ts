@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { testDatabase } from './database-safety';
 
 // โหลดด้วย loader ที่มากับ Node เอง ไม่ต้องพึ่ง dotenv
 // .env.local อยู่ใน .gitignore ค่าลับจึงไม่หลุดเข้า repo
@@ -13,7 +14,7 @@ function required(name: string) {
 }
 
 export const env = {
-  databaseUrl: required('DATABASE_URL'),
+  databaseUrl: process.env.APP_ENV === 'test' ? testDatabase(process.env) : required('DATABASE_URL'),
   port: Number(process.env.PORT ?? 8787),
   isProduction: process.env.NODE_ENV === 'production',
   /** ที่เก็บไฟล์ตอนนี้เป็นโฟลเดอร์ในเครื่อง ย้ายไป S3 ได้โดยเปลี่ยนแค่ adapter */

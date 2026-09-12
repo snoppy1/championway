@@ -9,12 +9,14 @@ import {
 } from './schema';
 import { pathToFileURL } from 'node:url';
 import { newId } from '../lib/id';
+import { testDatabase } from '../lib/database-safety';
 
 /* ย้ายข้อมูลตัวอย่างที่เคยอยู่ในไฟล์ TypeScript เข้าฐานข้อมูล รันซ้ำได้เพราะล้างของเดิมก่อน
    สั่งด้วย npm run db:seed ข้อมูลทั้งหมดยังเป็นเวที ผู้จัด และบุคคลสมมติเหมือนเดิม
    ไม่แตะตาราง users และ sessions เพื่อไม่ให้บัญชีจริงหายตอนรันซ้ำ */
 
 export async function seed() {
+  testDatabase(process.env);
   await db.transaction(async (tx) => {
     await tx.delete(reviewEvents);
     await tx.delete(mentorAwards);

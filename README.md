@@ -1,5 +1,7 @@
 # ChampionWays
 
+การแยก dev/test/production และการย้ายเครื่อง: [environments.md](environments.md) — `npm test` ต้องตั้งฐาน test แยกก่อน ส่วน `db:seed` ใช้เฉพาะฐาน test ที่อนุญาตให้ล้างข้อมูลแล้ว
+
 เว็บต้นแบบภาษาไทยสำหรับสำรวจและรู้จักเวทีแข่งขัน สร้างด้วย React, TypeScript, Vite และ React Router
 
 แนวทางออกแบบหลักของโปรเจกต์: [design.md](design.md) — อ่านก่อนสร้างหรือแก้ UI เพื่อให้สี ตัวอักษร components และพฤติกรรมสอดคล้องกันทุกหน้า

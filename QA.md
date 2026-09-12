@@ -141,3 +141,8 @@ build ด้วย `BASE_PATH=/championway/` แล้วเสิร์ฟ `dis
 - ไฟล์แนบยังไม่ถูกอัปโหลด บันทึกเป็นชื่อไฟล์ไว้ก่อน
 - ยังไม่มีหน้าให้ผู้จัดกรอกใบลงงานแข่ง ต้องยิง API ตรง
 - GitHub Pages ใช้ไม่ได้แล้วเพราะรัน API ไม่ได้ workflow ถูกเปลี่ยนเป็นสั่งรันมือ
+## การแยกฐาน dev/test — 13 กันยายน 2569
+
+`npm.cmd run test:safety` ผ่าน 5/5 กรณี: ยอมรับฐานแยก, ปฏิเสธค่าที่ขาด, ปฏิเสธ production/Vercel, เทียบ Neon pooled/direct endpoint และไม่แสดง credential ในข้อความ URL ผิดรูปแบบ `npm.cmd run build` ผ่าน
+
+ตรวจ `npm.cmd test` ด้วย environment ปัจจุบันแล้วหยุดก่อนเชื่อมต่อฐานเพราะไม่มี TEST_DATABASE_URL ตามที่ออกแบบ จึงยังไม่ได้รัน browser suite กับฐาน test จริง ไม่ได้ migrate/seed ฐานที่มีอยู่ และยังไม่ได้ยืนยัน Preview deployment ดูขั้นตอนใน [environments.md](environments.md)

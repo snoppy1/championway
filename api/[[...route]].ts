@@ -1,3 +1,4 @@
+import { Hono } from 'hono';
 import { handle } from 'hono/vercel';
 
 /* ทางเข้าเดียวของ API บน Vercel ทุกคำขอที่ขึ้นต้นด้วย /api เข้ามาที่นี่
@@ -9,26 +10,27 @@ import { handle } from 'hono/vercel';
    ต้องใช้ Node runtime ไม่ใช่ Edge เพราะไดรเวอร์ Postgres ต่อผ่าน TCP */
 export const config = { runtime: 'nodejs' };
 
-/* โหลดแอปตอนมีคำขอเข้ามา ไม่ใช่ตอน import เพื่อให้ดักความผิดพลาดตอนบูตได้
-   ถ้าโหลดไม่ขึ้นแล้วปล่อยให้โยนออกไป โฮสต์จะตอบแค่ FUNCTION_INVOCATION_FAILED
-   ซึ่งไม่บอกอะไรเลยว่าพังเพราะอะไร */
-let handler: ((request: Request) => Response | Promise<Response>) | null = null;
+/* ต้อง export ผลของ handle() ตรง ๆ เท่านั้น ถ้าห่อด้วยฟังก์ชันของตัวเอง
+   Vercel จะแยกไม่ออกว่าเป็น handler แบบ Web แล้วคำขอจะค้างจนหมดเวลา
+   จึงใช้ Hono อีกชั้นเป็นตัวโหลดแอปจริงตอนมีคำขอเข้ามาแทน */
+const entry = new Hono();
 
 /** ตัดชื่อผู้ใช้และรหัสผ่านออกจากข้อความ เผื่อ error พ่วง connection string มาด้วย */
 function redact(message: string) {
   return message.replace(/\/\/[^@\s/]*:[^@\s/]*@/g, '//***:***@').slice(0, 500);
 }
 
-export default async function route(request: Request) {
+entry.all('*', async (c) => {
   try {
-    if (!handler) {
-      const { app } = await import('../server/app');
-      handler = handle(app);
-    }
-    return await handler(request);
+    // โหลดตอนมีคำขอ ไม่ใช่ตอน import เพื่อให้ดักความผิดพลาดตอนบูตได้
+    // ไม่อย่างนั้นโฮสต์จะตอบแค่ FUNCTION_INVOCATION_FAILED ซึ่งไม่บอกอะไรเลย
+    const { app } = await import('../server/app');
+    return await app.fetch(c.req.raw);
   } catch (error) {
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     console.error('[api] boot failed', error);
-    return Response.json({ error: 'เซิร์ฟเวอร์เริ่มทำงานไม่สำเร็จ', detail: redact(message) }, { status: 500 });
+    return c.json({ error: 'เซิร์ฟเวอร์เริ่มทำงานไม่สำเร็จ', detail: redact(message) }, 500);
   }
-}
+});
+
+export default handle(entry);

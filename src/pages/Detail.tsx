@@ -1,40 +1,143 @@
 import { useEffect } from 'react';
-import { ArrowLeft, ArrowUpRight, Check, GraduationCap, Layers3, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Calendar, Check, GraduationCap, Layers3, Trophy, Users } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { categoryInfo, competitions, levelLabels } from '../data/competitions';
-import { Poster } from '../components/Poster';
-import { SampleNote } from '../components/Layout';
+import {
+  categoryLabel, competitions, findCompetition, formatDeadline, levelLabels,
+} from '../data/competitions';
+import { CoverArt } from '../components/CoverArt';
 
 export function NotFound() {
   useEffect(() => { document.title = 'ไม่พบหน้า — ChampionWays'; }, []);
-  return <main id="main" tabIndex={-1} className="container not-found"><span className="eyebrow">404 / A NEW DIRECTION</span><h1>ยังไม่พบเวทีนี้</h1><p>ลิงก์นี้อาจไม่ถูกต้อง ลองกลับไปเลือกเวทีที่สนใจจากหน้าสำรวจ</p><Link className="primary-button" to="/competitions"><ArrowLeft size={18} aria-hidden="true" />กลับไปสำรวจการแข่งขัน</Link><SampleNote /></main>;
+  return <main id="main" tabIndex={-1} className="shell page">
+    <p className="eyebrow">404</p>
+    <h1>ยังไม่พบเวทีนี้</h1>
+    <p style={{ margin: '10px 0 22px', color: 'var(--muted)' }}>ลิงก์นี้อาจไม่ถูกต้อง ลองกลับไปเลือกเวทีที่สนใจจากหน้าแรก</p>
+    <Link className="primary-button" to="/"><ArrowLeft size={17} aria-hidden="true" />กลับไปสำรวจการแข่งขัน</Link>
+  </main>;
 }
 
 export function Detail() {
   const { slug } = useParams();
   const { search } = useLocation();
-  const competition = competitions.find((item) => item.slug === slug);
-  useEffect(() => { if (competition) document.title = `${competition.name} — ChampionWays`; }, [competition]);
-  if (!competition) return <NotFound />;
-  const category = categoryInfo(competition.category);
-  const related = competitions.filter((item) => item.category === competition.category && item.id !== competition.id).slice(0, 2);
+  const competition = findCompetition(slug);
 
-  return <main id="main" tabIndex={-1} className="container detail-page">
-    <div className="detail-breadcrumb"><Link to={`/competitions${search}`}><ArrowLeft size={17} aria-hidden="true" />กลับไปหน้าสำรวจ</Link><span className="detail-breadcrumb-category">สำรวจการแข่งขัน <span>/</span> {category.label}</span></div>
+  useEffect(() => {
+    if (competition) document.title = `${competition.name} — ChampionWays`;
+  }, [competition]);
+
+  if (!competition) return <NotFound />;
+
+  const related = competitions
+    .filter((item) => item.category === competition.category && item.slug !== competition.slug)
+    .slice(0, 2);
+
+  return <main id="main" tabIndex={-1} className="shell page detail-page">
+    <div className="detail-breadcrumb">
+      <Link to={`/${search}`}><ArrowLeft size={16} aria-hidden="true" />กลับไปหน้าแรก</Link>
+      <span>สำรวจการแข่งขัน / {categoryLabel(competition.category)}</span>
+    </div>
+
     <section className="detail-hero" aria-labelledby="competition-title">
-      <div className="detail-hero-copy"><div className="eyebrow"><span className="eyebrow-line" />{category.english} / {competition.id.slice(-2)}</div><h1 id="competition-title">{competition.name}</h1><p>{competition.description}</p><SampleNote /></div>
-      <div className="detail-hero-poster"><Poster competition={competition} /></div>
+      <div>
+        <span className="category-pill">{categoryLabel(competition.category)}</span>
+        <h1 id="competition-title">{competition.name}</h1>
+        <p>{competition.description}</p>
+      </div>
+      <div className="detail-cover"><CoverArt category={competition.category} seed={`detail-${competition.slug}`} /></div>
     </section>
-    <div className="detail-content">
-      <aside className="detail-sidebar" aria-labelledby="at-a-glance"><div className="summary-panel"><span className="eyebrow">AT A GLANCE</span><h2 id="at-a-glance">รู้จักเวทีนี้ในหนึ่งนาที</h2><dl><div><dt><Layers3 size={17} aria-hidden="true" />หมวดการแข่งขัน</dt><dd>{category.label}</dd></div><div><dt><GraduationCap size={18} aria-hidden="true" />ระดับผู้สมัคร</dt><dd>{competition.levels.map((level) => levelLabels[level]).join(' / ')}</dd></div><div><dt><Users size={17} aria-hidden="true" />รูปแบบทีม</dt><dd>{competition.team}</dd></div></dl><div className="summary-footnote">เริ่มจากทำความเข้าใจโจทย์<br />แล้วค่อยค้นหาทางที่เป็นของคุณ<ArrowUpRight size={23} aria-hidden="true" /></div></div><p className="detail-data-note">รายละเอียดและเงื่อนไขในหน้านี้เป็นข้อมูลสมมติ เพื่อทดลองใช้งานเว็บต้นแบบ</p></aside>
+
+    <div className="detail-grid">
+      <aside className="detail-side" aria-labelledby="at-a-glance">
+        <div className="summary-panel">
+          <h2 id="at-a-glance">รู้จักเวทีนี้ในหนึ่งนาที</h2>
+          <dl>
+            <div>
+              <dt><Calendar size={16} aria-hidden="true" />ปิดรับสมัคร</dt>
+              <dd>{formatDeadline(competition)} · อีก {competition.dueInDays} วัน</dd>
+            </div>
+            <div>
+              <dt><Trophy size={16} aria-hidden="true" />รางวัล</dt>
+              <dd>{competition.prize}</dd>
+            </div>
+            <div>
+              <dt><Building2 size={16} aria-hidden="true" />ผู้จัด</dt>
+              <dd>{competition.org}</dd>
+            </div>
+            <div>
+              <dt><Layers3 size={16} aria-hidden="true" />หมวดการแข่งขัน</dt>
+              <dd>{categoryLabel(competition.category)}</dd>
+            </div>
+            <div>
+              <dt><GraduationCap size={16} aria-hidden="true" />ระดับผู้สมัคร</dt>
+              <dd>{competition.levels.map((level) => levelLabels[level]).join(' / ')}</dd>
+            </div>
+            <div>
+              <dt><Users size={16} aria-hidden="true" />รูปแบบทีม</dt>
+              <dd>{competition.team}</dd>
+            </div>
+          </dl>
+        </div>
+        <p className="side-note">รายละเอียดและเงื่อนไขในหน้านี้เป็นข้อมูลสมมติ เพื่อทดลองใช้งานเว็บต้นแบบ</p>
+        <p style={{ marginTop: 14 }}>
+          <Link className="ghost-button" to={`/mentors?competition=${competition.slug}`}>หาเมนเทอร์สำหรับเวทีนี้</Link>
+        </p>
+      </aside>
+
       <div className="detail-article">
-        <section className="article-section"><span className="section-number">01</span><div><h2>เวทีนี้เกี่ยวกับอะไร</h2><p>{competition.overview}</p></div></section>
-        <section className="article-section"><span className="section-number">02</span><div><h2>เหมาะกับใคร</h2><p>{competition.audience}</p></div></section>
-        <section className="article-section"><span className="section-number">03</span><div><h2>รูปแบบการแข่งขัน</h2><ol className="step-list">{competition.format.map((step, index) => <li key={step}><span>{index + 1}</span><p>{step}</p></li>)}</ol></div></section>
-        <section className="article-section"><span className="section-number">04</span><div><h2>สิ่งที่ต้องส่ง</h2><ul className="check-list">{competition.deliverables.map((item) => <li key={item}><Check size={17} aria-hidden="true" /><span>{item}</span></li>)}</ul></div></section>
-        <section className="article-section preparation-section"><span className="section-number">05</span><div><h2>ทักษะและสิ่งที่ควรเตรียม</h2><ul className="preparation-list">{competition.preparation.map((item) => <li key={item}>{item}</li>)}</ul></div></section>
+        <section className="article-section">
+          <span className="section-number" aria-hidden="true">01</span>
+          <div><h2>เวทีนี้เกี่ยวกับอะไร</h2><p>{competition.overview}</p></div>
+        </section>
+        <section className="article-section">
+          <span className="section-number" aria-hidden="true">02</span>
+          <div><h2>เหมาะกับใคร</h2><p>{competition.audience}</p></div>
+        </section>
+        <section className="article-section">
+          <span className="section-number" aria-hidden="true">03</span>
+          <div>
+            <h2>รูปแบบการแข่งขัน</h2>
+            <ol className="step-list">
+              {competition.format.map((step, index) => <li key={step}><span>{index + 1}</span><p>{step}</p></li>)}
+            </ol>
+          </div>
+        </section>
+        <section className="article-section">
+          <span className="section-number" aria-hidden="true">04</span>
+          <div>
+            <h2>สิ่งที่ต้องส่ง</h2>
+            <ul className="check-list">
+              {competition.deliverables.map((item) => <li key={item}><Check size={16} aria-hidden="true" /><span>{item}</span></li>)}
+            </ul>
+          </div>
+        </section>
+        <section className="article-section">
+          <span className="section-number" aria-hidden="true">05</span>
+          <div>
+            <h2>ทักษะและสิ่งที่ควรเตรียม</h2>
+            <ul className="prep-list">
+              {competition.preparation.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        </section>
       </div>
     </div>
-    <section className="related-section" aria-labelledby="related-title"><div className="related-header"><div><span className="eyebrow">KEEP EXPLORING</span><h2 id="related-title">อีกเส้นทางในความสนใจเดียวกัน</h2></div><Link className="text-link" to={`/competitions?category=${competition.category}`}>ดูหมวด{category.label}ทั้งหมด<ArrowUpRight size={17} aria-hidden="true" /></Link></div><div className="related-list">{related.map((item) => <Link className="related-item" key={item.id} to={`/competitions/${item.slug}${search}`}><Poster competition={item} /><div><span className="category-label">{category.label}</span><h3>{item.name}</h3><span className="related-action">ดูรายละเอียด<ArrowUpRight size={17} aria-hidden="true" /></span></div></Link>)}</div></section>
+
+    {related.length > 0 && <section className="related-section" aria-labelledby="related-title">
+      <div className="section-head">
+        <h2 id="related-title">อีกเส้นทางในความสนใจเดียวกัน</h2>
+        <Link className="detail-link" to={`/?category=${competition.category}`}>
+          ดูหมวด{categoryLabel(competition.category)}ทั้งหมด<ArrowRight size={16} aria-hidden="true" />
+        </Link>
+      </div>
+      <div className="related-grid">
+        {related.map((item) => <Link className="related-item" key={item.slug} to={`/competitions/${item.slug}${search}`}>
+          <span className="related-thumb"><CoverArt category={item.category} seed={`related-${item.slug}`} /></span>
+          <div>
+            <span className="card-org">{item.org}</span>
+            <h3>{item.name}</h3>
+          </div>
+        </Link>)}
+      </div>
+    </section>}
   </main>;
 }

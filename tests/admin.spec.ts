@@ -44,13 +44,17 @@ test('a reviewer sees the queue counts and can walk into both queues', async ({ 
 
 test('the queue filters by status', async ({ page }) => {
   await signIn(page, reviewer, '/admin/competitions');
-  // ถามจำนวนจาก API ตอนรันจริง เพราะเทสอื่นเปลี่ยนสถานะใบได้
-  const response = await page.request.get('/api/admin/competition-submissions?status=pending');
-  const { items } = await response.json() as { items: unknown[] };
-
   await page.getByRole('button', { name: 'รอตรวจ', exact: true }).click();
-  await expect(page.locator('.queue-row')).toHaveCount(items.length);
-  await expect(page.getByRole('status')).toContainText(`${items.length} ใบ`);
+
+  /* ตรวจว่าหน้าจอสอดคล้องกับตัวเอง ไม่เทียบกับคำขอ API แยกอีกอัน
+     เพราะเทสอื่นเปลี่ยนสถานะใบอยู่พร้อมกัน ตัวเลขจากสองแหล่งจึงไม่ตรงกันได้ */
+  await expect(page.getByRole('status')).toHaveText(/^\d+ ใบ$/);
+  const shown = Number((await page.getByRole('status').innerText()).replace(/\D/g, ''));
+  await expect(page.locator('.queue-row')).toHaveCount(shown);
+
+  // ทุกแถวที่กรองแล้วต้องเป็นสถานะที่เลือกจริง ๆ
+  const pills = await page.locator('.queue-row .status-pill').allInnerTexts();
+  expect(pills.every((text) => text === 'รอตรวจ'), pills.join(',')).toBe(true);
 });
 
 test('the mentor review separates public data from data kept for checking only', async ({ page }) => {

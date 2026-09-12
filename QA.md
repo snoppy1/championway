@@ -24,6 +24,23 @@
 | Tablet | [ภาพ](artifacts/explore-tablet.png) | [ภาพ](artifacts/detail-tablet.png) |
 | Mobile | [ภาพ](artifacts/explore-mobile.png) | [ภาพ](artifacts/detail-mobile.png) |
 
+## ตรวจการ build สำหรับ GitHub Pages
+
+ตรวจวันที่ 12 กันยายน 2026 หลังเพิ่มการ deploy
+
+build ด้วย `BASE_PATH=/championway/` แล้วเสิร์ฟ `dist/` ด้วยเซิร์ฟเวอร์จำลองที่ทำตัวแบบ GitHub Pages คือคืน `404.html` พร้อม status 404 เมื่อไม่พบไฟล์ จากนั้นตรวจด้วย Microsoft Edge ผ่านทุกข้อ
+
+- เปิด URL หน้ารายละเอียดตรง ๆ แล้วได้เวทีที่ถูกต้อง ไม่ใช่หน้าว่าง
+- หน้าสำรวจแสดงครบ 10 รายการ
+- `/championway/` เปลี่ยนไป `/championway/competitions`
+- slug ที่ไม่มีอยู่แสดงหน้า 404 ของเว็บ
+- กดลิงก์ในเว็บแล้ว URL ยังคง prefix `/championway` ไว้
+- favicon และ asset ทุกไฟล์โหลดได้ ไม่มี JavaScript error และไม่มี request ที่ล้มเหลว
+
+`npm.cmd test` ยังผ่าน 21/21 หลังแก้ เพราะ dev server ไม่ได้ตั้ง `BASE_PATH` จึงอยู่ที่ `/` เหมือนเดิม
+
 ## ขอบเขตผลตรวจ
 
-ข้อมูลทุกเวทีเป็นสมมติ ไม่มี backend หรือการสมัครจริง การตรวจอัตโนมัติไม่ได้ทดแทนการทดสอบกับผู้ใช้และ screen reader จริง ยังไม่ได้ทดสอบ Safari/Firefox หรือเผยแพร่บนโฮสต์
+ข้อมูลทุกเวทีเป็นสมมติ ไม่มี backend หรือการสมัครจริง การตรวจอัตโนมัติไม่ได้ทดแทนการทดสอบกับผู้ใช้และ screen reader จริง ยังไม่ได้ทดสอบ Safari/Firefox
+
+การตรวจ subpath ข้างต้นใช้เซิร์ฟเวอร์จำลอง ไม่ใช่ GitHub Pages จริง และยังไม่ได้ deploy จึงยังไม่ได้ยืนยันพฤติกรรมบนโฮสต์จริง

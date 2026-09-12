@@ -37,6 +37,8 @@ Playwright ใช้ Microsoft Edge ที่ติดตั้งในเค�
 - `src/pages/` — หน้าสำรวจ รายละเอียด และกรณีไม่พบหน้า
 - `src/components/` — โครงหน้า โลโก้ ป้ายข้อมูลตัวอย่าง และภาพปก SVG
 - `src/styles.css` — ระบบสี ตัวอักษร องค์ประกอบ และ responsive layout
+- `scripts/spa-fallback.mjs` — สร้าง `404.html` ให้ GitHub Pages เปิด URL ตรงได้
+- `.github/workflows/deploy.yml` — build และ deploy ขึ้น GitHub Pages
 
 ฟอนต์ IBM Plex Sans และ IBM Plex Sans Thai นำเข้าจากแพ็กเกจ Fontsource และถูกเก็บเป็นไฟล์ใน build ไม่เรียก Google Fonts หรือ CDN ขณะใช้งาน ดูใบอนุญาตฟอนต์ที่ `THIRD_PARTY_NOTICES.md`
 
@@ -51,4 +53,24 @@ Playwright ใช้ Microsoft Edge ที่ติดตั้งในเค�
 
 ข้อมูลเป็น static fixtures จึงไม่มีการหน่วง loading จำลอง ไม่มี API, auth, payment, booking หรือการสมัครแข่งขัน ข้อมูลและเงื่อนไขทุกเวทีเป็นเรื่องสมมติ ไม่ใช่ประกาศเปิดรับสมัครจริง
 
-หากนำขึ้นโฮสต์ภายหลัง ต้องตั้ง SPA fallback ให้ทุกเส้นทางที่ไม่ใช่ไฟล์ส่ง `index.html` เพื่อเปิดหน้ารายละเอียดจาก URL ตรงได้ รอบนี้ยังไม่มีการ deploy
+## Deploy
+
+เว็บ deploy ขึ้น GitHub Pages อัตโนมัติด้วย `.github/workflows/deploy.yml` ทุกครั้งที่ push ขึ้น `main` หรือสั่ง Run workflow เอง เผยแพร่ที่
+
+https://snoppy1.github.io/championway/
+
+ตั้งค่าครั้งเดียวก่อนใช้งาน: ที่ repo ไปที่ Settings → Pages → Source แล้วเลือก **GitHub Actions**
+
+เพราะเว็บอยู่ใต้ subpath ไม่ใช่ root การ build จึงอ่าน `base` จากตัวแปรแวดล้อม `BASE_PATH` โดย workflow ตั้งเป็น `/championway/` ส่วน dev preview และ build ในเครื่องไม่ตั้งค่านี้จึงยังอยู่ที่ `/` ตามเดิม `src/main.tsx` ส่งค่าเดียวกันต่อให้ React Router เป็น `basename`
+
+ทดลอง build แบบเดียวกับ production ได้ด้วย
+
+```powershell
+$env:BASE_PATH = '/championway/'; npm.cmd run build; npm.cmd run preview
+```
+
+แล้วเปิด http://127.0.0.1:4173/championway/competitions และสั่ง `Remove-Item Env:BASE_PATH` เมื่อเลิกใช้
+
+GitHub Pages ตั้ง SPA fallback ไม่ได้ ขั้นตอน build จึงคัดลอก `index.html` เป็น `404.html` ด้วย `scripts/spa-fallback.mjs` ทำให้เปิด URL หน้ารายละเอียดตรง ๆ ได้ ข้อแลกเปลี่ยนคือคำขอเหล่านั้นได้ HTTP status 404 แม้หน้าจะแสดงถูกต้อง ซึ่งเป็นข้อจำกัดของ Pages เอง
+
+workflow ไม่รัน Playwright เพราะ `playwright.config.ts` ระบุ `channel: 'msedge'` ซึ่งไม่มีบน ubuntu runner การทดสอบจึงยังรันในเครื่อง

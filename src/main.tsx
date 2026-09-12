@@ -14,6 +14,9 @@ import { Explore } from './pages/Explore';
 import { Detail, NotFound } from './pages/Detail';
 import './styles.css';
 
+// Vite's BASE_URL keeps its trailing slash; React Router wants it without one.
+const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/';
+
 const router = createBrowserRouter([{
   element: <Layout />,
   children: [
@@ -22,6 +25,6 @@ const router = createBrowserRouter([{
     { path: '/competitions/:slug', element: <Detail /> },
     { path: '*', element: <NotFound /> },
   ],
-}]);
+}], { basename });
 
 createRoot(document.getElementById('root')!).render(<StrictMode><RouterProvider router={router} /></StrictMode>);

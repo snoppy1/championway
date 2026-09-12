@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { configProblems } from './lib/env';
 import type { AppEnv } from './lib/guards';
 import { withUser } from './lib/guards';
 import { auth } from './routes/auth';
@@ -7,6 +8,19 @@ import { admin } from './routes/admin';
 import { publicApi } from './routes/public';
 
 export const app = new Hono<AppEnv>().basePath('/api');
+
+/* ตั้งค่าไม่ครบต้องตอบว่าตัวแปรไหนผิด ไม่ใช่ปล่อยให้ฟังก์ชันพังเป็น 500 เปล่า ๆ
+   ซึ่งบนโฮสต์แบบ serverless จะตามหาสาเหตุแทบไม่ได้เลย
+   ตอบเฉพาะ "ชื่อ" ตัวแปรและสิ่งที่ผิด ไม่เคยตอบค่าที่ตั้งไว้ */
+app.use('*', async (c, next) => {
+  if (configProblems.length) {
+    return c.json({
+      error: 'เซิร์ฟเวอร์ยังตั้งค่าไม่ครบ จึงยังทำงานไม่ได้',
+      problems: configProblems,
+    }, 503);
+  }
+  await next();
+});
 
 app.use('*', withUser);
 

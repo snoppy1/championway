@@ -7,25 +7,50 @@ import { testDatabase } from './database-safety';
 const envFile = resolve(process.cwd(), '.env.local');
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
+/* ตั้งค่าผิดต้องรู้ทันทีและรู้ว่าผิดตรงไหน เดิมโยน error ตั้งแต่ตอน import
+   ซึ่งบนโฮสต์แบบ serverless จะกลายเป็น 500 เปล่า ๆ ที่ไม่บอกอะไรเลย
+   ตอนนี้เก็บปัญหาไว้เป็นรายการแทน แล้วให้ app.ts ตอบกลับว่าค่าไหนผิด
+   ส่วนตอนรันในเครื่อง index.ts ยังหยุดทันทีเหมือนเดิม
+   ข้อความบอกแค่ "ชื่อ" ตัวแปร ไม่เคยบอกค่า */
+
+export const configProblems: string[] = [];
+
 function required(name: string) {
   const value = process.env[name];
-  if (!value) throw new Error(`ยังไม่ได้ตั้งค่า ${name} ให้ใส่ไว้ใน .env.local ก่อน`);
-  return value;
+  if (!value) configProblems.push(`ยังไม่ได้ตั้งค่า ${name}`);
+  return value ?? '';
 }
 
-const appOrigin = process.env.APP_ORIGIN ?? 'http://127.0.0.1:5173';
-const originUrl = new URL(appOrigin);
-if (!['http:', 'https:'].includes(originUrl.protocol) || originUrl.username || originUrl.password || originUrl.pathname !== '/' || originUrl.search || originUrl.hash) throw new Error('APP_ORIGIN must be an HTTP(S) origin without a path.');
-if (process.env.VERCEL && (!process.env.APP_ORIGIN || originUrl.protocol !== 'https:')) throw new Error('Set APP_ORIGIN to the HTTPS URL of this Vercel environment.');
+const rawOrigin = process.env.APP_ORIGIN ?? 'http://127.0.0.1:5173';
+let originUrl: URL | null = null;
+try {
+  originUrl = new URL(rawOrigin);
+} catch {
+  configProblems.push('APP_ORIGIN ไม่ใช่ URL ที่ถูกต้อง ต้องขึ้นต้นด้วย https:// หรือ http://');
+}
+if (originUrl) {
+  if (!['http:', 'https:'].includes(originUrl.protocol) || originUrl.username || originUrl.password
+    || originUrl.pathname !== '/' || originUrl.search || originUrl.hash) {
+    configProblems.push('APP_ORIGIN ต้องเป็นที่อยู่เว็บล้วน ๆ ห้ามมี path, query หรือ hash ต่อท้าย');
+  }
+  if (process.env.VERCEL && (!process.env.APP_ORIGIN || originUrl.protocol !== 'https:')) {
+    configProblems.push('บน Vercel ต้องตั้ง APP_ORIGIN เป็น URL แบบ https ของสภาพแวดล้อมนั้น');
+  }
+}
+
+function databaseUrl() {
+  if (process.env.APP_ENV === 'test') return testDatabase(process.env);
+  return required('DATABASE_URL');
+}
 
 export const env = {
-  databaseUrl: process.env.APP_ENV === 'test' ? testDatabase(process.env) : required('DATABASE_URL'),
+  databaseUrl: databaseUrl(),
   port: Number(process.env.PORT ?? 8787),
   isProduction: process.env.NODE_ENV === 'production',
   /** ที่เก็บไฟล์ตอนนี้เป็นโฟลเดอร์ในเครื่อง ย้ายไป S3 ได้โดยเปลี่ยนแค่ adapter */
   uploadDir: process.env.UPLOAD_DIR ?? resolve(process.cwd(), 'server/uploads'),
   /** ที่อยู่ของหน้าเว็บ ใช้ประกอบ redirect URI ของ Google และกันการ redirect ออกนอกเว็บ */
-  appOrigin: originUrl.origin,
+  appOrigin: originUrl?.origin ?? rawOrigin,
   /** ว่างได้ ถ้ายังไม่ตั้งค่า ปุ่มเข้าสู่ระบบด้วย Google จะไม่ขึ้นแทนที่จะขึ้นแล้วพัง */
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',

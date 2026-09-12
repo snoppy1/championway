@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { competitions } from '../src/data/competitions';
+import { competitions, daysLeft } from '../src/data/competitions';
 import { problems } from '../src/data/mentors';
 
 const PER_PAGE = 6;
@@ -23,7 +23,7 @@ test('home shows the first page of competitions and paginates', async ({ page })
   await expect(page.getByRole('button', { name: 'หน้าถัดไป' })).toBeDisabled();
 });
 
-test('search, category and closing-soon filters all live in the URL', async ({ page }) => {
+test('search, category and timing filters all live in the URL', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('searchbox', { name: 'ค้นหาการแข่งขัน' }).fill('  หุ่นยนต์  ');
   await page.getByRole('button', { name: 'ค้นหา', exact: true }).click();
@@ -31,15 +31,21 @@ test('search, category and closing-soon filters all live in the URL', async ({ p
   await expect(page.locator('.competition-card')).toHaveCount(1);
   await expect(page.locator('.competition-card h3')).toHaveText('Robotics Frontier League');
 
+  // `category` is the old name for `cat`, so links shared before the rename still open.
   await page.goto('/?category=design');
-  const designCount = competitions.filter((item) => item.category === 'design').length;
+  const designCount = competitions.filter((item) => item.categories.includes('design')).length;
   await expect(page.locator('.competition-card')).toHaveCount(designCount);
-  await expect(page.getByRole('button', { name: 'ออกแบบ', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'ศิลปะและออกแบบ', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
   await page.goto('/');
   await page.getByRole('button', { name: 'ตัวกรอง' }).click();
-  await expect(page).toHaveURL(/soon=1/);
-  const soonCount = competitions.filter((item) => item.dueInDays <= 14).length;
+  // click, not check: check() reads the state before the router flushes the new URL.
+  const timing = page.getByRole('radio', { name: 'ปิดรับใน 30 วัน' });
+  await timing.click();
+  await expect(timing).toBeChecked();
+  await page.getByRole('button', { name: /ดูผลลัพธ์/ }).click();
+  await expect(page).toHaveURL(/when=d30/);
+  const soonCount = competitions.filter((item) => daysLeft(item) >= 0 && daysLeft(item) <= 30).length;
   await expect(page.getByRole('status').first()).toContainText(`${soonCount} เวที`);
 });
 
@@ -85,7 +91,7 @@ test('every competition opens from a direct URL with all five sections', async (
     for (const heading of ['เวทีนี้เกี่ยวกับอะไร', 'เหมาะกับใคร', 'รูปแบบการแข่งขัน', 'สิ่งที่ต้องส่ง', 'ทักษะและสิ่งที่ควรเตรียม']) {
       await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
     }
-    await expect(page.locator('.check-list li')).toHaveCount(competition.deliverables.length);
+    await expect(page.locator('.check-list li')).toHaveCount(competition.deliverables!.length);
   }
 });
 
@@ -101,7 +107,7 @@ test('returning from a detail page keeps the search, filter and scroll position'
   await page.getByRole('link', { name: 'กลับไปหน้าแรก' }).click();
 
   await expect(page).toHaveURL(/category=business/);
-  await expect(page.getByRole('button', { name: 'ธุรกิจ', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'ธุรกิจและผู้ประกอบการ', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before - 50);
 });
 
@@ -199,4 +205,45 @@ test('visual QA: local fonts, no overflow, accessibility, screenshots', async ({
   expect(remoteFonts).toEqual([]);
 
   expect(errors).toEqual([]);
+});
+
+test('filter groups are OR inside and AND across, and read back from the URL', async ({ page }) => {
+  const camps = competitions.filter((item) => item.type === 'camp' || item.type === 'scholarship');
+  const inBangkok = camps.filter((item) => item.region === 'bangkok');
+  expect(camps.length, 'fixtures must exercise both sides of the OR').toBeGreaterThan(inBangkok.length);
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'ตัวกรอง' }).click();
+  await page.getByRole('checkbox', { name: 'ค่าย' }).click();
+  await page.getByRole('checkbox', { name: 'ทุน' }).click();
+  await expect(page.getByRole('button', { name: `ดูผลลัพธ์ ${camps.length} รายการ` })).toBeVisible();
+
+  await page.getByRole('checkbox', { name: 'กรุงเทพฯ และปริมณฑล' }).click();
+  await page.getByRole('button', { name: /ดูผลลัพธ์/ }).click();
+  await expect(page).toHaveURL(/type=camp%2Cscholarship/);
+  await expect(page).toHaveURL(/region=bangkok/);
+  await expect(page.locator('.competition-card')).toHaveCount(inBangkok.length);
+
+  // A shared link has to open with the same filters already applied.
+  await page.reload();
+  await expect(page.locator('.competition-card')).toHaveCount(inBangkok.length);
+  await expect(page.getByRole('button', { name: 'ตัวกรอง' })).toContainText('3');
+  await page.getByRole('button', { name: 'ตัวกรอง' }).click();
+  await expect(page.getByRole('checkbox', { name: 'ค่าย' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'กรุงเทพฯ และปริมณฑล' })).toBeChecked();
+});
+
+test('clearing the panel keeps the chosen category and search, and the panel passes axe', async ({ page }) => {
+  await page.goto('/?q=ออกแบบ&cat=design&free=1&level=university');
+  await page.getByRole('button', { name: 'ตัวกรอง' }).click();
+
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations, 'filter panel accessibility violations').toEqual([]);
+
+  await page.getByRole('button', { name: 'ล้างทั้งหมด' }).click();
+  await expect(page).not.toHaveURL(/free=1/);
+  await expect(page).not.toHaveURL(/level=/);
+  await expect(page).toHaveURL(/cat=design/);
+  await expect(page).toHaveURL(/q=/);
+  await expect(page.getByRole('searchbox', { name: 'ค้นหาการแข่งขัน' })).toHaveValue('ออกแบบ');
 });

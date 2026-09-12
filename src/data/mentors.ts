@@ -135,7 +135,7 @@ export type Tier = 1 | 2 | 3 | null;
 export function mentorTier(mentor: Mentor, competitionSlug: string, problem: number): Tier {
   const competition = findCompetition(competitionSlug);
   if (mentor.verified && mentor.wonSlug === competitionSlug) return 1;
-  if (mentor.verified && competition && mentor.category === competition.category) return 2;
+  if (mentor.verified && competition && mentor.category && competition.categories.includes(mentor.category)) return 2;
   if (mentor.topics.some((topic) => problemTopics[problem].includes(topic))) return 3;
   return null;
 }

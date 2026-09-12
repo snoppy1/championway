@@ -1,43 +1,112 @@
+/* หมวดหมู่ ประเภทโอกาส ภูมิภาค และรางวัล ใช้ชุดเดียวกับเว็บรวมงานแข่งไทยที่ผู้จัดคุ้นเคย
+   อยู่แล้ว รายละเอียดการตัดสินใจอยู่ใน competition-model.md */
+
 export const categories = [
   { id: 'all', label: 'ทั้งหมด' },
-  { id: 'business', label: 'ธุรกิจ' },
-  { id: 'technology', label: 'เทคโนโลยี' },
-  { id: 'innovation', label: 'นวัตกรรม' },
-  { id: 'design', label: 'ออกแบบ' },
+  { id: 'writing', label: 'เขียนและเรียงความ' },
+  { id: 'performing', label: 'ดนตรีและการแสดง' },
+  { id: 'film', label: 'ภาพยนตร์และภาพถ่าย' },
+  { id: 'education', label: 'การศึกษาและการสอน' },
+  { id: 'academic', label: 'วิจัยและวิชาการ' },
+  { id: 'marketing', label: 'การตลาดและโฆษณา' },
+  { id: 'technology', label: 'เทคโนโลยีและนวัตกรรม' },
+  { id: 'design', label: 'ศิลปะและออกแบบ' },
+  { id: 'health', label: 'สุขภาพและสุขภาวะ' },
+  { id: 'society', label: 'สังคมและไลฟ์สไตล์' },
+  { id: 'environment', label: 'เกษตรและสิ่งแวดล้อม' },
+  { id: 'food', label: 'อาหารและเครื่องดื่ม' },
+  { id: 'business', label: 'ธุรกิจและผู้ประกอบการ' },
 ] as const;
 
 export type CategoryId = Exclude<(typeof categories)[number]['id'], 'all'>;
-export type Level = 'secondary' | 'university';
-export const levelLabels: Record<Level, string> = { secondary: 'มัธยมศึกษา', university: 'อุดมศึกษา' };
+export const categoryIds = categories.filter((item) => item.id !== 'all').map((item) => item.id) as CategoryId[];
+
+export type Level = 'primary' | 'secondary' | 'university' | 'open';
+export const levelLabels: Record<Level, string> = {
+  primary: 'ประถมศึกษา', secondary: 'มัธยมศึกษา', university: 'อุดมศึกษา', open: 'เปิดทุกระดับ',
+};
+
+export type OpportunityType = 'contest' | 'camp' | 'workshop' | 'scholarship' | 'internship';
+export const typeLabels: Record<OpportunityType, string> = {
+  contest: 'การแข่งขัน', camp: 'ค่าย', workshop: 'เวิร์กชอป', scholarship: 'ทุน', internship: 'ฝึกงาน',
+};
+
+export type Region = 'online' | 'bangkok' | 'central' | 'north' | 'northeast' | 'east' | 'south';
+export const regionLabels: Record<Region, string> = {
+  online: 'ออนไลน์', bangkok: 'กรุงเทพฯ และปริมณฑล', central: 'ภาคกลาง', north: 'ภาคเหนือ',
+  northeast: 'ภาคอีสาน', east: 'ภาคตะวันออก', south: 'ภาคใต้',
+};
+
+export type Reward = 'certificate' | 'trophy' | 'publish' | 'internship' | 'partnership';
+export const rewardLabels: Record<Reward, string> = {
+  certificate: 'เกียรติบัตร', trophy: 'ถ้วยหรือเหรียญ', publish: 'ได้เผยแพร่ผลงาน',
+  internship: 'ฝึกงาน', partnership: 'ร่วมงานกับบริษัท',
+};
+
+export type Source = 'editorial' | 'organiser' | 'partner';
+export const sourceLabels: Record<Source, string> = {
+  editorial: 'ทีมงานคัดมาจากประกาศต้นทาง', organiser: 'ผู้จัดงานส่งข้อมูลเอง', partner: 'ได้รับจากพาร์ตเนอร์',
+};
 
 export interface Competition {
   slug: string;
   name: string;
-  category: CategoryId;
+  /** หมวดแรกคือหมวดหลัก ใช้กับสีปก ป้ายบนการ์ด และการจับคู่เมนเทอร์ */
+  categories: [CategoryId, ...CategoryId[]];
+  type: OpportunityType;
   org: string;
-  /** Days from today until applications close; the shown date is derived from this. */
-  dueInDays: number;
-  prize: string;
+  /** วันปิดรับแบบ ISO ข้อมูลตัวอย่างใช้ inDays() เพื่อไม่ให้นับถอยหลังหมดอายุ */
+  closesAt: string;
+  opensAt?: string;
+  eventDate?: string;
+  region: Region;
+  /** ชื่อสถานที่ ไม่ใส่เมื่อ region เป็น online */
+  venue?: string;
+  /** 0 คือไม่มีเงินรางวัล ป้ายที่แสดงคำนวณจากค่านี้ ไม่เก็บข้อความซ้ำ */
   prizeValue: number;
-  featured?: boolean;
+  /** รางวัลที่ไม่ใช่เงิน ใช้แทนป้ายเมื่อ prizeValue เป็น 0 */
+  prizeNote?: string;
+  rewards: Reward[];
+  /** ค่าสมัคร ไม่ใส่คือสมัครฟรี */
+  fee?: number;
   levels: Level[];
-  team: string;
+  /** ขนาดทีมเก็บเป็นตัวเลขเพื่อให้กรองได้ ป้ายคำนวณจากคู่นี้ด้วย teamLabel */
+  teamMin: number;
+  teamMax: number;
   description: string;
   keywords: string[];
-  overview: string;
-  audience: string;
-  format: string[];
-  deliverables: string[];
-  preparation: string[];
+  featured?: boolean;
+  /** ลิงก์ประกาศต้นทาง ข้อมูลตัวอย่างเว้นว่างไว้เพราะงานเหล่านี้ไม่มีอยู่จริง */
+  sourceUrl: string;
+  source: Source;
+  lastVerifiedAt: string;
+  registerUrl?: string;
+  /** ห้าส่วนนี้ทีมงานเขียนเอง ผู้จัดไม่ได้กรอกมา จึงไม่บังคับ */
+  overview?: string;
+  audience?: string;
+  format?: string[];
+  deliverables?: string[];
+  preparation?: string[];
 }
 
-// All events, organisers, deadlines and prizes below are fictional prototype fixtures.
+/** คืนวันที่แบบ ISO นับจากวันนี้ ใช้กับข้อมูลตัวอย่างเพื่อไม่ให้วันปิดรับหมดอายุ */
+export function inDays(offset: number) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+// ข้อมูลด้านล่างเป็นเวที ผู้จัด วันปิดรับ และเงินรางวัลสมมติทั้งหมด
+
 export const competitions: Competition[] = [
   {
     slug: 'venture-ignite', name: 'Venture Ignite: แผนธุรกิจระดับมหาวิทยาลัย',
-    category: 'business', org: 'สมาคมผู้ประกอบการรุ่นใหม่', dueInDays: 6,
-    prize: 'รางวัลรวม 300,000 บาท', prizeValue: 300000, featured: true,
-    levels: ['university'], team: 'ทีม 2–4 คน',
+    categories: ['business'], type: 'contest', org: 'สมาคมผู้ประกอบการรุ่นใหม่',
+    closesAt: inDays(6), region: 'bangkok', venue: 'ศูนย์ประชุมแห่งชาติ',
+    prizeValue: 300000, rewards: ['certificate', 'trophy', 'partnership'], featured: true,
+    levels: ['university'], teamMin: 2, teamMax: 4,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'ส่งแผนธุรกิจ 10 หน้า รอบชิงพิทช์สด 7 นาทีต่อหน้านักลงทุน ทีมละ 2–4 คน',
     keywords: ['ธุรกิจ', 'แผนธุรกิจ', 'พิทช์', 'startup', 'venture', 'นักลงทุน'],
     overview: 'เวทีสำหรับทีมที่มีไอเดียธุรกิจและอยากรู้ว่ามันอยู่รอดจริงไหม รอบแรกวัดกันที่แผนธุรกิจ 10 หน้า ส่วนรอบชิงคือการพิทช์สดต่อหน้านักลงทุนที่ถามตรงและถามลึก จุดชี้ขาดคือสมมติฐานเรื่องลูกค้าและตัวเลขที่อธิบายที่มาได้',
@@ -48,9 +117,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'bangkok-hack-48', name: 'Bangkok Hack 48: แก้ปัญหาเมืองใน 2 วัน',
-    category: 'technology', org: 'ศูนย์ข้อมูลเมือง', dueInDays: 14,
-    prize: 'รางวัลรวม 150,000 บาท', prizeValue: 150000,
-    levels: ['secondary', 'university'], team: 'ทีม 3–5 คน',
+    categories: ['technology', 'society'], type: 'contest', org: 'ศูนย์ข้อมูลเมือง',
+    closesAt: inDays(14), region: 'bangkok', venue: 'ศูนย์ข้อมูลเมือง',
+    prizeValue: 150000, rewards: ['certificate', 'trophy', 'publish'],
+    levels: ['secondary', 'university'], teamMin: 3, teamMax: 5,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'แฮกกาธอน 48 ชั่วโมง โจทย์จริงจากข้อมูลเปิดของเมือง มีเมนเทอร์ประจำทีม',
     keywords: ['hackathon', 'แฮกกาธอน', 'โค้ด', 'ข้อมูลเปิด', 'เมือง', 'แอป'],
     overview: 'แฮกกาธอน 48 ชั่วโมงที่ใช้ข้อมูลเปิดของเมืองจริง ตั้งแต่เส้นทางรถประจำทางไปจนถึงจุดน้ำท่วมซ้ำซาก ทีมเลือกโจทย์เองได้ภายในกรอบที่ผู้จัดวางไว้ และมีเมนเทอร์ประจำทีมคอยช่วยตัดขอบเขตให้ทำเสร็จทัน',
@@ -61,9 +132,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'ai-for-good', name: 'AI for Good Challenge รุ่นที่ 4',
-    category: 'technology', org: 'ศูนย์วิจัยปัญญาประดิษฐ์ไทย', dueInDays: 26,
-    prize: 'รางวัลรวม 200,000 บาท', prizeValue: 200000,
-    levels: ['university'], team: 'ทีม 1–3 คน',
+    categories: ['technology', 'health'], type: 'contest', org: 'ศูนย์วิจัยปัญญาประดิษฐ์ไทย',
+    closesAt: inDays(26), region: 'online',
+    prizeValue: 200000, rewards: ['certificate', 'publish', 'internship'],
+    levels: ['university'], teamMin: 1, teamMax: 3,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'สร้างโมเดลช่วยงานสาธารณสุขชุมชน ตัดสินจากผลลัพธ์บนชุดข้อมูลปิด',
     keywords: ['ai', 'machine learning', 'ข้อมูล', 'สาธารณสุข', 'โมเดล', 'เทคโนโลยี'],
     overview: 'โจทย์คือช่วยให้ทีมสาธารณสุขชุมชนวางแผนลงพื้นที่ได้แม่นขึ้น ผู้เข้าแข่งได้ชุดข้อมูลฝึกที่ผ่านการปกปิดตัวตนแล้ว และถูกตัดสินด้วยชุดข้อมูลปิดที่ไม่เคยเห็น คะแนนจึงวัดการทำนายที่ใช้ได้จริง ไม่ใช่การจำข้อมูลฝึก',
@@ -74,9 +147,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'young-innovator-prize', name: 'Young Innovator Prize: สิ่งประดิษฐ์เพื่อผู้สูงวัย',
-    category: 'innovation', org: 'มูลนิธิเพื่อผู้สูงวัย', dueInDays: 10,
-    prize: 'รางวัลรวม 120,000 บาท', prizeValue: 120000,
-    levels: ['secondary', 'university'], team: 'ทีม 2–5 คน',
+    categories: ['technology', 'health'], type: 'contest', org: 'มูลนิธิเพื่อผู้สูงวัย',
+    closesAt: inDays(10), region: 'central', venue: 'อุทยานวิทยาศาสตร์ประเทศไทย',
+    prizeValue: 120000, rewards: ['certificate', 'trophy', 'publish'],
+    levels: ['secondary', 'university'], teamMin: 2, teamMax: 5,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'ต้องมีต้นแบบใช้งานได้จริงและผลทดลองกับผู้ใช้อย่างน้อย 5 คน',
     keywords: ['นวัตกรรม', 'สิ่งประดิษฐ์', 'ผู้สูงอายุ', 'ต้นแบบ', 'ออกแบบ'],
     overview: 'เวทีนี้ไม่ตัดสินที่ความล้ำของเทคโนโลยี แต่ตัดสินที่หลักฐานว่าผู้สูงวัยใช้แล้วชีวิตดีขึ้นจริง ทุกทีมต้องมีต้นแบบที่จับต้องได้และผลทดลองกับผู้ใช้จริงอย่างน้อย 5 คน พร้อมบันทึกว่าอะไรไม่เวิร์กบ้าง',
@@ -87,9 +162,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'poster-unbound', name: 'Poster Unbound: ประกวดโปสเตอร์เพื่อสังคม',
-    category: 'design', org: 'สมาคมนักออกแบบกราฟิก', dueInDays: 3,
-    prize: 'รางวัลรวม 80,000 บาท', prizeValue: 80000,
-    levels: ['secondary', 'university'], team: 'เดี่ยว',
+    categories: ['design', 'society'], type: 'contest', org: 'สมาคมนักออกแบบกราฟิก',
+    closesAt: inDays(3), region: 'online',
+    prizeValue: 80000, rewards: ['certificate', 'publish'],
+    levels: ['secondary', 'university'], teamMin: 1, teamMax: 1,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'หัวข้อปีนี้ “เมืองที่เดินได้” ส่งได้ไม่เกิน 3 ผลงานต่อคน ขนาด B2',
     keywords: ['ออกแบบ', 'โปสเตอร์', 'กราฟิก', 'design', 'สังคม', 'เมือง'],
     overview: 'ประกวดโปสเตอร์เดี่ยวในหัวข้อ “เมืองที่เดินได้” กรรมการมองหางานที่สื่อสารความคิดเดียวได้ชัดในระยะสายตาสามเมตร ไม่ใช่งานที่สวยแต่ต้องยืนอ่านนาน เทคนิคเปิดกว้างทั้งวาดมือ ภาพถ่าย และงานดิจิทัล',
@@ -100,9 +177,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'fintech-sandbox-cup', name: 'FinTech Sandbox Cup',
-    category: 'business', org: 'ชมรมการเงินดิจิทัล', dueInDays: 21,
-    prize: 'รางวัลรวม 250,000 บาท', prizeValue: 250000,
-    levels: ['university'], team: 'ทีม 3–5 คน',
+    categories: ['business', 'technology'], type: 'contest', org: 'ชมรมการเงินดิจิทัล',
+    closesAt: inDays(21), region: 'bangkok', venue: 'อาคารตลาดทุน',
+    prizeValue: 250000, rewards: ['certificate', 'trophy', 'internship'], fee: 300,
+    levels: ['university'], teamMin: 3, teamMax: 5,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-9),
     description: 'พัฒนาต้นแบบบริการการเงินบนสภาพแวดล้อมทดสอบ พร้อมแผนความเสี่ยง',
     keywords: ['fintech', 'การเงิน', 'ธุรกิจ', 'ต้นแบบ', 'ความเสี่ยง'],
     overview: 'ทีมพัฒนาบริการการเงินบนสภาพแวดล้อมทดสอบที่ผู้จัดเตรียมไว้ โดยไม่แตะเงินจริง สิ่งที่ทำให้ทีมชนะไม่ใช่ฟีเจอร์เยอะ แต่คือการตอบให้ได้ว่าบริการนี้จะพังตรงไหน และจะกันความเสียหายอย่างไร',
@@ -113,9 +192,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'circular-design-lab', name: 'Circular Design Lab: ออกแบบบรรจุภัณฑ์ใช้ซ้ำ',
-    category: 'design', org: 'สถาบันวัสดุหมุนเวียน', dueInDays: 31,
-    prize: 'รางวัลรวม 90,000 บาท', prizeValue: 90000,
-    levels: ['university'], team: 'ทีม 2–4 คน',
+    categories: ['design', 'environment'], type: 'workshop', org: 'สถาบันวัสดุหมุนเวียน',
+    closesAt: inDays(31), region: 'bangkok', venue: 'โรงงานต้นแบบบางพลี',
+    prizeValue: 0, prizeNote: 'ได้ผลิตจริงกับโรงงานพันธมิตร', rewards: ['certificate', 'publish', 'partnership'],
+    levels: ['university'], teamMin: 2, teamMax: 4,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'เวิร์กชอป 3 สัปดาห์ก่อนตัดสิน ผู้ชนะได้ผลิตจริงกับโรงงานพันธมิตร',
     keywords: ['ออกแบบ', 'บรรจุภัณฑ์', 'วัสดุ', 'ยั่งยืน', 'design', 'หมุนเวียน'],
     overview: 'ออกแบบบรรจุภัณฑ์ที่ถูกใช้ซ้ำได้จริงในร้านค้าปลีก ไม่ใช่แค่สวยในภาพเรนเดอร์ ทีมจะผ่านเวิร์กชอปสามสัปดาห์กับนักออกแบบและวิศวกรวัสดุ ก่อนตัดสินจากต้นแบบที่ผลิตได้จริงในต้นทุนที่กำหนด',
@@ -126,9 +207,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'robotics-frontier-league', name: 'Robotics Frontier League',
-    category: 'technology', org: 'ลีกหุ่นยนต์ประเทศไทย', dueInDays: 48,
-    prize: 'รางวัลรวม 180,000 บาท', prizeValue: 180000,
-    levels: ['secondary', 'university'], team: 'ทีม 3–6 คน',
+    categories: ['technology', 'education'], type: 'contest', org: 'ลีกหุ่นยนต์ประเทศไทย',
+    closesAt: inDays(48), region: 'central', venue: 'สนามแข่งหุ่นยนต์ ปทุมธานี',
+    prizeValue: 180000, rewards: ['certificate', 'trophy'], fee: 500,
+    levels: ['secondary', 'university'], teamMin: 3, teamMax: 6,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-45),
     description: 'หุ่นยนต์อัตโนมัติเก็บวัตถุในสนาม 4×4 เมตร แข่งสองรอบคัดและรอบชิง',
     keywords: ['หุ่นยนต์', 'robotics', 'เทคโนโลยี', 'อัตโนมัติ', 'วิศวกรรม'],
     overview: 'หุ่นยนต์ต้องทำงานอัตโนมัติเต็มรูปแบบในสนาม 4×4 เมตร ไม่มีการบังคับระหว่างแข่ง ทีมที่ชนะมักไม่ใช่ทีมที่หุ่นเร็วที่สุด แต่เป็นทีมที่หุ่นทำงานซ้ำได้เหมือนเดิมทุกรอบแม้แสงและตำแหน่งวัตถุจะเปลี่ยน',
@@ -139,9 +222,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'social-impact-pitch-night', name: 'Social Impact Pitch Night',
-    category: 'business', org: 'เครือข่ายกิจการเพื่อสังคม', dueInDays: 8,
-    prize: 'รางวัลรวม 60,000 บาท', prizeValue: 60000,
-    levels: ['secondary', 'university'], team: 'ทีม 2–4 คน',
+    categories: ['business', 'society'], type: 'contest', org: 'เครือข่ายกิจการเพื่อสังคม',
+    closesAt: inDays(8), region: 'bangkok', venue: 'เครือข่ายกิจการเพื่อสังคม',
+    prizeValue: 60000, rewards: ['certificate', 'partnership'],
+    levels: ['secondary', 'university'], teamMin: 2, teamMax: 4,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'พิทช์ 5 นาทีต่อหน้าคณะกรรมการ 6 คน เน้นตัวชี้วัดผลกระทบที่วัดได้',
     keywords: ['สังคม', 'ธุรกิจ', 'พิทช์', 'ผลกระทบ', 'กิจการเพื่อสังคม'],
     overview: 'เวทีพิทช์สั้นสำหรับไอเดียที่ตั้งใจแก้ปัญหาสังคม สิ่งที่กรรมการถามทุกทีมคือจะรู้ได้อย่างไรว่ามันได้ผล ทีมที่เตรียมตัวชี้วัดที่วัดได้จริงและยอมรับข้อจำกัดของตัวเอง มักได้คะแนนดีกว่าทีมที่สัญญาใหญ่',
@@ -152,9 +237,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'agritech-innovation-camp', name: 'AgriTech Innovation Camp',
-    category: 'innovation', org: 'สถาบันเกษตรอัจฉริยะ', dueInDays: 55,
-    prize: 'รางวัลรวม 140,000 บาท', prizeValue: 140000,
-    levels: ['university'], team: 'ทีม 3–5 คน',
+    categories: ['environment', 'technology'], type: 'camp', org: 'สถาบันเกษตรอัจฉริยะ',
+    closesAt: inDays(55), region: 'northeast', venue: 'ศูนย์เรียนรู้เกษตรอัจฉริยะ ขอนแก่น', opensAt: inDays(10),
+    prizeValue: 140000, rewards: ['certificate', 'partnership'],
+    levels: ['university'], teamMin: 3, teamMax: 5,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-16),
     description: 'ค่าย 5 วันในพื้นที่เกษตรจริง ทีมที่ผ่านรอบแรกได้งบทดลอง 20,000 บาท',
     keywords: ['เกษตร', 'นวัตกรรม', 'agritech', 'ค่าย', 'ชุมชน'],
     overview: 'ค่ายห้าวันในแปลงเกษตรจริงที่ทีมต้องกินอยู่และทำงานร่วมกับเกษตรกร โจทย์มาจากปัญหาที่เกษตรกรเจอจริง ทีมที่ผ่านรอบแรกได้งบทดลอง 20,000 บาทไปพัฒนาต่ออีกสองเดือนก่อนตัดสิน',
@@ -165,9 +252,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'type-and-letter', name: 'Type & Letter: ประกวดฟอนต์ไทย',
-    category: 'design', org: 'ชมรมตัวพิมพ์ไทย', dueInDays: 43,
-    prize: 'รางวัลรวม 100,000 บาท', prizeValue: 100000,
-    levels: ['university'], team: 'เดี่ยวหรือคู่',
+    categories: ['design', 'writing'], type: 'contest', org: 'ชมรมตัวพิมพ์ไทย',
+    closesAt: inDays(43), region: 'online',
+    prizeValue: 100000, rewards: ['certificate', 'publish'],
+    levels: ['university'], teamMin: 1, teamMax: 2,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-38),
     description: 'ส่งชุดตัวอักษรอย่างน้อย 2 น้ำหนัก ครบพยัญชนะ สระ และวรรณยุกต์',
     keywords: ['ฟอนต์', 'ตัวพิมพ์', 'ออกแบบ', 'typography', 'ภาษาไทย'],
     overview: 'ออกแบบฟอนต์ไทยที่ใช้งานได้จริง ไม่ใช่แค่ชุดตัวอักษรโชว์ กรรมการตรวจถึงระดับการวางสระและวรรณยุกต์ซ้อนกัน ซึ่งเป็นจุดที่ฟอนต์ไทยส่วนใหญ่พังโดยที่ผู้ออกแบบไม่ทันสังเกต',
@@ -178,9 +267,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'data-story-awards', name: 'Data Story Awards',
-    category: 'technology', org: 'กลุ่มนักข่าวข้อมูล', dueInDays: 5,
-    prize: 'รางวัลรวม 70,000 บาท', prizeValue: 70000,
-    levels: ['secondary', 'university'], team: 'ทีม 1–3 คน',
+    categories: ['technology', 'writing'], type: 'contest', org: 'กลุ่มนักข่าวข้อมูล',
+    closesAt: inDays(5), region: 'online',
+    prizeValue: 70000, rewards: ['certificate', 'publish'],
+    levels: ['secondary', 'university'], teamMin: 1, teamMax: 3,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'เล่าเรื่องจากข้อมูลเปิด 1 ชุด เป็นหน้าเว็บหรืออินโฟกราฟิกเดียว',
     keywords: ['ข้อมูล', 'data', 'เล่าเรื่อง', 'อินโฟกราฟิก', 'ข่าว', 'visualization'],
     overview: 'เลือกข้อมูลเปิดหนึ่งชุดแล้วเล่าเรื่องที่คนทั่วไปเข้าใจได้ในหน้าเดียว ข้อจำกัดคือหนึ่งชุดข้อมูลและหนึ่งหน้า ซึ่งบังคับให้ต้องเลือกว่าจะเล่าอะไรและตัดอะไรทิ้ง กรรมการให้น้ำหนักกับความซื่อตรงต่อข้อมูลมากกว่าความหวือหวาของกราฟ',
@@ -191,9 +282,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'deep-tech-grant-pitch', name: 'Deep Tech Grant Pitch',
-    category: 'innovation', org: 'กองทุนวิจัยขั้นแนวหน้า', dueInDays: 53,
-    prize: 'ทุนสูงสุด 500,000 บาท', prizeValue: 500000,
-    levels: ['university'], team: 'ทีม 2–5 คน',
+    categories: ['academic', 'technology'], type: 'scholarship', org: 'กองทุนวิจัยขั้นแนวหน้า',
+    closesAt: inDays(53), region: 'bangkok', venue: 'กองทุนวิจัยขั้นแนวหน้า', opensAt: inDays(14),
+    prizeValue: 500000, rewards: ['certificate', 'partnership'],
+    levels: ['university'], teamMin: 2, teamMax: 5,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-33),
     description: 'สำหรับงานวิจัยที่มีสิทธิบัตรหรือผลตีพิมพ์ รอบสุดท้ายพิทช์ 12 นาที',
     keywords: ['วิจัย', 'deep tech', 'ทุน', 'นวัตกรรม', 'สิทธิบัตร'],
     overview: 'เวทีขอทุนสำหรับงานวิจัยที่มีผลตีพิมพ์หรือสิทธิบัตรรองรับแล้ว ไม่ใช่เวทีสำหรับไอเดียใหม่ คำถามหลักของกรรมการคืองานวิจัยนี้จะออกจากห้องแล็บไปถึงผู้ใช้ได้อย่างไร และเงินทุนก้อนนี้จะใช้พิสูจน์อะไร',
@@ -204,9 +297,11 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'retail-growth-case-challenge', name: 'Retail Growth Case Challenge',
-    category: 'business', org: 'ชมรมการตลาดค้าปลีก', dueInDays: 11,
-    prize: 'รางวัลรวม 110,000 บาท', prizeValue: 110000,
-    levels: ['university'], team: 'ทีม 3–4 คน',
+    categories: ['business', 'marketing'], type: 'contest', org: 'ชมรมการตลาดค้าปลีก',
+    closesAt: inDays(11), region: 'bangkok', venue: 'ชมรมการตลาดค้าปลีก',
+    prizeValue: 110000, rewards: ['certificate', 'trophy', 'internship'],
+    levels: ['university'], teamMin: 3, teamMax: 4,
+    sourceUrl: '', source: 'editorial', lastVerifiedAt: inDays(-2),
     description: 'แก้เคสจริงจากร้านค้าปลีก 3 สาขา ส่งสไลด์ 8 หน้าภายใน 72 ชั่วโมง',
     keywords: ['ธุรกิจ', 'การตลาด', 'case', 'ค้าปลีก', 'วิเคราะห์'],
     overview: 'เคสแข่งขันแบบจับเวลา 72 ชั่วโมงจากข้อมูลจริงของร้านค้าปลีกสามสาขา ความยากไม่ได้อยู่ที่การวิเคราะห์ แต่อยู่ที่การตัดสินใจว่าจะเสนออะไรในแปดหน้า และจะทิ้งอะไรไว้ข้างหลัง',
@@ -217,35 +312,145 @@ export const competitions: Competition[] = [
   },
 ];
 
+
 export function categoryLabel(id: CategoryId) {
-  return categories.find((category) => category.id === id)!.label;
+  return categories.find((category) => category.id === id)?.label ?? '';
 }
 
-/** Deadlines are stored as day offsets, so the countdown never goes stale. */
+/** หมวดแรกคือหมวดหลัก ใช้กับสีปก ป้ายบนการ์ด และการจับคู่เมนเทอร์ */
+export function primaryCategory(competition: Competition) {
+  return competition.categories[0];
+}
+
 export function deadlineOf(competition: Competition) {
-  const date = new Date();
-  date.setHours(23, 59, 0, 0);
-  date.setDate(date.getDate() + competition.dueInDays);
+  const date = new Date(`${competition.closesAt}T23:59:00`);
   return date;
 }
 
+/** จำนวนวันที่เหลือ ปัดขึ้นเพื่อให้ "อีก 1 วัน" หมายถึงยังส่งทันวันนี้ */
+export function daysLeft(competition: Competition) {
+  const diff = deadlineOf(competition).getTime() - Date.now();
+  return Math.ceil(diff / 86400000);
+}
+
 const thaiDate = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+export function formatDate(iso: string) {
+  return thaiDate.format(new Date(`${iso}T12:00:00`));
+}
+
 export function formatDeadline(competition: Competition) {
-  return thaiDate.format(deadlineOf(competition));
+  return formatDate(competition.closesAt);
+}
+
+/** ป้ายขนาดทีมคำนวณจาก teamMin และ teamMax เพื่อไม่ให้มีข้อความซ้ำกับตัวเลข */
+export function teamLabel(competition: Competition) {
+  const { teamMin, teamMax } = competition;
+  if (teamMin === 1 && teamMax === 1) return 'เดี่ยว';
+  if (teamMin === 1 && teamMax === 2) return 'เดี่ยวหรือคู่';
+  if (teamMin === teamMax) return `ทีม ${teamMin} คน`;
+  return `ทีม ${teamMin}–${teamMax} คน`;
+}
+
+const baht = new Intl.NumberFormat('th-TH');
+/** เงินรางวัล 0 ต้องอ่านว่าไม่มีเงินรางวัล ไม่ใช่ "0 บาท" */
+export function prizeLabel(competition: Competition) {
+  if (competition.prizeValue > 0) return `รางวัลรวม ${baht.format(competition.prizeValue)} บาท`;
+  return competition.prizeNote ?? 'ไม่มีเงินรางวัล';
+}
+
+export function feeLabel(competition: Competition) {
+  return competition.fee ? `ค่าสมัคร ${baht.format(competition.fee)} บาท` : 'สมัครฟรี';
+}
+
+export function placeLabel(competition: Competition) {
+  if (competition.region === 'online') return regionLabels.online;
+  return competition.venue ? `${competition.venue} · ${regionLabels[competition.region]}` : regionLabels[competition.region];
 }
 
 export function findCompetition(slug: string | undefined) {
   return competitions.find((competition) => competition.slug === slug);
 }
 
-export function filterCompetitions(query: string, category: string, closingSoon: boolean) {
-  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+export type TeamSizeId = 'solo' | 'small' | 'mid' | 'large';
+export const teamSizeOptions: { id: TeamSizeId; label: string; min: number; max: number }[] = [
+  { id: 'solo', label: 'เดี่ยว', min: 1, max: 1 },
+  { id: 'small', label: '2–3 คน', min: 2, max: 3 },
+  { id: 'mid', label: '4–6 คน', min: 4, max: 6 },
+  { id: 'large', label: 'มากกว่า 6 คน', min: 7, max: Infinity },
+];
+
+export type TimingId = 'd7' | 'd30' | 'upcoming';
+export const timingOptions: { id: TimingId; label: string }[] = [
+  { id: 'd7', label: 'ปิดรับใน 7 วัน' },
+  { id: 'd30', label: 'ปิดรับใน 30 วัน' },
+  { id: 'upcoming', label: 'ยังไม่เปิดรับ' },
+];
+
+/** เพดานของแถบเลือกช่วง ค่าสูงสุดหมายถึงไม่จำกัด ไม่ใช่ 500,000 พอดี */
+export const PRIZE_CEILING = 500000;
+
+export interface Filters {
+  query: string;
+  categories: CategoryId[];
+  types: OpportunityType[];
+  levels: Level[];
+  regions: Region[];
+  teamSizes: TeamSizeId[];
+  rewards: Reward[];
+  prizeMin: number;
+  prizeMax: number;
+  freeOnly: boolean;
+  timing: TimingId | '';
+}
+
+export const emptyFilters: Filters = {
+  query: '', categories: [], types: [], levels: [], regions: [], teamSizes: [], rewards: [],
+  prizeMin: 0, prizeMax: PRIZE_CEILING, freeOnly: false, timing: '',
+};
+
+/** นับเฉพาะตัวกรองในแผง ชิปหมวดกับช่องค้นหาอยู่นอกแผงจึงไม่นับ */
+export function activeFilterCount(filters: Filters) {
+  return filters.types.length + filters.levels.length + filters.regions.length
+    + filters.teamSizes.length + filters.rewards.length
+    + (filters.prizeMin > 0 || filters.prizeMax < PRIZE_CEILING ? 1 : 0)
+    + (filters.freeOnly ? 1 : 0) + (filters.timing ? 1 : 0);
+}
+
+function matchesTiming(competition: Competition, timing: TimingId) {
+  if (timing === 'upcoming') return Boolean(competition.opensAt) && new Date(`${competition.opensAt}T00:00:00`).getTime() > Date.now();
+  const left = daysLeft(competition);
+  return left >= 0 && left <= (timing === 'd7' ? 7 : 30);
+}
+
+function matchesTeam(competition: Competition, sizes: TeamSizeId[]) {
+  return sizes.some((id) => {
+    const bucket = teamSizeOptions.find((option) => option.id === id)!;
+    // ทีม 2–5 คน ตรงกับทั้งช่วง 2–3 และ 4–6 เพราะขนาดทีมที่รับคาบเกี่ยวกัน
+    return competition.teamMin <= bucket.max && competition.teamMax >= bucket.min;
+  });
+}
+
+/* ภายในกลุ่มเดียวกันเป็น "หรือ" ระหว่างกลุ่มเป็น "และ" กลุ่มที่ไม่ได้เลือกอะไร
+   แปลว่าไม่กรองด้วยกลุ่มนั้น */
+export function filterCompetitions(filters: Filters) {
+  const terms = filters.query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return competitions.filter((competition) => {
-    const text = [competition.name, competition.description, competition.org, categoryLabel(competition.category), ...competition.keywords]
-      .join(' ').toLocaleLowerCase();
-    return terms.every((term) => text.includes(term))
-      && (category === 'all' || competition.category === category)
-      && (!closingSoon || competition.dueInDays <= 14);
+    const text = [
+      competition.name, competition.description, competition.org, typeLabels[competition.type],
+      ...competition.categories.map(categoryLabel), ...competition.keywords,
+    ].join(' ').toLocaleLowerCase();
+    if (!terms.every((term) => text.includes(term))) return false;
+    if (filters.categories.length && !filters.categories.some((id) => competition.categories.includes(id))) return false;
+    if (filters.types.length && !filters.types.includes(competition.type)) return false;
+    if (filters.levels.length && !filters.levels.some((level) => competition.levels.includes(level))) return false;
+    if (filters.regions.length && !filters.regions.includes(competition.region)) return false;
+    if (filters.teamSizes.length && !matchesTeam(competition, filters.teamSizes)) return false;
+    if (filters.rewards.length && !filters.rewards.some((reward) => competition.rewards.includes(reward))) return false;
+    if (competition.prizeValue < filters.prizeMin) return false;
+    if (filters.prizeMax < PRIZE_CEILING && competition.prizeValue > filters.prizeMax) return false;
+    if (filters.freeOnly && competition.fee) return false;
+    if (filters.timing && !matchesTiming(competition, filters.timing)) return false;
+    return true;
   });
 }
 
@@ -263,6 +468,6 @@ export function sortCompetitions(list: Competition[], sort: SortId) {
     if (sort === 'prize') return b.prizeValue - a.prizeValue;
     if (sort === 'new') return listedOrder.get(b.slug)! - listedOrder.get(a.slug)!;
     if (sort === 'name') return a.name.localeCompare(b.name, 'th');
-    return a.dueInDays - b.dueInDays;
+    return a.closesAt.localeCompare(b.closesAt);
   });
 }

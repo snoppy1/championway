@@ -24,11 +24,15 @@ export async function verifyPassword(password: string, stored: string | null) {
   return key.length === expected.length && timingSafeEqual(key, expected);
 }
 
-/** ใช้ตอนไม่พบอีเมลในระบบ เพื่อให้การตอบช้าเท่ากับกรณีรหัสผ่านผิด
-    ไม่อย่างนั้นเวลาที่ใช้ตอบจะบอกได้ว่าอีเมลนี้มีบัญชีอยู่จริงหรือไม่ */
-const dummyHash = await hashPassword('cw-dummy-password-for-constant-time');
+/* ใช้ตอนไม่พบอีเมลในระบบ เพื่อให้การตอบช้าเท่ากับกรณีรหัสผ่านผิด
+   ไม่อย่างนั้นเวลาที่ใช้ตอบจะบอกได้ว่าอีเมลนี้มีบัญชีอยู่จริงหรือไม่
+
+   สร้างตอนเรียกใช้ครั้งแรก ไม่ใช่ตอน import เพราะ top-level await ใช้ไม่ได้
+   เมื่อโฮสต์แปลงโมดูลเป็น CommonJS ซึ่งทำให้ฟังก์ชันทั้งตัวบูตไม่ขึ้น */
+let dummyHash: Promise<string> | null = null;
 export async function wasteTime() {
-  await verifyPassword('cw-dummy-password-for-constant-time-x', dummyHash);
+  dummyHash ??= hashPassword('cw-dummy-password-for-constant-time');
+  await verifyPassword('cw-dummy-password-for-constant-time-x', await dummyHash);
 }
 
 /** ข้อกำหนดขั้นต่ำ: ยาวพอที่จะเดาไม่ง่าย ไม่บังคับอักขระพิเศษเพราะทำให้คนตั้ง

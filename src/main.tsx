@@ -18,6 +18,10 @@ import { Home } from './pages/Home';
 import { Mentors } from './pages/Mentors';
 import { MentorApplication } from './pages/MentorApplication';
 import { Detail, NotFound } from './pages/Detail';
+import { AdminLayout } from './pages/admin/AdminLayout';
+import { AdminOverview } from './pages/admin/AdminOverview';
+import { AdminCompetitionQueue, AdminCompetitionReview } from './pages/admin/AdminCompetitions';
+import { AdminMentorQueue, AdminMentorReview } from './pages/admin/AdminMentors';
 import './styles.css';
 
 // Vite's BASE_URL keeps its trailing slash; React Router wants it without one.
@@ -32,6 +36,17 @@ const router = createBrowserRouter([{
     { path: '/mentors', element: <Mentors /> },
     { path: '/mentors/apply', element: <MentorApplication /> },
     { path: '*', element: <NotFound /> },
+  ],
+}, {
+  // หน้าจัดการอยู่นอก Layout ของหน้าบ้าน เพราะไม่ควรมีเมนูผู้ใช้ทั่วไปหรือ footer การตลาด
+  path: '/admin',
+  element: <AdminLayout />,
+  children: [
+    { index: true, element: <AdminOverview /> },
+    { path: 'competitions', element: <AdminCompetitionQueue /> },
+    { path: 'competitions/:id', element: <AdminCompetitionReview /> },
+    { path: 'mentors', element: <AdminMentorQueue /> },
+    { path: 'mentors/:id', element: <AdminMentorReview /> },
   ],
 }], { basename });
 

@@ -6,4 +6,4 @@ IBM Plex Sans and IBM Plex Sans Thai are copyright IBM Corp. and licensed under 
 
 Lucide icons are distributed under the ISC License. See `node_modules/lucide-react/LICENSE` for the full license.
 
-Competition cover artwork and the ChampionWays wordmark are created for this prototype. All competition, mentor, award and price data is fictional.
+Competition cover artwork is created for this prototype. The ChampionWays trophy mark and wordmark artwork in `src/assets/` were supplied by the project owner. All competition, mentor, award and price data is fictional.

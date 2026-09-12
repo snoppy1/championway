@@ -38,11 +38,14 @@ Playwright ใช้ Microsoft Edge ที่ติดตั้งในเค�
 - `src/data/saved.ts` — รายการเวทีที่บันทึกไว้ เก็บใน localStorage ของเบราว์เซอร์
 - `src/pages/` — หน้าแรก หน้ารายละเอียด หน้าเมนเทอร์ และกรณีไม่พบหน้า
 - `src/components/` — โครงหน้า ไอคอน และภาพปก SVG ประจำหมวด
+- `src/assets/` — โลโก้ถ้วยรางวัลบนหัวเว็บ และภาพ wordmark ของหน้าแรก
 - `src/styles.css` — ระบบสี ตัวอักษร องค์ประกอบ และ responsive layout
 - `scripts/spa-fallback.mjs` — สร้าง `404.html` ให้ GitHub Pages เปิด URL ตรงได้
 - `.github/workflows/deploy.yml` — build และ deploy ขึ้น GitHub Pages
 
-ฟอนต์ Anuphan (หัวเรื่องและโลโก้) กับ IBM Plex Sans Thai และ IBM Plex Sans (เนื้อความ) นำเข้าจากแพ็กเกจ Fontsource และถูกเก็บเป็นไฟล์ใน build ไม่เรียก Google Fonts หรือ CDN ขณะใช้งาน มีเทสต์ตรวจข้อนี้ไว้ ดูใบอนุญาตฟอนต์ที่ `THIRD_PARTY_NOTICES.md`
+โลโก้เป็นไฟล์ภาพ ไม่ใช่ข้อความ ภาพ wordmark ของหน้าแรกเป็น JPEG พื้นขาวและใช้ `mix-blend-mode: multiply` กลืนพื้นขาวเข้ากับ gradient ของ hero แทนการตัดพื้นหลังเป็นภาพโปร่ง ส่วนชื่อ ChampionWays ที่ screen reader อ่านมาจาก `alt` ของภาพ
+
+ฟอนต์ Anuphan (หัวเรื่อง) กับ IBM Plex Sans Thai และ IBM Plex Sans (เนื้อความ) นำเข้าจากแพ็กเกจ Fontsource และถูกเก็บเป็นไฟล์ใน build ไม่เรียก Google Fonts หรือ CDN ขณะใช้งาน มีเทสต์ตรวจข้อนี้ไว้ ดูใบอนุญาตฟอนต์ที่ `THIRD_PARTY_NOTICES.md`
 
 ## เส้นทางและพฤติกรรม
 

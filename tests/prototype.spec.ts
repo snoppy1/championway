@@ -7,7 +7,8 @@ const PER_PAGE = 6;
 
 test('home shows the first page of competitions and paginates', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('ChampionWays');
+  // The hero heading is wordmark artwork, so its name comes from the image alt text.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('ChampionWays');
   await expect(page.locator('.competition-card')).toHaveCount(PER_PAGE);
   await expect(page.getByRole('status').first()).toContainText(`${competitions.length} เวที`);
 

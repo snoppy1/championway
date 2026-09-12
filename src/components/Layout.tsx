@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { BookmarkSimple } from './icons';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { useSavedSlugs } from '../data/saved';
+import trophy from '../assets/trophy.png';
 
+/** The wordmark beside it already says ChampionWays, so the image is decorative. */
 export function BrandMark() {
-  return <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>;
+  return <img className="brand-mark" src={trophy} alt="" width={36} height={37} />;
 }
 
 function Header() {

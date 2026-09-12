@@ -86,18 +86,7 @@ main:focus { outline: none; }
 }
 
 .brand-link { display: flex; align-items: center; gap: 10px; color: var(--ink); }
-.brand-mark {
-  width: 30px; height: 30px;
-  display: flex; align-items: flex-end; justify-content: center; gap: 2.5px;
-  padding-bottom: 7px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #6d28d9, #7c3aed 70%, #f5d95c);
-  box-shadow: 0 6px 14px -6px rgb(109 40 217 / 55%);
-}
-.brand-mark span { width: 3px; border-radius: 2px; background: #fff; }
-.brand-mark span:first-child { height: 7px; background: rgb(255 255 255 / 55%); }
-.brand-mark span:nth-child(2) { height: 11px; }
-.brand-mark span:last-child { height: 15px; }
+.brand-mark { width: 36px; height: 37px; display: block; flex-shrink: 0; }
 .brand-name { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.2px; }
 
 .main-nav { display: flex; align-items: center; gap: 6px; margin-right: auto; }
@@ -196,27 +185,15 @@ main:focus { outline: none; }
     linear-gradient(115deg, #f6f0ff, #fffced);
 }
 .hero-inner { padding-block: 72px 100px; text-align: center; }
-.hero-row { display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: wrap; }
-.hero-mark {
-  width: 64px; height: 64px;
-  display: flex; align-items: flex-end; justify-content: center; gap: 6px;
-  padding-bottom: 16px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #6d28d9 0%, #a78bfa 58%, #f5d95c 100%);
-  box-shadow: 0 12px 28px -12px rgb(109 40 217 / 45%);
+/* The wordmark art is a white-background JPEG; multiply drops that white into
+   the hero gradient without needing a cut-out alpha channel. */
+.hero-wordmark {
+  max-width: 740px;
+  margin: 0 auto;
+  line-height: 0;
+  mix-blend-mode: multiply;
 }
-.hero-mark span { width: 7px; border-radius: 3px; background: #fff; }
-.hero-mark span:first-child { height: 16px; background: rgb(255 255 255 / 72%); }
-.hero-mark span:nth-child(2) { height: 25px; }
-.hero-mark span:last-child { height: 34px; }
-.hero h1 {
-  font-size: clamp(30px, 5vw, 58px);
-  font-weight: 700;
-  letter-spacing: -1.8px;
-  line-height: 1.2;
-  color: var(--ink-deep);
-}
-.brand-accent { color: var(--purple); }
+.hero-wordmark img { display: block; width: 100%; height: auto; margin-block: -4% -2%; }
 .hero-tagline {
   margin-top: 22px;
   font-family: var(--display);

@@ -11,6 +11,7 @@ import { podium, trendingSlugs } from '../data/mentors';
 import { toggleSaved, useSavedSlugs } from '../data/saved';
 import { CoverArt } from '../components/CoverArt';
 import { BookmarkSimple } from '../components/icons';
+import wordmark from '../assets/wordmark.jpg';
 
 const PER_PAGE = 6;
 
@@ -141,10 +142,7 @@ export function Home() {
   return <main id="main" tabIndex={-1}>
     <section className="hero">
       <div className="shell hero-inner">
-        <div className="hero-row">
-          <span className="hero-mark" aria-hidden="true"><span /><span /><span /></span>
-          <h1>Champion<span className="brand-accent">Ways</span></h1>
-        </div>
+        <h1 className="hero-wordmark"><img src={wordmark} alt="ChampionWays" /></h1>
         <p className="hero-tagline">ทุกเวทีคือโอกาส ทุกก้าวคือการเติบโต</p>
         <p className="hero-lead">ค้นพบการแข่งขันที่ใช่ พร้อมเรียนรู้จากคนที่เคยผ่านเวทีจริง</p>
       </div>

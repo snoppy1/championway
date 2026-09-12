@@ -6,18 +6,21 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
-  categoryLabel, competitions, daysLeft, feeLabel, findCompetition, formatDate, formatDeadline,
-  levelLabels, placeLabel, primaryCategory, prizeLabel, rewardLabels, sourceLabels, teamLabel,
-  typeLabels,
+  categoryLabel, daysLeft, feeLabel, formatDate, formatDeadline, levelLabels, placeLabel,
+  primaryCategory, prizeLabel, rewardLabels, sourceLabels, teamLabel, typeLabels,
 } from '../data/competitions';
+import type { Competition } from '../data/competitions';
 import { CoverArt } from '../components/CoverArt';
+import { useApi } from '../lib/useApi';
 
-export function NotFound() {
+export function NotFound({ reason }: { reason?: string }) {
   useEffect(() => { document.title = 'ไม่พบหน้า — ChampionWays'; }, []);
   return <main id="main" tabIndex={-1} className="shell page">
     <p className="eyebrow">404</p>
     <h1>ยังไม่พบเวทีนี้</h1>
-    <p style={{ margin: '10px 0 22px', color: 'var(--muted)' }}>ลิงก์นี้อาจไม่ถูกต้อง ลองกลับไปเลือกเวทีที่สนใจจากหน้าแรก</p>
+    <p style={{ margin: '10px 0 22px', color: 'var(--muted)' }}>
+      {reason || 'ลิงก์นี้อาจไม่ถูกต้อง ลองกลับไปเลือกเวทีที่สนใจจากหน้าแรก'}
+    </p>
     <Link className="primary-button" to="/"><ArrowLeft size={17} aria-hidden="true" />กลับไปสำรวจการแข่งขัน</Link>
   </main>;
 }
@@ -25,20 +28,21 @@ export function NotFound() {
 export function Detail() {
   const { slug } = useParams();
   const { search } = useLocation();
-  const competition = findCompetition(slug);
+  // เวทีที่เกี่ยวข้องคำนวณที่เซิร์ฟเวอร์จากหมวดที่ซ้อนกัน ส่งมาพร้อมกันในคำขอเดียว
+  const { data, error, loading } = useApi<{ competition: Competition; related: Competition[] }>(
+    slug ? `/competitions/${encodeURIComponent(slug)}` : null,
+  );
+  const competition = data?.competition;
 
   useEffect(() => {
     if (competition) document.title = `${competition.name} — ChampionWays`;
   }, [competition]);
 
-  if (!competition) return <NotFound />;
+  if (loading) return <main id="main" tabIndex={-1} className="shell page"><p className="side-note">กำลังโหลด…</p></main>;
+  if (!competition) return <NotFound reason={error} />;
 
   const main = primaryCategory(competition);
-  // งานหนึ่งอยู่ได้หลายหมวด เวทีที่เกี่ยวข้องจึงนับจากหมวดที่ซ้อนกันอย่างน้อยหนึ่งหมวด
-  const related = competitions
-    .filter((item) => item.slug !== competition.slug && item.categories.some((id) => competition.categories.includes(id)))
-    .slice(0, 2);
-
+  const related = data?.related ?? [];
   const left = daysLeft(competition);
   // ทั้งห้าส่วนเป็นเนื้อหาที่ทีมงานเขียนเอง รายการที่ยังไม่มีคนเขียนให้ข้ามไป
   const sections: { title: string; body: ReactNode }[] = [];

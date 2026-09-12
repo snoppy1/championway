@@ -13,11 +13,13 @@ import '@fontsource/anuphan/thai-700.css';
 import '@fontsource/anuphan/latin-500.css';
 import '@fontsource/anuphan/latin-600.css';
 import '@fontsource/anuphan/latin-700.css';
+import { AuthProvider } from './data/auth';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Mentors } from './pages/Mentors';
 import { MentorApplication } from './pages/MentorApplication';
 import { Detail, NotFound } from './pages/Detail';
+import { SignIn } from './pages/SignIn';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminOverview } from './pages/admin/AdminOverview';
 import { AdminCompetitionQueue, AdminCompetitionReview } from './pages/admin/AdminCompetitions';
@@ -35,6 +37,8 @@ const router = createBrowserRouter([{
     { path: '/competitions/:slug', element: <Detail /> },
     { path: '/mentors', element: <Mentors /> },
     { path: '/mentors/apply', element: <MentorApplication /> },
+    { path: '/signin', element: <SignIn mode="signin" /> },
+    { path: '/signup', element: <SignIn mode="signup" /> },
     { path: '*', element: <NotFound /> },
   ],
 }, {
@@ -50,4 +54,6 @@ const router = createBrowserRouter([{
   ],
 }], { basename });
 
-createRoot(document.getElementById('root')!).render(<StrictMode><RouterProvider router={router} /></StrictMode>);
+createRoot(document.getElementById('root')!).render(
+  <StrictMode><AuthProvider><RouterProvider router={router} /></AuthProvider></StrictMode>,
+);

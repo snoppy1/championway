@@ -3,13 +3,14 @@ import type { FormEvent } from 'react';
 import { ArrowRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, Info, Search, SlidersHorizontal, Timer, Trophy } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
-  activeFilterCount, categories, categoryLabel, competitions, daysLeft, filterCompetitions,
-  findCompetition, formatDeadline, primaryCategory, prizeLabel, sortCompetitions, sortOptions,
+  activeFilterCount, categories, categoryLabel, daysLeft, formatDeadline, primaryCategory,
+  prizeLabel, sortOptions,
 } from '../data/competitions';
 import type { Competition, Filters, SortId } from '../data/competitions';
 import { clearedFilters, readFilters, toggle, writeFilters } from '../data/filters';
-import { podium, trendingSlugs } from '../data/mentors';
+import { trendingSlugs } from '../data/mentors';
 import { toggleSaved, useSavedSlugs } from '../data/saved';
+import { useApi } from '../lib/useApi';
 import { CoverArt } from '../components/CoverArt';
 import { FilterPanel } from '../components/FilterPanel';
 import { BookmarkSimple } from '../components/icons';
@@ -17,9 +18,18 @@ import wordmark from '../assets/wordmark.jpg';
 
 const PER_PAGE = 6;
 
+type PodiumMentor = { id: string; name: string; avatar: string; weeklyRank: number | null; weeklyFocus: string | null };
+
 function Highlights() {
   const [paused, setPaused] = useState(false);
-  const trending = trendingSlugs.map(findCompetition).filter((item): item is Competition => item !== undefined);
+  const { data: trendingData } = useApi<{ items: Competition[] }>(`/competitions?slugs=${trendingSlugs.join(',')}&perPage=20`);
+  const { data: mentorData } = useApi<{ items: PodiumMentor[] }>('/mentors');
+  // เรียงตามลำดับที่ตั้งไว้ ไม่ใช่ตามที่ฐานข้อมูลคืนมา
+  const bySlug = new Map((trendingData?.items ?? []).map((item) => [item.slug, item]));
+  const trending = trendingSlugs.map((slug) => bySlug.get(slug)).filter((item): item is Competition => Boolean(item));
+  const podium = (mentorData?.items ?? [])
+    .filter((mentor) => mentor.weeklyRank !== null)
+    .sort((a, b) => (a.weeklyRank ?? 0) - (b.weeklyRank ?? 0));
   const run = <div className="marquee-run">
     {trending.map((competition, index) => <div className="trend-card" key={competition.slug}>
       <span className="trend-rank" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
@@ -142,12 +152,22 @@ export function Home() {
     applyFilters({ ...filters, query: draft.trim() });
   }
 
-  const matched = filterCompetitions(filters);
-  const scoped = savedOnly ? matched.filter((item) => saved.includes(item.slug)) : matched;
-  const results = sortCompetitions(scoped, sort);
-  const pageCount = Math.max(1, Math.ceil(results.length / PER_PAGE));
-  const page = Math.min(Math.max(1, Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1), pageCount);
-  const shown = results.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  /* การกรองและแบ่งหน้าทำที่เซิร์ฟเวอร์ หน้าเว็บส่ง query string ชุดเดียวกับที่อยู่บน URL
+     ยกเว้นรายการที่บันทึกไว้ ซึ่งเก็บอยู่ในเบราว์เซอร์เท่านั้น จึงส่งเป็นรายชื่อ slug ไป */
+  const apiParams = new URLSearchParams(params);
+  apiParams.delete('saved');
+  apiParams.set('perPage', String(PER_PAGE));
+  if (savedOnly) apiParams.set('slugs', saved.join(','));
+  const emptySaved = savedOnly && saved.length === 0;
+  const { data, error, loading } = useApi<{
+    total: number; page: number; pageCount: number; items: Competition[];
+  }>(emptySaved ? null : `/competitions?${apiParams}`);
+
+  const results = data?.items ?? [];
+  const total = emptySaved ? 0 : data?.total ?? 0;
+  const pageCount = emptySaved ? 1 : data?.pageCount ?? 1;
+  const page = data?.page ?? (Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1);
+  const shown = results;
   const panelCount = activeFilterCount(filters);
   const chosenCategories = filters.categories.map(categoryLabel).join(' · ');
 
@@ -207,7 +227,7 @@ export function Home() {
         <div className="results-title">
           <h2 id="results-title">รายการแข่งขัน</h2>
           <span className="results-count" role="status">
-            {results.length} เวที{chosenCategories ? ` · ${chosenCategories}` : ''}{panelCount > 0 ? ` · ตัวกรอง ${panelCount} รายการ` : ''}{savedOnly ? ' · ที่บันทึกไว้' : ''}
+            {loading ? 'กำลังโหลด…' : `${total} เวที`}{chosenCategories ? ` · ${chosenCategories}` : ''}{panelCount > 0 ? ` · ตัวกรอง ${panelCount} รายการ` : ''}{savedOnly ? ' · ที่บันทึกไว้' : ''}
           </span>
           <span className="sample-badge"><Info size={12} aria-hidden="true" />ข้อมูลตัวอย่าง</span>
         </div>
@@ -222,14 +242,18 @@ export function Home() {
         </label>
       </div>
 
-      {results.length > 0 ? <div className="card-grid">
+      {error && <p className="auth-message" role="alert">{error}</p>}
+
+      {loading ? <div className="card-grid" aria-hidden="true">
+        {Array.from({ length: PER_PAGE }, (_, index) => <div className="card-skeleton" key={index} />)}
+      </div> : results.length > 0 ? <div className="card-grid">
         {shown.map((competition) => <CompetitionCard key={competition.slug} competition={competition} />)}
       </div> : <div className="empty-state">
         <Search size={34} aria-hidden="true" />
         <h2>{savedOnly ? 'ยังไม่มีเวทีที่บันทึกไว้' : 'ไม่พบเวทีที่ตรงกับเงื่อนไข'}</h2>
         <p>{savedOnly ? 'กดปุ่มบันทึกบนการ์ดเวทีที่สนใจ แล้วกลับมาดูที่นี่' : 'ลองเปลี่ยนคำค้น เอาบางหมวดออก หรือล้างตัวกรองบางข้อ'}</p>
         <p style={{ marginTop: 16 }}>
-          <Link className="ghost-button" to="/">ดูเวทีทั้งหมด {competitions.length} รายการ</Link>
+          <Link className="ghost-button" to="/">ดูเวทีทั้งหมด</Link>
         </p>
       </div>}
 
@@ -248,7 +272,7 @@ export function Home() {
     </section>
 
     <FilterPanel
-      open={panelOpen} filters={filters} count={results.length}
+      open={panelOpen} filters={filters} count={total}
       onChange={applyFilters}
       onClear={() => applyFilters(clearedFilters(filters))}
       onClose={() => setPanelOpen(false)}

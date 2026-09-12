@@ -1,8 +1,10 @@
 name: Deploy to GitHub Pages
 
+# ปิดการ deploy อัตโนมัติแล้ว เพราะเว็บมี backend เป็นของตัวเองตั้งแต่รอบนี้
+# GitHub Pages เสิร์ฟไฟล์นิ่งอย่างเดียว รัน API ไม่ได้ เว็บที่ขึ้น Pages จะเปิดได้แต่
+# โหลดข้อมูลไม่ได้เลย ที่อยู่จริงของเว็บคือ Vercel ซึ่งรัน /api ในโปรเจกต์เดียวกัน
+# workflow นี้ยังสั่งรันมือได้ เผื่อต้องการสำเนาไว้ดูหน้าตา
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 # Playwright is intentionally not run here: playwright.config.ts pins

@@ -1,23 +1,68 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowUpRight, Calendar, Trophy } from 'lucide-react';
 import {
   categoryLabel, daysLeft, feeLabel, formatDate, formatDeadline, levelLabels, placeLabel,
   prizeLabel, regionLabels, rewardLabels, teamLabel, typeLabels,
 } from '../../data/competitions';
-import {
-  competitionChecks, competitionSubmissions, findCompetitionSubmission, isOverdue,
-  statusLabels, toCompetition, waitingDays,
-} from '../../data/submissions';
-import type { CompetitionSubmission, SubmissionStatus } from '../../data/submissions';
+import type { CategoryId, Competition, Level, OpportunityType, Region, Reward } from '../../data/competitions';
 import { CoverArt } from '../../components/CoverArt';
+import { useApi } from '../../lib/useApi';
 import { ReviewDecision } from './ReviewDecision';
+
+export type SubmissionStatus = 'pending' | 'info' | 'published' | 'rejected';
+export const statusLabels: Record<SubmissionStatus, string> = {
+  pending: 'รอตรวจ', info: 'ขอข้อมูลเพิ่ม', published: 'เผยแพร่แล้ว', rejected: 'ไม่ผ่าน',
+};
+
+export type ReviewEvent = {
+  id: string; decision: 'publish' | 'info' | 'reject'; note: string; createdAt: string;
+};
+
+type Submission = {
+  id: string;
+  status: SubmissionStatus;
+  submittedAt: string;
+  organizerName: string;
+  contactName: string;
+  contactRole: string;
+  contactEmail: string;
+  contactPhone: string;
+  organizerUrl: string;
+  name: string;
+  description: string;
+  type: OpportunityType;
+  categories: CategoryId[];
+  levels: Level[];
+  rewards: Reward[];
+  teamMin: number;
+  teamMax: number;
+  opensAt: string | null;
+  closesAt: string;
+  eventDate: string | null;
+  region: Region;
+  venue: string | null;
+  prizeValue: number;
+  prizeNote: string | null;
+  fee: number | null;
+  sourceUrl: string;
+  registerUrl: string | null;
+  publishedCompetitionId: string | null;
+  events: ReviewEvent[];
+};
+
+/** จำนวนวันที่ใบนี้รออยู่ นับจากเวลาที่ส่ง */
+export function waitingDays(submittedAt: string) {
+  return Math.max(0, Math.floor((Date.now() - new Date(submittedAt).getTime()) / 86400000));
+}
+export const REVIEW_TARGET_DAYS = 2;
 
 export function StatusPill({ status }: { status: SubmissionStatus }) {
   return <span className={`status-pill is-${status}`}>{statusLabels[status]}</span>;
 }
 
-const statusFilters: { id: SubmissionStatus | 'all'; label: string }[] = [
+export const statusFilters: { id: SubmissionStatus | 'all'; label: string }[] = [
   { id: 'all', label: 'ทั้งหมด' },
   { id: 'pending', label: statusLabels.pending },
   { id: 'info', label: statusLabels.info },
@@ -25,31 +70,61 @@ const statusFilters: { id: SubmissionStatus | 'all'; label: string }[] = [
   { id: 'rejected', label: statusLabels.rejected },
 ];
 
+export function QueueFilters({ status, onChange }: {
+  status: SubmissionStatus | 'all';
+  onChange: (value: SubmissionStatus | 'all') => void;
+}) {
+  return <div className="queue-filters" role="group" aria-label="กรองตามสถานะ">
+    {statusFilters.map((filter) => <button
+      key={filter.id} type="button"
+      className={status === filter.id ? 'tab-button active' : 'tab-button'}
+      aria-pressed={status === filter.id}
+      onClick={() => onChange(filter.id)}
+    >{filter.label}</button>)}
+  </div>;
+}
+
+export function Field({ label, children }: { label: string; children: ReactNode }) {
+  return <div className="admin-field"><dt>{label}</dt><dd>{children || '—'}</dd></div>;
+}
+
+export function ExternalLink({ href }: { href: string | null }) {
+  if (!href) return null;
+  return <a href={href} target="_blank" rel="noreferrer noopener">
+    {href}<ArrowUpRight size={14} aria-hidden="true" />
+  </a>;
+}
+
+export function Trail({ events }: { events: ReviewEvent[] }) {
+  if (!events.length) return null;
+  const [latest] = events;
+  return <div className="admin-trail">
+    <h2>ผลการตรวจครั้งก่อน</h2>
+    <p className="admin-muted">{statusLabels[({ publish: 'published', info: 'info', reject: 'rejected' } as const)[latest.decision]]} · {formatDate(latest.createdAt.slice(0, 10))}</p>
+    {latest.note && <p>{latest.note}</p>}
+  </div>;
+}
+
+type QueueRow = Submission & { categories: CategoryId[] };
+
 export function AdminCompetitionQueue() {
   const [status, setStatus] = useState<SubmissionStatus | 'all'>('all');
-  // รอนานสุดก่อน ไม่ใช่ใหม่สุดก่อน ไม่อย่างนั้นใบที่ตรวจยากจะถูกดองไปเรื่อย ๆ
-  const rows = competitionSubmissions
-    .filter((item) => status === 'all' || item.status === status)
-    .slice().sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+  const { data, error, loading } = useApi<{ items: QueueRow[] }>(
+    `/admin/competition-submissions${status === 'all' ? '' : `?status=${status}`}`,
+  );
+  const rows = data?.items ?? [];
 
   return <>
     <header className="admin-page-head">
       <h1>คิวงานแข่ง</h1>
-      <p className="admin-muted">เรียงตามรอนานสุดก่อน เป้าหมายคือตรวจภายใน 2 วันทำการ</p>
+      <p className="admin-muted">เรียงตามรอนานสุดก่อน เป้าหมายคือตรวจภายใน {REVIEW_TARGET_DAYS} วันทำการ</p>
     </header>
 
-    <div className="queue-filters" role="group" aria-label="กรองตามสถานะ">
-      {statusFilters.map((filter) => <button
-        key={filter.id} type="button"
-        className={status === filter.id ? 'tab-button active' : 'tab-button'}
-        aria-pressed={status === filter.id}
-        onClick={() => setStatus(filter.id)}
-      >{filter.label}</button>)}
-    </div>
+    <QueueFilters status={status} onChange={setStatus} />
+    <p className="admin-muted queue-count" role="status">{loading ? 'กำลังโหลด…' : `${rows.length} ใบ`}</p>
+    {error && <p className="admin-message" role="alert">{error}</p>}
 
-    <p className="admin-muted queue-count" role="status">{rows.length} ใบ</p>
-
-    {rows.length > 0 ? <ul className="queue-list">
+    {!loading && (rows.length > 0 ? <ul className="queue-list">
       {rows.map((item) => <li className="queue-row" key={item.id}>
         <div className="queue-main">
           <StatusPill status={item.status} />
@@ -57,25 +132,53 @@ export function AdminCompetitionQueue() {
           <p className="admin-muted">{item.organizerName} · {item.categories.map(categoryLabel).join(' · ')}</p>
         </div>
         <dl className="queue-facts">
-          <div><dt>ส่งเมื่อ</dt><dd>{formatDate(item.submittedAt)}</dd></div>
-          <div><dt>รอมาแล้ว</dt><dd className={isOverdue(item) ? 'is-overdue' : undefined}>{waitingDays(item)} วัน</dd></div>
+          <div><dt>ส่งเมื่อ</dt><dd>{formatDate(item.submittedAt.slice(0, 10))}</dd></div>
+          <div>
+            <dt>รอมาแล้ว</dt>
+            <dd className={item.status === 'pending' && waitingDays(item.submittedAt) > REVIEW_TARGET_DAYS ? 'is-overdue' : undefined}>
+              {waitingDays(item.submittedAt)} วัน
+            </dd>
+          </div>
           <div><dt>ปิดรับ</dt><dd>{formatDate(item.closesAt)}</dd></div>
         </dl>
       </li>)}
-    </ul> : <p className="admin-empty">ไม่มีใบในสถานะนี้</p>}
+    </ul> : <p className="admin-empty">ไม่มีใบในสถานะนี้</p>)}
   </>;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="admin-field"><dt>{label}</dt><dd>{children || '—'}</dd></div>;
+/** พรีวิวใช้โครงเดียวกับการ์ดหน้าบ้าน เพื่อให้คนตรวจเห็นสิ่งเดียวกับที่ผู้ใช้จะเห็น */
+function toPreview(submission: Submission): Competition {
+  return {
+    slug: submission.id,
+    name: submission.name,
+    categories: submission.categories as [CategoryId, ...CategoryId[]],
+    type: submission.type,
+    org: submission.organizerName,
+    closesAt: submission.closesAt,
+    opensAt: submission.opensAt ?? undefined,
+    eventDate: submission.eventDate ?? undefined,
+    region: submission.region,
+    venue: submission.venue ?? undefined,
+    prizeValue: submission.prizeValue,
+    prizeNote: submission.prizeNote ?? undefined,
+    rewards: submission.rewards,
+    fee: submission.fee ?? undefined,
+    levels: submission.levels,
+    teamMin: submission.teamMin,
+    teamMax: submission.teamMax,
+    description: submission.description,
+    keywords: [],
+    sourceUrl: submission.sourceUrl,
+    source: 'organiser',
+    lastVerifiedAt: submission.submittedAt.slice(0, 10),
+    registerUrl: submission.registerUrl ?? undefined,
+  };
 }
 
-/** พรีวิวใช้โครงเดียวกับการ์ดหน้าบ้าน เพื่อให้คนตรวจเห็นสิ่งเดียวกับที่ผู้ใช้จะเห็น */
-function CardPreview({ submission }: { submission: CompetitionSubmission }) {
-  const preview = toCompetition(submission);
+function CardPreview({ preview, seed }: { preview: Competition; seed: string }) {
   const [first, ...rest] = preview.categories;
   return <article className="competition-card preview-card">
-    <div className="card-cover"><CoverArt category={first} seed={`preview-${submission.id}`} /></div>
+    <div className="card-cover"><CoverArt category={first} seed={`preview-${seed}`} /></div>
     <div className="card-body">
       <div className="card-meta">
         <span className="category-pill">{categoryLabel(first)}</span>
@@ -94,15 +197,20 @@ function CardPreview({ submission }: { submission: CompetitionSubmission }) {
 
 export function AdminCompetitionReview() {
   const { id } = useParams();
-  const submission = findCompetitionSubmission(id);
+  const { data, error, loading, reload } = useApi<{ submission: Submission; checks: string[] }>(
+    `/admin/competition-submissions/${id}`,
+  );
 
-  if (!submission) return <>
-    <h1>ไม่พบใบนี้</h1>
-    <p className="admin-muted">ลิงก์อาจไม่ถูกต้อง</p>
+  // โหลดซ้ำหลังตัดสินต้องไม่ถอดหน้าทิ้ง ไม่อย่างนั้นข้อความยืนยันผลจะหายไปทันที
+  if (loading && !data) return <p className="admin-muted">กำลังโหลด…</p>;
+  if (error || !data) return <>
+    <h1>เปิดใบนี้ไม่ได้</h1>
+    <p className="admin-message" role="alert">{error || 'ไม่พบใบนี้'}</p>
     <p><Link className="ghost-button" to="/admin/competitions"><ArrowLeft size={16} aria-hidden="true" />กลับไปคิวงานแข่ง</Link></p>
   </>;
 
-  const preview = toCompetition(submission);
+  const { submission, checks } = data;
+  const preview = toPreview(submission);
   const left = daysLeft(preview);
 
   return <>
@@ -114,22 +222,18 @@ export function AdminCompetitionReview() {
         <StatusPill status={submission.status} />
       </div>
       <p className="admin-muted">
-        ใบ {submission.id} · ส่งเมื่อ {formatDate(submission.submittedAt)} · รอมาแล้ว {waitingDays(submission)} วัน
+        ใบ {submission.id} · ส่งเมื่อ {formatDate(submission.submittedAt.slice(0, 10))} · รอมาแล้ว {waitingDays(submission.submittedAt)} วัน
       </p>
     </header>
 
-    {submission.reviewNote && <div className="admin-trail">
-      <h2>ผลการตรวจครั้งก่อน</h2>
-      <p className="admin-muted">{submission.reviewedBy} · {submission.reviewedAt && formatDate(submission.reviewedAt)}</p>
-      <p>{submission.reviewNote}</p>
-    </div>}
+    <Trail events={submission.events} />
 
     <div className="review-grid">
       <div className="review-body">
         <section className="admin-block" aria-labelledby="preview-title">
           <h2 id="preview-title">การ์ดที่จะขึ้นหน้าเว็บ</h2>
           <p className="admin-muted">ตรวจจากสิ่งที่ผู้ใช้จะเห็นจริง ไม่ใช่จากค่าในฟอร์มอย่างเดียว</p>
-          <CardPreview submission={submission} />
+          <CardPreview preview={preview} seed={submission.id} />
         </section>
 
         <section className="admin-block" aria-labelledby="organiser-title">
@@ -140,11 +244,7 @@ export function AdminCompetitionReview() {
             <Field label="ผู้ติดต่อ">{submission.contactName} · {submission.contactRole}</Field>
             <Field label="อีเมล">{submission.contactEmail}</Field>
             <Field label="เบอร์โทร">{submission.contactPhone}</Field>
-            <Field label="เว็บหรือเพจทางการ">
-              <a href={submission.organizerUrl} target="_blank" rel="noreferrer noopener">
-                {submission.organizerUrl}<ArrowUpRight size={14} aria-hidden="true" />
-              </a>
-            </Field>
+            <Field label="เว็บหรือเพจทางการ"><ExternalLink href={submission.organizerUrl} /></Field>
           </dl>
         </section>
 
@@ -169,23 +269,16 @@ export function AdminCompetitionReview() {
             <Field label="เงินรางวัล">{prizeLabel(preview)}</Field>
             <Field label="รางวัลอื่น">{submission.rewards.map((reward) => rewardLabels[reward]).join(' · ')}</Field>
             <Field label="ค่าสมัคร">{feeLabel(preview)}</Field>
-            <Field label="ลิงก์ประกาศต้นทาง">
-              <a href={submission.sourceUrl} target="_blank" rel="noreferrer noopener">
-                {submission.sourceUrl}<ArrowUpRight size={14} aria-hidden="true" />
-              </a>
-            </Field>
-            <Field label="ลิงก์สมัคร">
-              {submission.registerUrl
-                ? <a href={submission.registerUrl} target="_blank" rel="noreferrer noopener">
-                  {submission.registerUrl}<ArrowUpRight size={14} aria-hidden="true" />
-                </a>
-                : ''}
-            </Field>
+            <Field label="ลิงก์ประกาศต้นทาง"><ExternalLink href={submission.sourceUrl} /></Field>
+            <Field label="ลิงก์สมัคร"><ExternalLink href={submission.registerUrl} /></Field>
           </dl>
         </section>
       </div>
 
-      <ReviewDecision checks={competitionChecks} noun="งาน" />
+      <ReviewDecision
+        checks={checks} noun="งาน" onDone={reload}
+        endpoint={`/admin/competition-submissions/${submission.id}`}
+      />
     </div>
   </>;
 }

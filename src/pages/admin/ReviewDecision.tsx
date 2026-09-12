@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Send, TriangleAlert, X } from 'lucide-react';
+import { ApiError, post } from '../../lib/api';
 
 type Decision = 'publish' | 'info' | 'reject';
 
@@ -10,28 +11,46 @@ const labels: Record<Decision, string> = {
 /**
  * เอาเกณฑ์การตรวจมาบังคับด้วยระบบ ไม่ใช่หวังว่าคนตรวจจะจำได้:
  * ปุ่มเผยแพร่กดไม่ได้จนกว่าจะติ๊กครบทุกข้อ และอีกสองปุ่มต้องมีเหตุผลติดไปด้วยเสมอ
+ * กฎเดียวกันนี้ถูกบังคับซ้ำที่เซิร์ฟเวอร์ เพราะหน้าเว็บถูกข้ามได้เสมอ
  */
-export function ReviewDecision({ checks, noun }: { checks: string[]; noun: string }) {
-  const [ticked, setTicked] = useState<boolean[]>(() => checks.map(() => false));
+export function ReviewDecision({ checks, endpoint, noun, onDone }: {
+  checks: string[];
+  endpoint: string;
+  noun: string;
+  onDone: () => void;
+}) {
+  const [ticked, setTicked] = useState<string[]>([]);
   const [note, setNote] = useState('');
   const [message, setMessage] = useState('');
-  const [done, setDone] = useState<Decision | null>(null);
+  const [done, setDone] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const remaining = ticked.filter((value) => !value).length;
+  const remaining = checks.filter((check) => !ticked.includes(check)).length;
 
-  function decide(decision: Decision) {
+  async function decide(decision: Decision) {
     if (decision !== 'publish' && !note.trim()) {
       setMessage(`กรอกเหตุผลก่อน เพราะข้อความนี้คือสิ่งที่ผู้ส่ง${noun}จะได้อ่าน`);
       document.getElementById('review-note')?.focus();
       return;
     }
     setMessage('');
-    setDone(decision);
+    setBusy(true);
+    try {
+      await post(`${endpoint}/decision`, { decision, note, checks: ticked });
+      setDone(`บันทึกผลแล้ว: ${labels[decision]}`);
+      onDone();
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : 'บันทึกผลไม่สำเร็จ ลองใหม่อีกครั้ง');
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function toggle(index: number) {
-    setTicked((current) => current.map((value, position) => (position === index ? !value : value)));
-    setDone(null);
+  function toggle(check: string) {
+    setTicked((current) => (current.includes(check)
+      ? current.filter((item) => item !== check)
+      : [...current, check]));
+    setDone('');
   }
 
   return <section className="review-panel" aria-labelledby="review-title">
@@ -39,8 +58,8 @@ export function ReviewDecision({ checks, noun }: { checks: string[]; noun: strin
 
     <fieldset className="review-checks">
       <legend>รายการตรวจ <span className="admin-muted">({checks.length - remaining}/{checks.length})</span></legend>
-      {checks.map((check, index) => <label className="review-check" key={check}>
-        <input type="checkbox" checked={ticked[index]} onChange={() => toggle(index)} />
+      {checks.map((check) => <label className="review-check" key={check}>
+        <input type="checkbox" checked={ticked.includes(check)} onChange={() => toggle(check)} />
         <span>{check}</span>
       </label>)}
     </fieldset>
@@ -50,7 +69,7 @@ export function ReviewDecision({ checks, noun }: { checks: string[]; noun: strin
       <small>บังคับกรอกเมื่อขอข้อมูลเพิ่มหรือไม่ผ่าน เขียนให้ผู้ส่งแก้ต่อได้ ไม่ใช่แค่บอกว่าไม่ผ่าน</small>
       <textarea
         id="review-note" rows={4} value={note}
-        onChange={(event) => { setNote(event.target.value); setDone(null); }}
+        onChange={(event) => { setNote(event.target.value); setDone(''); }}
       />
     </label>
 
@@ -62,19 +81,19 @@ export function ReviewDecision({ checks, noun }: { checks: string[]; noun: strin
     <p className="admin-message" role="alert">{message}</p>
 
     <div className="review-actions">
-      <button type="button" className="primary-button" disabled={remaining > 0} onClick={() => decide('publish')}>
+      <button type="button" className="primary-button" disabled={remaining > 0 || busy} onClick={() => decide('publish')}>
         <Check size={16} aria-hidden="true" />เผยแพร่
       </button>
-      <button type="button" className="ghost-button" onClick={() => decide('info')}>
+      <button type="button" className="ghost-button" disabled={busy} onClick={() => decide('info')}>
         <Send size={16} aria-hidden="true" />ขอข้อมูลเพิ่ม
       </button>
-      <button type="button" className="danger-button" onClick={() => decide('reject')}>
+      <button type="button" className="danger-button" disabled={busy} onClick={() => decide('reject')}>
         <X size={16} aria-hidden="true" />ไม่ผ่าน
       </button>
     </div>
 
     <p className="review-result" role="status">
-      {done && `ตัวอย่างการตัดสิน: ${labels[done]} — ต้นแบบนี้ยังไม่บันทึกผลและไม่ส่งอีเมลจริง`}
+      {done && `${done} — ผู้ส่งจะได้รับอีเมลแจ้งผล ซึ่งตอนนี้ระบบบันทึกไว้แทนการส่งจริง`}
     </p>
   </section>;
 }

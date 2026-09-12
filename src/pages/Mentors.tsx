@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { competitions, deadlineOf, findCompetition } from '../data/competitions';
+import { deadlineOf } from '../data/competitions';
+import type { Competition } from '../data/competitions';
 import {
-  availableSlots, formatSlot, mentorAward, mentorSlots, mentorTier, mentors, problems, topics,
+  availableSlots, formatSlot, mentorSlots, problems, tierAgainst, topics,
 } from '../data/mentors';
 import type { Mentor } from '../data/mentors';
+import { useApi } from '../lib/useApi';
 
 /** datetime-local speaks local wall-clock time, which is what the slots are built in. */
 function toLocalInput(date: Date) {
@@ -34,7 +36,7 @@ function MentorCard({ mentor, deadline, teamSize, open, selected, onSelect, onBo
   const slots = availableSlots(mentor, deadline);
   const late = slots.length === 0;
   const chosen = selected ?? slots[0];
-  const award = mentorAward(mentor);
+  const award = mentor.verified ? mentor.wonName : null;
   const perPerson = Math.round(mentor.price / teamSize);
 
   return <details className="mentor-card" open={open}>
@@ -52,7 +54,7 @@ function MentorCard({ mentor, deadline, teamSize, open, selected, onSelect, onBo
         {late && <span className="late-chip">คิวว่างหลังวันส่งงาน</span>}
         <div className="award-line">
           {award
-            ? <>รางวัลชนะเลิศ · {award.name}<br /><span className="verified-line">✓ ยืนยันผลรางวัลแล้ว (ตัวอย่าง)</span></>
+            ? <>รางวัลชนะเลิศ · {award}<br /><span className="verified-line">✓ ยืนยันผลรางวัลแล้ว (ตัวอย่าง)</span></>
             : 'ยังไม่มีผลรางวัลที่ยืนยัน'}
         </div>
         <div className="help-block"><b>ช่วยได้ดีที่สุด</b><br />{mentor.best}</div>
@@ -94,11 +96,14 @@ export function Mentors() {
   const paramSlug = params.get('competition') ?? '';
   const paramProblem = Number(params.get('problem'));
 
-  const [slug, setSlug] = useState(findCompetition(paramSlug) ? paramSlug : '');
-  const [deadline, setDeadline] = useState(() => {
-    const preset = findCompetition(paramSlug);
-    return params.get('deadline') ?? (preset ? toLocalInput(deadlineOf(preset)) : '');
-  });
+  /* รายชื่อเวทีกับเมนเทอร์มาจาก API ส่วนเวทีที่เลือกดึงแยกเพราะต้องใช้หมวดและวันปิดรับ */
+  const { data: optionData } = useApi<{ items: { slug: string; name: string }[] }>('/competitions/options');
+  const { data: mentorData } = useApi<{ items: Mentor[] }>('/mentors');
+  const options = optionData?.items ?? [];
+  const allMentors = mentorData?.items ?? [];
+
+  const [slug, setSlug] = useState(paramSlug);
+  const [deadline, setDeadline] = useState(params.get('deadline') ?? '');
   const [problem, setProblem] = useState<number | null>(
     Number.isInteger(paramProblem) && paramProblem >= 0 && paramProblem < problems.length ? paramProblem : null,
   );
@@ -111,18 +116,21 @@ export function Mentors() {
 
   useEffect(() => { document.title = 'เมนเทอร์ — ChampionWays'; }, []);
 
-  /** Picking a competition fills in its own deadline, which is the usual answer. */
-  function chooseCompetition(next: string) {
-    setSlug(next);
-    const competition = findCompetition(next);
-    if (competition) setDeadline(toLocalInput(deadlineOf(competition)));
-  }
+  const { data: chosenData } = useApi<{ competition: Competition }>(
+    slug ? `/competitions/${encodeURIComponent(slug)}` : null,
+  );
+  const chosen = chosenData?.competition;
+
+  /** เลือกเวทีแล้วเติมวันส่งให้เอง ซึ่งเป็นคำตอบที่ถูกเกือบทุกครั้ง
+      ทำใน effect เพราะต้องรอข้อมูลเวทีจากเซิร์ฟเวอร์ก่อน */
+  useEffect(() => {
+    if (chosen && !params.get('deadline')) setDeadline(toLocalInput(deadlineOf(chosen)));
+  }, [chosen, params]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const competition = findCompetition(slug);
     const when = new Date(deadline);
-    if (!competition || problem === null || Number.isNaN(when.getTime())) return;
+    if (!chosen || problem === null || Number.isNaN(when.getTime())) return;
     if (when.getTime() <= Date.now()) {
       setError('เลือกวันส่งงานในอนาคต เพื่อดูคิวที่ยังนัดได้');
       return;
@@ -140,12 +148,12 @@ export function Mentors() {
 
   const ranked = useMemo(() => {
     if (!context) return [];
-    return mentors
-      .map((mentor) => ({ mentor, tier: mentorTier(mentor, context.slug, context.problem) }))
+    return allMentors
+      .map((mentor) => ({ mentor, tier: tierAgainst(mentor, chosen, context.slug, context.problem) }))
       .filter((entry): entry is { mentor: Mentor; tier: 1 | 2 | 3 } => entry.tier !== null);
-  }, [context]);
+  }, [context, allMentors, chosen]);
 
-  const competition = context ? findCompetition(context.slug) : undefined;
+  const competition = context ? chosen : undefined;
 
   return <main id="main" tabIndex={-1}>
     <section className="mentor-hero">
@@ -165,9 +173,9 @@ export function Mentors() {
         <div className="field-grid">
           <label className="field">
             1. งานแข่งขัน
-            <select value={slug} required onChange={(event) => chooseCompetition(event.target.value)}>
-              <option value="">เลือกงานแข่งขัน</option>
-              {competitions.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}
+            <select value={slug} required onChange={(event) => setSlug(event.target.value)}>
+              <option value="">{options.length ? 'เลือกงานแข่งขัน' : 'กำลังโหลดรายการ…'}</option>
+              {options.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}
             </select>
           </label>
           <label className="field">
@@ -190,7 +198,10 @@ export function Mentors() {
         </fieldset>
         <div className="panel-actions">
           <span className="card-org">ทุกคนมีคุยฟรี 20 นาทีก่อนตัดสินใจ</span>
-          <button className="primary-button" type="submit">ดูเมนเทอร์ที่ช่วยทีมได้<ArrowRight size={16} aria-hidden="true" /></button>
+          {/* ข้อมูลเวทีมาจากเซิร์ฟเวอร์ กดก่อนโหลดเสร็จจะไม่เกิดอะไรขึ้นเลย จึงปิดปุ่มไว้ก่อน */}
+          <button className="primary-button" type="submit" disabled={Boolean(slug) && !chosen}>
+            {slug && !chosen ? 'กำลังโหลดข้อมูลเวที…' : 'ดูเมนเทอร์ที่ช่วยทีมได้'}<ArrowRight size={16} aria-hidden="true" />
+          </button>
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
       </form>}

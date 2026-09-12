@@ -37,6 +37,8 @@ export interface Mentor {
   /** First bookable day, counted from today. */
   firstSlotInDays: number;
   verified: boolean;
+  /** ชื่อเวทีที่ชนะ API ส่งมาให้ ไฟล์ตัวอย่างไม่ได้ตั้งไว้เพราะค้นจาก wonSlug ได้เอง */
+  wonName?: string | null;
   /** Position on this week's podium; absent when not in the top three. */
   weeklyRank?: 1 | 2 | 3;
   weeklyFocus?: string;
@@ -133,7 +135,16 @@ export type Tier = 1 | 2 | 3 | null;
  * 1 won this competition · 2 won one of the same kind · 3 topics match the team's problem.
  */
 export function mentorTier(mentor: Mentor, competitionSlug: string, problem: number): Tier {
-  const competition = findCompetition(competitionSlug);
+  return tierAgainst(mentor, findCompetition(competitionSlug), competitionSlug, problem);
+}
+
+/** รุ่นที่รับตัวเวทีเข้ามาตรง ๆ ใช้เมื่อข้อมูลเวทีมาจาก API ไม่ใช่จากไฟล์ในเครื่อง */
+export function tierAgainst(
+  mentor: Mentor,
+  competition: { slug: string; categories: CategoryId[] } | undefined,
+  competitionSlug: string,
+  problem: number,
+): Tier {
   if (mentor.verified && mentor.wonSlug === competitionSlug) return 1;
   if (mentor.verified && competition && mentor.category && competition.categories.includes(mentor.category)) return 2;
   if (mentor.topics.some((topic) => problemTopics[problem].includes(topic))) return 3;

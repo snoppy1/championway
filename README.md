@@ -8,6 +8,8 @@
 
 ระบบให้ผู้จัดงานลงงานแข่งฟรี: [organiser-submission.md](organiser-submission.md) — ที่มาของข้อมูลงานแข่งจริง ฟอร์ม 4 ขั้นตอน และขั้นตอนการตรวจก่อนเผยแพร่
 
+ฝั่งเซิร์ฟเวอร์: [backend.md](backend.md) — ฐานข้อมูล ระบบบัญชี Google login รายการ API และวิธี deploy
+
 หน้าจัดการสำหรับทีมงาน: [admin-console.md](admin-console.md) — คิวตรวจ เกณฑ์ที่ระบบบังคับ และข้อจำกัดเรื่องสิทธิ์
 
 ## เปิดใช้งานบน Windows
@@ -17,10 +19,16 @@
 ```powershell
 cd D:\champway
 npm.cmd install
+copy .env.example .env.local   # แล้วเติม DATABASE_URL ของจริงลงไป
+npm.cmd run db:migrate
+npm.cmd run db:seed
 npm.cmd run dev
 ```
 
 เปิด http://127.0.0.1:5173/
+
+เว็บต้องมี **ฐานข้อมูล Postgres** ถึงจะใช้งานได้ ถ้ายังไม่มี สมัคร Neon แบบฟรีแล้วเอา connection string มาใส่ใน `.env.local`
+หน้าเว็บกับ API รันคนละพอร์ตตอน dev โดย Vite พา `/api` ไปให้เอง ถ้าอยากได้ API แบบ watch ให้เปิดอีกหน้าต่างแล้วรัน `npm.cmd run dev:api`
 
 ```powershell
 npm.cmd run build
@@ -41,7 +49,9 @@ Playwright ใช้ Microsoft Edge ที่ติดตั้งในเค�
 
 ## โครงสร้าง
 
-- `src/data/competitions.ts` — Type ของเวที หมวดหมู่ 13 หมวด ข้อมูลตัวอย่าง 14 เวที และฟังก์ชันค้นหา กรอง เรียงลำดับ
+- `server/` — API, ฐานข้อมูล, ระบบบัญชี ดู [backend.md](backend.md)
+- `src/data/competitions.ts` — Type ของเวที หมวดหมู่ 13 หมวด ข้อมูลตัวอย่างที่ใช้เป็นแหล่ง seed และฟังก์ชันจัดรูปแบบ
+- `src/lib/api.ts` — ตัวเรียก API และการจัดการข้อผิดพลาด
 - `src/data/filters.ts` — แปลงตัวกรองไปกลับกับ query string ของ URL
 - `src/data/submissions.ts` — ชนิดข้อมูลของใบที่ส่งเข้ามา คิวตัวอย่าง และรายการตรวจ
 - `src/data/mentors.ts` — เมนเทอร์สมมติ หัวข้อความถนัด คิวเวลา และเกณฑ์จัดกลุ่มตามความตรงกับโจทย์
@@ -52,7 +62,7 @@ Playwright ใช้ Microsoft Edge ที่ติดตั้งในเค�
 - `src/assets/` — โลโก้ถ้วยรางวัลบนหัวเว็บ และภาพ wordmark ของหน้าแรก
 - `src/styles.css` — ระบบสี ตัวอักษร องค์ประกอบ และ responsive layout
 - `scripts/spa-fallback.mjs` — สร้าง `404.html` ให้ GitHub Pages เปิด URL ตรงได้
-- `.github/workflows/deploy.yml` — build และ deploy ขึ้น GitHub Pages
+- `.github/workflows/deploy.yml` — build ขึ้น GitHub Pages **สั่งรันมือเท่านั้น** เพราะ Pages รัน API ไม่ได้
 
 โลโก้เป็นไฟล์ภาพ ไม่ใช่ข้อความ ภาพ wordmark ของหน้าแรกเป็น JPEG พื้นขาวและใช้ `mix-blend-mode: multiply` กลืนพื้นขาวเข้ากับ gradient ของ hero แทนการตัดพื้นหลังเป็นภาพโปร่ง ส่วนชื่อ ChampionWays ที่ screen reader อ่านมาจาก `alt` ของภาพ
 
@@ -63,9 +73,8 @@ Playwright ใช้ Microsoft Edge ที่ติดตั้งในเค�
 - `/` หน้าแรก: hero, เวทีที่คนสนใจมากที่สุด, เมนเทอร์ประจำสัปดาห์ แล้วต่อด้วยการค้นหาและรายการเวที
 - `/?q=ฟอนต์&cat=design,technology&type=camp&level=university&region=online&sort=prize&page=2` เก็บคำค้น หมวด (เลือกได้หลายหมวด) ตัวกรองทุกกลุ่ม การเรียงลำดับ และหน้าไว้ใน URL ทั้งหมด ลิงก์เก่ารูปแบบ `?category=design` ยังเปิดได้
 - `/?saved=1` แสดงเฉพาะเวทีที่บันทึกไว้ (ปุ่มรูปที่คั่นหนังสือบนหัวเว็บ)
-- `/admin` หน้าจัดการ: ภาพรวม คิวงานแข่ง คิวใบสมัครเมนเทอร์ และหน้าตรวจรายใบ
-
-> หน้าจัดการเป็นต้นแบบและ **ยังไม่มีระบบยืนยันตัวตน** อยู่ใน bundle เดียวกับหน้าบ้าน ถ้า deploy ขึ้นโฮสต์สาธารณะ `/admin` จะเปิดได้จากอินเทอร์เน็ต ตอนนี้ปลอดภัยเพราะข้อมูลเป็นตัวอย่างทั้งหมด ห้ามใส่ข้อมูลจริงก่อนมี backend และ auth
+- `/signin` และ `/signup` เข้าสู่ระบบและสมัครสมาชิก รองรับทั้งอีเมลและ Google
+- `/admin` หน้าจัดการ: ภาพรวม คิวงานแข่ง คิวใบสมัครเมนเทอร์ และหน้าตรวจรายใบ **เปิดได้เฉพาะบัญชีทีมตรวจ** ซึ่งตั้งด้วย `npm.cmd run db:admin` เท่านั้น สมัครเองจากหน้าเว็บจะได้บทบาทสมาชิกทั่วไปเสมอ
 - `/competitions/:slug` เปิดรายละเอียดโดยตรงได้ เก็บ query ของหน้าแรกไว้เมื่อเปิดผ่านการ์ด
 - `/competitions` เปลี่ยนไป `/` เพื่อไม่ให้ลิงก์เดิมเสีย
 - `/mentors?competition=<slug>&problem=<0-3>` เปิดหน้าเมนเทอร์พร้อมบริบทได้ทันที

@@ -3,6 +3,8 @@ import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, ClipboardCheck, Eye, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { topics } from '../data/mentors';
+import { useAuth } from '../data/auth';
+import { ApiError, post } from '../lib/api';
 import '../mentor-application.css';
 
 const steps = ['ข้อมูลผู้สมัคร', 'ประสบการณ์และรางวัล', 'บริการและคิว', 'ตรวจทานและส่ง'];
@@ -34,6 +36,8 @@ export function MentorApplication() {
   const [consent, setConsent] = useState(noConsent);
   const [message, setMessage] = useState('');
   const [complete, setComplete] = useState(false);
+  const [sending, setSending] = useState(false);
+  const { user, loading: authLoading } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const previousStage = useRef(stage);
@@ -94,10 +98,46 @@ export function MentorApplication() {
     return !error;
   }
 
+  /* datetime-local ไม่มีเขตเวลาติดมา ใบสมัครพูดเวลาไทย จึงต่อ +07:00 ให้ชัด
+     ก่อนส่ง ไม่อย่างนั้นเซิร์ฟเวอร์จะตีความเป็นเวลาของเครื่องที่รัน */
+  const bangkok = (value: string) => new Date(`${value}:00+07:00`).toISOString();
+
+  async function submitApplication() {
+    setSending(true);
+    setMessage('');
+    try {
+      await post('/submissions/mentor', {
+        firstName: values.first, lastName: values.last, nickname: values.nickname,
+        email: values.email, occupation: values.occupation, organization: values.organization,
+        role: values.role, experience: values.experience, portfolio: values.portfolio,
+        best: values.best, cannot: values.cannot, topics: selectedTopics,
+        price: Number(values.price) || 0,
+        paidSlot: bangkok(values.paidSlot), freeSlot: bangkok(values.freeSlot),
+        awards: awards.map((award) => ({
+          title: award.title,
+          competitionSlug: null,
+          year: award.year,
+          // ไฟล์ยังไม่ถูกอัปโหลด บันทึกชื่อไฟล์ไว้ให้คนตรวจรู้ว่าต้องขออะไรเพิ่ม
+          evidence: award.url || (award.file ? `ไฟล์แนบ: ${award.file.name}` : 'ยังไม่แนบหลักฐาน'),
+        })),
+      });
+      setComplete(true);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : 'ส่งใบสมัครไม่สำเร็จ ลองใหม่อีกครั้ง');
+    } finally {
+      setSending(false);
+    }
+  }
+
   function next(event: FormEvent) {
     event.preventDefault();
     if (!validate()) return;
-    if (stage < 3) setStage(stage + 1); else setComplete(true);
+    if (stage < 3) { setStage(stage + 1); return; }
+    if (!user) {
+      setMessage('ต้องเข้าสู่ระบบก่อนส่งใบสมัคร');
+      return;
+    }
+    void submitApplication();
   }
 
   const group = (title: string, children: ReactNode, hint?: string, aside?: ReactNode) => <section className="group">
@@ -213,9 +253,12 @@ export function MentorApplication() {
               <div className="note">อีเมล นามสกุลเต็ม และไฟล์หลักฐานไม่แสดงในแถวเมนเทอร์ · โปรไฟล์ยังไม่เผยแพร่จนกว่าจะตรวจสอบผ่าน</div>
             </>, 'ต้องติ๊กครบทุกข้อจึงส่งใบสมัครได้ หากกลับไปแก้ข้อมูล ข้อแรกจะถูกล้างให้ตรวจทานใหม่')}
           </fieldset>
-          <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>ย้อนกลับ</button>}<span className="muted">ขั้นตอน {stage + 1} จาก 4</span><button className="primary" type="submit">{stage === 3 ? 'ส่งใบสมัครตัวอย่าง' : 'ถัดไป'}{stage < 3 && <ArrowRight aria-hidden="true" />}</button></div>
+          {!authLoading && !user && <p className="note" role="status">
+            ต้อง<Link to="/signin?next=/mentors/apply">เข้าสู่ระบบ</Link>ก่อนจึงจะส่งใบสมัครได้ กรอกข้อมูลไว้ก่อนได้ แต่กดส่งไม่ได้จนกว่าจะเข้าสู่ระบบ
+          </p>}
+          <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>ย้อนกลับ</button>}<span className="muted">ขั้นตอน {stage + 1} จาก 4</span><button className="primary" type="submit" disabled={sending}>{stage === 3 ? (sending ? 'กำลังส่ง…' : 'ส่งใบสมัคร') : 'ถัดไป'}{stage < 3 && <ArrowRight aria-hidden="true" />}</button></div>
         </form>
-        {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>ตัวอย่างสถานะ: ส่งใบสมัครแล้ว</h2><p>เมื่อเปิดใช้จริง ทีมงานจะตรวจข้อมูลและหลักฐาน แล้วแจ้งผลทางอีเมล</p><div className="note">นี่เป็นการทดลองขั้นตอน ยังไม่มีข้อมูลหรือไฟล์ถูกส่งไปที่ใด และยังไม่ได้สร้างบัญชีเมนเทอร์</div><p className="muted">สถานะจริงที่รองรับ: รอตรวจสอบ → ขอข้อมูลเพิ่มเติม → อนุมัติ / ไม่อนุมัติ</p><button type="button" onClick={() => setComplete(false)}>กลับไปตรวจใบสมัคร</button><Link className="application-return" to="/mentors">กลับไปหน้าเมนเทอร์</Link></div>}
+        {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>ส่งใบสมัครแล้ว</h2><p>ใบสมัครเข้าคิวตรวจแล้ว ทีมงานจะตรวจข้อมูลและหลักฐาน แล้วแจ้งผลทุกกรณี</p><div className="note">ไฟล์แนบยังไม่ถูกอัปโหลด ระบบบันทึกไว้เป็นชื่อไฟล์ให้ทีมตรวจขอเพิ่มภายหลัง และอีเมลแจ้งผลยังไม่ถูกส่งออกจริงในรอบนี้</div><p className="muted">สถานะที่รองรับ: รอตรวจสอบ → ขอข้อมูลเพิ่มเติม → อนุมัติ / ไม่อนุมัติ</p><button type="button" onClick={() => setComplete(false)}>กลับไปตรวจใบสมัคร</button><Link className="application-return" to="/mentors">กลับไปหน้าเมนเทอร์</Link></div>}
       </div>
     </div>
     <p className="application-local-note">ข้อมูลกรอกเก็บเฉพาะระหว่างเปิดหน้านี้ ปิด รีเฟรช หรือออกจากหน้าสมัครแล้วหาย</p>

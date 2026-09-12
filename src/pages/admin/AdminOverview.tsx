@@ -1,11 +1,19 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarClock, ClipboardList, CircleAlert, Archive } from 'lucide-react';
+import { ArrowRight, Archive, CalendarClock, CircleAlert, ClipboardList } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { formatDate, formatDeadline } from '../../data/competitions';
-import {
-  REVIEW_TARGET_DAYS, STALE_AFTER_DAYS, alreadyClosed, byWaiting, closingSoon,
-  competitionSubmissions, mentorSubmissions, pendingOf, staleListings, waitingDays,
-} from '../../data/submissions';
+import { formatDate } from '../../data/competitions';
+import { useApi } from '../../lib/useApi';
+
+const REVIEW_TARGET_DAYS = 2;
+const STALE_AFTER_DAYS = 30;
+
+type Listing = { slug: string; name: string; closesAt?: string; lastVerifiedAt?: string };
+type Overview = {
+  waiting: { competitions: number; mentors: number; total: number; oldestDays: number };
+  closingSoon: Listing[];
+  stale: Listing[];
+  closed: Listing[];
+};
 
 /** ตัวเลขที่ไม่นำไปสู่การลงมือทำห้ามอยู่บนหน้านี้ ทุกการ์ดจึงมีทางไปต่อ */
 function Stat({ icon, title, value, tone, children }: {
@@ -18,14 +26,23 @@ function Stat({ icon, title, value, tone, children }: {
   </article>;
 }
 
+function Listings({ items, label, empty }: { items: Listing[]; label: (item: Listing) => string; empty: string }) {
+  if (!items.length) return <p>{empty}</p>;
+  return <ul className="stat-list">
+    {items.map((item) => <li key={item.slug}>
+      <Link to={`/competitions/${item.slug}`}>{item.name}</Link>
+      <span className="admin-muted">{label(item)}</span>
+    </li>)}
+  </ul>;
+}
+
 export function AdminOverview() {
-  const waiting = byWaiting(pendingOf(competitionSubmissions));
-  const waitingMentors = byWaiting(pendingOf(mentorSubmissions));
-  const queue = [...waiting, ...waitingMentors];
-  const oldest = queue.length ? Math.max(...queue.map(waitingDays)) : 0;
-  const soon = closingSoon();
-  const stale = staleListings();
-  const closed = alreadyClosed();
+  const { data, error, loading } = useApi<Overview>('/admin/overview');
+
+  if (loading) return <p className="admin-muted">กำลังโหลด…</p>;
+  if (error || !data) return <p className="admin-message" role="alert">{error || 'โหลดข้อมูลไม่สำเร็จ'}</p>;
+
+  const { waiting, closingSoon, stale, closed } = data;
 
   return <>
     <header className="admin-page-head">
@@ -37,33 +54,29 @@ export function AdminOverview() {
       <Stat
         icon={<ClipboardList size={16} aria-hidden="true" />}
         title="ใบที่รอตรวจ"
-        value={queue.length ? `${queue.length} ใบ` : 'ไม่มี'}
-        tone={oldest > REVIEW_TARGET_DAYS ? 'warn' : undefined}
+        value={waiting.total ? `${waiting.total} ใบ` : 'ไม่มี'}
+        tone={waiting.oldestDays > REVIEW_TARGET_DAYS ? 'warn' : undefined}
       >
-        {queue.length > 0
-          ? <p>ใบเก่าสุดรอมาแล้ว {oldest} วัน {oldest > REVIEW_TARGET_DAYS
+        {waiting.total > 0
+          ? <p>ใบเก่าสุดรอมาแล้ว {waiting.oldestDays} วัน {waiting.oldestDays > REVIEW_TARGET_DAYS
             ? <b>เกินเป้าหมาย {REVIEW_TARGET_DAYS} วันทำการ</b>
             : `ยังอยู่ในเป้าหมาย ${REVIEW_TARGET_DAYS} วันทำการ`}</p>
           : <p>ไม่มีใบค้างในคิว</p>}
         <p className="stat-links">
-          <Link className="detail-link" to="/admin/competitions">งานแข่ง {waiting.length} ใบ<ArrowRight size={14} aria-hidden="true" /></Link>
-          <Link className="detail-link" to="/admin/mentors">เมนเทอร์ {waitingMentors.length} ใบ<ArrowRight size={14} aria-hidden="true" /></Link>
+          <Link className="detail-link" to="/admin/competitions">งานแข่ง {waiting.competitions} ใบ<ArrowRight size={14} aria-hidden="true" /></Link>
+          <Link className="detail-link" to="/admin/mentors">เมนเทอร์ {waiting.mentors} ใบ<ArrowRight size={14} aria-hidden="true" /></Link>
         </p>
       </Stat>
 
       <Stat
         icon={<CalendarClock size={16} aria-hidden="true" />}
         title="ปิดรับใน 7 วัน"
-        value={soon.length ? `${soon.length} เวที` : 'ไม่มี'}
+        value={closingSoon.length ? `${closingSoon.length} เวที` : 'ไม่มี'}
       >
-        {soon.length > 0
-          ? <ul className="stat-list">
-            {soon.map((item) => <li key={item.slug}>
-              <Link to={`/competitions/${item.slug}`}>{item.name}</Link>
-              <span className="admin-muted">ปิดรับ {formatDeadline(item)}</span>
-            </li>)}
-          </ul>
-          : <p>ไม่มีเวทีที่ใกล้ปิดรับ</p>}
+        <Listings
+          items={closingSoon} empty="ไม่มีเวทีที่ใกล้ปิดรับ"
+          label={(item) => `ปิดรับ ${formatDate(item.closesAt!)}`}
+        />
         <p className="stat-note">กลุ่มนี้ต้องยืนยันกับผู้จัดก่อนถึงกำหนด</p>
       </Stat>
 
@@ -73,14 +86,10 @@ export function AdminOverview() {
         value={stale.length ? `${stale.length} เวที` : 'ไม่มี'}
         tone={stale.length ? 'warn' : undefined}
       >
-        {stale.length > 0
-          ? <ul className="stat-list">
-            {stale.map((item) => <li key={item.slug}>
-              <Link to={`/competitions/${item.slug}`}>{item.name}</Link>
-              <span className="admin-muted">ตรวจล่าสุด {formatDate(item.lastVerifiedAt)}</span>
-            </li>)}
-          </ul>
-          : <p>ทุกเวทีที่ทีมงานคัดมาเองยังอยู่ในรอบตรวจ</p>}
+        <Listings
+          items={stale} empty="ทุกเวทีที่ทีมงานคัดมาเองยังอยู่ในรอบตรวจ"
+          label={(item) => `ตรวจล่าสุด ${formatDate(item.lastVerifiedAt!)}`}
+        />
         <p className="stat-note">เฉพาะเวทีที่ทีมงานคัดมาเอง ข้อมูลค้างแย่กว่าข้อมูลน้อย</p>
       </Stat>
 
@@ -89,14 +98,10 @@ export function AdminOverview() {
         title="เลยวันปิดรับแล้ว"
         value={closed.length ? `${closed.length} เวที` : 'ไม่มี'}
       >
-        {closed.length > 0
-          ? <ul className="stat-list">
-            {closed.map((item) => <li key={item.slug}>
-              <Link to={`/competitions/${item.slug}`}>{item.name}</Link>
-              <span className="admin-muted">ปิดรับ {formatDeadline(item)}</span>
-            </li>)}
-          </ul>
-          : <p>ไม่มีเวทีที่เลยกำหนด</p>}
+        <Listings
+          items={closed} empty="ไม่มีเวทีที่เลยกำหนด"
+          label={(item) => `ปิดรับ ${formatDate(item.closesAt!)}`}
+        />
         <p className="stat-note">ควรย้ายออกจากรายการหลัก แต่ยังเปิดหน้ารายละเอียดได้เพื่อไม่ให้ลิงก์เสีย</p>
       </Stat>
     </div>

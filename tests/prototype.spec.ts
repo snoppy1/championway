@@ -1,25 +1,34 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { competitions, daysLeft } from '../src/data/competitions';
+import { competitions } from '../src/data/competitions';
 import { problems } from '../src/data/mentors';
 
 const PER_PAGE = 6;
+
+/* ข้อมูลมาจากฐานข้อมูลแล้ว ไม่ใช่ไฟล์ในเครื่อง เทสจึงถามจำนวนจาก API ตอนรันจริง
+   แทนการฝังตัวเลขไว้ ซึ่งจะพังทันทีที่มีใครเผยแพร่เวทีเพิ่ม */
+async function apiTotal(page: Page, query = '') {
+  const response = await page.request.get(`/api/competitions?${query}`);
+  return (await response.json() as { total: number }).total;
+}
 
 test('home shows the first page of competitions and paginates', async ({ page }) => {
   await page.goto('/');
   // The hero heading is wordmark artwork, so its name comes from the image alt text.
   await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('ChampionWays');
+  const total = await apiTotal(page);
   await expect(page.locator('.competition-card')).toHaveCount(PER_PAGE);
-  await expect(page.getByRole('status').first()).toContainText(`${competitions.length} เวที`);
+  await expect(page.getByRole('status').first()).toContainText(`${total} เวที`);
 
   const firstCardTitle = await page.locator('.competition-card h3').first().textContent();
   await page.getByRole('button', { name: '2', exact: true }).click();
   await expect(page).toHaveURL(/page=2/);
   await expect(page.locator('.competition-card h3').first()).not.toHaveText(firstCardTitle!);
 
-  const pageCount = Math.ceil(competitions.length / PER_PAGE);
+  const pageCount = Math.ceil(total / PER_PAGE);
   await page.getByRole('button', { name: String(pageCount), exact: true }).click();
-  await expect(page.locator('.competition-card')).toHaveCount(competitions.length - (pageCount - 1) * PER_PAGE);
+  await expect(page.locator('.competition-card')).toHaveCount(total - (pageCount - 1) * PER_PAGE);
   await expect(page.getByRole('button', { name: 'หน้าถัดไป' })).toBeDisabled();
 });
 
@@ -33,7 +42,7 @@ test('search, category and timing filters all live in the URL', async ({ page })
 
   // `category` is the old name for `cat`, so links shared before the rename still open.
   await page.goto('/?category=design');
-  const designCount = competitions.filter((item) => item.categories.includes('design')).length;
+  const designCount = await apiTotal(page, 'cat=design');
   await expect(page.locator('.competition-card')).toHaveCount(designCount);
   await expect(page.getByRole('button', { name: 'ศิลปะและออกแบบ', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
@@ -45,13 +54,14 @@ test('search, category and timing filters all live in the URL', async ({ page })
   await expect(timing).toBeChecked();
   await page.getByRole('button', { name: /ดูผลลัพธ์/ }).click();
   await expect(page).toHaveURL(/when=d30/);
-  const soonCount = competitions.filter((item) => daysLeft(item) >= 0 && daysLeft(item) <= 30).length;
+  const soonCount = await apiTotal(page, 'when=d30');
   await expect(page.getByRole('status').first()).toContainText(`${soonCount} เวที`);
 });
 
 test('an unknown category or page in the URL falls back instead of breaking', async ({ page }) => {
   await page.goto('/?category=not-real&sort=nonsense&page=99');
-  await expect(page.locator('.competition-card')).toHaveCount(competitions.length - (Math.ceil(competitions.length / PER_PAGE) - 1) * PER_PAGE);
+  const total = await apiTotal(page);
+  await expect(page.locator('.competition-card')).toHaveCount(total - (Math.ceil(total / PER_PAGE) - 1) * PER_PAGE);
   await expect(page.getByRole('button', { name: 'ทั้งหมด', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -59,8 +69,9 @@ test('sorting by prize puts the largest award first', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('เรียงตาม').selectOption('prize');
   await expect(page).toHaveURL(/sort=prize/);
-  const richest = [...competitions].sort((a, b) => b.prizeValue - a.prizeValue)[0];
-  await expect(page.locator('.competition-card h3').first()).toHaveText(richest.name);
+  const response = await page.request.get('/api/competitions?sort=prize&perPage=1');
+  const { items } = await response.json() as { items: { name: string }[] };
+  await expect(page.locator('.competition-card h3').first()).toHaveText(items[0].name);
 });
 
 test('saving a competition updates the header count and the saved view', async ({ page }) => {

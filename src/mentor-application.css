@@ -123,3 +123,7 @@
   #cw-apply .actions>span{order:-1;flex-basis:100%;font-size:12px}
   #cw-apply .actions>button{white-space:nowrap}
 }
+
+/* ลิงก์ที่อยู่กลางย่อหน้าต้องแยกออกจากข้อความรอบ ๆ ด้วยมากกว่าสี
+   ไม่อย่างนั้นคนที่แยกสีไม่ออกจะมองไม่เห็นว่ามีลิงก์ */
+#cw-apply .note a { color: var(--purple-deep); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }

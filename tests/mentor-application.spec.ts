@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { createAccount, removeAccount, signIn } from './helpers';
+import type { TestAccount } from './helpers';
+
+/* ใบสมัครถูกบันทึกลงฐานข้อมูลจริงแล้ว เทสจึงต้องมีบัญชีและเข้าสู่ระบบก่อน */
+let applicant: TestAccount;
+test.beforeAll(async () => { applicant = await createAccount('member'); });
+test.afterAll(async () => { await removeAccount(applicant); });
 
 const future = (hour: number) => {
   const date = new Date(Date.now() + 7 * 86400000);
@@ -59,6 +66,7 @@ test('apply link replaces the old inline form and direct URL refresh works', asy
 });
 
 test('all four steps, private preview, no upload, back navigation and completion', async ({ page }) => {
+  await signIn(page, applicant, '/mentors/apply');
   const writes: string[] = [];
   page.on('request', (request) => { if (['POST', 'PUT', 'PATCH'].includes(request.method())) writes.push(request.url()); });
   await page.goto('/mentors/apply');
@@ -75,10 +83,13 @@ test('all four steps, private preview, no upload, back navigation and completion
   await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(2);
   await next(page);
   await acceptAll(page);
-  await page.getByRole('button', { name: 'ส่งใบสมัครตัวอย่าง', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'ตัวอย่างสถานะ: ส่งใบสมัครแล้ว' })).toBeVisible();
-  await expect(page.getByText(/ยังไม่มีข้อมูลหรือไฟล์ถูกส่งไปที่ใด/)).toBeVisible();
-  expect(writes).toEqual([]);
+  await page.getByRole('button', { name: 'ส่งใบสมัคร', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
+  await expect(page.getByText(/ไฟล์แนบยังไม่ถูกอัปโหลด/)).toBeVisible();
+  // ใบสมัครต้องถูกส่งครั้งเดียว และต้องไม่มีการอัปโหลดไฟล์ไปที่ไหนในรอบนี้
+  const apiWrites = writes.filter((url) => url.includes('/api/'));
+  expect(apiWrites, apiWrites.join(' | ')).toHaveLength(1);
+  expect(apiWrites[0]).toContain('/api/submissions/mentor');
   await page.getByRole('button', { name: 'กลับไปตรวจใบสมัคร', exact: true }).click();
   await expect(profile).toContainText('พี่มายด์ น.');
   await page.reload();
@@ -143,9 +154,9 @@ test('profile file type and size are checked before proceeding', async ({ page }
 });
 
 test('every consent box is required, and the first missing one takes focus', async ({ page }) => {
-  await page.goto('/mentors/apply');
+  await signIn(page, applicant, '/mentors/apply');
   await reachService(page); await fillService(page); await next(page);
-  const submit = page.getByRole('button', { name: 'ส่งใบสมัครตัวอย่าง', exact: true });
+  const submit = page.getByRole('button', { name: 'ส่งใบสมัคร', exact: true });
   await submit.click();
   await expect(page.getByRole('alert')).toHaveText('ติ๊กยอมรับเงื่อนไขให้ครบทุกข้อก่อนส่งใบสมัคร');
   await expect(page.locator('#consent-accuracy')).toBeFocused();
@@ -154,11 +165,11 @@ test('every consent box is required, and the first missing one takes focus', asy
   for (const name of consentNames.slice(0, 4)) await page.getByRole('checkbox', { name }).check();
   await submit.click();
   await expect(page.locator('#consent-payment')).toBeFocused();
-  await expect(page.getByRole('heading', { name: 'ตัวอย่างสถานะ: ส่งใบสมัครแล้ว' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toHaveCount(0);
 
   await page.getByRole('checkbox', { name: consentNames[4] }).check();
   await submit.click();
-  await expect(page.getByRole('heading', { name: 'ตัวอย่างสถานะ: ส่งใบสมัครแล้ว' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
 });
 
 test('review edits jump to the right step, keep data, and reset the accuracy tick', async ({ page }) => {

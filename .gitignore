@@ -6,3 +6,6 @@ playwright-report/
 .env*
 !.env.example
 .vercel/
+
+# ไฟล์ที่ผู้ใช้อัปโหลดตอน dev เก็บไว้ในเครื่องเท่านั้น
+server/uploads/

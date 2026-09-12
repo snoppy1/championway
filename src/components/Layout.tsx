@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { BookmarkSimple } from './icons';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
+import { isReviewer, useAuth } from '../data/auth';
 import { useSavedSlugs } from '../data/saved';
 import trophy from '../assets/trophy.png';
 
@@ -11,7 +12,10 @@ export function BrandMark() {
 
 function Header() {
   const saved = useSavedSlugs();
-  const [note, setNote] = useState(false);
+  const { pathname, search } = useLocation();
+  const { user, loading, signOut } = useAuth();
+  // กลับมาที่หน้าเดิมหลังเข้าสู่ระบบ แต่ไม่วนกลับมาหน้าเข้าสู่ระบบเอง
+  const next = pathname.startsWith('/signin') || pathname.startsWith('/signup') ? '/' : `${pathname}${search}`;
 
   return <header className="site-header">
     <div className="shell header-inner">
@@ -28,13 +32,15 @@ function Header() {
           <BookmarkSimple size={19} filled={saved.length > 0} />
           {saved.length > 0 && <span className="saved-badge" aria-hidden="true">{saved.length}</span>}
         </Link>
-        <button type="button" className="primary-button" aria-describedby={note ? 'login-note' : undefined} onClick={() => setNote(true)}>
-          เข้าสู่ระบบ
-        </button>
+        {loading ? <span className="account-loading" aria-hidden="true" /> : user ? <>
+          {isReviewer(user) && <Link className="ghost-button" to="/admin">หน้าจัดการ</Link>}
+          <span className="account-name" title={user.email}>{user.name}</span>
+          <button type="button" className="ghost-button" onClick={() => { void signOut(); }}>ออกจากระบบ</button>
+        </> : <>
+          <Link className="ghost-button" to={`/signin?next=${encodeURIComponent(next)}`}>เข้าสู่ระบบ</Link>
+          <Link className="primary-button" to={`/signup?next=${encodeURIComponent(next)}`}>สมัครสมาชิก</Link>
+        </>}
       </div>
-      {note && <p className="header-note" id="login-note" role="status">
-        ระบบสมาชิกยังไม่เปิดในเว็บต้นแบบ รายการที่บันทึกไว้จะเก็บอยู่ในเบราว์เซอร์นี้เท่านั้น
-      </p>}
     </div>
   </header>;
 }

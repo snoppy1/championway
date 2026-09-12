@@ -83,3 +83,11 @@ $env:BASE_PATH = '/championway/'; npm.cmd run build; npm.cmd run preview
 GitHub Pages ตั้ง SPA fallback ไม่ได้ ขั้นตอน build จึงคัดลอก `index.html` เป็น `404.html` ด้วย `scripts/spa-fallback.mjs` ทำให้เปิด URL หน้ารายละเอียดตรง ๆ ได้ ข้อแลกเปลี่ยนคือคำขอเหล่านั้นได้ HTTP status 404 แม้หน้าจะแสดงถูกต้อง ซึ่งเป็นข้อจำกัดของ Pages เอง
 
 workflow ไม่รัน Playwright เพราะ `playwright.config.ts` ระบุ `channel: 'msedge'` ซึ่งไม่มีบน ubuntu runner การทดสอบจึงยังรันในเครื่อง
+
+### Vercel
+
+`vercel.json` ตั้งค่าให้ Vercel build ด้วย `npm run build` และเสิร์ฟจาก `dist` โดยไม่ตั้ง `BASE_PATH` เว็บจึงอยู่ที่ root ไม่ใช่ subpath
+
+Vercel ตั้ง SPA fallback ได้จริงผ่าน `rewrites` ทุกเส้นทางที่ไม่ใช่ไฟล์จึงคืน `index.html` พร้อม **status 200** ต่างจาก GitHub Pages ที่คืน 404 ส่วนไฟล์ `404.html` ที่ build สร้างไว้ให้ Pages ยังอยู่ในผลลัพธ์แต่ Vercel ไม่ได้ใช้
+
+เชื่อม repo ครั้งแรกที่ https://vercel.com/new แล้วเลือก `snoppy1/championway` ไม่ต้องแก้ค่าใด ๆ เพราะอ่านจาก `vercel.json` จากนั้น push ขึ้น `main` จะ deploy อัตโนมัติ

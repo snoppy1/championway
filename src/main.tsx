@@ -16,6 +16,7 @@ import '@fontsource/anuphan/latin-700.css';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Mentors } from './pages/Mentors';
+import { MentorApplication } from './pages/MentorApplication';
 import { Detail, NotFound } from './pages/Detail';
 import './styles.css';
 
@@ -29,6 +30,7 @@ const router = createBrowserRouter([{
     { path: '/competitions', element: <Navigate to="/" replace /> },
     { path: '/competitions/:slug', element: <Detail /> },
     { path: '/mentors', element: <Mentors /> },
+    { path: '/mentors/apply', element: <MentorApplication /> },
     { path: '*', element: <NotFound /> },
   ],
 }], { basename });

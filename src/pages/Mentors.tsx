@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowRight, Check, ChevronDown } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { ArrowRight, ChevronDown } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { competitions, deadlineOf, findCompetition } from '../data/competitions';
 import {
   availableSlots, formatSlot, mentorAward, mentorSlots, mentorTier, mentors, problems, topics,
@@ -108,8 +108,6 @@ export function Mentors() {
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [booking, setBooking] = useState<Booking | null>(null);
   const [feedback, setFeedback] = useState('');
-  const [applyOpen, setApplyOpen] = useState(false);
-  const [applyStatus, setApplyStatus] = useState('');
 
   useEffect(() => { document.title = 'เมนเทอร์ — ChampionWays'; }, []);
 
@@ -300,29 +298,9 @@ export function Mentors() {
             <p className="card-org">หากเมนเทอร์ไม่เข้าร่วมตามเวลานัด ทีมจะได้รับเงินคืนเต็มจำนวน</p>
           </div>
         </div>
-        <button type="button" className="link-button" aria-expanded={applyOpen} onClick={() => setApplyOpen(!applyOpen)}>
+        <Link className="link-button" to="/mentors/apply">
           เคยผ่านเวทีจริง? สมัครเป็นเมนเทอร์
-        </button>
-        {applyOpen && <div>
-          <p style={{ marginTop: 12 }}>ขั้นตอนสมัครตัวอย่าง: ส่งข้อมูลตัวเอง หลักฐานรางวัล และเลือกความถนัด 2 หัวข้อ</p>
-          <form onSubmit={(event) => {
-            event.preventDefault();
-            const checked = event.currentTarget.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked').length;
-            setApplyStatus(checked === 2 ? 'ข้อมูลตัวอย่างครบแล้ว · ยังไม่ได้ส่งใบสมัคร' : 'กรุณาเลือกความถนัดให้ครบ 2 หัวข้อ');
-          }}>
-            <div className="field-grid">
-              <label className="field">ช่วยได้ดีที่สุด<input required maxLength={120} /></label>
-              <label className="field">ช่วยไม่ได้ (บังคับ)<input required maxLength={120} /></label>
-            </div>
-            <div className="checkbox-row">
-              {topics.map((topic) => <label key={topic}><input type="checkbox" />{topic}</label>)}
-            </div>
-            <button className="primary-button" type="submit" style={{ marginTop: 12 }}>
-              <Check size={16} aria-hidden="true" />ตรวจข้อมูลตัวอย่าง
-            </button>
-            <p role="status">{applyStatus}</p>
-          </form>
-        </div>}
+        </Link>
       </section>
     </div>
   </main>;

@@ -27,6 +27,39 @@ npm.cmd run build
 
 เปิดเว็บ dev ด้วย `npm.cmd run dev:api` และ `npm.cmd run dev` ในคนละ terminal (API 8787 / เว็บ 5173) ส่วน browser tests เปิดเซิร์ฟเวอร์ของตัวเองที่ 8788 / 5174 ไม่ใช้เซิร์ฟเวอร์ dev ที่ค้างอยู่ ถ้าพอร์ตถูกใช้ให้หยุดโดยไม่ seed
 
+## สร้างบัญชีทีมตรวจบน production
+
+บทบาท `reviewer` และ `admin` ตั้งจากฝั่งเซิร์ฟเวอร์เท่านั้น สมัครจากหน้าเว็บจะได้ `member` เสมอ มีสองวิธี เลือกตามว่ายอมให้ connection string ของ production ลงมาที่เครื่องหรือไม่
+
+**วิธีที่ 1 ไม่ต้องเอา credential ของ production ลงเครื่อง (แนะนำ)**
+
+สร้างแฮชในเครื่องแล้วเอา SQL ไปวางใน SQL Editor ของ Neon สคริปต์นี้ไม่ต่อฐานข้อมูลใด ๆ
+
+```powershell
+$env:ADMIN_EMAIL = Read-Host "อีเมลผู้ดูแล"
+$env:ADMIN_PASSWORD = Read-Host "ตั้งรหัสผ่าน (อย่างน้อย 10 ตัวอักษร)"
+npm.cmd run db:admin:sql
+Remove-Item Env:ADMIN_EMAIL, Env:ADMIN_PASSWORD
+```
+
+คัดลอกคำสั่ง `insert into users ...` ที่พิมพ์ออกมา ไปวางใน Neon Console ของ **branch production** สิ่งที่อยู่ในคำสั่งเป็นแฮช ไม่ใช่รหัสผ่าน คำสั่งนี้รันซ้ำได้ ถ้ามีอีเมลนั้นอยู่แล้วจะอัปเดตรหัสผ่านและบทบาทให้แทนการสร้างซ้ำ
+
+**วิธีที่ 2 รันสคริปต์โดยชี้ฐานไป production ชั่วคราว**
+
+`process.loadEnvFile` ไม่ทับค่าที่ตั้งไว้ใน shell ค่าที่ตั้งใน shell จึงชนะค่าใน `.env.local` เสมอ ใช้ `Read-Host` เพื่อไม่ให้ connection string ตกไปอยู่ในประวัติคำสั่งของ PowerShell
+
+```powershell
+$env:DATABASE_URL = Read-Host "วาง connection string ของ production"
+$env:ADMIN_EMAIL = Read-Host "อีเมลผู้ดูแล"
+$env:ADMIN_PASSWORD = Read-Host "ตั้งรหัสผ่าน"
+npm.cmd run db:admin
+Remove-Item Env:DATABASE_URL, Env:ADMIN_EMAIL, Env:ADMIN_PASSWORD
+```
+
+ปิด terminal นั้นเมื่อเสร็จ ห้ามเขียนค่าของ production ลง `.env.local` และห้ามเก็บ `ADMIN_PASSWORD` ไว้ในไฟล์หลังสร้างบัญชีเสร็จแล้ว
+
+ตรวจผลด้วยการเข้า `<APP_ORIGIN>/signin` ด้วยบัญชีนั้นแล้วเปิด `/admin` ถ้าเห็นหน้า "เข้าหน้าจัดการไม่ได้" แปลว่าบทบาทยังไม่ใช่ reviewer หรือ admin
+
 ## การป้องกันฐานข้อมูล
 
 หากพอร์ตทดสอบชนกับโปรแกรมอื่น ตั้ง TEST_WEB_PORT และ TEST_API_PORT ใน .env.local เป็นพอร์ตว่างคนละค่า เช่น 15174 และ 18788 ตัว runner จะตั้ง base URL, API proxy และ APP_ORIGIN ให้ตรงกัน ห้ามใช้พอร์ต dev 5173/8787

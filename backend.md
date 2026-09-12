@@ -131,11 +131,14 @@ npm run dev:api    API ที่ 8787 แบบ watch
 npm run db:generate  สร้างไฟล์ migration จาก schema
 npm run db:migrate   รัน migration กับฐานข้อมูลจริง
 npm run db:seed      ล้างและใส่ข้อมูลตัวอย่างใหม่
-npm run db:admin     สร้างหรืออัปเกรดบัญชีทีมตรวจ
+npm run db:admin     สร้างหรืออัปเกรดบัญชีทีมตรวจ (ต่อฐานข้อมูลตาม DATABASE_URL)
+npm run db:admin:sql  พิมพ์ SQL สำหรับสร้างบัญชีทีมตรวจ โดยไม่ต่อฐานข้อมูลเลย
 npm test             เทสทั้งหมด (seed ใหม่ก่อนรันทุกครั้ง)
 ```
 
 ตัวแปรทั้งหมดอยู่ใน [.env.example](.env.example) ค่าจริงอยู่ใน `.env.local` ซึ่ง `.gitignore` ครอบไว้แล้ว **ห้าม commit และห้ามวางลงในแชต**
+
+วิธีสร้างบัญชีทีมตรวจบน production อยู่ใน [environments.md](environments.md)
 
 ตอน deploy ขึ้น Vercel ต้องตั้ง `DATABASE_URL` และ `APP_ORIGIN` (เป็นที่อยู่จริงของเว็บ) ใน Environment Variables ของโปรเจกต์ และถ้าใช้ Google ต้องตั้ง `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` พร้อมเพิ่ม `<APP_ORIGIN>/api/auth/google/callback` เข้าไปใน Authorized redirect URIs
 

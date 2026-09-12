@@ -16,7 +16,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "node scripts/test-environment.mjs seed",
     "db:migrate:test": "node scripts/test-environment.mjs migrate",
-    "db:admin": "tsx server/db/create-admin.ts"
+    "db:admin": "tsx server/db/create-admin.ts",
+    "db:admin:sql": "tsx scripts/admin-sql.ts"
   },
   "dependencies": {
     "@fontsource/anuphan": "^5.3.0",

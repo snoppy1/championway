@@ -40,7 +40,8 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
       else await signIn(email.trim(), password);
       navigate(next, { replace: true });
     } catch (error) {
-      setMessage(error instanceof ApiError ? error.message : 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ');
+      // ไม่ใช่ ApiError แปลว่าไม่ได้รับคำตอบกลับมาเลย คนละเรื่องกับเซิร์ฟเวอร์ตอบว่าผิดพลาด
+      setMessage(error instanceof ApiError ? error.message : 'ต่อเซิร์ฟเวอร์ไม่ติด ไม่ได้รับคำตอบกลับมา');
     } finally {
       setBusy(false);
     }

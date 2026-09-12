@@ -22,10 +22,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   try { payload = text ? JSON.parse(text) : null; } catch { /* ไม่ใช่ JSON */ }
 
   if (!response.ok) {
-    const message = typeof payload === 'object' && payload && 'error' in payload
+    /* ถ้าเซิร์ฟเวอร์ตอบเป็น JSON ของเราเอง ให้ใช้ข้อความนั้น แต่ถ้าตอบเป็นอย่างอื่น
+       เช่นหน้า error ของโฮสต์ตอนฟังก์ชันบูตไม่ขึ้น ต้องบอกรหัสสถานะออกมาด้วย
+       ไม่อย่างนั้นจะแยกไม่ออกจากกรณีที่ต่อเซิร์ฟเวอร์ไม่ติดเลย */
+    const fromServer = typeof payload === 'object' && payload && 'error' in payload
       ? String((payload as { error: unknown }).error)
-      : 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ';
-    throw new ApiError(response.status, message);
+      : '';
+    throw new ApiError(response.status, fromServer || `เซิร์ฟเวอร์ตอบผิดพลาด (HTTP ${response.status})`);
   }
   return payload as T;
 }

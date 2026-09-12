@@ -14,6 +14,8 @@ type AuthState = {
   user: Account | null;
   /** ระหว่างที่ยังไม่รู้ว่าล็อกอินอยู่หรือไม่ อย่าเพิ่งตัดสินใจแทนผู้ใช้ */
   loading: boolean;
+  /** ติดต่อเซิร์ฟเวอร์ไม่ได้ ต่างจาก "ยังไม่ล็อกอิน" ซึ่งเซิร์ฟเวอร์ตอบว่า user เป็น null */
+  unreachable: boolean;
   googleEnabled: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
@@ -25,6 +27,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unreachable, setUnreachable] = useState(false);
   const [googleEnabled, setGoogleEnabled] = useState(false);
 
   useEffect(() => {
@@ -37,10 +40,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]);
         if (cancelled) return;
         setUser(me.user);
+        setUnreachable(false);
         setGoogleEnabled(providers.google);
       } catch {
-        // ไม่มีเซิร์ฟเวอร์ก็ยังเปิดหน้าเว็บได้ แค่ถือว่ายังไม่ได้ล็อกอิน
-        if (!cancelled) setUser(null);
+        // แยกให้ออกจาก "ยังไม่ล็อกอิน" ไม่งั้นเซิร์ฟเวอร์ล่มจะดูเหมือนแค่ยังไม่ได้เข้าระบบ
+        // ซึ่งทำให้ตามหาสาเหตุยากมากตอนตั้งค่า deploy ผิด
+        if (!cancelled) { setUser(null); setUnreachable(true); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -51,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     const { user: account } = await post<{ user: Account }>('/auth/login', { email, password });
     setUser(account);
+    setUnreachable(false);
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
@@ -64,8 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, loading, googleEnabled, signIn, signUp, signOut }),
-    [user, loading, googleEnabled, signIn, signUp, signOut],
+    () => ({ user, loading, unreachable, googleEnabled, signIn, signUp, signOut }),
+    [user, loading, unreachable, googleEnabled, signIn, signUp, signOut],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

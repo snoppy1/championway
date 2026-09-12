@@ -10,7 +10,7 @@ type Overview = { waiting: { competitions: number; mentors: number } };
 
 export function AdminLayout() {
   const { pathname } = useLocation();
-  const { user, loading } = useAuth();
+  const { user, loading, unreachable } = useAuth();
   const allowed = isReviewer(user);
   const { data } = useApi<Overview>(allowed ? '/admin/overview' : null);
 
@@ -60,13 +60,25 @@ export function AdminLayout() {
     <main id="main" tabIndex={-1} className="admin-shell admin-main">
       {loading ? <p className="admin-muted">กำลังตรวจสิทธิ์…</p>
         : allowed ? <Outlet />
-          : <NoAccess signedIn={Boolean(user)} />}
+          : <NoAccess signedIn={Boolean(user)} unreachable={unreachable} />}
     </main>
     <ScrollRestoration />
   </div>;
 }
 
-function NoAccess({ signedIn }: { signedIn: boolean }) {
+function NoAccess({ signedIn, unreachable }: { signedIn: boolean; unreachable: boolean }) {
+  // เซิร์ฟเวอร์ล่มกับยังไม่ล็อกอินต้องอ่านออกว่าคนละเรื่อง ไม่อย่างนั้นตอนตั้งค่า deploy ผิด
+  // จะเห็นแค่ "เข้าไม่ได้" แล้วไล่หาสาเหตุไม่เจอ
+  if (unreachable) {
+    return <div className="admin-empty admin-denied">
+      <h1>ติดต่อเซิร์ฟเวอร์ไม่ได้</h1>
+      <p>
+        หน้านี้โหลดขึ้นแล้วแต่เรียก API ไม่สำเร็จ จึงยังบอกไม่ได้ว่าคุณเป็นใคร
+        มักเกิดจากยังไม่ได้ตั้งค่า Environment Variables ของสภาพแวดล้อมนี้
+        ลองเปิด <code>/api/health</code> ดูว่าตอบ <code>{'{"ok":true}'}</code> หรือไม่
+      </p>
+    </div>;
+  }
   return <div className="admin-empty admin-denied">
     <h1>เข้าหน้าจัดการไม่ได้</h1>
     <p>

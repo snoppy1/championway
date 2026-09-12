@@ -13,6 +13,11 @@ function required(name: string) {
   return value;
 }
 
+const appOrigin = process.env.APP_ORIGIN ?? 'http://127.0.0.1:5173';
+const originUrl = new URL(appOrigin);
+if (!['http:', 'https:'].includes(originUrl.protocol) || originUrl.username || originUrl.password || originUrl.pathname !== '/' || originUrl.search || originUrl.hash) throw new Error('APP_ORIGIN must be an HTTP(S) origin without a path.');
+if (process.env.VERCEL && (!process.env.APP_ORIGIN || originUrl.protocol !== 'https:')) throw new Error('Set APP_ORIGIN to the HTTPS URL of this Vercel environment.');
+
 export const env = {
   databaseUrl: process.env.APP_ENV === 'test' ? testDatabase(process.env) : required('DATABASE_URL'),
   port: Number(process.env.PORT ?? 8787),
@@ -20,7 +25,7 @@ export const env = {
   /** ที่เก็บไฟล์ตอนนี้เป็นโฟลเดอร์ในเครื่อง ย้ายไป S3 ได้โดยเปลี่ยนแค่ adapter */
   uploadDir: process.env.UPLOAD_DIR ?? resolve(process.cwd(), 'server/uploads'),
   /** ที่อยู่ของหน้าเว็บ ใช้ประกอบ redirect URI ของ Google และกันการ redirect ออกนอกเว็บ */
-  appOrigin: process.env.APP_ORIGIN ?? 'http://127.0.0.1:5173',
+  appOrigin: originUrl.origin,
   /** ว่างได้ ถ้ายังไม่ตั้งค่า ปุ่มเข้าสู่ระบบด้วย Google จะไม่ขึ้นแทนที่จะขึ้นแล้วพัง */
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',

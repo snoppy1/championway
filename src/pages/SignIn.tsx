@@ -4,12 +4,8 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { ArrowRight, LogIn, UserPlus } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { ApiError } from '../lib/api';
+import { safeNext } from '../lib/safe-next';
 
-/** รับเฉพาะเส้นทางภายในเว็บเดียวกัน กัน open redirect */
-function safeNext(value: string | null) {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
-  return value;
-}
 
 export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
   const [params] = useSearchParams();

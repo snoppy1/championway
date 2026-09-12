@@ -11,6 +11,7 @@ import type { AppEnv } from '../lib/guards';
 import { requireUser } from '../lib/guards';
 import { firstIssue } from './public';
 import { newId, newToken } from '../lib/id';
+import { safeNext } from '../../src/lib/safe-next';
 import { hashPassword, passwordProblem, verifyPassword, wasteTime } from '../lib/password';
 import {
   clearSessionCookie, createSession, destroySession, pruneSessions, sessionIdFrom, setSessionCookie,
@@ -102,11 +103,6 @@ const shortCookie = () => ({
   httpOnly: true, sameSite: 'Lax' as const, secure: env.isProduction, path: '/', maxAge: 600,
 });
 
-/** รับเฉพาะเส้นทางภายในเว็บเดียวกัน ไม่งั้นจะกลายเป็นช่องให้พาไปเว็บปลอม */
-function safeNext(value: string | undefined) {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
-  return value;
-}
 
 auth.get('/google', (c) => {
   if (!googleConfigured) {
@@ -122,7 +118,7 @@ auth.get('/google', (c) => {
 
 auth.get('/google/callback', async (c) => {
   const next = safeNext(getCookie(c, NEXT_COOKIE));
-  const fail = (reason: string) => c.redirect(`${env.appOrigin}/signin?error=${encodeURIComponent(reason)}`);
+  const fail = (reason: string) => c.redirect(`${env.appOrigin}/signin?${new URLSearchParams({ error: reason, next })}`);
 
   const state = getCookie(c, STATE_COOKIE);
   const verifier = getCookie(c, VERIFIER_COOKIE);
@@ -146,7 +142,7 @@ auth.get('/google/callback', async (c) => {
   const email = profile.email?.trim().toLowerCase();
   if (!email) return fail('บัญชี Google นี้ไม่มีอีเมล');
   // อีเมลที่ Google ยังไม่ยืนยันใช้ผูกบัญชีไม่ได้ เพราะจะสวมรอยบัญชีเดิมที่ใช้อีเมลเดียวกันได้
-  if (profile.email_verified === false) return fail('บัญชี Google นี้ยังไม่ได้ยืนยันอีเมล');
+  if (profile.email_verified !== true) return fail('บัญชี Google นี้ยังไม่ได้ยืนยันอีเมล');
 
   const [byGoogle] = await db.select().from(users).where(eq(users.googleId, profile.sub)).limit(1);
   let account = byGoogle;
@@ -154,6 +150,9 @@ auth.get('/google/callback', async (c) => {
   if (!account) {
     const [byEmail] = await db.select().from(users).where(eq(users.email, email)).limit(1);
     if (byEmail) {
+      if (byEmail.googleId || !(email.endsWith('@gmail.com') || profile.hd)) {
+        return fail('อีเมลนี้มีบัญชีอยู่แล้ว กรุณาใช้วิธีเข้าสู่ระบบเดิม');
+      }
       // ผูกบัญชี Google เข้ากับบัญชีอีเมลเดิม ทำได้เพราะ Google ยืนยันอีเมลนั้นแล้ว
       [account] = await db.update(users)
         .set({ googleId: profile.sub, emailVerifiedAt: new Date(), avatarUrl: byEmail.avatarUrl ?? profile.picture ?? null })

@@ -9,11 +9,12 @@ const commands = {
   test: ['node_modules/@playwright/test/cli.js', 'test'],
   migrate: ['node_modules/drizzle-kit/bin.cjs', 'migrate'],
   seed: ['--import', 'tsx', 'server/db/seed.ts'],
+  auth: ['--import', 'tsx', '--test', 'scripts/auth-google.test.ts'],
 };
 if (!commands[task]) throw new Error('Unknown test environment command');
 const child = spawn(process.execPath, [...commands[task], ...args], {
   stdio: 'inherit',
-  env: { ...process.env, APP_ENV: 'test', TEST_WEB_PORT: webPort, TEST_API_PORT: apiPort, PORT: apiPort, APP_ORIGIN: `http://127.0.0.1:${webPort}`, GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '' },
+  env: { ...process.env, APP_ENV: 'test', TEST_WEB_PORT: webPort, TEST_API_PORT: apiPort, PORT: apiPort, APP_ORIGIN: `http://127.0.0.1:${webPort}`, GOOGLE_CLIENT_ID: task === 'auth' ? 'test-client.apps.googleusercontent.com' : '', GOOGLE_CLIENT_SECRET: task === 'auth' ? 'test-only-secret' : '' },
 });
 child.on('exit', (code) => { process.exitCode = code ?? 1; });
 child.on('error', () => { console.error('Could not start test process'); process.exitCode = 1; });

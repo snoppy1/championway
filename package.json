@@ -10,6 +10,7 @@
     "test": "node scripts/test-environment.mjs test",
     "test:ui": "node scripts/test-environment.mjs test --ui",
     "test:safety": "node --import tsx --test scripts/database-safety.test.ts",
+    "test:auth": "node scripts/test-environment.mjs auth",
     "dev:api": "tsx watch server/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

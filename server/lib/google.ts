@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { env } from './env';
 import { newToken } from './id';
+import { z } from 'zod';
 
 /* ทำ OAuth เองด้วย fetch ธรรมดา ไม่ใช้ไลบรารี เพราะ flow มีแค่สองขั้นและการพึ่ง
    ไลบรารีสำหรับเรื่องความปลอดภัยแปลว่าต้องตามอัปเดตมันตลอด
@@ -37,6 +38,7 @@ export function authorizeUrl(state: string, challenge: string) {
 
 export async function exchangeCode(code: string, verifier: string) {
   const response = await fetch(TOKEN_ENDPOINT, {
+    signal: AbortSignal.timeout(10000),
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -49,21 +51,24 @@ export async function exchangeCode(code: string, verifier: string) {
     }),
   });
   if (!response.ok) throw new Error(`google token exchange failed: ${response.status}`);
-  return await response.json() as { access_token: string };
+  return z.object({ access_token: z.string().min(1) }).parse(await response.json());
 }
 
-export type GoogleProfile = {
-  sub: string;
-  email: string;
-  email_verified?: boolean;
-  name?: string;
-  picture?: string;
-};
+const profileSchema = z.object({
+  sub: z.string().min(1).max(255),
+  email: z.string().email().max(200),
+  email_verified: z.boolean(),
+  name: z.string().max(200).optional(),
+  picture: z.string().url().refine(value => value.startsWith('https://')).optional(),
+  hd: z.string().min(1).optional(),
+});
+export type GoogleProfile = z.infer<typeof profileSchema>;
 
 export async function fetchProfile(accessToken: string) {
   const response = await fetch(USERINFO_ENDPOINT, {
+    signal: AbortSignal.timeout(10000),
     headers: { authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) throw new Error(`google userinfo failed: ${response.status}`);
-  return await response.json() as GoogleProfile;
+  return profileSchema.parse(await response.json());
 }

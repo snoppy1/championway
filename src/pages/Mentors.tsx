@@ -112,7 +112,6 @@ export function Mentors() {
   const [teamSize, setTeamSize] = useState(4);
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [booking, setBooking] = useState<Booking | null>(null);
-  const [feedback, setFeedback] = useState('');
 
   useEffect(() => { document.title = 'เมนเทอร์ — ChampionWays'; }, []);
 
@@ -280,22 +279,6 @@ export function Mentors() {
 
         <p className="card-org" style={{ marginTop: 18 }}>ยังไม่มีสถิติผลลัพธ์จนกว่าจะมีข้อมูลการใช้งานจริง</p>
       </section>}
-
-      <details className="panel" style={{ marginTop: 28 }}>
-        <summary>ตัวอย่างแบบถามหลังจบการปรึกษา</summary>
-        <p style={{ marginTop: 12 }}>วันนี้ทีมคุยเรื่องอะไรบ้าง?</p>
-        <div className="checkbox-row">
-          {topics.map((topic, index) => <label key={topic}>
-            <input type="checkbox" name="feedback-topic" value={index} />{topic}
-          </label>)}
-        </div>
-        <button type="button" className="link-button" onClick={(event) => {
-          const form = event.currentTarget.closest('details');
-          const count = form ? form.querySelectorAll<HTMLInputElement>('input[name="feedback-topic"]:checked').length : 0;
-          setFeedback(count > 0 ? 'บันทึกคำตอบตัวอย่างแล้ว (เฉพาะหน้านี้)' : 'เลือกอย่างน้อย 1 เรื่อง');
-        }}>บันทึกคำตอบตัวอย่าง</button>
-        <p role="status">{feedback}</p>
-      </details>
 
       <section className="panel" style={{ marginTop: 20 }} aria-labelledby="policies-title">
         <h2 id="policies-title" className="sr-only">เงื่อนไขการใช้งาน</h2>

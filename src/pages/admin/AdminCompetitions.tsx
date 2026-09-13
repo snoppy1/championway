@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowUpRight, Calendar, Trophy } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Calendar, Paperclip, Trophy } from 'lucide-react';
 import {
   categoryLabel, daysLeft, feeLabel, formatDate, formatDeadline, levelLabels, placeLabel,
   prizeLabel, regionLabels, rewardLabels, teamLabel, typeLabels,
@@ -49,6 +49,7 @@ type Submission = {
   sourceUrl: string;
   registerUrl: string | null;
   publishedCompetitionId: string | null;
+  files: AttachedFile[];
   events: ReviewEvent[];
 };
 
@@ -103,6 +104,25 @@ export function Trail({ events }: { events: ReviewEvent[] }) {
     <p className="admin-muted">{statusLabels[({ publish: 'published', info: 'info', reject: 'rejected' } as const)[latest.decision]]} · {formatDate(latest.createdAt.slice(0, 10))}</p>
     {latest.note && <p>{latest.note}</p>}
   </div>;
+}
+
+export type AttachedFile = { id: string; url: string; originalName: string; mime: string; size: number };
+
+const kb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+/** ไฟล์ที่ผู้ส่งแนบมา เปิดในแท็บใหม่ได้ ของที่เก็บในเครื่องต้องผ่าน API ที่ตรวจสิทธิ์ก่อน */
+export function AttachedFiles({ files }: { files: AttachedFile[] }) {
+  return <section className="admin-block" aria-labelledby="files-title">
+    <h2 id="files-title">ไฟล์ที่แนบมา</h2>
+    {files.length ? <ul className="file-list">
+      {files.map((file) => <li key={file.id}>
+        <a href={file.url} target="_blank" rel="noreferrer noopener">
+          <Paperclip size={15} aria-hidden="true" />{file.originalName}
+        </a>
+        <span className="admin-muted">{file.mime} · {kb(file.size)}</span>
+      </li>)}
+    </ul> : <p className="admin-empty">ไม่ได้แนบไฟล์มา</p>}
+  </section>;
 }
 
 type QueueRow = Submission & { categories: CategoryId[] };
@@ -273,6 +293,7 @@ export function AdminCompetitionReview() {
             <Field label="ลิงก์สมัคร"><ExternalLink href={submission.registerUrl} /></Field>
           </dl>
         </section>
+        <AttachedFiles files={submission.files} />
       </div>
 
       <ReviewDecision

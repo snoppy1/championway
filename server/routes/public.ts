@@ -4,9 +4,9 @@ import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
-  categoryEnum, competitionSubmissions, competitions as competitionsTable, levelEnum, mentorAwards,
-  mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, rewardEnum, submissionCategories,
-  submissionLevels, submissionRewards,
+  categoryEnum, competitionSubmissions, competitions as competitionsTable, files as filesTable,
+  levelEnum, mentorAwards, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, rewardEnum,
+  submissionCategories, submissionLevels, submissionRewards,
 } from '../db/schema.js';
 import { competitionOptions, findCompetitionBySlug, listCompetitions, relatedCompetitions } from '../db/queries.js';
 import type { CompetitionRecord, ListQuery } from '../db/queries.js';
@@ -14,6 +14,8 @@ import type { AppEnv } from '../lib/guards.js';
 import { requireUser } from '../lib/guards.js';
 import { newId } from '../lib/id.js';
 import { notify } from '../lib/email.js';
+import { uploadsUsable } from '../lib/env.js';
+import { attachFiles, fileProblem, publicFile, readLocalFile, storeFile } from '../lib/files.js';
 
 export const publicApi = new Hono<AppEnv>();
 
@@ -140,6 +142,44 @@ publicApi.get('/mentors', async (c) => {
   });
 });
 
+/* ---------- ไฟล์แนบ ---------- */
+
+/* อัปโหลดก่อนส่งใบ ไฟล์จะเป็นของผู้ใช้ไปก่อน แล้วค่อยผูกเข้ากับใบตอนกดส่ง
+   ทำแบบนี้เพราะตอนเลือกไฟล์ยังไม่มีใบให้ผูก และผู้ใช้ควรเห็นผลการตรวจไฟล์ทันที */
+publicApi.post('/files', requireUser, async (c) => {
+  if (!uploadsUsable) {
+    throw new HTTPException(503, {
+      message: 'ยังไม่ได้ตั้งค่าที่เก็บไฟล์ของสภาพแวดล้อมนี้ จึงยังรับไฟล์ไม่ได้',
+    });
+  }
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) throw new HTTPException(400, { message: 'ไม่พบไฟล์ที่ส่งมา' });
+  const problem = fileProblem(file);
+  if (problem) throw new HTTPException(400, { message: problem });
+
+  const user = c.get('user')!;
+  const stored = await storeFile('user', user.id, file);
+  return c.json({ file: publicFile(stored) }, 201);
+});
+
+/** ไฟล์ที่เก็บในเครื่องต้องผ่าน API เพื่อให้ตรวจสิทธิ์ก่อน ของที่อยู่บน blob เปิดตรงได้ */
+publicApi.get('/files/:id', requireUser, async (c) => {
+  const user = c.get('user')!;
+  const [row] = await db.select().from(filesTable).where(eq(filesTable.id, c.req.param('id'))).limit(1);
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบไฟล์นี้' });
+
+  const reviewer = user.role === 'reviewer' || user.role === 'admin';
+  const owner = row.ownerType === 'user' && row.ownerId === user.id;
+  if (!reviewer && !owner) throw new HTTPException(403, { message: 'ไม่มีสิทธิ์เปิดไฟล์นี้' });
+  if (row.path.startsWith('http')) return c.redirect(row.path);
+
+  return c.body(await readLocalFile(row), 200, {
+    'content-type': row.mime,
+    'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(row.originalName)}`,
+  });
+});
+
 /* ---------- รับใบที่ส่งเข้ามา ---------- */
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ไม่ถูกต้อง');
@@ -170,6 +210,8 @@ const competitionSubmissionBody = z.object({
   // ลิงก์ประกาศต้นทางบังคับเสมอ ทั้งเพื่อความน่าเชื่อถือและความถูกต้องทางกฎหมาย
   sourceUrl: z.string().trim().url('ต้องมีลิงก์ประกาศต้นทางที่เปิดได้').max(500),
   registerUrl: z.string().trim().url().max(500).optional(),
+  /** id ของไฟล์ที่อัปโหลดไว้ก่อนหน้า เช่นโปสเตอร์ของงาน */
+  fileIds: z.array(z.string().max(60)).max(3).default([]),
 }).refine((value) => value.teamMax >= value.teamMin, {
   message: 'ขนาดทีมสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด', path: ['teamMax'],
 });
@@ -216,6 +258,7 @@ publicApi.post('/submissions/competition', requireUser, async (c) => {
     }
   });
 
+  await attachFiles(body.fileIds, user.id, 'competition_submission', id);
   await notify(body.contactEmail, 'ได้รับใบลงงานแข่งแล้ว',
     `ได้รับ "${body.name}" เข้าคิวตรวจแล้ว ทีมงานจะแจ้งผลภายใน 2 วันทำการ`);
   return c.json({ id }, 201);
@@ -245,6 +288,8 @@ const mentorSubmissionBody = z.object({
     year: z.string().trim().min(1).max(10),
     evidence: z.string().trim().min(1).max(400),
   })).max(2).default([]),
+  /** id ของไฟล์หลักฐานที่อัปโหลดไว้ก่อนหน้า */
+  fileIds: z.array(z.string().max(60)).max(4).default([]),
 });
 
 publicApi.post('/submissions/mentor', requireUser, async (c) => {
@@ -287,6 +332,7 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
     }
   });
 
+  await attachFiles(body.fileIds, user.id, 'mentor_submission', id);
   await notify(body.email, 'ได้รับใบสมัครเมนเทอร์แล้ว',
     'ได้รับใบสมัครเข้าคิวตรวจแล้ว ทีมงานจะแจ้งผลทางอีเมลทุกกรณี');
   return c.json({ id }, 201);

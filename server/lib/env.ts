@@ -54,6 +54,17 @@ export const env = {
   /** ว่างได้ ถ้ายังไม่ตั้งค่า ปุ่มเข้าสู่ระบบด้วย Google จะไม่ขึ้นแทนที่จะขึ้นแล้วพัง */
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  /** ว่างได้ ไม่มีคีย์ก็ยังบันทึกอีเมลลงตาราง แค่ไม่ส่งออกจริง */
+  resendApiKey: process.env.RESEND_API_KEY ?? '',
+  emailFrom: process.env.EMAIL_FROM ?? 'ChampionWays <onboarding@resend.dev>',
+  /** ว่างได้ ไม่มี token ก็เก็บไฟล์ลงดิสก์ ซึ่งใช้ได้เฉพาะตอนพัฒนาในเครื่อง */
+  blobToken: process.env.BLOB_READ_WRITE_TOKEN ?? '',
 };
+
+export const emailConfigured = Boolean(env.resendApiKey);
+/* ดิสก์ของ serverless หายทุกครั้งที่ instance ถูกรีไซเคิล ไฟล์ที่อัปโหลดจึงอยู่ไม่ได้จริง
+   ถ้าอยู่บน Vercel แล้วไม่มี blob token ให้ถือว่ายังรับไฟล์ไม่ได้ ดีกว่ารับแล้วหาย */
+export const blobConfigured = Boolean(env.blobToken);
+export const uploadsUsable = blobConfigured || !process.env.VERCEL;
 
 export const googleConfigured = Boolean(env.googleClientId && env.googleClientSecret);

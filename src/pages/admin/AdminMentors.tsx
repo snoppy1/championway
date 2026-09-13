@@ -5,9 +5,9 @@ import { formatDate } from '../../data/competitions';
 import { useApi } from '../../lib/useApi';
 import { ReviewDecision } from './ReviewDecision';
 import {
-  ExternalLink, Field, QueueFilters, REVIEW_TARGET_DAYS, StatusPill, Trail, waitingDays,
+  AttachedFiles, ExternalLink, Field, QueueFilters, REVIEW_TARGET_DAYS, StatusPill, Trail, waitingDays,
 } from './AdminCompetitions';
-import type { ReviewEvent, SubmissionStatus } from './AdminCompetitions';
+import type { AttachedFile, ReviewEvent, SubmissionStatus } from './AdminCompetitions';
 
 type Award = {
   id: string;
@@ -39,6 +39,7 @@ type MentorSubmission = {
   paidSlot: string;
   freeSlot: string;
   awards: Award[];
+  files: AttachedFile[];
   events: ReviewEvent[];
 };
 
@@ -166,6 +167,7 @@ export function AdminMentorReview() {
             </li>)}
           </ul> : <p className="admin-empty">ไม่ได้อ้างรางวัลใด ให้ป้ายยืนยันไม่ได้</p>}
         </section>
+        <AttachedFiles files={submission.files} />
       </div>
 
       <ReviewDecision

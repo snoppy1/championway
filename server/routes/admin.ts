@@ -12,6 +12,7 @@ import type { AppEnv } from '../lib/guards.js';
 import { requireReviewer } from '../lib/guards.js';
 import { newId, slugify } from '../lib/id.js';
 import { notify } from '../lib/email.js';
+import { filesOf, publicFile } from '../lib/files.js';
 import { firstIssue } from './public.js';
 
 export const admin = new Hono<AppEnv>();
@@ -137,6 +138,7 @@ async function loadCompetitionSubmission(id: string) {
     categories: cats.map((item) => item.category),
     levels: levels.map((item) => item.level),
     rewards: rewards.map((item) => item.reward),
+    files: (await filesOf('competition_submission', id)).map(publicFile),
     events,
   };
 }
@@ -267,6 +269,7 @@ async function loadMentorSubmission(id: string) {
       ...award,
       matched: known.find((item) => item.slug === award.competitionSlug) ?? null,
     })),
+    files: (await filesOf('mentor_submission', id)).map(publicFile),
     events,
   };
 }

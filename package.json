@@ -17,13 +17,15 @@
     "db:seed": "node scripts/test-environment.mjs seed",
     "db:migrate:test": "node scripts/test-environment.mjs migrate",
     "db:admin": "tsx server/db/create-admin.ts",
-    "db:admin:sql": "tsx scripts/admin-sql.ts"
+    "db:admin:sql": "tsx scripts/admin-sql.ts",
+    "email:test": "tsx scripts/email-test.ts"
   },
   "dependencies": {
     "@fontsource/anuphan": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.2.0",
     "@fontsource/ibm-plex-sans-thai": "^5.2.0",
     "@hono/node-server": "^2.1.1",
+    "@vercel/blob": "^2.8.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.7",
     "lucide-react": "^0.577.0",

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { topics } from '../data/mentors';
 import { useAuth } from '../data/auth';
 import { ApiError, post } from '../lib/api';
-import '../mentor-application.css';
+import '../form.css';
 
 const steps = ['ข้อมูลผู้สมัคร', 'ประสบการณ์และรางวัล', 'บริการและคิว', 'ตรวจทานและส่ง'];
 type Field = 'first' | 'last' | 'nickname' | 'email' | 'occupation' | 'organization' | 'role' | 'experience' | 'portfolio' | 'best' | 'cannot' | 'price' | 'paidSlot' | 'freeSlot';
@@ -156,7 +156,7 @@ export function MentorApplication() {
     <span>{label}</span>
   </label>;
 
-  return <main id="main" tabIndex={-1}><div id="cw-apply">
+  return <main id="main" tabIndex={-1}><div id="cw-apply" className="cw-form">
     <section className="hero">
       <div className="application-hero-inner"><Link className="application-back" to="/mentors"><ArrowLeft size={16} aria-hidden="true" />กลับไปหน้าเมนเทอร์</Link><span className="tag">FOR THE NEXT GENERATION</span><h1>ประสบการณ์ของคุณ<br />ช่วยให้ทีมถัดไปไปได้ไกลขึ้น</h1><p className="muted">บอกสิ่งที่คุณถนัด พร้อมหลักฐานที่ช่วยให้ทีมมั่นใจก่อนเลือกปรึกษา</p><p className="application-prototype">ต้นแบบ · ไม่ส่งข้อมูลจริง</p></div>
     </section>

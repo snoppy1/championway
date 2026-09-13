@@ -81,8 +81,8 @@ export function Layout() {
           </div>
           <div>
             <strong>เกี่ยวกับเว็บต้นแบบ</strong>
-            <span className="nav-soon">แจ้งเพิ่มเวทีแข่งขัน</span>
-            <span className="nav-soon">ร่วมงานกับเรา</span>
+            <Link to="/organizers">ลงงานแข่งขันฟรี</Link>
+            <Link to="/organizers/submit">แจ้งเพิ่มเวทีแข่งขัน</Link>
           </div>
         </div>
       </div>

@@ -215,16 +215,29 @@ main:focus { outline: none; }
 .section-head h2 { font-size: 24px; font-weight: 600; }
 .section-head p { color: var(--muted-soft); font-size: 13px; }
 
-.marquee-viewport { overflow: hidden; padding-block: 10px 28px; }
-.marquee-track { display: flex; width: max-content; animation: marquee 34s linear infinite; }
-.marquee-track.paused,
-.marquee-viewport:hover .marquee-track,
-.marquee-viewport:focus-within .marquee-track { animation-play-state: paused; }
-@keyframes marquee { to { transform: translateX(-50%); } }
+/* เลื่อนเองด้วยแถบข้างล่าง แทนการเลื่อนอัตโนมัติ ผู้ใช้จึงคุมจังหวะเองได้
+   และไม่มีเนื้อหาที่ขยับเองซึ่งต้องมีปุ่มหยุดกำกับ */
+.trend-scroller {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-block: 10px 14px;
+  margin-bottom: 18px;
+}
+/* ใช้ ::-webkit-scrollbar ล้วน ห้ามใส่ scrollbar-width หรือ scrollbar-color คู่กัน
+   เพราะเบราว์เซอร์จะทิ้งกฎพวกนี้แล้วกลับไปใช้แถบลอยที่โผล่เฉพาะตอนเลื่อน
+   ซึ่งทำให้ผู้ใช้ไม่รู้ว่ายังมีของให้เลื่อนต่อ */
+.trend-scroller > * { scroll-snap-align: start; }
+.trend-scroller::-webkit-scrollbar { height: 10px; }
+.trend-scroller::-webkit-scrollbar-track { background: var(--line); border-radius: 999px; }
+.trend-scroller::-webkit-scrollbar-thumb { background: var(--purple-soft); border-radius: 999px; }
+.trend-scroller::-webkit-scrollbar-thumb:hover { background: var(--purple); }
 
-.marquee-run { display: flex; gap: 18px; padding-right: 18px; }
+
 .trend-card {
-  width: 290px;
+  /* ห้ามหด ไม่อย่างนั้น flex จะบีบการ์ดให้พอดีจอจนไม่มีอะไรให้เลื่อน */
+  flex: 0 0 290px;
   display: flex; align-items: center; gap: 14px;
   padding: 18px;
   border: 1px solid var(--line);
@@ -879,6 +892,51 @@ legend { margin-bottom: 12px; font-weight: 600; }
 }
 @keyframes card-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
 
+
+/* ---------- organisers ---------- */
+
+.organiser-hero { max-width: 720px; padding-block: 8px 34px; }
+.organiser-hero h1 { font-family: var(--display); font-size: clamp(30px, 4vw, 42px); font-weight: 600; letter-spacing: -.8px; margin: 8px 0 12px; }
+.organiser-lead { color: var(--muted); font-size: 15.5px; line-height: 1.75; }
+.organiser-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+
+.organiser-steps, .organiser-rules, .organiser-notes { padding-block: 30px; border-top: 1px solid var(--line); }
+.organiser-steps h2, .organiser-rules h2, .organiser-notes h2 { font-family: var(--display); font-size: 22px; font-weight: 600; margin-bottom: 18px; }
+
+.rules-grid, .notes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.rules-card {
+  padding: 20px 22px;
+  border: 1px solid #bcdfcb;
+  border-radius: 16px;
+  background: #f6fbf8;
+}
+.rules-card.is-no { border-color: var(--peach-line); background: var(--peach); }
+.rules-card h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; margin-bottom: 10px; color: #1d6440; }
+.rules-card.is-no h3 { color: #a3341f; }
+.rules-card ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.7; }
+
+.note-card {
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+.note-card svg { color: var(--purple); margin-bottom: 10px; }
+.note-card h3 { font-size: 15.5px; font-weight: 600; margin-bottom: 6px; }
+.note-card p { font-size: 13.5px; line-height: 1.75; color: var(--muted); }
+
+.organiser-cta {
+  margin-block: 34px 10px;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(120deg, var(--purple-tint), var(--gold-tint));
+  text-align: center;
+}
+.organiser-cta h2 { font-family: var(--display); font-size: 24px; font-weight: 600; margin-bottom: 6px; }
+.organiser-cta .primary-button { margin-top: 18px; }
+
 @media (max-width: 900px) {
   .detail-grid { grid-template-columns: 1fr; }
   .detail-hero { grid-template-columns: 1fr; }
@@ -899,7 +957,7 @@ legend { margin-bottom: 12px; font-weight: 600; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marquee-track { animation: none; }
+  .trend-scroller { scroll-behavior: auto; }
   .competition-card { transition: none; }
 }
 

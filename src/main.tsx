@@ -20,6 +20,8 @@ import { Mentors } from './pages/Mentors';
 import { MentorApplication } from './pages/MentorApplication';
 import { Detail, NotFound } from './pages/Detail';
 import { SignIn } from './pages/SignIn';
+import { Organisers } from './pages/Organisers';
+import { OrganiserSubmit } from './pages/OrganiserSubmit';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminOverview } from './pages/admin/AdminOverview';
 import { AdminCompetitionQueue, AdminCompetitionReview } from './pages/admin/AdminCompetitions';
@@ -37,6 +39,8 @@ const router = createBrowserRouter([{
     { path: '/competitions/:slug', element: <Detail /> },
     { path: '/mentors', element: <Mentors /> },
     { path: '/mentors/apply', element: <MentorApplication /> },
+    { path: '/organizers', element: <Organisers /> },
+    { path: '/organizers/submit', element: <OrganiserSubmit /> },
     { path: '/signin', element: <SignIn mode="signin" /> },
     { path: '/signup', element: <SignIn mode="signup" /> },
     { path: '*', element: <NotFound /> },

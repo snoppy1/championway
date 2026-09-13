@@ -21,7 +21,6 @@ const PER_PAGE = 6;
 type PodiumMentor = { id: string; name: string; avatar: string; weeklyRank: number | null; weeklyFocus: string | null };
 
 function Highlights() {
-  const [paused, setPaused] = useState(false);
   const { data: trendingData } = useApi<{ items: Competition[] }>(`/competitions?slugs=${trendingSlugs.join(',')}&perPage=20`);
   const { data: mentorData } = useApi<{ items: PodiumMentor[] }>('/mentors');
   // เรียงตามลำดับที่ตั้งไว้ ไม่ใช่ตามที่ฐานข้อมูลคืนมา
@@ -30,31 +29,23 @@ function Highlights() {
   const podium = (mentorData?.items ?? [])
     .filter((mentor) => mentor.weeklyRank !== null)
     .sort((a, b) => (a.weeklyRank ?? 0) - (b.weeklyRank ?? 0));
-  const run = <div className="marquee-run">
-    {trending.map((competition, index) => <div className="trend-card" key={competition.slug}>
-      <span className="trend-rank" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-      <div>
-        <b>{competition.name}</b>
-        <small>{categoryLabel(primaryCategory(competition))} · {competition.org}</small>
-      </div>
-    </div>)}
-  </div>;
-
   return <section className="shell highlights" aria-labelledby="trending-title">
     <div className="section-head">
       <div>
         <h2 id="trending-title">รายการแข่งขันที่คนสนใจมากที่สุด</h2>
         <p>อันดับตัวอย่างสำหรับการออกแบบ ยังไม่ได้วัดจากการใช้งานจริง</p>
       </div>
-      <button type="button" className="ghost-button" aria-pressed={paused} onClick={() => setPaused(!paused)}>
-        {paused ? 'เลื่อนต่อ' : 'หยุดการเลื่อน'}
-      </button>
     </div>
-    <div className="marquee-viewport">
-      <div className={paused ? 'marquee-track paused' : 'marquee-track'}>
-        {run}
-        <div aria-hidden="true">{run}</div>
-      </div>
+    {/* เลื่อนเองด้วยแถบข้างล่าง ไม่เลื่อนอัตโนมัติ จึงไม่ต้องมีปุ่มหยุด
+        ต้องรับ focus ได้เพื่อให้เลื่อนด้วยลูกศรบนคีย์บอร์ดได้เหมือนกับเมาส์ */}
+    <div className="trend-scroller" tabIndex={0} role="group" aria-label="รายการแข่งขันที่คนสนใจมากที่สุด เลื่อนดูด้านข้างได้">
+      {trending.map((competition, index) => <div className="trend-card" key={competition.slug}>
+        <span className="trend-rank" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+        <div>
+          <b>{competition.name}</b>
+          <small>{categoryLabel(primaryCategory(competition))} · {competition.org}</small>
+        </div>
+      </div>)}
     </div>
 
     <div className="podium-head">

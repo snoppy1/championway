@@ -25,6 +25,7 @@ function Header() {
       <nav className="main-nav" aria-label="เมนูหลัก">
         <NavLink to="/" end>สำรวจการแข่งขัน</NavLink>
         <NavLink to="/mentors">เมนเทอร์</NavLink>
+        {user && <NavLink to="/chats">แชตของฉัน</NavLink>}
         <span className="nav-soon" title="ยังไม่เปิดในเว็บต้นแบบ">คลังความรู้</span>
       </nav>
       <div className="header-actions">

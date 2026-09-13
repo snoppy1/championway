@@ -232,6 +232,7 @@ export function Mentors() {
           <p>{formatSlot(booking.slot)}</p>
           <p>{booking.free ? 'ไม่มีค่าใช้จ่าย' : `฿${booking.mentor.price.toLocaleString('th-TH')} ต่อทีม · 60 นาที`}</p>
           <p className="card-org">พรีวิวขั้นตอนเท่านั้น ยังไม่มีการจองหรือเรียกเก็บเงินจริง</p>
+          <Link className="primary-button" to={`/chats/new?mentor=${encodeURIComponent(booking.mentor.id)}&context=${encodeURIComponent(`${booking.free ? 'ขอคุยฟรี 20 นาที' : 'ขอปรึกษา 60 นาที'} · ${formatSlot(booking.slot)}`)}`}>สร้างกลุ่มคุยกับเมนเทอร์</Link>
           <button type="button" className="link-button" onClick={() => setBooking(null)}>ปิดรายละเอียด</button>
         </div>}
 

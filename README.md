@@ -116,6 +116,8 @@ workflow ไม่รัน Playwright เพราะ `playwright.config.ts` �
 
 ### Vercel
 
+แชตกลุ่มกับเมนเทอร์: ผู้เข้าสู่ระบบเปิด `/chats` หรือเริ่มคำขอจากหน้าเมนเทอร์ ดูสิทธิ์สมาชิก การตั้งค่า และข้อจำกัดใน [chat.md](chat.md) ต้องรัน migration ตารางแชตในฐานข้อมูลของสภาพแวดล้อมนั้นก่อนใช้งาน
+
 `vercel.json` ตั้งค่าให้ Vercel build ด้วย `npm run build` และเสิร์ฟจาก `dist` โดยไม่ตั้ง `BASE_PATH` เว็บจึงอยู่ที่ root ไม่ใช่ subpath
 
 Vercel ตั้ง SPA fallback ได้จริงผ่าน `rewrites` ทุกเส้นทางที่ไม่ใช่ไฟล์จึงคืน `index.html` พร้อม **status 200** ต่างจาก GitHub Pages ที่คืน 404 ส่วนไฟล์ `404.html` ที่ build สร้างไว้ให้ Pages ยังอยู่ในผลลัพธ์แต่ Vercel ไม่ได้ใช้

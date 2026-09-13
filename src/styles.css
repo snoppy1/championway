@@ -89,8 +89,9 @@ main:focus { outline: none; }
 .brand-mark { width: 36px; height: 37px; display: block; flex-shrink: 0; }
 .brand-name { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.2px; }
 
-.main-nav { display: flex; align-items: center; gap: 6px; margin-right: auto; }
+.main-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-right: auto; }
 .main-nav a {
+  white-space: nowrap;
   padding: 8px 12px;
   border-radius: 9px;
   color: var(--muted);

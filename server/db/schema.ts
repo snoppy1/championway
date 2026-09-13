@@ -260,6 +260,45 @@ export const emailLog = pgTable('email_log', {
 
 /* ---------- relations ---------- */
 
+export const chatRooms = pgTable('chat_rooms', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mentorUserId: text('mentor_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  context: text('context').notNull(),
+  status: text('status').notNull().default('pending'),
+  meetingUrl: text('meeting_url').notNull().default(''),
+  meetingAt: timestamp('meeting_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('chat_rooms_owner_idx').on(t.ownerId), index('chat_rooms_mentor_idx').on(t.mentorUserId)]);
+
+export const chatMembers = pgTable('chat_members', {
+  roomId: text('room_id').notNull().references(() => chatRooms.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.roomId, t.userId] }), index('chat_members_user_idx').on(t.userId)]);
+
+export const chatInvites = pgTable('chat_invites', {
+  id: text('id').primaryKey(),
+  roomId: text('room_id').notNull().references(() => chatRooms.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+}, t => [uniqueIndex('chat_invites_room_email_key').on(t.roomId, t.email), index('chat_invites_email_idx').on(t.email)]);
+
+export const chatMessages = pgTable('chat_messages', {
+  id: text('id').primaryKey(),
+  roomId: text('room_id').notNull().references(() => chatRooms.id, { onDelete: 'cascade' }),
+  senderId: text('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull(),
+  body: text('body').notNull(),
+  fileName: text('file_name'),
+  fileMime: text('file_mime'),
+  fileData: text('file_data'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('chat_messages_room_time_idx').on(t.roomId, t.createdAt), uniqueIndex('chat_messages_retry_key').on(t.roomId, t.senderId, t.clientId)]);
+
 export const competitionRelations = relations(competitions, ({ many }) => ({
   categories: many(competitionCategories),
   levels: many(competitionLevels),

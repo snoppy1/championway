@@ -20,6 +20,7 @@ import { Mentors } from './pages/Mentors';
 import { MentorApplication } from './pages/MentorApplication';
 import { Detail, NotFound } from './pages/Detail';
 import { SignIn } from './pages/SignIn';
+import { Chats, NewChat } from './pages/Chats';
 import { Organisers } from './pages/Organisers';
 import { OrganiserSubmit } from './pages/OrganiserSubmit';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -43,6 +44,9 @@ const router = createBrowserRouter([{
     { path: '/organizers', element: <Organisers /> },
     { path: '/organizers/submit', element: <OrganiserSubmit /> },
     { path: '/signin', element: <SignIn mode="signin" /> },
+    { path: '/chats', element: <Chats /> },
+    { path: '/chats/new', element: <NewChat /> },
+    { path: '/chats/:id', element: <Chats /> },
     { path: '/signup', element: <SignIn mode="signup" /> },
     { path: '*', element: <NotFound /> },
   ],

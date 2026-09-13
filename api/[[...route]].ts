@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import { handle } from 'hono/vercel';
+import { app } from '../server/app';
 
 /* ทางเข้าเดียวของ API บน Vercel ทุกคำขอที่ขึ้นต้นด้วย /api เข้ามาที่นี่
 
@@ -7,30 +7,14 @@ import { handle } from 'hono/vercel';
    เพราะ Vercel จับคู่ไฟล์กับเส้นทางตามชื่อไฟล์ api/index.ts จะรับแค่ /api พอดี ๆ
    ส่วน /api/health และเส้นทางอื่นจะกลายเป็น 404 ของ Vercel ก่อนถึงโค้ดเรา
 
+   ต้อง import แอปแบบปกติเท่านั้น ห้ามใช้ import() ตอนรัน เพราะตัว build ของ Vercel
+   ตาม dependency จาก import ที่เขียนไว้ตรง ๆ เท่านั้น โมดูลที่เรียกแบบ dynamic
+   จะไม่ถูกรวมเข้าไปในฟังก์ชัน แล้วพังตอนรันด้วย ERR_MODULE_NOT_FOUND
+
+   และต้อง export ผลของ handle() ตรง ๆ ห้ามห่อด้วยฟังก์ชันของตัวเอง
+   ไม่อย่างนั้น Vercel จะแยกไม่ออกว่าเป็น handler แบบ Web แล้วคำขอจะค้าง
+
    ไม่ประกาศ runtime เอง ไฟล์ .ts ใน api/ ใช้ Node runtime เป็นค่าเริ่มต้นอยู่แล้ว
    ซึ่งเป็นสิ่งที่ต้องการ เพราะไดรเวอร์ Postgres ต่อผ่าน TCP ใช้ Edge ไม่ได้ */
 
-/* ต้อง export ผลของ handle() ตรง ๆ เท่านั้น ถ้าห่อด้วยฟังก์ชันของตัวเอง
-   Vercel จะแยกไม่ออกว่าเป็น handler แบบ Web แล้วคำขอจะค้างจนหมดเวลา
-   จึงใช้ Hono อีกชั้นเป็นตัวโหลดแอปจริงตอนมีคำขอเข้ามาแทน */
-const entry = new Hono();
-
-/** ตัดชื่อผู้ใช้และรหัสผ่านออกจากข้อความ เผื่อ error พ่วง connection string มาด้วย */
-function redact(message: string) {
-  return message.replace(/\/\/[^@\s/]*:[^@\s/]*@/g, '//***:***@').slice(0, 500);
-}
-
-entry.all('*', async (c) => {
-  try {
-    // โหลดตอนมีคำขอ ไม่ใช่ตอน import เพื่อให้ดักความผิดพลาดตอนบูตได้
-    // ไม่อย่างนั้นโฮสต์จะตอบแค่ FUNCTION_INVOCATION_FAILED ซึ่งไม่บอกอะไรเลย
-    const { app } = await import('../server/app');
-    return await app.fetch(c.req.raw);
-  } catch (error) {
-    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-    console.error('[api] boot failed', error);
-    return c.json({ error: 'เซิร์ฟเวอร์เริ่มทำงานไม่สำเร็จ', detail: redact(message) }, 500);
-  }
-});
-
-export default handle(entry);
+export default handle(app);

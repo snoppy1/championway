@@ -3,9 +3,9 @@ import { app } from '../server/app.js';
 
 /* ทางเข้าเดียวของ API บน Vercel ทุกคำขอที่ขึ้นต้นด้วย /api เข้ามาที่นี่
 
-   ชื่อไฟล์ต้องเป็น catch-all แบบ [[...route]] ไม่ใช่ index
-   เพราะ Vercel จับคู่ไฟล์กับเส้นทางตามชื่อไฟล์ api/index.ts จะรับแค่ /api พอดี ๆ
-   ส่วน /api/health และเส้นทางอื่นจะกลายเป็น 404 ของ Vercel ก่อนถึงโค้ดเรา
+   ชื่อไฟล์ต้องเป็น catch-all แบบ [...route] เพราะ Vercel จับคู่ไฟล์กับเส้นทาง
+   ตามชื่อไฟล์ api/index.ts จะรับแค่ /api พอดี ๆ ส่วนแบบวงเล็บสองชั้น [[...route]]
+   ถูกตีความเป็น segment เดียว ทำให้ /api/health ผ่านแต่ /api/auth/me เป็น 404
 
    ต้อง export handler แบบ Node คือรับ (req, res) ไม่ใช่แบบ Web ที่คืน Response
    เพราะ Node runtime ของ Vercel ส่ง req/res ของ node:http มาให้ ถ้าเราคืน Response

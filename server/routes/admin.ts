@@ -2,17 +2,17 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { db } from '../db/client';
+import { db } from '../db/client.js';
 import {
   competitionCategories, competitionLevels, competitionRewards, competitionSubmissions,
   competitions, mentorAwards, mentorSubmissions, mentors, reviewEvents, submissionCategories,
   submissionLevels, submissionRewards,
-} from '../db/schema';
-import type { AppEnv } from '../lib/guards';
-import { requireReviewer } from '../lib/guards';
-import { newId, slugify } from '../lib/id';
-import { notify } from '../lib/email';
-import { firstIssue } from './public';
+} from '../db/schema.js';
+import type { AppEnv } from '../lib/guards.js';
+import { requireReviewer } from '../lib/guards.js';
+import { newId, slugify } from '../lib/id.js';
+import { notify } from '../lib/email.js';
+import { firstIssue } from './public.js';
 
 export const admin = new Hono<AppEnv>();
 admin.use('*', requireReviewer);

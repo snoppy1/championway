@@ -1,9 +1,9 @@
 import { and, asc, desc, eq, exists, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { db } from './client';
+import { db } from './client.js';
 import {
   competitionCategories, competitionLevels, competitionRewards, competitions,
-} from './schema';
+} from './schema.js';
 
 type Category = (typeof competitionCategories.$inferSelect)['category'];
 type Level = (typeof competitionLevels.$inferSelect)['level'];

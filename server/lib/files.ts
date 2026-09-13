@@ -1,9 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { db } from '../db/client';
-import { files } from '../db/schema';
-import { env } from './env';
-import { newId } from './id';
+import { db } from '../db/client.js';
+import { files } from '../db/schema.js';
+import { env } from './env.js';
+import { newId } from './id.js';
 
 /* เก็บไฟล์ลงโฟลเดอร์ในเครื่องก่อน ตอนย้ายไป S3 หรือ R2 ให้แก้สองฟังก์ชันนี้
    โครงตารางไม่ต้องแก้ เพราะ path เก็บได้ทั้งชื่อไฟล์และ object key */

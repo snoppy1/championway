@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { env } from './env';
-import { newToken } from './id';
+import { env } from './env.js';
+import { newToken } from './id.js';
 import { z } from 'zod';
 
 /* ทำ OAuth เองด้วย fetch ธรรมดา ไม่ใช้ไลบรารี เพราะ flow มีแค่สองขั้นและการพึ่ง

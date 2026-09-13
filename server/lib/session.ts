@@ -1,10 +1,10 @@
 import { and, eq, gt, lt } from 'drizzle-orm';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
-import { db } from '../db/client';
-import { sessions, users } from '../db/schema';
-import { env } from './env';
-import { newToken } from './id';
+import { db } from '../db/client.js';
+import { sessions, users } from '../db/schema.js';
+import { env } from './env.js';
+import { newToken } from './id.js';
 
 export const SESSION_COOKIE = 'cw_session';
 const TTL_DAYS = 30;

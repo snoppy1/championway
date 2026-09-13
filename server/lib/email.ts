@@ -1,6 +1,6 @@
-import { db } from '../db/client';
-import { emailLog } from '../db/schema';
-import { newId } from './id';
+import { db } from '../db/client.js';
+import { emailLog } from '../db/schema.js';
+import { newId } from './id.js';
 
 /* ตอนนี้ยังไม่ส่งอีเมลจริง บันทึกลงตาราง email_log แทน เพื่อให้ตรวจได้ว่าระบบ
    จะส่งอะไรออกไปบ้าง และเทสยืนยันได้ว่าอีเมลถูกสั่งส่งจริง

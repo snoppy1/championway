@@ -2,18 +2,18 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { db } from '../db/client';
+import { db } from '../db/client.js';
 import {
   categoryEnum, competitionSubmissions, competitions as competitionsTable, levelEnum, mentorAwards,
   mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, rewardEnum, submissionCategories,
   submissionLevels, submissionRewards,
-} from '../db/schema';
-import { competitionOptions, findCompetitionBySlug, listCompetitions, relatedCompetitions } from '../db/queries';
-import type { CompetitionRecord, ListQuery } from '../db/queries';
-import type { AppEnv } from '../lib/guards';
-import { requireUser } from '../lib/guards';
-import { newId } from '../lib/id';
-import { notify } from '../lib/email';
+} from '../db/schema.js';
+import { competitionOptions, findCompetitionBySlug, listCompetitions, relatedCompetitions } from '../db/queries.js';
+import type { CompetitionRecord, ListQuery } from '../db/queries.js';
+import type { AppEnv } from '../lib/guards.js';
+import { requireUser } from '../lib/guards.js';
+import { newId } from '../lib/id.js';
+import { notify } from '../lib/email.js';
 
 export const publicApi = new Hono<AppEnv>();
 

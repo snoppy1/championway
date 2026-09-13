@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
-import { app } from './app';
-import { configProblems, env } from './lib/env';
+import { app } from './app.js';
+import { configProblems, env } from './lib/env.js';
 
 // ตอนรันในเครื่อง หยุดทันทีดีกว่าปล่อยให้เปิดเซิร์ฟเวอร์ที่ตอบ 503 ทุกเส้นทาง
 if (configProblems.length) {

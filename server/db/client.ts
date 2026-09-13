@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { env } from '../lib/env';
-import * as schema from './schema';
+import { env } from '../lib/env.js';
+import * as schema from './schema.js';
 
 // Neon free tier หลับเมื่อไม่มีคนใช้ query แรกหลังตื่นจึงช้าได้ถึงราวครึ่งวินาที
 // ตั้ง connect_timeout ให้เผื่อไว้ และเปิด connection ไม่มากเพราะงานเขียนน้อย

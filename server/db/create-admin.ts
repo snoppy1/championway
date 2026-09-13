@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
-import { client, db } from './client';
-import { users } from './schema';
-import { hashPassword, passwordProblem } from '../lib/password';
-import { newId } from '../lib/id';
+import { client, db } from './client.js';
+import { users } from './schema.js';
+import { hashPassword, passwordProblem } from '../lib/password.js';
+import { newId } from '../lib/id.js';
 
 /* สร้างหรืออัปเกรดบัญชีทีมตรวจ บทบาท reviewer กับ admin ตั้งได้ทางนี้เท่านั้น
    ไม่มีทางสมัครเอาเองจากหน้าเว็บ

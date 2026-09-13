@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { configProblems } from './lib/env';
-import type { AppEnv } from './lib/guards';
-import { withUser } from './lib/guards';
-import { auth } from './routes/auth';
-import { admin } from './routes/admin';
-import { publicApi } from './routes/public';
+import { configProblems } from './lib/env.js';
+import type { AppEnv } from './lib/guards.js';
+import { withUser } from './lib/guards.js';
+import { auth } from './routes/auth.js';
+import { admin } from './routes/admin.js';
+import { publicApi } from './routes/public.js';
 
 export const app = new Hono<AppEnv>().basePath('/api');
 

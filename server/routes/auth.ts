@@ -3,19 +3,19 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { db } from '../db/client';
-import { users } from '../db/schema';
-import { env, googleConfigured } from '../lib/env';
-import { authorizeUrl, exchangeCode, fetchProfile, newPkcePair } from '../lib/google';
-import type { AppEnv } from '../lib/guards';
-import { requireUser } from '../lib/guards';
-import { firstIssue } from './public';
-import { newId, newToken } from '../lib/id';
-import { safeNext } from '../../src/lib/safe-next';
-import { hashPassword, passwordProblem, verifyPassword, wasteTime } from '../lib/password';
+import { db } from '../db/client.js';
+import { users } from '../db/schema.js';
+import { env, googleConfigured } from '../lib/env.js';
+import { authorizeUrl, exchangeCode, fetchProfile, newPkcePair } from '../lib/google.js';
+import type { AppEnv } from '../lib/guards.js';
+import { requireUser } from '../lib/guards.js';
+import { firstIssue } from './public.js';
+import { newId, newToken } from '../lib/id.js';
+import { safeNext } from '../../src/lib/safe-next.js';
+import { hashPassword, passwordProblem, verifyPassword, wasteTime } from '../lib/password.js';
 import {
   clearSessionCookie, createSession, destroySession, pruneSessions, sessionIdFrom, setSessionCookie,
-} from '../lib/session';
+} from '../lib/session.js';
 
 export const auth = new Hono<AppEnv>();
 

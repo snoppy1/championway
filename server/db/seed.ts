@@ -1,15 +1,15 @@
-import { competitions as fixtures } from '../../src/data/competitions';
-import { mentors as mentorFixtures } from '../../src/data/mentors';
-import { competitionSubmissions as csFixtures, mentorSubmissions as msFixtures } from '../../src/data/submissions';
-import { client, db } from './client';
+import { competitions as fixtures } from '../../src/data/competitions.js';
+import { mentors as mentorFixtures } from '../../src/data/mentors.js';
+import { competitionSubmissions as csFixtures, mentorSubmissions as msFixtures } from '../../src/data/submissions.js';
+import { client, db } from './client.js';
 import {
   competitionCategories, competitionLevels, competitionRewards, competitions, mentorAwards,
   mentorSubmissions, mentors, reviewEvents, submissionCategories, submissionLevels,
   submissionRewards, competitionSubmissions,
-} from './schema';
+} from './schema.js';
 import { pathToFileURL } from 'node:url';
-import { newId } from '../lib/id';
-import { testDatabase } from '../lib/database-safety';
+import { newId } from '../lib/id.js';
+import { testDatabase } from '../lib/database-safety.js';
 
 /* ย้ายข้อมูลตัวอย่างที่เคยอยู่ในไฟล์ TypeScript เข้าฐานข้อมูล รันซ้ำได้เพราะล้างของเดิมก่อน
    สั่งด้วย npm run db:seed ข้อมูลทั้งหมดยังเป็นเวที ผู้จัด และบุคคลสมมติเหมือนเดิม

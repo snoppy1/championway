@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { testDatabase } from './database-safety';
+import { testDatabase } from './database-safety.js';
 
 // โหลดด้วย loader ที่มากับ Node เอง ไม่ต้องพึ่ง dotenv
 // .env.local อยู่ใน .gitignore ค่าลับจึงไม่หลุดเข้า repo

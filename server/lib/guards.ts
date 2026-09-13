@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
-import type { SessionUser } from './session';
-import { readSession, sessionIdFrom } from './session';
+import type { SessionUser } from './session.js';
+import { readSession, sessionIdFrom } from './session.js';
 
 export type AppEnv = { Variables: { user: SessionUser | null } };
 

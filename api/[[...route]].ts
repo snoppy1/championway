@@ -1,5 +1,5 @@
 import { handle } from 'hono/vercel';
-import { app } from '../server/app';
+import { app } from '../server/app.js';
 
 /* ทางเข้าเดียวของ API บน Vercel ทุกคำขอที่ขึ้นต้นด้วย /api เข้ามาที่นี่
 

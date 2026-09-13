@@ -16,6 +16,9 @@ test.beforeAll(async () => { reviewer = await createAccount('reviewer'); });
 test.afterAll(async () => { await removeAccount(reviewer); });
 
 async function fillRequired(page: Page, name: string) {
+  // ประเภทงานกับหมวดจับคู่เมนเทอร์บังคับกรอก เวทีที่ขาดสองช่องนี้จะไม่ขึ้นหน้า "อยากแข่งงานไหน"
+  await page.getByLabel('ประเภทงาน *').selectOption('hackathon');
+  await page.getByRole('checkbox', { name: 'นวัตกรรม', exact: true }).check();
   await page.getByLabel('ชื่อเวที *').fill(name);
   await page.getByLabel('ผู้จัด *').fill('หน่วยงานสำหรับทดสอบ');
   await page.getByLabel('คำบรรยายสั้น *').fill('ทีมงานคัดจากประกาศจริงมากรอกเอง');

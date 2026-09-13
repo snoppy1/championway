@@ -15,6 +15,20 @@
       "when": 1789295562421,
       "tag": "0001_brave_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789310062649,
+      "tag": "0002_neat_tag",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789314932640,
+      "tag": "0003_neat_drax",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, post } from '../lib/api';
+import type { PersonLevel } from './profile';
 
 export type Account = {
   id: string;
@@ -8,6 +9,14 @@ export type Account = {
   name: string;
   role: 'member' | 'reviewer' | 'admin';
   avatarUrl: string | null;
+  bio: string | null;
+  occupation: string | null;
+  organization: string | null;
+  position: string | null;
+  educationLevel: PersonLevel | 'open' | null;
+  /** ตั้งรหัสผ่านไว้หรือยัง คนที่สมัครด้วย Google ยังไม่มี จึงเป็นการ "ตั้ง" ไม่ใช่ "เปลี่ยน" */
+  hasPassword: boolean;
+  googleLinked: boolean;
 };
 
 type AuthState = {
@@ -20,6 +29,8 @@ type AuthState = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** ใช้หลังบันทึกโปรไฟล์ เพื่อให้ชื่อบนหัวเว็บเปลี่ยนตามทันทีโดยไม่ต้องรีโหลดหน้า */
+  applyUser: (account: Account) => void;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -69,9 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const applyUser = useCallback((account: Account) => setUser(account), []);
+
   const value = useMemo<AuthState>(
-    () => ({ user, loading, unreachable, googleEnabled, signIn, signUp, signOut }),
-    [user, loading, unreachable, googleEnabled, signIn, signUp, signOut],
+    () => ({ user, loading, unreachable, googleEnabled, signIn, signUp, signOut, applyUser }),
+    [user, loading, unreachable, googleEnabled, signIn, signUp, signOut, applyUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

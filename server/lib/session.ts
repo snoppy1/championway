@@ -1,4 +1,4 @@
-import { and, eq, gt, lt } from 'drizzle-orm';
+import { and, eq, gt, lt, sql } from 'drizzle-orm';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { db } from '../db/client.js';
@@ -15,6 +15,15 @@ export type SessionUser = {
   name: string;
   role: 'member' | 'reviewer' | 'admin';
   avatarUrl: string | null;
+  bio: string | null;
+  occupation: string | null;
+  organization: string | null;
+  position: string | null;
+  educationLevel: 'primary' | 'secondary' | 'university' | 'open' | null;
+  /* ส่งเป็นบูลีน ไม่ส่งแฮชรหัสผ่านหรือรหัส Google ออกไปกับ session
+     หน้าเว็บต้องรู้แค่ว่า "ตั้งรหัสผ่านไว้หรือยัง" เพื่อเลือกข้อความให้ถูก */
+  hasPassword: boolean;
+  googleLinked: boolean;
 };
 
 export async function createSession(userId: string) {
@@ -29,6 +38,10 @@ export async function readSession(sessionId: string): Promise<SessionUser | null
   const rows = await db
     .select({
       id: users.id, email: users.email, name: users.name, role: users.role, avatarUrl: users.avatarUrl,
+      bio: users.bio, occupation: users.occupation, organization: users.organization,
+      position: users.position, educationLevel: users.educationLevel,
+      hasPassword: sql<boolean>`${users.passwordHash} is not null`,
+      googleLinked: sql<boolean>`${users.googleId} is not null`,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))

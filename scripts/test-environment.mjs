@@ -9,7 +9,7 @@ const commands = {
   test: ['node_modules/@playwright/test/cli.js', 'test'],
   migrate: ['node_modules/drizzle-kit/bin.cjs', 'migrate'],
   seed: ['--import', 'tsx', 'server/db/seed.ts'],
-  auth: ['--import', 'tsx', '--test', 'scripts/auth-google.test.ts'],
+  auth: ['--import', 'tsx', '--test', 'scripts/auth-google.test.ts', 'scripts/profile-api.test.ts'],
 };
 if (!commands[task]) throw new Error('Unknown test environment command');
 const child = spawn(process.execPath, [...commands[task], ...args], {

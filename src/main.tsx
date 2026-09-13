@@ -16,11 +16,15 @@ import '@fontsource/anuphan/latin-700.css';
 import { AuthProvider } from './data/auth';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
-import { Mentors } from './pages/Mentors';
+import { Explore } from './pages/Explore';
+import { MentorProfile } from './pages/MentorProfile';
+import { MentorsRedirect } from './pages/MentorsRedirect';
 import { MentorApplication } from './pages/MentorApplication';
+import { Profile } from './pages/Profile';
+import { ProfileEdit } from './pages/ProfileEdit';
 import { Detail, NotFound } from './pages/Detail';
 import { SignIn } from './pages/SignIn';
-import { Chats, NewChat } from './pages/Chats';
+import { Chats } from './pages/Chats';
 import { Organisers } from './pages/Organisers';
 import { OrganiserSubmit } from './pages/OrganiserSubmit';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -37,15 +41,18 @@ const router = createBrowserRouter([{
   element: <Layout />,
   children: [
     { path: '/', element: <Home /> },
-    { path: '/competitions', element: <Navigate to="/" replace /> },
+    { path: '/explore', element: <Explore /> },
+    { path: '/competitions', element: <Navigate to="/explore" replace /> },
     { path: '/competitions/:slug', element: <Detail /> },
-    { path: '/mentors', element: <Mentors /> },
+    { path: '/mentors', element: <MentorsRedirect /> },
     { path: '/mentors/apply', element: <MentorApplication /> },
+    { path: '/mentors/:id', element: <MentorProfile /> },
+    { path: '/profile', element: <Profile /> },
+    { path: '/profile/edit', element: <ProfileEdit /> },
     { path: '/organizers', element: <Organisers /> },
     { path: '/organizers/submit', element: <OrganiserSubmit /> },
     { path: '/signin', element: <SignIn mode="signin" /> },
     { path: '/chats', element: <Chats /> },
-    { path: '/chats/new', element: <NewChat /> },
     { path: '/chats/:id', element: <Chats /> },
     { path: '/signup', element: <SignIn mode="signup" /> },
     { path: '*', element: <NotFound /> },

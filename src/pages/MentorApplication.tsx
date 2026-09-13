@@ -8,11 +8,11 @@ import { ApiError, post } from '../lib/api';
 import '../form.css';
 
 const steps = ['ข้อมูลผู้สมัคร', 'ประสบการณ์และรางวัล', 'บริการและคิว', 'ตรวจทานและส่ง'];
-type Field = 'first' | 'last' | 'nickname' | 'email' | 'occupation' | 'organization' | 'role' | 'experience' | 'portfolio' | 'best' | 'cannot' | 'price' | 'paidSlot' | 'freeSlot';
+/* ราคาและคิวไม่อยู่ในใบสมัครรอบนี้ เพราะยังไม่มีระบบชำระเงิน
+   เมนเทอร์ที่ผ่านอนุมัติแล้วเปิดช่องเวลาเองได้ที่หน้าโปรไฟล์ */
+type Field = 'first' | 'last' | 'nickname' | 'email' | 'occupation' | 'organization' | 'role' | 'experience' | 'portfolio' | 'best' | 'cannot';
 interface Award { id: number; title: string; prize: string; year: string; url: string; file?: File }
-const empty: Record<Field, string> = { first: '', last: '', nickname: '', email: '', occupation: '', organization: '', role: '', experience: '', portfolio: '', best: '', cannot: '', price: '', paidSlot: '', freeSlot: '' };
-const thaiDate = (value: string) => new Date(`${value}:00+07:00`).getTime();
-const dateLabel = (value: string) => new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(thaiDate(value));
+const empty: Record<Field, string> = { first: '', last: '', nickname: '', email: '', occupation: '', organization: '', role: '', experience: '', portfolio: '', best: '', cannot: '' };
 
 type ConsentKey = 'accuracy' | 'guidanceOnly' | 'noOffPlatform' | 'noJudging' | 'payment';
 /** Every box starts unticked and all of them are required before the sample submit. */
@@ -21,7 +21,7 @@ const consentItems: { key: ConsentKey; label: string }[] = [
   { key: 'guidanceOnly', label: 'ยอมรับว่าจะให้คำแนะนำ โดยไม่ทำงานหรือจัดทำผลงานส่งแข่งขันแทนทีม' },
   { key: 'noOffPlatform', label: 'ยอมรับว่าจะไม่รับงานนอกระบบกับลูกค้าที่พบผ่าน ChampionWays' },
   { key: 'noJudging', label: 'ยอมรับว่าจะไม่ให้คำปรึกษากับทีมที่ตนเองเป็นกรรมการตัดสิน' },
-  { key: 'payment', label: 'รับทราบว่าโอนเงินหลังคุยจบ 24 ชั่วโมง และคืนเต็มจำนวนหากเมนเทอร์ไม่มาตามนัด' },
+  { key: 'payment', label: 'รับทราบว่ารอบนี้ยังไม่มีการเก็บเงิน และการปรึกษาทั้งหมดเกิดขึ้นในแชตของเว็บ' },
 ];
 const noConsent: Record<ConsentKey, boolean> = { accuracy: false, guidanceOnly: false, noOffPlatform: false, noJudging: false, payment: false };
 
@@ -83,12 +83,7 @@ export function MentorApplication() {
         if (award.file && (award.file.size > 10 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png'].includes(award.file.type))) error = 'หลักฐานต้องเป็น PDF, JPG หรือ PNG ไม่เกิน 10 MB';
       }
     }
-    if (stage === 2) {
-      const paid = thaiDate(values.paidSlot), free = thaiDate(values.freeSlot);
-      if (selectedTopics.length !== 2) error = 'เลือกความถนัดให้ครบ 2 หัวข้อ';
-      else if (!Number.isFinite(paid) || !Number.isFinite(free) || paid <= Date.now() || free <= Date.now()) error = 'กรุณาเลือกคิวในอนาคต';
-      else if (paid < free + 20 * 60000 && free < paid + 60 * 60000) error = 'คิวปรึกษาและคิวคุยฟรีต้องไม่ทับกัน';
-    }
+    if (stage === 2 && selectedTopics.length !== 2) error = 'เลือกความถนัดให้ครบ 2 หัวข้อ';
     if (stage === 3) {
       missingConsent = consentItems.find((item) => !consent[item.key])?.key;
       if (missingConsent) error = 'ติ๊กยอมรับเงื่อนไขให้ครบทุกข้อก่อนส่งใบสมัคร';
@@ -97,10 +92,6 @@ export function MentorApplication() {
     if (missingConsent) document.getElementById(`consent-${missingConsent}`)?.focus();
     return !error;
   }
-
-  /* datetime-local ไม่มีเขตเวลาติดมา ใบสมัครพูดเวลาไทย จึงต่อ +07:00 ให้ชัด
-     ก่อนส่ง ไม่อย่างนั้นเซิร์ฟเวอร์จะตีความเป็นเวลาของเครื่องที่รัน */
-  const bangkok = (value: string) => new Date(`${value}:00+07:00`).toISOString();
 
   async function submitApplication() {
     setSending(true);
@@ -111,8 +102,6 @@ export function MentorApplication() {
         email: values.email, occupation: values.occupation, organization: values.organization,
         role: values.role, experience: values.experience, portfolio: values.portfolio,
         best: values.best, cannot: values.cannot, topics: selectedTopics,
-        price: Number(values.price) || 0,
-        paidSlot: bangkok(values.paidSlot), freeSlot: bangkok(values.freeSlot),
         awards: awards.map((award) => ({
           title: award.title,
           competitionSlug: null,
@@ -158,7 +147,7 @@ export function MentorApplication() {
 
   return <main id="main" tabIndex={-1}><div id="cw-apply" className="cw-form">
     <section className="hero">
-      <div className="application-hero-inner"><Link className="application-back" to="/mentors"><ArrowLeft size={16} aria-hidden="true" />กลับไปหน้าเมนเทอร์</Link><span className="tag">FOR THE NEXT GENERATION</span><h1>ประสบการณ์ของคุณ<br />ช่วยให้ทีมถัดไปไปได้ไกลขึ้น</h1><p className="muted">บอกสิ่งที่คุณถนัด พร้อมหลักฐานที่ช่วยให้ทีมมั่นใจก่อนเลือกปรึกษา</p><p className="application-prototype">ใบสมัครจะส่งให้ทีมงานตรวจสอบก่อนเผยแพร่โปรไฟล์</p></div>
+      <div className="application-hero-inner"><Link className="application-back" to="/profile"><ArrowLeft size={16} aria-hidden="true" />กลับไปโปรไฟล์</Link><span className="tag">FOR THE NEXT GENERATION</span><h1>ประสบการณ์ของคุณ<br />ช่วยให้ทีมถัดไปไปได้ไกลขึ้น</h1><p className="muted">บอกสิ่งที่คุณถนัด พร้อมหลักฐานที่ช่วยให้ทีมมั่นใจก่อนเลือกปรึกษา</p><p className="application-prototype">ใบสมัครจะส่งให้ทีมงานตรวจสอบก่อนเผยแพร่โปรไฟล์</p></div>
     </section>
     <div className="layout">
       <aside aria-label="ขั้นตอนการสมัคร"><ol className="steps">{steps.map((step, index) => <li key={step} className={`step ${index === stage ? 'current' : index < stage ? 'done' : ''}`} aria-current={index === stage ? 'step' : undefined}><b>{index + 1}</b>{step}</li>)}</ol><div className="aside-note"><ShieldCheck aria-hidden="true" /><h3>ตรวจสอบก่อนเผยแพร่</h3><p className="muted">ส่งใบสมัคร → ตรวจข้อมูลและหลักฐาน → แจ้งผลทางอีเมล</p></div><div className="aside-note"><Eye aria-hidden="true" /><h3>คุณเห็นก่อนว่าทีมจะเห็นอะไร</h3><p className="muted">แสดงชื่อและนามสกุลย่อ ส่วนอีเมลกับไฟล์หลักฐานใช้สำหรับตรวจสอบเท่านั้น</p></div></aside>
@@ -203,17 +192,7 @@ export function MentorApplication() {
             {group('ความถนัด', <div className="topics" role="group" aria-labelledby="topic-label">
               {topics.map((topic) => <label className="check topic" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={(event) => { if (event.target.checked && selectedTopics.length === 2) { setMessage('เลือกได้สูงสุด 2 หัวข้อ'); return; } reviewAgain(); setSelectedTopics(event.target.checked ? [...selectedTopics, topic] : selectedTopics.filter((item) => item !== topic)); setMessage(''); }} /><span>{topic}</span></label>)}
             </div>, 'เลือกสองเรื่องที่คุณช่วยได้ดีที่สุด ทีมใช้สองหัวข้อนี้ค้นหาคุณ', <span className="count" id="topic-label" aria-live="polite">เลือกแล้ว {selectedTopics.length} จาก 2 *</span>)}
-            {group('ราคา', <div className="price-row">
-              {field('price', 'ราคาต่อทีม / 60 นาที (บาท) *', { type: 'number', required: true, min: 1, max: 100000, step: 1, placeholder: '800' })}
-              <div className="price-preview"><small>ตัวอย่างทีม 4 คน</small><strong>{values.price ? `฿${(Number(values.price) / 4).toLocaleString('th-TH', { maximumFractionDigits: 2 })} / คน` : '— / คน'}</strong></div>
-            </div>, 'ทีมเห็นราคาต่อทีมและราคาหารตามจำนวนสมาชิกพร้อมกัน')}
-            {group('คิวที่ว่าง', <>
-              <div className="queue-grid">
-                <div className="queue-card"><h4>คิวปรึกษา 60 นาที</h4>{field('paidSlot', 'วันเวลาว่างแรก *', { type: 'datetime-local', required: true })}</div>
-                <div className="queue-card"><h4>คุยฟรี 20 นาที</h4>{field('freeSlot', 'วันเวลาว่างแรก *', { type: 'datetime-local', required: true })}<label className="check"><input type="checkbox" required /><span>ยินดีให้ทีมคุยฟรี 20 นาทีก่อนเลือกบริการ</span></label></div>
-              </div>
-              <small className="muted">เวลาไทย (UTC+7) · สองคิวต้องไม่ทับกัน · หลังผ่านการอนุมัติจึงจัดการคิวเพิ่มเติมได้</small>
-            </>, 'เมนเทอร์ทุกคนมีคุยฟรี 20 นาทีก่อนตัดสินใจ จึงต้องระบุทั้งสองคิว')}
+            <p className="muted">เมื่อใบสมัครผ่านการตรวจแล้ว คุณจะเปิดช่องเวลาว่างครั้งละ 60 นาทีได้เองที่หน้าโปรไฟล์</p>
           </fieldset>
 
           <fieldset data-stage="3" hidden={stage !== 3} disabled={stage !== 3}>
@@ -225,8 +204,7 @@ export function MentorApplication() {
               <p><strong>ช่วยได้ดีที่สุด:</strong> {values.best}</p>
               <p><strong>ช่วยไม่ได้:</strong> {values.cannot}</p>
               <p>{selectedTopics.map((topic) => <span className="tag" key={topic}>{topic}</span>)}</p>
-              <p><strong>฿{Number(values.price).toLocaleString('th-TH')} / ทีม / 60 นาที</strong></p>
-              <small>คุยฟรี 20 นาทีก่อนตัดสินใจ</small>
+              <small>ปรึกษาครั้งละ 60 นาทีในแชตของเว็บ รอบนี้ยังไม่มีการเก็บเงิน</small>
             </div>, 'นามสกุลย่อเหลืออักษรแรก ส่วนอีเมลและไฟล์หลักฐานไม่แสดงในโปรไฟล์')}
             {reviewGroup('ข้อมูลผู้สมัคร', 0, <>
               <div className="review"><small>ชื่อ–นามสกุล · ใช้ตรวจสอบ</small><strong>{values.first} {values.last}</strong></div>
@@ -239,13 +217,8 @@ export function MentorApplication() {
               {values.portfolio && <div className="review"><small>ลิงก์ผลงานหรือ Portfolio</small>{values.portfolio}</div>}
               {!awards.length && <div className="review"><small>หลักฐานรางวัล</small>ไม่ได้เพิ่มรางวัล · พิจารณาจากประสบการณ์และผลงาน</div>}
             </>)}
-            {reviewGroup('บริการและราคา', 2, <>
+            {reviewGroup('ความถนัด', 2, <>
               <div className="review"><small>ความถนัด</small>{selectedTopics.join(' · ')}</div>
-              <div className="review"><small>ราคาต่อทีม / 60 นาที</small><strong>฿{Number(values.price).toLocaleString('th-TH')}</strong></div>
-            </>)}
-            {reviewGroup('คิวที่ว่าง', 2, <>
-              {stage === 3 && <div className="review"><small>คิวปรึกษา 60 นาที · เวลาไทย</small>{dateLabel(values.paidSlot)}</div>}
-              {stage === 3 && <div className="review"><small>คุยฟรี 20 นาที · เวลาไทย</small>{dateLabel(values.freeSlot)}</div>}
             </>)}
             {group('ความยินยอมและเงื่อนไขการเป็นเมนเทอร์', <>
               <div className="consent-list">{consentItems.slice(0, 4).map((item) => consentBox(item.key, item.label))}</div>
@@ -258,7 +231,7 @@ export function MentorApplication() {
           </p>}
           <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>ย้อนกลับ</button>}<span className="muted">ขั้นตอน {stage + 1} จาก 4</span><button className="primary" type="submit" disabled={sending}>{stage === 3 ? (sending ? 'กำลังส่ง…' : 'ส่งใบสมัคร') : 'ถัดไป'}{stage < 3 && <ArrowRight aria-hidden="true" />}</button></div>
         </form>
-        {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>ส่งใบสมัครแล้ว</h2><p>ใบสมัครเข้าคิวตรวจแล้ว ทีมงานจะตรวจข้อมูลและหลักฐาน แล้วแจ้งผลทุกกรณี</p><div className="note">ไฟล์ที่เลือกยังไม่ถูกอัปโหลด ระบบบันทึกเฉพาะชื่อไฟล์ โปรดเตรียมลิงก์หลักฐานที่เปิดดูได้เพื่อให้ทีมงานตรวจสอบ</div><p className="muted">สถานะที่รองรับ: รอตรวจสอบ → ขอข้อมูลเพิ่มเติม → อนุมัติ / ไม่อนุมัติ</p><button type="button" onClick={() => setComplete(false)}>กลับไปตรวจใบสมัคร</button><Link className="application-return" to="/mentors">กลับไปหน้าเมนเทอร์</Link></div>}
+        {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>ส่งใบสมัครแล้ว</h2><p>ใบสมัครเข้าคิวตรวจแล้ว ทีมงานจะตรวจข้อมูลและหลักฐาน แล้วแจ้งผลทุกกรณี</p><div className="note">ไฟล์ที่เลือกยังไม่ถูกอัปโหลด ระบบบันทึกเฉพาะชื่อไฟล์ โปรดเตรียมลิงก์หลักฐานที่เปิดดูได้เพื่อให้ทีมงานตรวจสอบ</div><p className="muted">สถานะที่รองรับ: รอตรวจสอบ → ขอข้อมูลเพิ่มเติม → อนุมัติ / ไม่อนุมัติ</p><button type="button" onClick={() => setComplete(false)}>กลับไปตรวจใบสมัคร</button><Link className="application-return" to="/profile">ดูสถานะในโปรไฟล์</Link></div>}
       </div>
     </div>
     <p className="application-local-note">ข้อมูลกรอกเก็บเฉพาะระหว่างเปิดหน้านี้ ปิด รีเฟรช หรือออกจากหน้าสมัครแล้วหาย</p>

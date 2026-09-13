@@ -3,6 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { formatDate } from '../../data/competitions';
 import { useApi } from '../../lib/useApi';
+import { ApiError, post } from '../../lib/api';
+import { themeKeys, themes } from '../../data/focus';
+import type { Theme } from '../../data/focus';
 import { ReviewDecision } from './ReviewDecision';
 import {
   AttachedFiles, ExternalLink, Field, QueueFilters, REVIEW_TARGET_DAYS, StatusPill, Trail, waitingDays,
@@ -16,7 +19,52 @@ type Award = {
   year: string;
   evidence: string;
   matched: { slug: string; name: string } | null;
+  /** หมวดที่ผู้ตรวจยืนยันให้ผลงานชิ้นนี้ มีน้ำหนักมากที่สุดในการจับคู่เมนเทอร์กับเวที */
+  verifiedThemes: Theme[];
+  verifiedAt: string | null;
 };
+
+/* ผู้ตรวจเท่านั้นที่ให้หมวดกับผลงานได้ เมนเทอร์แก้เองไม่ได้
+   เอาหมวดออกทั้งหมดเท่ากับถอนการยืนยัน คะแนนจากหลักฐานชิ้นนี้จะหายไปด้วย */
+function VerifyAward({ award, onDone }: { award: Award; onDone: () => void }) {
+  const [chosen, setChosen] = useState<Theme[]>(award.verifiedThemes);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function save(next: Theme[]) {
+    setChosen(next);
+    setBusy(true);
+    setMessage('');
+    try {
+      await post(`/journey/awards/${award.id}/verify`, { themes: next });
+      onDone();
+    } catch (failure) {
+      setChosen(award.verifiedThemes);
+      setMessage(failure instanceof ApiError ? failure.message : 'บันทึกไม่สำเร็จ');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <div className="admin-field">
+    <dt>หมวดที่ยืนยันให้ผลงานนี้</dt>
+    <dd>
+      <div className="pick-grid">
+        {themeKeys.map((theme) => <label className="pick" key={theme}>
+          <input
+            type="checkbox" disabled={busy} checked={chosen.includes(theme)}
+            onChange={() => save(chosen.includes(theme) ? chosen.filter((item) => item !== theme) : [...chosen, theme])}
+          />
+          <span>{themes[theme]}</span>
+        </label>)}
+      </div>
+      <span className="admin-muted">
+        {award.verifiedAt ? `ยืนยันเมื่อ ${formatDate(award.verifiedAt.slice(0, 10))}` : 'ยังไม่ยืนยัน'}
+      </span>
+      {message && <p className="admin-message" role="alert">{message}</p>}
+    </dd>
+  </div>;
+}
 
 type MentorSubmission = {
   id: string;
@@ -163,6 +211,7 @@ export function AdminMentorReview() {
                     : <span className="award-unmatched">ไม่พบเวทีนี้ในระบบ ต้องตรวจด้วยมือ</span>}
                 </Field>
                 <Field label="หลักฐานที่แนบ">{award.evidence}</Field>
+                <VerifyAward award={award} onDone={reload} />
               </dl>
             </li>)}
           </ul> : <p className="admin-empty">ไม่ได้อ้างรางวัลใด ให้ป้ายยืนยันไม่ได้</p>}

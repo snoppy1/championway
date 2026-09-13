@@ -6,6 +6,8 @@ import {
   categories, categoryLabel, levelLabels, regionLabels, rewardLabels, typeLabels,
 } from '../data/competitions';
 import type { CategoryId, Level, OpportunityType, Region, Reward } from '../data/competitions';
+import { kindKeys, kinds, themeKeys, themes } from '../data/focus';
+import type { Kind, Theme } from '../data/focus';
 import { useAuth } from '../data/auth';
 import { ApiError, post } from '../lib/api';
 import { CoverArt } from '../components/CoverArt';
@@ -57,6 +59,8 @@ export function OrganiserSubmit() {
   const [values, setValues] = useState(empty);
   const [type, setType] = useState<OpportunityType>('contest');
   const [chosenCategories, setChosenCategories] = useState<CategoryId[]>([]);
+  const [kind, setKind] = useState<Kind | ''>('');
+  const [chosenThemes, setChosenThemes] = useState<Theme[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [region, setRegion] = useState<Region>('online');
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -124,7 +128,9 @@ export function OrganiserSubmit() {
     if (stage === 1) {
       need('name', 'ชื่องาน');
       need('description', 'คำบรรยายสั้น');
-      if (!error && !chosenCategories.length) error = 'เลือกหมวดอย่างน้อยหนึ่งหมวด';
+      if (!error && !kind) error = 'เลือกประเภทงาน';
+      if (!error && !chosenThemes.length) error = 'เลือกหมวดของงานอย่างน้อยหนึ่งหมวด';
+      if (!error && !chosenCategories.length) error = 'เลือกหมวดหมู่อย่างน้อยหนึ่งหมวด';
       if (!error && !levels.length) error = 'เลือกระดับผู้เข้าแข่งอย่างน้อยหนึ่งระดับ';
       const min = Number(values.teamMin);
       const max = Number(values.teamMax);
@@ -174,6 +180,7 @@ export function OrganiserSubmit() {
         contactRole: values.contactRole, contactEmail: values.contactEmail,
         contactPhone: values.contactPhone, organizerUrl: values.organizerUrl,
         name: values.name, description: values.description, type,
+        kind: kind || undefined, themes: chosenThemes,
         categories: chosenCategories, levels, rewards,
         teamMin: Number(values.teamMin), teamMax: Number(values.teamMax),
         opensAt: values.opensAt || undefined,
@@ -311,6 +318,26 @@ export function OrganiserSubmit() {
               </label>
             </>, undefined, <span className="count">{values.description.length} / 400</span>)}
 
+            {group('งานนี้เป็นแบบไหน', <div className="topics">
+              {kindKeys.map((id) => (
+                <label className="check topic" key={id}>
+                  <input type="radio" name="competition-kind" checked={kind === id}
+                    onChange={() => { reviewAgain(); setKind(id); }} />
+                  <span>{kinds[id]}</span>
+                </label>
+              ))}
+            </div>, 'ใช้แสดงบนหน้า “อยากแข่งงานไหน” และใช้จับคู่กับเมนเทอร์')}
+
+            {group('หมวดของงาน', <div className="topics">
+              {themeKeys.map((id) => (
+                <label className="check topic" key={id}>
+                  <input type="checkbox" checked={chosenThemes.includes(id)}
+                    onChange={() => toggle(chosenThemes, id, setChosenThemes)} />
+                  <span>{themes[id]}</span>
+                </label>
+              ))}
+            </div>, 'เลือกได้มากกว่าหนึ่งหมวด คนละชุดกับหมวดหมู่ด้านล่าง')}
+
             {group('ประเภทโอกาส', <div className="topics">
               {typeIds.map((id) => (
                 <label className="check topic" key={id}>
@@ -321,7 +348,7 @@ export function OrganiserSubmit() {
               ))}
             </div>)}
 
-            {group('หมวด', <div className="topics">
+            {group('หมวดหมู่', <div className="topics">
               {categoryIds.map((id) => (
                 <label className="check topic" key={id}>
                   <input type="checkbox" checked={chosenCategories.includes(id)}
@@ -470,7 +497,9 @@ export function OrganiserSubmit() {
 
             {reviewGroup('รายละเอียดงาน', 1, <>
               {row('ประเภท', typeLabels[type])}
-              {row('หมวด', chosenCategories.map(categoryLabel).join(' · '))}
+              {row('ประเภทงาน', kind ? kinds[kind] : '')}
+              {row('หมวดของงาน', chosenThemes.map((id) => themes[id]).join(' · '))}
+              {row('หมวดหมู่', chosenCategories.map(categoryLabel).join(' · '))}
               {row('ระดับผู้เข้าแข่ง', levels.map((id) => levelLabels[id]).join(' / '))}
               {row('ขนาดทีม', teamText)}
             </>)}

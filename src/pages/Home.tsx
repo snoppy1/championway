@@ -17,17 +17,13 @@ import wordmark from '../assets/wordmark.jpg';
 
 const PER_PAGE = 6;
 
-type PodiumMentor = { id: string; name: string; avatar: string; weeklyRank: number | null; weeklyFocus: string | null };
-
 function Highlights() {
   const { data: trendingData } = useApi<{ items: Competition[] }>('/competitions?sort=new&perPage=6');
-  const { data: mentorData } = useApi<{ items: PodiumMentor[] }>('/mentors');
   const trending = trendingData?.items ?? [];
-  const podium = (mentorData?.items ?? [])
-    .filter((mentor) => mentor.weeklyRank !== null)
-    .sort((a, b) => (a.weeklyRank ?? 0) - (b.weeklyRank ?? 0));
-  if (!trending.length && !podium.length) return null;
-  return <section className="shell highlights" aria-label="การแข่งขันล่าสุดและเมนเทอร์แนะนำ">
+  /* เอารายการเมนเทอร์แนะนำออกจากหน้าแรกแล้ว เพราะการเลือกเมนเทอร์ต้องเริ่มจากเวทีที่จะลงแข่ง
+     ไม่ใช่จากอันดับความนิยมที่ไม่มีสถิติรองรับ */
+  if (!trending.length) return null;
+  return <section className="shell highlights" aria-label="การแข่งขันล่าสุด">
     {!!trending.length && <>
     <div className="section-head">
       <div>
@@ -44,20 +40,6 @@ function Highlights() {
           <b>{competition.name}</b>
           <small>{categoryLabel(primaryCategory(competition))} · {competition.org}</small>
         </div>
-      </div>)}
-    </div></>}
-    {!!podium.length && <>
-    <div className="podium-head">
-      <h2>เมนเทอร์แนะนำ</h2>
-      <p>รู้จักประสบการณ์และความถนัดก่อนเลือกปรึกษา</p>
-    </div>
-    <div className="podium">
-      {podium.map((mentor) => <div className={mentor.weeklyRank === 1 ? 'podium-card is-first' : 'podium-card'} key={mentor.id}>
-        <span className="podium-medal">เมนเทอร์แนะนำ</span>
-        <div className="podium-avatar" aria-hidden="true">{mentor.avatar}</div>
-        <h3>{mentor.name}</h3>
-        <p>{mentor.weeklyFocus}</p>
-        <Link to="/mentors">ดูข้อมูลเมนเทอร์</Link>
       </div>)}
     </div></>}
   </section>;

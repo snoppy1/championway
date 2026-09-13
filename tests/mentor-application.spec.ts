@@ -9,11 +9,6 @@ let applicant: TestAccount;
 test.beforeAll(async () => { applicant = await createAccount('member'); });
 test.afterAll(async () => { await removeAccount(applicant); });
 
-const future = (hour: number) => {
-  const date = new Date(Date.now() + 7 * 86400000);
-  return `${date.toISOString().slice(0, 10)}T${String(hour).padStart(2, '0')}:00`;
-};
-
 async function fillIdentity(page: Page) {
   await page.getByLabel('ชื่อจริง *', { exact: true }).fill('มาลี');
   await page.getByLabel('นามสกุล *', { exact: false }).fill('นามสกุลทดสอบ');
@@ -36,7 +31,7 @@ const consentNames = [
   /ไม่ทำงานหรือจัดทำผลงานส่งแข่งขันแทนทีม/,
   /ไม่รับงานนอกระบบ/,
   /กรรมการตัดสิน/,
-  /รับทราบว่าโอนเงิน/,
+  /ยังไม่มีการเก็บเงิน/,
 ];
 async function acceptAll(page: Page) {
   for (const name of consentNames) await page.getByRole('checkbox', { name }).check();
@@ -47,22 +42,17 @@ async function fillService(page: Page) {
   await page.locator('#apply-cannot').fill('ไม่รับทำงานส่งแทน');
   await page.getByRole('checkbox', { name: 'ตีโจทย์และหาไอเดีย', exact: true }).check();
   await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
-  await page.locator('#apply-price').fill('800');
-  await page.locator('#apply-paidSlot').fill(future(18));
-  await page.locator('#apply-freeSlot').fill(future(20));
-  await page.getByRole('checkbox', { name: 'ยินดีให้ทีมคุยฟรี 20 นาทีก่อนเลือกบริการ' }).check();
 }
 
-test('apply link replaces the old inline form and direct URL refresh works', async ({ page }) => {
-  await page.goto('/mentors');
-  await expect(page.getByText('ขั้นตอนสมัครตัวอย่าง:', { exact: false })).toHaveCount(0);
-  await page.getByRole('link', { name: 'เคยผ่านเวทีจริง? สมัครเป็นเมนเทอร์' }).click();
+test('the apply link now lives in the profile, and a direct URL refresh works', async ({ page }) => {
+  await signIn(page, applicant, '/profile');
+  await page.getByRole('link', { name: 'สมัครเป็นเมนเทอร์' }).click();
   await expect(page).toHaveURL(/\/mentors\/apply$/);
   await expect(page.getByRole('heading', { name: 'เริ่มจากแนะนำตัวคุณ' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('ประสบการณ์ของคุณ');
-  await page.getByRole('link', { name: 'กลับไปหน้าเมนเทอร์', exact: true }).click();
-  await expect(page).toHaveURL(/\/mentors$/);
+  await page.getByRole('link', { name: 'กลับไปโปรไฟล์', exact: true }).click();
+  await expect(page).toHaveURL(/\/profile$/);
 });
 
 test('all four steps, private preview, no upload, back navigation and completion', async ({ page }) => {
@@ -77,7 +67,8 @@ test('all four steps, private preview, no upload, back navigation and completion
   await expect(profile).toContainText('พี่มายด์ น.');
   await expect(profile).not.toContainText('นามสกุลทดสอบ');
   await expect(profile).not.toContainText('mentor@example.com');
-  await expect(profile).toContainText('800');
+  // ตัวอย่างโปรไฟล์ต้องไม่พูดถึงราคา เพราะรอบนี้ยังไม่เก็บเงิน
+  await expect(profile).toContainText('ยังไม่มีการเก็บเงิน');
   await page.getByRole('button', { name: 'ย้อนกลับ', exact: true }).click();
   await expect(page.locator('#apply-best')).toHaveValue('ช่วยฝึกนำเสนอไอเดีย');
   await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(2);
@@ -85,7 +76,7 @@ test('all four steps, private preview, no upload, back navigation and completion
   await acceptAll(page);
   await page.getByRole('button', { name: 'ส่งใบสมัคร', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
-  await expect(page.getByText(/ไฟล์แนบยังไม่ถูกอัปโหลด/)).toBeVisible();
+  await expect(page.getByText(/ไฟล์ที่เลือกยังไม่ถูกอัปโหลด/)).toBeVisible();
   // ใบสมัครต้องถูกส่งครั้งเดียว และต้องไม่มีการอัปโหลดไฟล์ไปที่ไหนในรอบนี้
   const apiWrites = writes.filter((url) => url.includes('/api/'));
   expect(apiWrites, apiWrites.join(' | ')).toHaveLength(1);
@@ -96,7 +87,7 @@ test('all four steps, private preview, no upload, back navigation and completion
   await expect(page.locator('#apply-first')).toHaveValue('');
 });
 
-test('required identity, evidence, exactly two topics, future and non-overlapping slots', async ({ page }) => {
+test('required identity, evidence and exactly two topics', async ({ page }) => {
   await page.goto('/mentors/apply');
   await next(page);
   await expect(page.locator('#apply-first')).toBeFocused();
@@ -109,12 +100,12 @@ test('required identity, evidence, exactly two topics, future and non-overlappin
   await page.getByRole('checkbox', { name: 'พัฒนาต้นแบบ', exact: true }).click();
   await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(2);
   await expect(page.getByRole('alert')).toHaveText('เลือกได้สูงสุด 2 หัวข้อ');
-  await page.locator('#apply-freeSlot').fill(future(18)); await next(page);
-  await expect(page.getByRole('alert')).toHaveText('คิวปรึกษาและคิวคุยฟรีต้องไม่ทับกัน');
-  await page.locator('#apply-freeSlot').fill('2020-01-01T18:00'); await next(page);
-  await expect(page.getByRole('alert')).toHaveText('กรุณาเลือกคิวในอนาคต');
-  // A free session starting exactly when the paid session ends is valid.
-  await page.locator('#apply-freeSlot').fill(future(19)); await next(page);
+  // ราคาและคิวไม่อยู่ในใบสมัครแล้ว ขั้นนี้จึงเหลือแค่ความถนัดสองหัวข้อพอดี
+  await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).uncheck();
+  await next(page);
+  await expect(page.getByRole('alert')).toHaveText('เลือกความถนัดให้ครบ 2 หัวข้อ');
+  await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
+  await next(page);
   await expect(page.getByRole('heading', { name: 'ตรวจทานก่อนส่งใบสมัคร' })).toBeVisible();
 });
 
@@ -177,15 +168,14 @@ test('review edits jump to the right step, keep data, and reset the accuracy tic
   await reachService(page); await fillService(page); await next(page);
   await acceptAll(page);
 
-  await page.getByRole('button', { name: 'แก้ไขบริการและราคา' }).click();
+  await page.getByRole('button', { name: 'แก้ไขความถนัด' }).click();
   await expect(page.getByRole('heading', { name: 'บอกให้ชัดว่าช่วยอะไรได้' })).toBeVisible();
-  await expect(page.locator('#apply-price')).toHaveValue('800');
   await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(2);
-  await page.locator('#apply-price').fill('900');
+  await page.locator('#apply-best').fill('ช่วยวางโครงการนำเสนอ');
   await next(page);
 
   // Changing the application invalidates only the "this data is mine" tick.
-  await expect(page.locator('#cw-apply .profile')).toContainText('900');
+  await expect(page.locator('#cw-apply .profile')).toContainText('ช่วยวางโครงการนำเสนอ');
   await expect(page.getByRole('checkbox', { name: consentNames[0] })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: consentNames[4] })).toBeChecked();
 

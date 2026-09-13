@@ -7,6 +7,7 @@ import { auth } from './routes/auth.js';
 import { admin } from './routes/admin.js';
 import { publicApi } from './routes/public.js';
 import { chat } from './routes/chat.js';
+import { journey } from './routes/journey.js';
 
 export const app = new Hono<AppEnv>().basePath('/api');
 
@@ -30,6 +31,7 @@ app.get('/health', (c) => c.json({ ok: true }));
 app.route('/auth', auth);
 app.route('/admin', admin);
 app.route('/chats', chat);
+app.route('/journey', journey);
 app.route('/', publicApi);
 
 app.onError((error, c) => {

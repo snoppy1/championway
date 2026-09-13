@@ -1,3 +1,4 @@
+import type { Kind, Theme } from './focus';
 /* หมวดหมู่ ประเภทโอกาส ภูมิภาค และรางวัล ใช้ชุดเดียวกับเว็บรวมงานแข่งไทยที่ผู้จัดคุ้นเคย
    อยู่แล้ว รายละเอียดการตัดสินใจอยู่ใน competition-model.md */
 
@@ -48,7 +49,14 @@ export const sourceLabels: Record<Source, string> = {
   editorial: 'ทีมงานคัดมาจากประกาศต้นทาง', organiser: 'ผู้จัดงานส่งข้อมูลเอง', partner: 'ได้รับจากพาร์ตเนอร์',
 };
 
+/* ประเภทงานและหมวดของเส้นทางใหม่ แยกจาก taxonomy 13 หมวดเดิมโดยตั้งใจ
+   หมวดเดิมยังใช้กับสีปก ป้าย และการค้นหา ส่วนสองช่องนี้ใช้กับหน้าสำรวจและการจับคู่เมนเทอร์
+   เป็นค่าที่ไม่บังคับ เพราะเวทีที่บันทึกไว้ก่อนหน้านี้ยังไม่ได้จัดประเภท */
 export interface Competition {
+  /** รหัสในฐานข้อมูล ใช้ตอนขอจองเมนเทอร์ ข้อมูลตัวอย่างในไฟล์นี้ไม่มี */
+  id?: string;
+  kind?: Kind | null;
+  themes?: Theme[];
   slug: string;
   name: string;
   /** หมวดแรกคือหมวดหลัก ใช้กับสีปก ป้ายบนการ์ด และการจับคู่เมนเทอร์ */
@@ -102,6 +110,7 @@ export function inDays(offset: number) {
 export const competitions: Competition[] = [
   {
     slug: 'venture-ignite', name: 'Venture Ignite: แผนธุรกิจระดับมหาวิทยาลัย',
+    kind: 'case_competition', themes: ['business'],
     categories: ['business'], type: 'contest', org: 'สมาคมผู้ประกอบการรุ่นใหม่',
     closesAt: inDays(6), region: 'bangkok', venue: 'ศูนย์ประชุมแห่งชาติ',
     prizeValue: 300000, rewards: ['certificate', 'trophy', 'partnership'], featured: true,
@@ -117,6 +126,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'bangkok-hack-48', name: 'Bangkok Hack 48: แก้ปัญหาเมืองใน 2 วัน',
+    kind: 'hackathon', themes: ['innovation'],
     categories: ['technology', 'society'], type: 'contest', org: 'ศูนย์ข้อมูลเมือง',
     closesAt: inDays(14), region: 'bangkok', venue: 'ศูนย์ข้อมูลเมือง',
     prizeValue: 150000, rewards: ['certificate', 'trophy', 'publish'],
@@ -132,6 +142,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'ai-for-good', name: 'AI for Good Challenge รุ่นที่ 4',
+    kind: 'hackathon', themes: ['innovation', 'medical'],
     categories: ['technology', 'health'], type: 'contest', org: 'ศูนย์วิจัยปัญญาประดิษฐ์ไทย',
     closesAt: inDays(26), region: 'online',
     prizeValue: 200000, rewards: ['certificate', 'publish', 'internship'],
@@ -147,6 +158,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'young-innovator-prize', name: 'Young Innovator Prize: สิ่งประดิษฐ์เพื่อผู้สูงวัย',
+    kind: 'hackathon', themes: ['innovation', 'medical'],
     categories: ['technology', 'health'], type: 'contest', org: 'มูลนิธิเพื่อผู้สูงวัย',
     closesAt: inDays(10), region: 'central', venue: 'อุทยานวิทยาศาสตร์ประเทศไทย',
     prizeValue: 120000, rewards: ['certificate', 'trophy', 'publish'],
@@ -162,6 +174,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'poster-unbound', name: 'Poster Unbound: ประกวดโปสเตอร์เพื่อสังคม',
+    kind: 'case_competition', themes: ['education'],
     categories: ['design', 'society'], type: 'contest', org: 'สมาคมนักออกแบบกราฟิก',
     closesAt: inDays(3), region: 'online',
     prizeValue: 80000, rewards: ['certificate', 'publish'],
@@ -177,6 +190,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'fintech-sandbox-cup', name: 'FinTech Sandbox Cup',
+    kind: 'hackathon', themes: ['innovation', 'business'],
     categories: ['business', 'technology'], type: 'contest', org: 'ชมรมการเงินดิจิทัล',
     closesAt: inDays(21), region: 'bangkok', venue: 'อาคารตลาดทุน',
     prizeValue: 250000, rewards: ['certificate', 'trophy', 'internship'], fee: 300,
@@ -192,6 +206,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'circular-design-lab', name: 'Circular Design Lab: ออกแบบบรรจุภัณฑ์ใช้ซ้ำ',
+    kind: 'hackathon', themes: ['innovation'],
     categories: ['design', 'environment'], type: 'workshop', org: 'สถาบันวัสดุหมุนเวียน',
     closesAt: inDays(31), region: 'bangkok', venue: 'โรงงานต้นแบบบางพลี',
     prizeValue: 0, prizeNote: 'ได้ผลิตจริงกับโรงงานพันธมิตร', rewards: ['certificate', 'publish', 'partnership'],
@@ -207,6 +222,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'robotics-frontier-league', name: 'Robotics Frontier League',
+    kind: 'hackathon', themes: ['innovation', 'education'],
     categories: ['technology', 'education'], type: 'contest', org: 'ลีกหุ่นยนต์ประเทศไทย',
     closesAt: inDays(48), region: 'central', venue: 'สนามแข่งหุ่นยนต์ ปทุมธานี',
     prizeValue: 180000, rewards: ['certificate', 'trophy'], fee: 500,
@@ -222,6 +238,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'social-impact-pitch-night', name: 'Social Impact Pitch Night',
+    kind: 'case_competition', themes: ['business'],
     categories: ['business', 'society'], type: 'contest', org: 'เครือข่ายกิจการเพื่อสังคม',
     closesAt: inDays(8), region: 'bangkok', venue: 'เครือข่ายกิจการเพื่อสังคม',
     prizeValue: 60000, rewards: ['certificate', 'partnership'],
@@ -237,6 +254,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'agritech-innovation-camp', name: 'AgriTech Innovation Camp',
+    kind: 'hackathon', themes: ['innovation'],
     categories: ['environment', 'technology'], type: 'camp', org: 'สถาบันเกษตรอัจฉริยะ',
     closesAt: inDays(55), region: 'northeast', venue: 'ศูนย์เรียนรู้เกษตรอัจฉริยะ ขอนแก่น', opensAt: inDays(10),
     prizeValue: 140000, rewards: ['certificate', 'partnership'],
@@ -252,6 +270,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'type-and-letter', name: 'Type & Letter: ประกวดฟอนต์ไทย',
+    kind: 'case_competition', themes: ['education'],
     categories: ['design', 'writing'], type: 'contest', org: 'ชมรมตัวพิมพ์ไทย',
     closesAt: inDays(43), region: 'online',
     prizeValue: 100000, rewards: ['certificate', 'publish'],
@@ -267,6 +286,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'data-story-awards', name: 'Data Story Awards',
+    kind: 'case_competition', themes: ['innovation', 'education'],
     categories: ['technology', 'writing'], type: 'contest', org: 'กลุ่มนักข่าวข้อมูล',
     closesAt: inDays(5), region: 'online',
     prizeValue: 70000, rewards: ['certificate', 'publish'],
@@ -282,6 +302,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'deep-tech-grant-pitch', name: 'Deep Tech Grant Pitch',
+    kind: 'hackathon', themes: ['innovation'],
     categories: ['academic', 'technology'], type: 'scholarship', org: 'กองทุนวิจัยขั้นแนวหน้า',
     closesAt: inDays(53), region: 'bangkok', venue: 'กองทุนวิจัยขั้นแนวหน้า', opensAt: inDays(14),
     prizeValue: 500000, rewards: ['certificate', 'partnership'],
@@ -297,6 +318,7 @@ export const competitions: Competition[] = [
   },
   {
     slug: 'retail-growth-case-challenge', name: 'Retail Growth Case Challenge',
+    kind: 'case_competition', themes: ['business'],
     categories: ['business', 'marketing'], type: 'contest', org: 'ชมรมการตลาดค้าปลีก',
     closesAt: inDays(11), region: 'bangkok', venue: 'ชมรมการตลาดค้าปลีก',
     prizeValue: 110000, rewards: ['certificate', 'trophy', 'internship'],

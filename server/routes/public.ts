@@ -16,6 +16,8 @@ import { newId } from '../lib/id.js';
 import { notify } from '../lib/email.js';
 import { uploadsUsable } from '../lib/env.js';
 import { attachFiles, fileProblem, publicFile, readLocalFile, storeFile } from '../lib/files.js';
+import { kindKeys, themeKeys } from '../../src/data/focus.js';
+import type { Kind, Theme } from '../../src/data/focus.js';
 
 export const publicApi = new Hono<AppEnv>();
 
@@ -59,6 +61,8 @@ function readQuery(url: URL): ListQuery {
   const page = Math.max(1, Math.trunc(number('page', 1)) || 1);
 
   return {
+    kind: kindKeys.includes((get('kind') ?? '') as Kind) ? get('kind') : undefined,
+    themes: pickList(get('theme'), themeKeys),
     query: get('q') ?? '',
     // `category` เป็นชื่อเดิมของ `cat` ลิงก์เก่าที่แชร์ไว้แล้วจึงยังเปิดได้
     categories: [...new Set([
@@ -85,6 +89,7 @@ function readQuery(url: URL): ListQuery {
 /** แปลงแถวในฐานข้อมูลให้เป็นรูปเดียวกับ Competition ที่หน้าเว็บใช้อยู่แล้ว */
 export function toCompetition(record: CompetitionRecord) {
   return {
+    id: record.id, kind: record.kind, themes: record.themes,
     slug: record.slug,
     name: record.name,
     categories: record.categories,
@@ -185,6 +190,11 @@ publicApi.get('/files/:id', requireUser, async (c) => {
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ไม่ถูกต้อง');
 
 const competitionSubmissionBody = z.object({
+  // ผู้จัดรู้ดีที่สุดว่างานของตัวเองเป็นแบบไหน จึงให้กรอกมาตั้งแต่ต้น ผู้ตรวจแก้ได้ภายหลัง
+  kind: z.enum(kindKeys as [Kind, ...Kind[]], { message: 'เลือกประเภทงาน' }),
+  themes: z.array(z.enum(themeKeys as [Theme, ...Theme[]]))
+    .min(1, 'เลือกหมวดอย่างน้อยหนึ่งหมวด').max(4)
+    .transform((list) => [...new Set(list)]),
   organizerName: z.string().trim().min(1).max(200),
   contactName: z.string().trim().min(1).max(120),
   contactRole: z.string().trim().min(1).max(120),
@@ -226,6 +236,8 @@ publicApi.post('/submissions/competition', requireUser, async (c) => {
   await db.transaction(async (tx) => {
     await tx.insert(competitionSubmissions).values({
       id,
+      kind: body.kind,
+      themes: body.themes,
       userId: user.id,
       organizerName: body.organizerName,
       contactName: body.contactName,
@@ -279,9 +291,9 @@ const mentorSubmissionBody = z.object({
   cannot: z.string().trim().min(1).max(1000),
   // หน้าเว็บบังคับเลือกความถนัดสองข้อพอดี ฝั่งเซิร์ฟเวอร์ต้องบังคับซ้ำ
   topics: z.array(z.string().trim().min(1).max(80)).length(2, 'เลือกความถนัดสองข้อ'),
-  price: z.number().int().min(0).max(100000),
-  paidSlot: z.string().datetime({ offset: true }).or(isoDate),
-  freeSlot: z.string().datetime({ offset: true }).or(isoDate),
+  price: z.number().int().min(0).max(100000).nullish(),
+  paidSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
+  freeSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
   awards: z.array(z.object({
     title: z.string().trim().min(1).max(200),
     competitionSlug: z.string().trim().max(120).nullable().default(null),
@@ -317,8 +329,8 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
       cannot: body.cannot,
       topics: body.topics,
       price: body.price,
-      paidSlot: new Date(body.paidSlot),
-      freeSlot: new Date(body.freeSlot),
+      paidSlot: body.paidSlot ? new Date(body.paidSlot) : null,
+      freeSlot: body.freeSlot ? new Date(body.freeSlot) : null,
     });
     if (body.awards.length) {
       await tx.insert(mentorAwards).values(body.awards.map((award) => ({

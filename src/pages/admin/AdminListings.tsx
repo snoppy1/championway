@@ -6,6 +6,8 @@ import {
   categories, categoryLabel, formatDate, levelLabels, regionLabels, rewardLabels, typeLabels,
 } from '../../data/competitions';
 import type { CategoryId, Level, OpportunityType, Region, Reward } from '../../data/competitions';
+import { kindKeys, kinds, themeKeys, themes } from '../../data/focus';
+import type { Kind, Theme } from '../../data/focus';
 import { ApiError, api, post } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
 
@@ -21,6 +23,7 @@ const categoryIds = categories.filter((item) => item.id !== 'all').map((item) =>
 const baht = new Intl.NumberFormat('th-TH');
 
 type Listing = {
+  kind: Kind | null; themes: Theme[];
   id: string; slug: string; name: string; description: string; type: OpportunityType; org: string;
   categories: CategoryId[]; levels: Level[]; rewards: Reward[];
   teamMin: number; teamMax: number;
@@ -68,7 +71,9 @@ export function AdminListingList() {
               {item.source === 'editorial' ? 'ทีมงานคัดมา' : 'ผู้จัดส่งเอง'}
             </span>
             <h2><Link to={`/admin/listings/${item.id}`}>{item.name}</Link></h2>
-            <p className="admin-muted">{item.org} · {item.categories.map(categoryLabel).join(' · ')}</p>
+            <p className="admin-muted">
+              {item.kind ? kinds[item.kind] : <b className="is-overdue">ยังไม่จัดประเภท</b>} · {item.org} · {item.categories.map(categoryLabel).join(' · ')}
+            </p>
           </div>
           <dl className="queue-facts">
             <div><dt>ปิดรับ</dt><dd>{formatDate(item.closesAt)}</dd></div>
@@ -94,6 +99,7 @@ export function AdminListingList() {
 }
 
 type Draft = {
+  kind: Kind | ''; themes: Theme[];
   name: string; description: string; type: OpportunityType; org: string;
   categories: CategoryId[]; levels: Level[]; rewards: Reward[];
   teamMin: string; teamMax: string;
@@ -107,6 +113,7 @@ type Draft = {
 };
 
 const blank: Draft = {
+  kind: '', themes: [],
   name: '', description: '', type: 'contest', org: '',
   categories: [], levels: [], rewards: [],
   teamMin: '1', teamMax: '4',
@@ -137,6 +144,7 @@ export function AdminListingForm() {
     const listing = data?.listing;
     if (!listing) return;
     setDraft({
+      kind: listing.kind ?? '', themes: listing.themes ?? [],
       name: listing.name, description: listing.description, type: listing.type, org: listing.org,
       categories: listing.categories, levels: listing.levels, rewards: listing.rewards,
       teamMin: String(listing.teamMin), teamMax: String(listing.teamMax),
@@ -153,7 +161,7 @@ export function AdminListingForm() {
   }, [data]);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
-  function toggle<T>(list: T[], value: T, key: 'categories' | 'levels' | 'rewards', max?: number) {
+  function toggle<T>(list: T[], value: T, key: 'categories' | 'levels' | 'rewards' | 'themes', max?: number) {
     if (list.includes(value)) set(key, list.filter((item) => item !== value) as never);
     else if (!max || list.length < max) set(key, [...list, value] as never);
     else setMessage(`เลือกได้สูงสุด ${max} หมวด`);
@@ -165,6 +173,7 @@ export function AdminListingForm() {
     setSaving(true);
     try {
       const body = {
+        kind: draft.kind || undefined, themes: draft.themes,
         name: draft.name, description: draft.description, type: draft.type, org: draft.org,
         categories: draft.categories, levels: draft.levels, rewards: draft.rewards,
         teamMin: Number(draft.teamMin), teamMax: Number(draft.teamMax),
@@ -211,6 +220,31 @@ export function AdminListingForm() {
 
     <form className="listing-form" onSubmit={save} noValidate>
       <section className="admin-block">
+        <h2>ประเภทงานและหมวดจับคู่เมนเทอร์</h2>
+        <p className="admin-muted">
+          หน้า “อยากแข่งงานไหน” แสดงเฉพาะเวทีที่กรอกสองช่องนี้แล้ว
+          และใช้หมวดที่เลือกไว้จับคู่กับความถนัดของเมนเทอร์
+        </p>
+        <dl className="admin-fields">
+          <div className="admin-field"><dt><label htmlFor="listing-kind">ประเภทงาน *</label></dt>
+            <dd><select id="listing-kind" required value={draft.kind} onChange={(e) => set('kind', e.target.value as Kind | '')}>
+              <option value="">เลือกประเภทงาน</option>
+              {kindKeys.map((value) => <option key={value} value={value}>{kinds[value]}</option>)}
+            </select></dd></div>
+          <div className="admin-field"><dt>หมวดจับคู่เมนเทอร์ *</dt><dd>
+            <div className="pick-grid">
+              {themeKeys.map((value) => <label className="pick" key={value}>
+                <input type="checkbox" checked={draft.themes.includes(value)}
+                  onChange={() => toggle(draft.themes, value, 'themes')} />
+                <span>{themes[value]}</span>
+              </label>)}
+            </div>
+            <span className="admin-muted">เลือกได้มากกว่าหนึ่งหมวด คนละชุดกับหมวดหมู่ด้านล่าง</span>
+          </dd></div>
+        </dl>
+      </section>
+
+      <section className="admin-block">
         <h2>ข้อมูลหลัก</h2>
         <dl className="admin-fields">
           <div className="admin-field"><dt><label htmlFor="listing-name">ชื่อเวที *</label></dt>
@@ -224,7 +258,7 @@ export function AdminListingForm() {
             <dd><select id="listing-type" value={draft.type} onChange={(e) => set('type', e.target.value as OpportunityType)}>
               {typeIds.map((value) => <option key={value} value={value}>{typeLabels[value]}</option>)}
             </select></dd></div>
-          <div className="admin-field"><dt>หมวด *</dt><dd>
+          <div className="admin-field"><dt>หมวดหมู่การแข่งขัน *</dt><dd>
             <div className="pick-grid">
               {categoryIds.map((value) => <label className="pick" key={value}>
                 <input type="checkbox" checked={draft.categories.includes(value)}

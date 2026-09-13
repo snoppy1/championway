@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { competitions } from '../src/data/competitions';
-import { problems } from '../src/data/mentors';
 
 const PER_PAGE = 6;
 
@@ -129,52 +128,45 @@ test('an unknown slug shows the not-found page, not a blank screen', async ({ pa
   await expect(page).toHaveURL(/\/$/);
 });
 
-test('mentor page: context form tiers mentors and previews a booking', async ({ page }) => {
+test('explore: the kind tabs and theme filters live in the URL and survive a reload', async ({ page }) => {
+  await page.goto('/explore');
+  await expect(page.getByRole('heading', { level: 1, name: 'อยากแข่งงานไหน' })).toBeVisible();
+  const all = await page.getByRole('status').first().textContent();
+
+  await page.getByRole('button', { name: 'Hackathon', exact: true }).click();
+  await expect(page).toHaveURL(/kind=hackathon/);
+  // ทุกการ์ดที่เหลือต้องเป็น Hackathon จริง ไม่ใช่แค่จำนวนลดลง
+  const chips = page.locator('.kind-chip');
+  // รอผลจาก API ก่อนนับ ไม่อย่างนั้นจะนับตอนที่ยังเป็นโครงว่าง
+  await expect(chips.first()).toBeVisible();
+  for (const chip of await chips.all()) await expect(chip).toHaveText('Hackathon');
+  expect(await page.getByRole('status').first().textContent()).not.toBe(all);
+
+  // check() อ่านสถานะก่อนที่ router จะเขียน URL เสร็จ จึงใช้ click() แล้วค่อยยืนยันผล
+  await page.getByRole('checkbox', { name: 'การแพทย์' }).click();
+  await expect(page.getByRole('checkbox', { name: 'การแพทย์' })).toBeChecked();
+  await expect(page).toHaveURL(/theme=medical/);
+  const filtered = await page.getByRole('status').first().textContent();
+
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: 'การแพทย์' })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Hackathon', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.getByRole('status').first().textContent()).toBe(filtered);
+
+  // เวทีที่ยังไม่จัดประเภทต้องไม่ขึ้นหน้านี้ หน้ารายละเอียดจึงเปิดได้ทุกใบที่แสดง
+  await page.locator('.competition-card .detail-link').first().click();
+  await expect(page.getByRole('heading', { name: 'เมนเทอร์สำหรับงานนี้' })).toBeVisible();
+});
+
+test('the old mentor link redirects to the competition, where its mentors now live', async ({ page }) => {
+  // ลิงก์เก่าที่เคยแชร์ไว้ต้องยังเปิดได้ แต่พาไปที่หน้าเวทีซึ่งมีรายชื่อเมนเทอร์ของงานนั้น
+  await page.goto('/mentors?competition=poster-unbound');
+  await expect(page).toHaveURL(/\/competitions\/poster-unbound/);
+  await expect(page.getByRole('heading', { name: 'เมนเทอร์สำหรับงานนี้' })).toBeVisible();
+
   await page.goto('/mentors');
-  await expect(page.getByRole('heading', { name: 'ทีมคุณกำลังติดตรงไหน?' })).toBeVisible();
-
-  await page.getByLabel(/งานแข่งขัน/).selectOption('venture-ignite');
-  // Choosing a competition fills its own deadline in, so the form is submittable straight away.
-  await expect(page.getByLabel(/วันและเวลาส่งงาน/)).not.toHaveValue('');
-  await page.getByRole('radio', { name: problems[0] }).check();
-  await page.getByRole('button', { name: /ดูเมนเทอร์ที่ช่วยทีมได้/ }).click();
-
-  await expect(page).toHaveURL(/competition=venture-ignite/);
-  await expect(page.getByRole('heading', { name: 'เคยชนะงานนี้' })).toBeVisible();
-  const first = page.locator('.mentor-card').first();
-  await expect(first.getByRole('heading', { level: 3 })).toHaveText('พี่มายด์ ก.');
-
-  // The mentor who won this competition but is only free after the deadline is set aside.
-  await expect(page.getByRole('heading', { name: 'คิวไม่ทันเดดไลน์' })).toBeVisible();
-
-  const secondSlot = first.locator('.slot-button').nth(1);
-  const slotLabel = await secondSlot.textContent();
-  await secondSlot.click();
-  await expect(secondSlot).toHaveAttribute('aria-pressed', 'true');
-  await first.getByRole('button', { name: /^จอง/ }).click();
-  const preview = page.getByRole('status').filter({ hasText: 'ยืนยันรายละเอียดการปรึกษา' });
-  await expect(preview).toContainText(slotLabel!.trim());
-  await expect(preview).toContainText('ยังไม่มีการจองหรือเรียกเก็บเงินจริง');
-});
-
-test('mentor page: team size splits the price and a past deadline is refused', async ({ page }) => {
-  await page.goto('/mentors?competition=venture-ignite&problem=0');
-  await page.getByRole('button', { name: /ดูเมนเทอร์ที่ช่วยทีมได้/ }).click();
-  await expect(page.locator('.split').first()).toContainText('ทีม 4 คน');
-  await page.getByLabel(/สมาชิกในทีม/).selectOption('2');
-  await expect(page.locator('.split').first()).toContainText('฿400');
-
-  await page.getByRole('button', { name: 'แก้ไขบริบท' }).click();
-  await page.getByLabel(/วันและเวลาส่งงาน/).fill('2020-01-01T09:00');
-  await page.getByRole('button', { name: /ดูเมนเทอร์ที่ช่วยทีมได้/ }).click();
-  await expect(page.getByRole('alert')).toContainText('เลือกวันส่งงานในอนาคต');
-});
-
-test('the detail page links through to mentors for that competition', async ({ page }) => {
-  await page.goto('/competitions/poster-unbound');
-  await page.getByRole('link', { name: 'หาเมนเทอร์สำหรับเวทีนี้' }).click();
-  await expect(page).toHaveURL(/\/mentors\?competition=poster-unbound/);
-  await expect(page.getByLabel(/งานแข่งขัน/)).toHaveValue('poster-unbound');
+  await expect(page).toHaveURL(/\/explore/);
+  await expect(page.getByRole('heading', { level: 1, name: 'อยากแข่งงานไหน' })).toBeVisible();
 });
 
 test('keyboard reaches the search box and the skip link', async ({ page }) => {
@@ -192,7 +184,7 @@ test('visual QA: local fonts, no overflow, accessibility, screenshots', async ({
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
-  for (const [name, path] of [['home', '/'], ['detail', '/competitions/venture-ignite'], ['mentors', '/mentors']] as const) {
+  for (const [name, path] of [['home', '/'], ['detail', '/competitions/venture-ignite'], ['explore', '/explore']] as const) {
     await page.goto(path);
     await expect(page.locator('main')).toBeVisible();
 

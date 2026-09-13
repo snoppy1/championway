@@ -24,7 +24,10 @@ function Header() {
       </Link>
       <nav className="main-nav" aria-label="เมนูหลัก">
         <NavLink to="/" end>สำรวจการแข่งขัน</NavLink>
-        <NavLink to="/mentors">เมนเทอร์</NavLink>
+        {/* เส้นทางหลักเริ่มจาก "อยากแข่งงานไหน" แล้วค่อยไปหาเมนเทอร์ของงานนั้น
+            จึงไม่มีเมนูเมนเทอร์แยกอีกต่อไป การสมัครเป็นเมนเทอร์ย้ายไปอยู่ในหน้าโปรไฟล์ */}
+        <NavLink to="/explore">อยากแข่งงานไหน</NavLink>
+        {user && <NavLink to="/profile">โปรไฟล์</NavLink>}
         {user && <NavLink to="/chats">แชตของฉัน</NavLink>}
         <span className="nav-soon" title="เปิดเร็ว ๆ นี้">คลังความรู้</span>
       </nav>
@@ -35,7 +38,8 @@ function Header() {
         </Link>
         {loading ? <span className="account-loading" aria-hidden="true" /> : user ? <>
           {isReviewer(user) && <Link className="ghost-button" to="/admin">หน้าจัดการ</Link>}
-          <span className="account-name" title={user.email}>{user.name}</span>
+          {/* ชื่อบนหัวเว็บคือทางเข้าโปรไฟล์ ใช้ของที่มีอยู่แล้วแทนการเพิ่มปุ่มใหม่ให้แถบบนแน่นขึ้น */}
+          <Link className="account-name" to="/profile" title={`โปรไฟล์ของฉัน · ${user.email}`}>{user.name}</Link>
           <button type="button" className="ghost-button" onClick={() => { void signOut(); }}>ออกจากระบบ</button>
         </> : <>
           <Link className="ghost-button" to={`/signin?next=${encodeURIComponent(next)}`}>เข้าสู่ระบบ</Link>
@@ -78,7 +82,7 @@ export function Layout() {
           <div>
             <strong>ค้นหา</strong>
             <Link to="/">สำรวจการแข่งขัน</Link>
-            <Link to="/mentors">เมนเทอร์</Link>
+            <Link to="/explore">อยากแข่งงานไหน</Link>
           </div>
           <div>
             <strong>สำหรับผู้จัดการแข่งขัน</strong>

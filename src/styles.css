@@ -837,6 +837,9 @@ legend { margin-bottom: 12px; font-weight: 600; }
 /* ---------- account and auth ---------- */
 
 .account-name { font-size: 13px; font-weight: 600; color: var(--ink-deep); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* เป็นลิงก์ไปหน้าโปรไฟล์ ต้องเห็นว่ากดได้ตอนชี้และรับ focus จากคีย์บอร์ดได้ */
+a.account-name { display: inline-block; padding: 6px 4px; border-radius: 8px; }
+a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 .account-loading { width: 96px; height: 20px; border-radius: 999px; background: var(--line); }
 
 .auth-page { display: flex; justify-content: center; padding-block: 40px 70px; }

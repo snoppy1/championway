@@ -12,6 +12,48 @@ import {
 import type { Competition } from '../data/competitions';
 import { CoverArt } from '../components/CoverArt';
 import { useApi } from '../lib/useApi';
+import { themes, thaiTime } from '../data/focus';
+import type { Theme } from '../data/focus';
+import '../journey.css';
+
+type MentorMatch = {
+  id: string; name: string; avatar: string; bio: string; direct: boolean; reasons: string[];
+  scores: { theme: Theme; active: boolean }[];
+  slots: { id: string; startsAt: string }[];
+};
+
+/* เมนเทอร์ที่ขึ้นตรงนี้คือผู้ผ่านอนุมัติที่มีช่องเวลาว่างและตรงกับหมวดของงานนี้เท่านั้น
+   ถ้าไม่มีใครตรง จะบอกตามจริง ไม่เติมรายชื่อที่ไม่เกี่ยวข้องให้หน้าดูเต็ม */
+function MentorsForEvent({ slug }: { slug: string }) {
+  const { data, loading } = useApi<{ items: MentorMatch[] }>(`/journey/competitions/${encodeURIComponent(slug)}/mentors`);
+  const items = data?.items ?? [];
+
+  return <section className="related-section" aria-labelledby="event-mentors">
+    <div className="section-head">
+      <h2 id="event-mentors">เมนเทอร์สำหรับงานนี้</h2>
+    </div>
+    {loading ? <p className="side-note">กำลังหาเมนเทอร์ที่ว่าง…</p>
+      : items.length ? <div className="mentor-match-grid">
+        {items.map((mentor) => <article className="panel mentor-match" key={mentor.id}>
+          <span className="mentor-avatar" aria-hidden="true">{mentor.avatar}</span>
+          <div>
+            <h3>{mentor.name}{mentor.direct && <span className="theme-pill">เลือกช่วยงานนี้</span>}</h3>
+            <p className="card-summary">{mentor.bio}</p>
+            <ul className="reason-list">{mentor.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+            <p className="muted">ว่างเร็วที่สุด {thaiTime(mentor.slots[0].startsAt)}</p>
+            <p className="pill-row">
+              {mentor.scores.filter((score) => score.active).map((score) => <span className="theme-pill" key={score.theme}>{themes[score.theme]}</span>)}
+            </p>
+            <p className="card-actions">
+              <Link className="primary-button" to={`/mentors/${mentor.id}?competition=${slug}`}>ดูโปรไฟล์และขอจอง</Link>
+            </p>
+          </div>
+        </article>)}
+      </div> : <p className="side-note">
+        ยังไม่มีเมนเทอร์ที่ตรงกับหมวดของงานนี้และมีช่องเวลาว่าง เมื่อมีคนเปิดคิวจะขึ้นที่นี่
+      </p>}
+  </section>;
+}
 
 export function NotFound({ reason }: { reason?: string }) {
   useEffect(() => { document.title = 'ไม่พบหน้า — ChampionWays'; }, []);
@@ -132,7 +174,7 @@ export function Detail() {
         </div>
 
         <p style={{ marginTop: 14 }}>
-          <Link className="ghost-button" to={`/mentors?competition=${competition.slug}`}>หาเมนเทอร์สำหรับเวทีนี้</Link>
+          <a className="ghost-button" href="#event-mentors">ดูเมนเทอร์สำหรับเวทีนี้</a>
         </p>
       </aside>
 
@@ -143,6 +185,8 @@ export function Detail() {
         </section>)}
       </div>
     </div>
+
+    <MentorsForEvent slug={competition.slug} />
 
     {related.length > 0 && <section className="related-section" aria-labelledby="related-title">
       <div className="section-head">

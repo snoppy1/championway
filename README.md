@@ -1,18 +1,20 @@
 # ChampionWays
 
-การแยก dev/test/production และการย้ายเครื่อง: [environments.md](environments.md) — `npm test` ต้องตั้งฐาน test แยกก่อน ส่วน `db:seed` ใช้เฉพาะฐาน test ที่อนุญาตให้ล้างข้อมูลแล้ว
+การแยก dev/test/production และการย้ายเครื่อง: [environments.md](markdown/environments.md) — `npm test` ต้องตั้งฐาน test แยกก่อน ส่วน `db:seed` ใช้เฉพาะฐาน test ที่อนุญาตให้ล้างข้อมูลแล้ว
 
 เว็บต้นแบบภาษาไทยสำหรับสำรวจและรู้จักเวทีแข่งขัน สร้างด้วย React, TypeScript, Vite และ React Router
 
-แนวทางออกแบบหลักของโปรเจกต์: [design.md](design.md) — อ่านก่อนสร้างหรือแก้ UI เพื่อให้สี ตัวอักษร components และพฤติกรรมสอดคล้องกันทุกหน้า
+แนวทางออกแบบหลักของโปรเจกต์: [design.md](markdown/design.md) — อ่านก่อนสร้างหรือแก้ UI เพื่อให้สี ตัวอักษร components และพฤติกรรมสอดคล้องกันทุกหน้า
 
-โมเดลข้อมูลงานแข่งและระบบตัวกรอง: [competition-model.md](competition-model.md) — หมวดหมู่ 13 หมวด Type ของ `Competition` และตัวกรองทั้งหมด
+โมเดลข้อมูลงานแข่งและระบบตัวกรอง: [competition-model.md](markdown/competition-model.md) — หมวดหมู่ 13 หมวด Type ของ `Competition` และตัวกรองทั้งหมด
 
-ระบบให้ผู้จัดงานลงงานแข่งฟรี: [organiser-submission.md](organiser-submission.md) — ที่มาของข้อมูลงานแข่งจริง ฟอร์ม 4 ขั้นตอน และขั้นตอนการตรวจก่อนเผยแพร่
+ระบบให้ผู้จัดงานลงงานแข่งฟรี: [organiser-submission.md](markdown/organiser-submission.md) — ที่มาของข้อมูลงานแข่งจริง ฟอร์ม 4 ขั้นตอน และขั้นตอนการตรวจก่อนเผยแพร่
 
-ฝั่งเซิร์ฟเวอร์: [backend.md](backend.md) — ฐานข้อมูล ระบบบัญชี Google login รายการ API และวิธี deploy
+เส้นทาง "อยากแข่งงานไหน" เลือกเวที จับคู่เมนเทอร์ จองเวลา และคุยในเว็บ: [journey.md](markdown/journey.md) — ประเภทงาน หมวด กฎให้คะแนนจับคู่ ระบบคิว และ API ทั้งหมดของเส้นทางนี้
 
-หน้าจัดการสำหรับทีมงาน: [admin-console.md](admin-console.md) — คิวตรวจ เกณฑ์ที่ระบบบังคับ และข้อจำกัดเรื่องสิทธิ์
+ฝั่งเซิร์ฟเวอร์: [backend.md](markdown/backend.md) — ฐานข้อมูล ระบบบัญชี Google login รายการ API และวิธี deploy
+
+หน้าจัดการสำหรับทีมงาน: [admin-console.md](markdown/admin-console.md) — คิวตรวจ เกณฑ์ที่ระบบบังคับ และข้อจำกัดเรื่องสิทธิ์
 
 ## เปิดใช้งานบน Windows
 
@@ -51,7 +53,7 @@ Playwright ใช้ Microsoft Edge ที่ติดตั้งในเค�
 
 ## โครงสร้าง
 
-- `server/` — API, ฐานข้อมูล, ระบบบัญชี ดู [backend.md](backend.md)
+- `server/` — API, ฐานข้อมูล, ระบบบัญชี ดู [backend.md](markdown/backend.md)
 - `src/data/competitions.ts` — Type ของเวที หมวดหมู่ 13 หมวด ข้อมูลตัวอย่างที่ใช้เป็นแหล่ง seed และฟังก์ชันจัดรูปแบบ
 - `src/lib/api.ts` — ตัวเรียก API และการจัดการข้อผิดพลาด
 - `src/data/filters.ts` — แปลงตัวกรองไปกลับกับ query string ของ URL
@@ -69,7 +71,7 @@ Playwright ใช้ Microsoft Edge ที่ติดตั้งในเค�
 
 โลโก้เป็นไฟล์ภาพ ไม่ใช่ข้อความ ภาพ wordmark ของหน้าแรกเป็น JPEG พื้นขาวและใช้ `mix-blend-mode: multiply` กลืนพื้นขาวเข้ากับ gradient ของ hero แทนการตัดพื้นหลังเป็นภาพโปร่ง ส่วนชื่อ ChampionWays ที่ screen reader อ่านมาจาก `alt` ของภาพ
 
-ฟอนต์ Anuphan (หัวเรื่อง) กับ IBM Plex Sans Thai และ IBM Plex Sans (เนื้อความ) นำเข้าจากแพ็กเกจ Fontsource และถูกเก็บเป็นไฟล์ใน build ไม่เรียก Google Fonts หรือ CDN ขณะใช้งาน มีเทสต์ตรวจข้อนี้ไว้ ดูใบอนุญาตฟอนต์ที่ `THIRD_PARTY_NOTICES.md`
+ฟอนต์ Anuphan (หัวเรื่อง) กับ IBM Plex Sans Thai และ IBM Plex Sans (เนื้อความ) นำเข้าจากแพ็กเกจ Fontsource และถูกเก็บเป็นไฟล์ใน build ไม่เรียก Google Fonts หรือ CDN ขณะใช้งาน มีเทสต์ตรวจข้อนี้ไว้ ดูใบอนุญาตฟอนต์ที่ `markdown/THIRD_PARTY_NOTICES.md`
 
 ## เส้นทางและพฤติกรรม
 
@@ -116,7 +118,7 @@ workflow ไม่รัน Playwright เพราะ `playwright.config.ts` �
 
 ### Vercel
 
-แชตกลุ่มกับเมนเทอร์: ผู้เข้าสู่ระบบเปิด `/chats` หรือเริ่มคำขอจากหน้าเมนเทอร์ ดูสิทธิ์สมาชิก การตั้งค่า และข้อจำกัดใน [chat.md](chat.md) ต้องรัน migration ตารางแชตในฐานข้อมูลของสภาพแวดล้อมนั้นก่อนใช้งาน
+แชตกลุ่มกับเมนเทอร์: ห้องแชตเปิดขึ้นเมื่อเมนเทอร์กดรับคำขอจองเท่านั้น ผู้เข้าสู่ระบบดูห้องทั้งหมดได้ที่ `/chats` ดูสิทธิ์สมาชิก การตั้งค่า และข้อจำกัดใน [chat.md](markdown/chat.md) ต้องรัน migration ตารางแชตในฐานข้อมูลของสภาพแวดล้อมนั้นก่อนใช้งาน
 
 `vercel.json` ตั้งค่าให้ Vercel build ด้วย `npm run build` และเสิร์ฟจาก `dist` โดยไม่ตั้ง `BASE_PATH` เว็บจึงอยู่ที่ root ไม่ใช่ subpath
 

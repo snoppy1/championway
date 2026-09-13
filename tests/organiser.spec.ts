@@ -25,6 +25,8 @@ async function fillOrganiser(page: Page) {
 
 async function fillEvent(page: Page, name: string) {
   await page.getByLabel('ชื่องาน *').fill(name);
+  await page.getByRole('radio', { name: 'Hackathon' }).check();
+  await page.getByRole('checkbox', { name: 'นวัตกรรม', exact: true }).check();
   await page.getByLabel('คำบรรยายสั้น *').fill('ใบนี้สร้างโดยชุดทดสอบเพื่อเดินเส้นทางการลงงานแข่ง');
   await page.getByRole('checkbox', { name: 'เทคโนโลยีและนวัตกรรม' }).check();
   await page.getByRole('checkbox', { name: 'อุดมศึกษา' }).check();

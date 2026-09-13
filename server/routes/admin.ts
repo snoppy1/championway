@@ -15,6 +15,8 @@ import { newId, slugify } from '../lib/id.js';
 import { notify } from '../lib/email.js';
 import { filesOf, publicFile } from '../lib/files.js';
 import { firstIssue } from './public.js';
+import { kindKeys, themeKeys } from '../../src/data/focus.js';
+import type { Kind, Theme } from '../../src/data/focus.js';
 
 export const admin = new Hono<AppEnv>();
 admin.use('*', requireReviewer);
@@ -174,6 +176,10 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
       await tx.insert(competitions).values({
         id: competitionId,
         slug: publishedSlug,
+        // ใบที่ส่งมาก่อนมีสองช่องนี้จะยังไม่มีประเภท หน้ารายการเวทีจะขึ้นว่า "ยังไม่จัดประเภท"
+        // ให้ผู้ตรวจเข้าไปเติมเอง ดีกว่าเดาประเภทแทนผู้จัด
+        kind: submission.kind,
+        themes: submission.themes,
         name: submission.name,
         description: submission.description,
         type: submission.type,
@@ -355,6 +361,11 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
 const isoDay = /^\d{4}-\d{2}-\d{2}$/;
 
 const listingBody = z.object({
+  // เส้นทาง "อยากแข่งงานไหน" แสดงเฉพาะเวทีที่จัดประเภทแล้ว จึงบังคับสองช่องนี้ตั้งแต่ตอนกรอก
+  kind: z.enum(kindKeys as [Kind, ...Kind[]], { message: 'เลือกประเภทงาน' }),
+  themes: z.array(z.enum(themeKeys as [Theme, ...Theme[]]))
+    .min(1, 'เลือกหมวดจับคู่เมนเทอร์อย่างน้อยหนึ่งหมวด').max(4)
+    .transform((list) => [...new Set(list)]),
   name: z.string().trim().min(1, 'กรอกชื่อเวที').max(200),
   description: z.string().trim().min(1, 'กรอกคำบรรยายสั้น').max(400),
   type: z.enum(opportunityTypeEnum.enumValues),
@@ -407,6 +418,8 @@ async function freeSlug(name: string, fallback: string, ignoreId?: string) {
 
 function listingValues(body: ListingBody) {
   return {
+    kind: body.kind,
+    themes: body.themes,
     name: body.name,
     description: body.description,
     type: body.type,

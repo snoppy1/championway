@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
+import { and, arrayOverlaps, asc, desc, eq, exists, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from './client.js';
 import {
@@ -48,6 +48,8 @@ async function attachJoins(rows: Row[]): Promise<CompetitionRecord[]> {
 }
 
 export type ListQuery = {
+  kind?: string;
+  themes?: string[];
   query: string;
   categories: Category[];
   types: Row['type'][];
@@ -89,7 +91,9 @@ function hasReward(values: Reward[]) {
 }
 
 export async function listCompetitions(input: ListQuery) {
-  const filters: SQL[] = [];
+  const filters: SQL[] = [sql`${competitions.kind} is not null`, sql`cardinality(${competitions.themes}) > 0`];
+  if (input.kind) filters.push(sql`${competitions.kind} = ${input.kind}`);
+  if (input.themes?.length) filters.push(arrayOverlaps(competitions.themes, input.themes));
 
   for (const term of input.query.trim().toLowerCase().split(/\s+/).filter(Boolean)) {
     const like = `%${term}%`;
@@ -157,7 +161,7 @@ export async function listCompetitions(input: ListQuery) {
 }
 
 export async function findCompetitionBySlug(slug: string) {
-  const rows = await db.select().from(competitions).where(eq(competitions.slug, slug)).limit(1);
+  const rows = await db.select().from(competitions).where(and(eq(competitions.slug, slug), sql`${competitions.kind} is not null`)).limit(1);
   const [record] = await attachJoins(rows);
   return record ?? null;
 }
@@ -166,13 +170,17 @@ export async function findCompetitionBySlug(slug: string) {
 export async function relatedCompetitions(record: CompetitionRecord, limit = 2) {
   if (!record.categories.length) return [];
   const rows = await db.select().from(competitions)
-    .where(and(ne(competitions.id, record.id), hasCategory(record.categories)))
+    .where(and(
+      ne(competitions.id, record.id),
+      sql`${competitions.kind} is not null`,
+      arrayOverlaps(competitions.themes, record.themes),
+    ))
     .orderBy(asc(competitions.closesAt))
     .limit(limit);
   return attachJoins(rows);
 }
 
 export async function competitionOptions() {
-  return db.select({ slug: competitions.slug, name: competitions.name })
-    .from(competitions).orderBy(asc(competitions.name));
+  return db.select({ id: competitions.id, slug: competitions.slug, name: competitions.name })
+    .from(competitions).where(sql`${competitions.kind} is not null`).orderBy(asc(competitions.name));
 }

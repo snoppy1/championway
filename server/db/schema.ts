@@ -1,6 +1,6 @@
 import { relations } from 'drizzle-orm';
 import {
-  boolean, date, index, integer, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex,
+  boolean, date, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 /* คำศัพท์ที่มีชุดตายตัวทำเป็น enum ในฐานข้อมูล ไม่ใช่ text เปล่า เพื่อให้ฐานข้อมูล
@@ -34,6 +34,16 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   role: userRoleEnum('role').notNull().default('member'),
+  /* โปรไฟล์ที่เจ้าตัวกรอกเอง ว่างได้ทุกช่อง เพราะคนที่เพิ่งสมัครยังไม่ได้กรอก
+     ใช้คำเดียวกับใบสมัครเมนเทอร์ (สถานะ / ที่สังกัด / ชั้นปีหรือตำแหน่ง)
+     วันหลังจะได้เอาไปเติมใบสมัครให้อัตโนมัติโดยไม่ต้องแปลงคำ */
+  bio: text('bio'),
+  occupation: text('occupation'),
+  organization: text('organization'),
+  position: text('position'),
+  /* ใช้ enum เดียวกับระดับผู้เข้าแข่งของเวที เพื่อให้เทียบกันตรง ๆ ได้ในอนาคต
+     ค่า open เป็นของเวทีที่รับทุกระดับ ไม่ใช่ของคน ฝั่งเซิร์ฟเวอร์จึงรับแค่สามค่าแรก */
+  educationLevel: levelEnum('education_level'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('users_email_key').on(table.email),
@@ -50,6 +60,8 @@ export const sessions = pgTable('sessions', {
 /* ---------- เวทีที่เผยแพร่แล้ว ---------- */
 
 export const competitions = pgTable('competitions', {
+  kind: text('kind').$type<'hackathon' | 'case_competition'>(),
+  themes: text('themes').array().notNull().default([]),
   id: text('id').primaryKey(),
   slug: text('slug').notNull(),
   name: text('name').notNull(),
@@ -112,6 +124,8 @@ export const competitionRewards = pgTable('competition_rewards', {
 /* ---------- ใบที่ผู้จัดส่งเข้ามา ---------- */
 
 export const competitionSubmissions = pgTable('competition_submissions', {
+  kind: text('kind').$type<'hackathon' | 'case_competition'>(),
+  themes: text('themes').array().notNull().default([]),
   id: text('id').primaryKey(),
   status: submissionStatusEnum('status').notNull().default('pending'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
@@ -179,14 +193,17 @@ export const mentorSubmissions = pgTable('mentor_submissions', {
   best: text('best').notNull(),
   cannot: text('cannot').notNull(),
   topics: text('topics').array().notNull().default([]),
-  price: integer('price').notNull(),
-  paidSlot: timestamp('paid_slot', { withTimezone: true }).notNull(),
-  freeSlot: timestamp('free_slot', { withTimezone: true }).notNull(),
+  price: integer('price'),
+  paidSlot: timestamp('paid_slot', { withTimezone: true }),
+  freeSlot: timestamp('free_slot', { withTimezone: true }),
   publishedMentorId: text('published_mentor_id'),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (table) => [index('mentor_submissions_status_idx').on(table.status, table.submittedAt)]);
 
 export const mentorAwards = pgTable('mentor_awards', {
+  verifiedThemes: text('verified_themes').array().notNull().default([]),
+  verifiedBy: text('verified_by').references(() => users.id),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
   id: text('id').primaryKey(),
   submissionId: text('submission_id').notNull().references(() => mentorSubmissions.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
@@ -199,6 +216,8 @@ export const mentorAwards = pgTable('mentor_awards', {
 /* ---------- เมนเทอร์ที่ผ่านการตรวจแล้ว ---------- */
 
 export const mentors = pgTable('mentors', {
+  confirmedThemes: text('confirmed_themes').array().notNull().default([]),
+  disabledThemes: text('disabled_themes').array().notNull().default([]),
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   avatar: text('avatar').notNull(),
@@ -208,7 +227,7 @@ export const mentors = pgTable('mentors', {
   wonSlug: text('won_slug'),
   category: categoryEnum('category'),
   topics: integer('topics').array().notNull().default([]),
-  price: integer('price').notNull(),
+  price: integer('price'),
   best: text('best').notNull(),
   cannot: text('cannot').notNull(),
   firstSlotInDays: integer('first_slot_in_days').notNull().default(1),
@@ -261,6 +280,7 @@ export const emailLog = pgTable('email_log', {
 /* ---------- relations ---------- */
 
 export const chatRooms = pgTable('chat_rooms', {
+  competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
   id: text('id').primaryKey(),
   ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   mentorUserId: text('mentor_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -298,6 +318,56 @@ export const chatMessages = pgTable('chat_messages', {
   fileData: text('file_data'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [index('chat_messages_room_time_idx').on(t.roomId, t.createdAt), uniqueIndex('chat_messages_retry_key').on(t.roomId, t.senderId, t.clientId)]);
+
+export const mentorCompetitionChoices = pgTable('mentor_competition_choices', {
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  competitionId: text('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
+  choice: text('choice').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.mentorId, t.competitionId] })]);
+
+export const mentorSlots = pgTable('mentor_slots', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  cancelled: boolean('cancelled').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('mentor_slots_time_idx').on(t.mentorId, t.startsAt)]);
+
+export const bookings = pgTable('bookings', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').notNull().references(() => users.id),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id),
+  mentorUserId: text('mentor_user_id').notNull().references(() => users.id),
+  competitionId: text('competition_id').notNull().references(() => competitions.id),
+  slotId: text('slot_id').notNull().references(() => mentorSlots.id),
+  roomId: text('room_id').references(() => chatRooms.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  context: text('context').notNull(),
+  status: text('status').notNull().default('pending'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  reason: text('reason').notNull().default(''),
+  updatedBy: text('updated_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('bookings_owner_idx').on(t.ownerId), index('bookings_mentor_idx').on(t.mentorId)]);
+
+export const bookingEvents = pgTable('booking_events', {
+  id: text('id').primaryKey(),
+  bookingId: text('booking_id').notNull().references(() => bookings.id),
+  actorId: text('actor_id').notNull().references(() => users.id),
+  action: text('action').notNull(),
+  reason: text('reason').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const mentorMatchAudit = pgTable('mentor_match_audit', {
+  mentorId: text('mentor_id').primaryKey().references(() => mentors.id, { onDelete: 'cascade' }),
+  version: text('version').notNull(),
+  scores: jsonb('scores').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const competitionRelations = relations(competitions, ({ many }) => ({
   categories: many(competitionCategories),

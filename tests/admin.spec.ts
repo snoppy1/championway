@@ -107,6 +107,8 @@ test('publishing needs every check, and the listing then appears on the public s
       name: marker,
       description: 'ใบนี้สร้างโดยชุดทดสอบเพื่อเดินเส้นทางตรวจและเผยแพร่',
       type: 'contest',
+      kind: 'hackathon',
+      themes: ['innovation'],
       categories: ['technology'],
       levels: ['university'],
       rewards: ['certificate'],

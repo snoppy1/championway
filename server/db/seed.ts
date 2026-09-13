@@ -35,6 +35,8 @@ export async function seed() {
       const id = newId('cmp');
       await tx.insert(competitions).values({
         id,
+        kind: item.kind ?? null,
+        themes: item.themes ?? [],
         slug: item.slug,
         name: item.name,
         description: item.description,

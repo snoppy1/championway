@@ -128,7 +128,7 @@ export function Detail() {
           <p>{sourceLabels[competition.source]} · ตรวจล่าสุด {formatDate(competition.lastVerifiedAt)}</p>
           {competition.sourceUrl
             ? <p><a href={competition.sourceUrl} rel="noreferrer noopener" target="_blank">เปิดประกาศต้นทาง<ArrowRight size={14} aria-hidden="true" /></a></p>
-            : <p className="side-note">เวทีนี้เป็นข้อมูลตัวอย่างของเว็บต้นแบบ จึงยังไม่มีประกาศต้นทางให้เปิด</p>}
+            : <p className="side-note">ยังไม่มีลิงก์ประกาศต้นทาง โปรดตรวจสอบรายละเอียดกับผู้จัดก่อนสมัคร</p>}
         </div>
 
         <p style={{ marginTop: 14 }}>

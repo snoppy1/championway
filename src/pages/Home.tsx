@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, Info, Search, SlidersHorizontal, Timer, Trophy } from 'lucide-react';
+import { ArrowRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Timer, Trophy } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
   activeFilterCount, categories, categoryLabel, daysLeft, formatDeadline, primaryCategory,
@@ -8,7 +8,6 @@ import {
 } from '../data/competitions';
 import type { Competition, Filters, SortId } from '../data/competitions';
 import { clearedFilters, readFilters, toggle, writeFilters } from '../data/filters';
-import { trendingSlugs } from '../data/mentors';
 import { toggleSaved, useSavedSlugs } from '../data/saved';
 import { useApi } from '../lib/useApi';
 import { CoverArt } from '../components/CoverArt';
@@ -21,24 +20,24 @@ const PER_PAGE = 6;
 type PodiumMentor = { id: string; name: string; avatar: string; weeklyRank: number | null; weeklyFocus: string | null };
 
 function Highlights() {
-  const { data: trendingData } = useApi<{ items: Competition[] }>(`/competitions?slugs=${trendingSlugs.join(',')}&perPage=20`);
+  const { data: trendingData } = useApi<{ items: Competition[] }>('/competitions?sort=new&perPage=6');
   const { data: mentorData } = useApi<{ items: PodiumMentor[] }>('/mentors');
-  // เรียงตามลำดับที่ตั้งไว้ ไม่ใช่ตามที่ฐานข้อมูลคืนมา
-  const bySlug = new Map((trendingData?.items ?? []).map((item) => [item.slug, item]));
-  const trending = trendingSlugs.map((slug) => bySlug.get(slug)).filter((item): item is Competition => Boolean(item));
+  const trending = trendingData?.items ?? [];
   const podium = (mentorData?.items ?? [])
     .filter((mentor) => mentor.weeklyRank !== null)
     .sort((a, b) => (a.weeklyRank ?? 0) - (b.weeklyRank ?? 0));
-  return <section className="shell highlights" aria-labelledby="trending-title">
+  if (!trending.length && !podium.length) return null;
+  return <section className="shell highlights" aria-label="การแข่งขันล่าสุดและเมนเทอร์แนะนำ">
+    {!!trending.length && <>
     <div className="section-head">
       <div>
-        <h2 id="trending-title">รายการแข่งขันที่คนสนใจมากที่สุด</h2>
-        <p>อันดับตัวอย่างสำหรับการออกแบบ ยังไม่ได้วัดจากการใช้งานจริง</p>
+        <h2 id="trending-title">การแข่งขันล่าสุด</h2>
+        <p>เวทีที่เพิ่มเข้ามาล่าสุด เลือกดูรายละเอียดเพื่อเตรียมตัว</p>
       </div>
     </div>
     {/* เลื่อนเองด้วยแถบข้างล่าง ไม่เลื่อนอัตโนมัติ จึงไม่ต้องมีปุ่มหยุด
         ต้องรับ focus ได้เพื่อให้เลื่อนด้วยลูกศรบนคีย์บอร์ดได้เหมือนกับเมาส์ */}
-    <div className="trend-scroller" tabIndex={0} role="group" aria-label="รายการแข่งขันที่คนสนใจมากที่สุด เลื่อนดูด้านข้างได้">
+    <div className="trend-scroller" tabIndex={0} role="group" aria-label="การแข่งขันล่าสุด เลื่อนดูด้านข้างได้">
       {trending.map((competition, index) => <div className="trend-card" key={competition.slug}>
         <span className="trend-rank" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
         <div>
@@ -46,21 +45,21 @@ function Highlights() {
           <small>{categoryLabel(primaryCategory(competition))} · {competition.org}</small>
         </div>
       </div>)}
-    </div>
-
+    </div></>}
+    {!!podium.length && <>
     <div className="podium-head">
-      <h2>เมนเทอร์ประจำสัปดาห์</h2>
-      <p>เมนเทอร์และอันดับเป็นข้อมูลสมมติ</p>
+      <h2>เมนเทอร์แนะนำ</h2>
+      <p>รู้จักประสบการณ์และความถนัดก่อนเลือกปรึกษา</p>
     </div>
     <div className="podium">
       {podium.map((mentor) => <div className={mentor.weeklyRank === 1 ? 'podium-card is-first' : 'podium-card'} key={mentor.id}>
-        <span className="podium-medal">อันดับ {mentor.weeklyRank}</span>
+        <span className="podium-medal">เมนเทอร์แนะนำ</span>
         <div className="podium-avatar" aria-hidden="true">{mentor.avatar}</div>
         <h3>{mentor.name}</h3>
         <p>{mentor.weeklyFocus}</p>
-        <small>โปรไฟล์ตัวอย่าง</small>
+        <Link to="/mentors">ดูข้อมูลเมนเทอร์</Link>
       </div>)}
-    </div>
+    </div></>}
   </section>;
 }
 
@@ -220,7 +219,6 @@ export function Home() {
           <span className="results-count" role="status">
             {loading ? 'กำลังโหลด…' : `${total} เวที`}{chosenCategories ? ` · ${chosenCategories}` : ''}{panelCount > 0 ? ` · ตัวกรอง ${panelCount} รายการ` : ''}{savedOnly ? ' · ที่บันทึกไว้' : ''}
           </span>
-          <span className="sample-badge"><Info size={12} aria-hidden="true" />ข้อมูลตัวอย่าง</span>
         </div>
         <label className="sort-field">
           เรียงตาม

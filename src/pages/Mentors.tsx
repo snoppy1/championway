@@ -54,7 +54,7 @@ function MentorCard({ mentor, deadline, teamSize, open, selected, onSelect, onBo
         {late && <span className="late-chip">คิวว่างหลังวันส่งงาน</span>}
         <div className="award-line">
           {award
-            ? <>รางวัลชนะเลิศ · {award}<br /><span className="verified-line">✓ ยืนยันผลรางวัลแล้ว (ตัวอย่าง)</span></>
+            ? <>รางวัลชนะเลิศ · {award}<br /><span className="verified-line">✓ ยืนยันผลรางวัลแล้ว</span></>
             : 'ยังไม่มีผลรางวัลที่ยืนยัน'}
         </div>
         <div className="help-block"><b>ช่วยได้ดีที่สุด</b><br />{mentor.best}</div>
@@ -210,7 +210,7 @@ export function Mentors() {
         <h2 className="sr-only" id="mentor-results">เมนเทอร์ที่ตรงกับบริบทของทีม</h2>
         <div className="mentor-toolbar">
           <div>
-            <span className="pill">{ranked.filter((entry) => entry.mentor.verified).length} คนยืนยันผลรางวัลแล้ว · ข้อมูลสมมติ</span>
+            <span className="pill">{ranked.filter((entry) => entry.mentor.verified).length} คนยืนยันผลรางวัลแล้ว</span>
             <button type="button" className="link-button" style={{ marginLeft: 12 }} onClick={() => setContext(null)}>แก้ไขบริบท</button>
           </div>
           <label className="sort-field">

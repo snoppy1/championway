@@ -26,7 +26,7 @@ function Header() {
         <NavLink to="/" end>สำรวจการแข่งขัน</NavLink>
         <NavLink to="/mentors">เมนเทอร์</NavLink>
         {user && <NavLink to="/chats">แชตของฉัน</NavLink>}
-        <span className="nav-soon" title="ยังไม่เปิดในเว็บต้นแบบ">คลังความรู้</span>
+        <span className="nav-soon" title="เปิดเร็ว ๆ นี้">คลังความรู้</span>
       </nav>
       <div className="header-actions">
         <Link to="/?saved=1" className="icon-button" aria-label={`รายการที่บันทึก ${saved.length} รายการ`}>
@@ -81,7 +81,7 @@ export function Layout() {
             <Link to="/mentors">เมนเทอร์</Link>
           </div>
           <div>
-            <strong>เกี่ยวกับเว็บต้นแบบ</strong>
+            <strong>สำหรับผู้จัดการแข่งขัน</strong>
             {/* ฟอร์มผู้จัดงานพร้อมแล้วที่ /organizers แต่ยังไม่เปิดทางเข้า
                 เพราะฟอร์มสัญญาว่าจะแจ้งผลทางอีเมล ซึ่งยังส่งถึงผู้จัดไม่ได้
                 จนกว่าจะมีโดเมนของตัวเองไปยืนยันกับผู้ให้บริการอีเมล
@@ -91,7 +91,7 @@ export function Layout() {
           </div>
         </div>
       </div>
-      <div className="shell footer-bottom">ChampionWays · เว็บต้นแบบ ข้อมูลทุกเวที เมนเทอร์ และราคาเป็นข้อมูลสมมติเพื่อการออกแบบ</div>
+      <div className="shell footer-bottom">ChampionWays · ค้นหาเวทีที่สนใจ และเตรียมพร้อมไปกับเมนเทอร์</div>
     </footer>
     <ScrollRestoration getKey={(location) => (location.pathname === '/' ? location.pathname + location.search : location.key)} />
   </>;

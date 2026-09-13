@@ -213,3 +213,35 @@
 .file-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
 .file-list li { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
 .file-list a { display: inline-flex; align-items: center; gap: 8px; color: var(--purple-deep); font-weight: 600; overflow-wrap: anywhere; }
+
+/* ---------- ฟอร์มกรอกเวที ---------- */
+
+.listing-form { display: grid; gap: 18px; max-width: 900px; }
+.listing-form input:not([type=checkbox]), .listing-form select, .listing-form textarea {
+  display: block; width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+.listing-form textarea { resize: vertical; }
+.listing-form .admin-field dd { display: grid; gap: 5px; }
+.listing-form .pair { grid-template-columns: 1fr 1fr; gap: 12px; }
+.listing-form label { font-weight: 600; }
+
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.pick {
+  display: flex; align-items: center; gap: 9px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+}
+.pick:hover { border-color: #d9c6f3; }
+.pick:has(:checked) { border-color: #b896df; background: var(--purple-tint); }
+.pick input { accent-color: var(--purple); width: 16px; height: 16px; flex-shrink: 0; }

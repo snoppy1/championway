@@ -99,6 +99,11 @@ api/index.ts        ทางเข้าเดียวของ API บน Ver
 | POST | `/submissions/mentor` | ล็อกอิน | ส่งใบสมัครเมนเทอร์ |
 | GET | `/submissions/mine` | ล็อกอิน | ใบที่ตัวเองส่งไว้ |
 | GET | `/admin/overview` | reviewer | สี่ตัวเลขบนหน้าภาพรวม |
+| GET | `/admin/listings` | reviewer | เวทีทั้งหมดบนหน้าเว็บ |
+| GET | `/admin/listings/:id` | reviewer | เวทีเดียวสำหรับแก้ไข |
+| POST | `/admin/listings` | reviewer | ทีมงานเพิ่มเวทีเอง |
+| PATCH | `/admin/listings/:id` | reviewer | แก้เวที และถือว่าตรวจใหม่วันนี้ |
+| POST | `/admin/listings/:id/verify` | reviewer | ยืนยันว่ายังถูกต้องโดยไม่แก้อะไร |
 | GET | `/admin/competition-submissions` | reviewer | คิวงานแข่ง กรองตามสถานะได้ |
 | GET | `/admin/competition-submissions/:id` | reviewer | ใบเดียวพร้อมรายการตรวจและร่องรอย |
 | POST | `/admin/competition-submissions/:id/decision` | reviewer | เผยแพร่ / ขอข้อมูลเพิ่ม / ไม่ผ่าน |

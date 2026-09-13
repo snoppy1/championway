@@ -4,8 +4,9 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
-  competitionCategories, competitionLevels, competitionRewards, competitionSubmissions,
-  competitions, mentorAwards, mentorSubmissions, mentors, reviewEvents, submissionCategories,
+  categoryEnum, competitionCategories, competitionLevels, competitionRewards,
+  competitionSubmissions, competitions, levelEnum, mentorAwards, mentorSubmissions, mentors,
+  opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum, submissionCategories,
   submissionLevels, submissionRewards,
 } from '../db/schema.js';
 import type { AppEnv } from '../lib/guards.js';
@@ -341,4 +342,194 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
   await notify(submission.email, subject, body.note || 'ตรวจครบทุกข้อแล้ว');
 
   return c.json({ ok: true, status: statusOf[body.decision], mentorId });
+});
+
+/* ---------- เวทีที่ทีมงานกรอกเอง ---------- */
+
+/* ช่วงเริ่มต้นยังไม่มีผู้จัดมาลงงานเอง ทีมงานจึงต้องคัดจากประกาศจริงมากรอก
+   ตาม organiser-submission.md ข้อ 3 ชั้นที่ 1 เวทีที่สร้างทางนี้เป็น source
+   editorial เสมอ และบังคับให้มีลิงก์ประกาศต้นทาง เพราะผู้ใช้ต้องตรวจสอบเองได้
+
+   ห้าส่วนเนื้อหายาวกรอกได้จากที่นี่ที่เดียว ผู้จัดที่ส่งใบเข้ามาไม่ได้กรอกให้ */
+
+const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+
+const listingBody = z.object({
+  name: z.string().trim().min(1, 'กรอกชื่อเวที').max(200),
+  description: z.string().trim().min(1, 'กรอกคำบรรยายสั้น').max(400),
+  type: z.enum(opportunityTypeEnum.enumValues),
+  org: z.string().trim().min(1, 'กรอกชื่อผู้จัด').max(200),
+  categories: z.array(z.enum(categoryEnum.enumValues)).min(1, 'เลือกหมวดอย่างน้อยหนึ่งหมวด').max(3),
+  levels: z.array(z.enum(levelEnum.enumValues)).min(1, 'เลือกระดับอย่างน้อยหนึ่งระดับ'),
+  rewards: z.array(z.enum(rewardEnum.enumValues)).max(5).default([]),
+  teamMin: z.number().int().min(1).max(100),
+  teamMax: z.number().int().min(1).max(100),
+  opensAt: z.string().regex(isoDay).nullish(),
+  closesAt: z.string().regex(isoDay, 'กรอกวันปิดรับ'),
+  eventDate: z.string().regex(isoDay).nullish(),
+  region: z.enum(regionEnum.enumValues),
+  venue: z.string().trim().max(200).nullish(),
+  prizeValue: z.number().int().min(0).max(100000000),
+  prizeNote: z.string().trim().max(200).nullish(),
+  fee: z.number().int().min(0).max(1000000).nullish(),
+  featured: z.boolean().default(false),
+  keywords: z.array(z.string().trim().min(1).max(40)).max(12).default([]),
+  sourceUrl: z.string().trim().url('ต้องมีลิงก์ประกาศต้นทางที่เปิดได้').max(500),
+  registerUrl: z.string().trim().url().max(500).nullish(),
+  overview: z.string().trim().max(2000).nullish(),
+  audience: z.string().trim().max(2000).nullish(),
+  format: z.array(z.string().trim().min(1).max(300)).max(8).default([]),
+  deliverables: z.array(z.string().trim().min(1).max(300)).max(8).default([]),
+  preparation: z.array(z.string().trim().min(1).max(300)).max(8).default([]),
+}).refine((value) => value.teamMax >= value.teamMin, {
+  message: 'ขนาดทีมสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด', path: ['teamMax'],
+}).refine((value) => value.prizeValue > 0 || Boolean(value.prizeNote?.trim()), {
+  message: 'ไม่มีเงินรางวัลก็ได้ แต่ต้องบอกว่าผู้ชนะได้อะไรแทน', path: ['prizeNote'],
+});
+
+type ListingBody = z.infer<typeof listingBody>;
+
+const emptyToNull = (value: string | null | undefined) => (value?.trim() ? value.trim() : null);
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/** slug ต้องไม่ซ้ำกับที่มีอยู่ ต่อเลขท้ายเมื่อชนกัน */
+async function freeSlug(name: string, fallback: string, ignoreId?: string) {
+  const base = slugify(name, fallback);
+  const taken = await db.select({ id: competitions.id, slug: competitions.slug }).from(competitions)
+    .where(sql`${competitions.slug} = ${base} or ${competitions.slug} like ${`${base}-%`}`);
+  const others = taken.filter((row) => row.id !== ignoreId);
+  if (!others.some((row) => row.slug === base)) return base;
+  for (let suffix = 2; ; suffix += 1) {
+    const candidate = `${base}-${suffix}`;
+    if (!others.some((row) => row.slug === candidate)) return candidate;
+  }
+}
+
+function listingValues(body: ListingBody) {
+  return {
+    name: body.name,
+    description: body.description,
+    type: body.type,
+    org: body.org,
+    closesAt: body.closesAt,
+    opensAt: emptyToNull(body.opensAt),
+    eventDate: emptyToNull(body.eventDate),
+    region: body.region,
+    venue: emptyToNull(body.venue),
+    prizeValue: body.prizeValue,
+    prizeNote: emptyToNull(body.prizeNote),
+    fee: body.fee ?? null,
+    teamMin: body.teamMin,
+    teamMax: body.teamMax,
+    featured: body.featured,
+    keywords: body.keywords,
+    sourceUrl: body.sourceUrl,
+    registerUrl: emptyToNull(body.registerUrl),
+    overview: emptyToNull(body.overview),
+    audience: emptyToNull(body.audience),
+    format: body.format,
+    deliverables: body.deliverables,
+    preparation: body.preparation,
+  };
+}
+
+admin.get('/listings', async (c) => {
+  const rows = await db.select().from(competitions).orderBy(asc(competitions.closesAt));
+  const ids = rows.map((row) => row.id);
+  const cats = ids.length
+    ? await db.select().from(competitionCategories)
+      .where(inArray(competitionCategories.competitionId, ids))
+      .orderBy(asc(competitionCategories.position))
+    : [];
+  return c.json({
+    items: rows.map((row) => ({
+      ...row,
+      categories: cats.filter((item) => item.competitionId === row.id).map((item) => item.category),
+    })),
+  });
+});
+
+admin.get('/listings/:id', async (c) => {
+  const id = c.req.param('id');
+  const [row] = await db.select().from(competitions).where(eq(competitions.id, id)).limit(1);
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบเวทีนี้' });
+  const [cats, levels, rewards] = await Promise.all([
+    db.select().from(competitionCategories).where(eq(competitionCategories.competitionId, id))
+      .orderBy(asc(competitionCategories.position)),
+    db.select().from(competitionLevels).where(eq(competitionLevels.competitionId, id)),
+    db.select().from(competitionRewards).where(eq(competitionRewards.competitionId, id)),
+  ]);
+  return c.json({
+    listing: {
+      ...row,
+      categories: cats.map((item) => item.category),
+      levels: levels.map((item) => item.level),
+      rewards: rewards.map((item) => item.reward),
+    },
+  });
+});
+
+admin.post('/listings', async (c) => {
+  const parsed = listingBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const body = parsed.data;
+  const id = newId('cmp');
+  const slug = await freeSlug(body.name, id);
+
+  await db.transaction(async (tx) => {
+    await tx.insert(competitions).values({
+      id, slug, source: 'editorial', lastVerifiedAt: todayIso(), ...listingValues(body),
+    });
+    await tx.insert(competitionCategories).values(
+      body.categories.map((category, position) => ({ competitionId: id, category, position })),
+    );
+    await tx.insert(competitionLevels).values(body.levels.map((level) => ({ competitionId: id, level })));
+    if (body.rewards.length) {
+      await tx.insert(competitionRewards).values(body.rewards.map((reward) => ({ competitionId: id, reward })));
+    }
+  });
+  return c.json({ id, slug }, 201);
+});
+
+admin.patch('/listings/:id', async (c) => {
+  const parsed = listingBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const body = parsed.data;
+  const id = c.req.param('id');
+  const [existing] = await db.select().from(competitions).where(eq(competitions.id, id)).limit(1);
+  if (!existing) throw new HTTPException(404, { message: 'ไม่พบเวทีนี้' });
+
+  // ชื่อเปลี่ยนแล้วให้ slug ตามไปด้วย ลิงก์เดิมจะเสียแต่ข้อมูลที่ผิดอยู่แย่กว่า
+  const slug = existing.name === body.name ? existing.slug : await freeSlug(body.name, id, id);
+
+  await db.transaction(async (tx) => {
+    await tx.update(competitions).set({
+      slug,
+      // แก้ข้อมูลแล้วถือว่าตรวจใหม่ในวันนี้ การ์ดเตือนข้อมูลค้างจะได้ตรงความจริง
+      lastVerifiedAt: todayIso(),
+      updatedAt: new Date(),
+      ...listingValues(body),
+    }).where(eq(competitions.id, id));
+    await tx.delete(competitionCategories).where(eq(competitionCategories.competitionId, id));
+    await tx.delete(competitionLevels).where(eq(competitionLevels.competitionId, id));
+    await tx.delete(competitionRewards).where(eq(competitionRewards.competitionId, id));
+    await tx.insert(competitionCategories).values(
+      body.categories.map((category, position) => ({ competitionId: id, category, position })),
+    );
+    await tx.insert(competitionLevels).values(body.levels.map((level) => ({ competitionId: id, level })));
+    if (body.rewards.length) {
+      await tx.insert(competitionRewards).values(body.rewards.map((reward) => ({ competitionId: id, reward })));
+    }
+  });
+  return c.json({ id, slug });
+});
+
+/** ยืนยันว่าตรวจแล้วโดยไม่ต้องแก้อะไร ใช้กับการ์ดเตือนข้อมูลค้างบนหน้าภาพรวม */
+admin.post('/listings/:id/verify', async (c) => {
+  const id = c.req.param('id');
+  const [row] = await db.update(competitions)
+    .set({ lastVerifiedAt: todayIso(), updatedAt: new Date() })
+    .where(eq(competitions.id, id)).returning();
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบเวทีนี้' });
+  return c.json({ lastVerifiedAt: row.lastVerifiedAt });
 });

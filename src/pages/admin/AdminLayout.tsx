@@ -40,6 +40,7 @@ export function AdminLayout() {
           <NavLink to="/admin/competitions">
             งานแข่ง{data && data.waiting.competitions > 0 && <span className="admin-badge">{data.waiting.competitions}</span>}
           </NavLink>
+          <NavLink to="/admin/listings">เวทีบนหน้าเว็บ</NavLink>
           <NavLink to="/admin/mentors">
             เมนเทอร์{data && data.waiting.mentors > 0 && <span className="admin-badge">{data.waiting.mentors}</span>}
           </NavLink>

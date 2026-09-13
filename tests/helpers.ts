@@ -1,8 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { Page } from '@playwright/test';
+import { like } from 'drizzle-orm';
 import { db, client } from '../server/db/client';
-import { reviewEvents, sessions, users } from '../server/db/schema';
+import {
+  competitionCategories, competitionLevels, competitionRewards, competitions, reviewEvents,
+  sessions, users,
+} from '../server/db/schema';
 import { hashPassword } from '../server/lib/password';
 import { newId } from '../server/lib/id';
 
@@ -33,6 +37,19 @@ export async function signIn(page: Page, account: TestAccount, next = '/') {
   await page.getByLabel('รหัสผ่าน').fill(account.password);
   await page.getByRole('button', { name: 'เข้าสู่ระบบ' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/signin'));
+}
+
+/** ลบเวทีที่เทสสร้างไว้ พร้อมแถวในตารางลูกซึ่ง foreign key ไม่ได้ลบให้เอง */
+export async function removeListings(namePrefix: string) {
+  const rows = await db.select({ id: competitions.id }).from(competitions)
+    .where(like(competitions.name, `${namePrefix}%`));
+  for (const row of rows) {
+    await db.delete(competitionCategories).where(eq(competitionCategories.competitionId, row.id));
+    await db.delete(competitionLevels).where(eq(competitionLevels.competitionId, row.id));
+    await db.delete(competitionRewards).where(eq(competitionRewards.competitionId, row.id));
+    await db.delete(competitions).where(eq(competitions.id, row.id));
+  }
+  return rows.length;
 }
 
 export async function closeDb() {

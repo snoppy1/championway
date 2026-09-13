@@ -26,6 +26,7 @@ import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminOverview } from './pages/admin/AdminOverview';
 import { AdminCompetitionQueue, AdminCompetitionReview } from './pages/admin/AdminCompetitions';
 import { AdminMentorQueue, AdminMentorReview } from './pages/admin/AdminMentors';
+import { AdminListingForm, AdminListingList } from './pages/admin/AdminListings';
 import './styles.css';
 
 // Vite's BASE_URL keeps its trailing slash; React Router wants it without one.
@@ -53,6 +54,8 @@ const router = createBrowserRouter([{
     { index: true, element: <AdminOverview /> },
     { path: 'competitions', element: <AdminCompetitionQueue /> },
     { path: 'competitions/:id', element: <AdminCompetitionReview /> },
+    { path: 'listings', element: <AdminListingList /> },
+    { path: 'listings/:id', element: <AdminListingForm /> },
     { path: 'mentors', element: <AdminMentorQueue /> },
     { path: 'mentors/:id', element: <AdminMentorReview /> },
   ],

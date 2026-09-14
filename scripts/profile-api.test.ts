@@ -41,6 +41,24 @@ const send = (path: string, cookie: string, method: string, body: unknown) =>
 
 test('editing your own profile, email and password', async (t) => {
   try {
+    await t.test('remember me controls cookie persistence and database expiry', async () => {
+      const me = await makeUser();
+      for (const remember of [false, true]) {
+        const response = await send('/api/auth/login', '', 'POST', { email: me.row.email, password: 'start-password-1', remember });
+        assert.equal(response.status, 200);
+        const cookie = response.headers.getSetCookie().find(value => value.startsWith('cw_session='))!;
+        assert.equal(cookie.includes('Expires='), remember);
+        assert.ok(cookie.includes('HttpOnly') && cookie.includes('SameSite=Lax'));
+        const token = cookie.split(';')[0].slice('cw_session='.length);
+        const [session] = await db.select().from(sessions).where(eq(sessions.id, token));
+        const remaining = session.expiresAt.getTime() - Date.now();
+        const ttl = remember ? 30 * 86400000 : 8 * 3600000;
+        assert.ok(remaining > ttl - 10000 && remaining <= ttl);
+        const changed = await send('/api/auth/password', `cw_session=${token}`, 'POST', { current: 'start-password-1', next: 'start-password-1' });
+        assert.equal(changed.status, 200);
+        assert.equal(changed.headers.getSetCookie().find(value => value.startsWith('cw_session='))!.includes('Expires='), remember);
+      }
+    });
     await t.test('saves the profile block and hands back the updated account', async () => {
       const me = await makeUser();
       const response = await send('/api/auth/profile', me.cookie, 'PATCH', {

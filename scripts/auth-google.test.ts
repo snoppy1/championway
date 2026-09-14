@@ -32,8 +32,8 @@ globalThis.fetch = async (input, init) => {
   }
   throw new Error('Unexpected external request in OAuth test');
 };
-async function start(next = '/mentors/apply') {
-  const response = await app.request(`/api/auth/google?next=${encodeURIComponent(next)}`);
+async function start(next = '/mentors/apply', remember = false) {
+  const response = await app.request(`/api/auth/google?next=${encodeURIComponent(next)}&remember=${remember ? '1' : '0'}`);
   assert.equal(response.status, 302);
   const url = new URL(response.headers.get('location')!);
   const cookies = response.headers.getSetCookie();
@@ -62,6 +62,7 @@ test('Google authorization and callback against isolated test database', async t
       profile = { sub: `${prefix}-sub`, email: emails[0], email_verified: true, name: 'Google Test' };
       const flow = await start();
       const response = await finish(flow);
+      assert.equal(response.headers.getSetCookie().find(c => c.startsWith('cw_session='))!.includes('Expires='), false);
       assert.equal(response.headers.get('location'), `${process.env.APP_ORIGIN}/mentors/apply`);
       assert.equal(createHash('sha256').update(sentVerifier).digest('base64url'), flow.url.searchParams.get('code_challenge'));
       assert.ok(response.headers.getSetCookie().filter(c => c.startsWith('cw_oauth_')).every(c => c.includes('Max-Age=0')));
@@ -70,7 +71,8 @@ test('Google authorization and callback against isolated test database', async t
       const me = await (await app.request('/api/auth/me', { headers: { cookie } })).json();
       assert.equal(me.user.role, 'member');
       assert.equal(me.user.email, emails[0]);
-      const again = await finish(await start());
+      const again = await finish(await start('/mentors/apply', true));
+      assert.equal(again.headers.getSetCookie().find(c => c.startsWith('cw_session='))!.includes('Expires='), true);
       assert.ok(sessionCookie(again));
       assert.equal((await db.select().from(users).where(eq(users.googleId, `${prefix}-sub`))).length, 1);
       assert.equal((await app.request('/api/auth/logout', { method: 'POST', headers: { cookie } })).status, 200);

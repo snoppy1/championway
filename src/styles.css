@@ -971,3 +971,5 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
   .filter-foot { flex-wrap: wrap; }
   .filter-foot .ghost-button { flex: 1; justify-content: center; }
 }
+.auth-card .auth-remember { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.auth-card .auth-remember input { width: 18px; height: 18px; margin: 3px 0 0; padding: 0; flex: 0 0 auto; accent-color: var(--purple); }

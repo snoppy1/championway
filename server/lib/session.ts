@@ -26,9 +26,9 @@ export type SessionUser = {
   googleLinked: boolean;
 };
 
-export async function createSession(userId: string) {
+export async function createSession(userId: string, remember = true) {
   const id = newToken();
-  const expiresAt = new Date(Date.now() + TTL_DAYS * 86400000);
+  const expiresAt = new Date(Date.now() + (remember ? TTL_DAYS * 86400000 : 8 * 3600000));
   await db.insert(sessions).values({ id, userId, expiresAt });
   return { id, expiresAt };
 }
@@ -72,8 +72,13 @@ const cookieOptions = () => ({
   path: '/',
 });
 
-export function setSessionCookie(c: Context, id: string, expiresAt: Date) {
-  setCookie(c, SESSION_COOKIE, id, { ...cookieOptions(), expires: expiresAt });
+export function setSessionCookie(c: Context, id: string, expiresAt: Date, remember = true) {
+  setCookie(c, SESSION_COOKIE, id, { ...cookieOptions(), ...(remember ? { expires: expiresAt } : {}) });
+}
+
+export async function sessionRemembers(id: string) {
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, id));
+  return !!session && session.expiresAt.getTime() - session.createdAt.getTime() > 86400000;
 }
 
 export function clearSessionCookie(c: Context) {

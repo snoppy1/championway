@@ -18,6 +18,7 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState(params.get('error') ?? '');
   const [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(false);
 
   const next = safeNext(params.get('next'));
   const signup = mode === 'signup';
@@ -37,7 +38,7 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
     setBusy(true);
     try {
       if (signup) await signUp(name.trim(), email.trim(), password);
-      else await signIn(email.trim(), password);
+      else await signIn(email.trim(), password, remember);
       navigate(next, { replace: true });
     } catch (error) {
       // ไม่ใช่ ApiError แปลว่าไม่ได้รับคำตอบกลับมาเลย คนละเรื่องกับเซิร์ฟเวอร์ตอบว่าผิดพลาด
@@ -57,9 +58,14 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
           : 'เข้าสู่ระบบเพื่อลงงานแข่ง สมัครเป็นเมนเทอร์ และดูใบที่ส่งไว้'}
       </p>
 
+      {!signup && <label className="auth-remember">
+        <input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} disabled={busy} />
+        <span>จดจำฉัน<small>คงการเข้าสู่ระบบบนอุปกรณ์นี้สูงสุด 30 วัน</small></span>
+      </label>}
+
       {googleEnabled && <>
         {/* ลิงก์ธรรมดา ไม่ใช่ fetch เพราะต้องให้เบราว์เซอร์พาไปหน้า Google จริง */}
-        <a className="google-button" href={`/api/auth/google?next=${encodeURIComponent(next)}`}>
+        <a className="google-button" href={`/api/auth/google?next=${encodeURIComponent(next)}&remember=${remember ? '1' : '0'}`}>
           <GoogleMark />เข้าสู่ระบบด้วย Google
         </a>
         <p className="auth-divider"><span>หรือใช้อีเมล</span></p>

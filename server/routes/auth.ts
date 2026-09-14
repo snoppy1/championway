@@ -15,7 +15,7 @@ import { safeNext } from '../../src/lib/safe-next.js';
 import { hashPassword, passwordProblem, verifyPassword, wasteTime } from '../lib/password.js';
 import {
   clearSessionCookie, createSession, destroyAllSessions, destroySession, pruneSessions,
-  sessionIdFrom, setSessionCookie,
+  sessionIdFrom, setSessionCookie, sessionRemembers,
 } from '../lib/session.js';
 import { files as filesTable } from '../db/schema.js';
 import { fileUrl } from '../lib/files.js';
@@ -42,6 +42,7 @@ const credentials = z.object({
 const signupBody = credentials.extend({
   name: z.string().trim().min(1, 'กรอกชื่อที่ใช้แสดง').max(80),
 });
+const loginBody = credentials.extend({ remember: z.boolean().default(false) });
 
 /** รูปบัญชีที่ส่งออกไปหน้าเว็บ ไม่มีแฮชรหัสผ่านและรหัส Google ปนไปด้วย */
 function publicUser(row: typeof users.$inferSelect) {
@@ -93,7 +94,7 @@ auth.post('/signup', async (c) => {
 });
 
 auth.post('/login', async (c) => {
-  const parsed = credentials.safeParse(await c.req.json().catch(() => ({})));
+  const parsed = loginBody.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
   const { email, password } = parsed.data;
 
@@ -111,8 +112,8 @@ auth.post('/login', async (c) => {
   }
 
   await pruneSessions();
-  const session = await createSession(found.id);
-  setSessionCookie(c, session.id, session.expiresAt);
+  const session = await createSession(found.id, parsed.data.remember);
+  setSessionCookie(c, session.id, session.expiresAt, parsed.data.remember);
   return c.json({ user: publicUser(found) });
 });
 
@@ -244,9 +245,10 @@ auth.post('/password', requireUser, async (c) => {
 
   /* เปลี่ยนรหัสผ่านแล้วต้องเตะอุปกรณ์อื่นออก ไม่อย่างนั้นคนที่แอบใช้บัญชีอยู่จะยังอยู่ต่อได้
      แล้วออกคุกกี้ใหม่ให้เครื่องที่เพิ่งเปลี่ยน จะได้ไม่ต้องล็อกอินซ้ำทันที */
+  const remember = await sessionRemembers(sessionIdFrom(c));
   await destroyAllSessions(user.id);
-  const session = await createSession(user.id);
-  setSessionCookie(c, session.id, session.expiresAt);
+  const session = await createSession(user.id, remember);
+  setSessionCookie(c, session.id, session.expiresAt, remember);
 
   return c.json({ user: publicUser(updated) });
 });
@@ -256,6 +258,7 @@ auth.post('/password', requireUser, async (c) => {
 const STATE_COOKIE = 'cw_oauth_state';
 const VERIFIER_COOKIE = 'cw_oauth_verifier';
 const NEXT_COOKIE = 'cw_oauth_next';
+const REMEMBER_COOKIE = 'cw_oauth_remember';
 const shortCookie = () => ({
   httpOnly: true, sameSite: 'Lax' as const, secure: env.isProduction, path: '/', maxAge: 600,
 });
@@ -270,6 +273,7 @@ auth.get('/google', (c) => {
   setCookie(c, STATE_COOKIE, state, shortCookie());
   setCookie(c, VERIFIER_COOKIE, verifier, shortCookie());
   setCookie(c, NEXT_COOKIE, safeNext(c.req.query('next')), shortCookie());
+  setCookie(c, REMEMBER_COOKIE, c.req.query('remember') === '1' ? '1' : '0', shortCookie());
   return c.redirect(authorizeUrl(state, challenge));
 });
 
@@ -279,7 +283,8 @@ auth.get('/google/callback', async (c) => {
 
   const state = getCookie(c, STATE_COOKIE);
   const verifier = getCookie(c, VERIFIER_COOKIE);
-  for (const name of [STATE_COOKIE, VERIFIER_COOKIE, NEXT_COOKIE]) deleteCookie(c, name, shortCookie());
+  const remember = getCookie(c, REMEMBER_COOKIE) === '1';
+  for (const name of [STATE_COOKIE, VERIFIER_COOKIE, NEXT_COOKIE, REMEMBER_COOKIE]) deleteCookie(c, name, shortCookie());
 
   if (c.req.query('error')) return fail('ยกเลิกการเข้าสู่ระบบด้วย Google');
   // state ที่ไม่ตรงแปลว่าคำขอนี้ไม่ได้เริ่มจากเว็บเรา
@@ -327,7 +332,7 @@ auth.get('/google/callback', async (c) => {
   }
 
   await pruneSessions();
-  const session = await createSession(account.id);
-  setSessionCookie(c, session.id, session.expiresAt);
+  const session = await createSession(account.id, remember);
+  setSessionCookie(c, session.id, session.expiresAt, remember);
   return c.redirect(`${env.appOrigin}${next}`);
 });

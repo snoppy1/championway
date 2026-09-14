@@ -26,7 +26,7 @@ type AuthState = {
   /** ติดต่อเซิร์ฟเวอร์ไม่ได้ ต่างจาก "ยังไม่ล็อกอิน" ซึ่งเซิร์ฟเวอร์ตอบว่า user เป็น null */
   unreachable: boolean;
   googleEnabled: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, remember?: boolean) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** ใช้หลังบันทึกโปรไฟล์ เพื่อให้ชื่อบนหัวเว็บเปลี่ยนตามทันทีโดยไม่ต้องรีโหลดหน้า */
@@ -64,8 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const { user: account } = await post<{ user: Account }>('/auth/login', { email, password });
+  const signIn = useCallback(async (email: string, password: string, remember = false) => {
+    const { user: account } = await post<{ user: Account }>('/auth/login', { email, password, remember });
     setUser(account);
     setUnreachable(false);
   }, []);

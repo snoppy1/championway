@@ -3,11 +3,11 @@ import type { FormEvent } from 'react';
 import { ArrowRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Timer, Trophy } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
-  activeFilterCount, categories, categoryLabel, daysLeft, formatDeadline, primaryCategory,
+  activeFilterCount, categoryLabel, daysLeft, formatDeadline, primaryCategory,
   prizeLabel, sortOptions,
 } from '../data/competitions';
 import type { Competition, Filters, SortId } from '../data/competitions';
-import { clearedFilters, readFilters, toggle, writeFilters } from '../data/filters';
+import { clearedFilters, readFilters, writeFilters } from '../data/filters';
 import { toggleSaved, useSavedSlugs } from '../data/saved';
 import { useApi } from '../lib/useApi';
 import { CoverArt } from '../components/CoverArt';
@@ -15,10 +15,15 @@ import { FilterPanel } from '../components/FilterPanel';
 import { BookmarkSimple } from '../components/icons';
 import wordmark from '../assets/wordmark.jpg';
 
+import { CompetitionTypeFilter } from '../components/CompetitionTypeFilter';
+import { kinds, themes } from '../data/focus';
+import '../journey.css';
+
 const PER_PAGE = 6;
 
-function Highlights() {
-  const { data: trendingData } = useApi<{ items: Competition[] }>('/competitions?sort=new&perPage=6');
+function Highlights({ onReady }: { onReady: (ready: boolean) => void }) {
+  const { data: trendingData, loading } = useApi<{ items: Competition[] }>('/competitions?sort=new&perPage=6');
+  useEffect(() => { onReady(!loading); }, [loading, onReady]);
   const trending = trendingData?.items ?? [];
   /* เอารายการเมนเทอร์แนะนำออกจากหน้าแรกแล้ว เพราะการเลือกเมนเทอร์ต้องเริ่มจากเวทีที่จะลงแข่ง
      ไม่ใช่จากอันดับความนิยมที่ไม่มีสถิติรองรับ */
@@ -51,21 +56,18 @@ function CompetitionCard({ competition }: { competition: Competition }) {
   const isSaved = saved.includes(competition.slug);
   const left = daysLeft(competition);
   const urgent = left >= 0 && left <= 7;
-  const [first, ...rest] = competition.categories;
+  const [first] = competition.categories;
 
   return <article className="competition-card">
     {competition.featured && <div className="card-featured-bar" aria-hidden="true" />}
     <div className="card-cover">
       <CoverArt category={first} seed={competition.slug} />
+      {competition.kind && <span className="kind-chip">{kinds[competition.kind]}</span>}
       {urgent && <span className="urgent-chip"><Timer size={13} aria-hidden="true" />ปิดรับอีก {left} วัน</span>}
     </div>
     <div className="card-body">
       <div className="card-meta">
-        <span className="category-pill">{categoryLabel(first)}</span>
-        {/* ป้าย +N ต้องบอกได้ว่าอีกกี่หมวดคือหมวดอะไร ไม่ใช่ให้ผู้อ่านเดา */}
-        {rest.length > 0 && <span className="category-pill is-more" aria-label={`อีก ${rest.length} หมวด: ${rest.map(categoryLabel).join(' ')}`}>
-          +{rest.length}
-        </span>}
+        {competition.themes?.map(theme => <span className="category-pill" key={theme}>{themes[theme]}</span>)}
         <span className="card-org">{competition.org}</span>
       </div>
       <h3><Link to={`/competitions/${competition.slug}${search}`}>{competition.name}</Link></h3>
@@ -95,6 +97,7 @@ export function Home() {
   const [params, setParams] = useSearchParams();
   const saved = useSavedSlugs();
   const [panelOpen, setPanelOpen] = useState(false);
+  const [highlightsReady, setHighlightsReady] = useState(false);
 
   const filters = readFilters(params);
   const rawSort = params.get('sort') ?? 'deadline';
@@ -135,6 +138,22 @@ export function Home() {
     total: number; page: number; pageCount: number; items: Competition[];
   }>(emptySaved ? null : `/competitions?${apiParams}`);
 
+  // Router restoration can be clamped while the API-driven sections are still
+  // placeholders. Restore the departure position once their final height is known.
+  useEffect(() => {
+    if (loading || !highlightsReady) return;
+    const key = `competition-scroll:${params.toString()}`;
+    const savedPosition = sessionStorage.getItem(key);
+    if (savedPosition === null) return;
+    let cancelled = false;
+    void document.fonts.ready.then(() => requestAnimationFrame(() => {
+      if (cancelled) return;
+      window.scrollTo(0, Number(savedPosition));
+      sessionStorage.removeItem(key);
+    }));
+    return () => { cancelled = true; };
+  }, [loading, highlightsReady, params]);
+
   const results = data?.items ?? [];
   const total = emptySaved ? 0 : data?.total ?? 0;
   const pageCount = emptySaved ? 1 : data?.pageCount ?? 1;
@@ -143,7 +162,12 @@ export function Home() {
   const panelCount = activeFilterCount(filters);
   const chosenCategories = filters.categories.map(categoryLabel).join(' · ');
 
-  return <main id="main" tabIndex={-1}>
+  return <main id="main" tabIndex={-1} onClickCapture={event => {
+    const link = (event.target as HTMLElement).closest('a');
+    if (link && new URL(link.href).pathname.startsWith('/competitions/')) {
+      sessionStorage.setItem(`competition-scroll:${params.toString()}`, String(window.scrollY));
+    }
+  }}>
     <section className="hero">
       <div className="shell hero-inner">
         <h1 className="hero-wordmark"><img src={wordmark} alt="ChampionWays" /></h1>
@@ -152,7 +176,7 @@ export function Home() {
       </div>
     </section>
 
-    <Highlights />
+    <Highlights onReady={setHighlightsReady} />
 
     <div className="shell search-panel">
       <form className="search-bar" role="search" onSubmit={submitSearch}>
@@ -178,20 +202,7 @@ export function Home() {
     </div>
 
     <div className="shell">
-      <div className="category-tabs" role="group" aria-label="หมวดการแข่งขัน เลือกได้มากกว่าหนึ่งหมวด">
-        {categories.map((item) => {
-          const active = item.id === 'all' ? filters.categories.length === 0 : filters.categories.includes(item.id);
-          return <button
-            key={item.id} type="button"
-            className={active ? 'tab-button active' : 'tab-button'}
-            aria-pressed={active}
-            onClick={() => applyFilters({
-              ...filters,
-              categories: item.id === 'all' ? [] : toggle(filters.categories, item.id),
-            })}
-          >{item.label}</button>;
-        })}
-      </div>
+      <CompetitionTypeFilter />
     </div>
 
     <section className="shell results" aria-labelledby="results-title">

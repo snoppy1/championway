@@ -3,3 +3,7 @@
 
 /* ลิงก์ในย่อหน้าต้องมีเส้นใต้ สีอย่างเดียวคอนทราสต์ไม่พอตามเกณฑ์ WCAG 1.4.1 */
 .chat-muted a { text-decoration: underline; }
+.chat-pinned h2 { font-size: 1rem; margin: 0 0 8px; }
+.chat-pinned article { padding: 8px 0; overflow-wrap: anywhere; }
+.chat-pinned summary { cursor: pointer; padding: 8px 0; }
+.appointment-context { white-space: pre-wrap; overflow-wrap: anywhere; }

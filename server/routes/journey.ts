@@ -34,7 +34,7 @@ async function myMentor(userId: string) {
 }
 const liveBooking = sql`(${bookings.status} = 'confirmed' OR (${bookings.status} = 'pending' AND ${bookings.expiresAt} > clock_timestamp()))`;
 async function freeSlots(mentorId: string) {
-  return db.select().from(mentorSlots).where(and(eq(mentorSlots.mentorId,mentorId),eq(mentorSlots.cancelled,false),sql`${mentorSlots.startsAt} > clock_timestamp()`,sql`NOT EXISTS (SELECT 1 FROM bookings WHERE slot_id = ${mentorSlots.id} AND (status = 'confirmed' OR (status = 'pending' AND expires_at > clock_timestamp())))`)).orderBy(mentorSlots.startsAt);
+  return db.select().from(mentorSlots).where(and(eq(mentorSlots.mentorId,mentorId),eq(mentorSlots.cancelled,false),sql`${mentorSlots.startsAt} > clock_timestamp()`,sql`NOT EXISTS (SELECT 1 FROM bookings b JOIN mentor_slots held ON held.id = b.slot_id WHERE b.mentor_id = ${mentorSlots.mentorId} AND held.starts_at < ${mentorSlots.endsAt} AND held.ends_at > ${mentorSlots.startsAt} AND (b.status = 'confirmed' OR (b.status = 'pending' AND b.expires_at > clock_timestamp())))`)).orderBy(mentorSlots.startsAt);
 }
 async function mentorInfo(row: Awaited<ReturnType<typeof approved>>[number]) {
   const awards = await db.select().from(mentorAwards).where(eq(mentorAwards.submissionId,row.submission.id));
@@ -42,7 +42,14 @@ async function mentorInfo(row: Awaited<ReturnType<typeof approved>>[number]) {
   const scores = scoreThemes({ experience: row.submission.experience, best: row.mentor.best, confirmed: row.mentor.confirmedThemes, disabled: row.mentor.disabledThemes, verified });
   // Refresh only on changed inputs/results; never write an audit on every poll.
   const [audit] = await db.select().from(mentorMatchAudit).where(eq(mentorMatchAudit.mentorId,row.mentor.id));
-  if (!audit || JSON.stringify(audit.scores) !== JSON.stringify(scores)) await db.insert(mentorMatchAudit).values({mentorId:row.mentor.id,version:RULE_VERSION,scores}).onConflictDoUpdate({target:mentorMatchAudit.mentorId,set:{version:RULE_VERSION,scores,updatedAt:new Date()}});
+  if (!audit || audit.version !== RULE_VERSION || JSON.stringify(audit.scores) !== JSON.stringify(scores)) {
+    await db.transaction(async tx => {
+      // Keep the parent alive until the audit write finishes; a removed mentor is skipped.
+      const [parent] = await tx.select({id:mentors.id}).from(mentors).where(eq(mentors.id,row.mentor.id)).for('key share');
+      if (!parent) return;
+      await tx.insert(mentorMatchAudit).values({mentorId:row.mentor.id,version:RULE_VERSION,scores}).onConflictDoUpdate({target:mentorMatchAudit.mentorId,set:{version:RULE_VERSION,scores,updatedAt:new Date()}});
+    });
+  }
   return { id:row.mentor.id, name:row.mentor.name, avatar:row.mentor.avatar, bio:row.mentor.bio, experience:row.submission.experience, best:row.mentor.best, cannot:row.mentor.cannot, topics:row.submission.topics, scores, awards:awards.filter(a=>a.verifiedBy && a.verifiedAt).map(a=>({title:a.title,year:a.year,themes:a.verifiedThemes})), slots:await freeSlots(row.mentor.id) };
 }
 async function event(slug: string) {
@@ -133,6 +140,9 @@ journey.post('/bookings',requireUser,async c=>{
     if(!slot)return fail('ช่องเวลานี้ไม่ว่างแล้ว',409);
     const active=await tx.select().from(bookings).where(and(eq(bookings.mentorId,p.mentorId),liveBooking));
     if(active.some(b=>b.slotId===p.slotId))return fail('มีทีมอื่นขอจองเวลานี้แล้ว',409);
+    const overlaps=await tx.select({id:bookings.id}).from(bookings).innerJoin(mentorSlots,eq(bookings.slotId,mentorSlots.id))
+      .where(and(eq(bookings.mentorId,p.mentorId),liveBooking,sql`${mentorSlots.startsAt}<${slot.endsAt.toISOString()} AND ${mentorSlots.endsAt}>${slot.startsAt.toISOString()}`));
+    if(overlaps.length)return fail('เวลานี้ทับกับคำขอหรือนัดอื่นแล้ว',409);
     if(active.some(b=>b.status==='pending'&&b.ownerId===user.id&&b.competitionId===e.id))return fail('มีคำขอรอยืนยันสำหรับงานนี้แล้ว',409);
     await tx.insert(bookings).values({id,ownerId:user.id,mentorId:p.mentorId,mentorUserId:row.submission.userId!,competitionId:e.id,slotId:slot.id,title:p.title,context:p.context,updatedBy:user.id,expiresAt:sql`least(clock_timestamp()+interval '24 hours', ${slot.startsAt.toISOString()}::timestamptz)`});
     await tx.insert(bookingEvents).values({id:newId('be'),bookingId:id,actorId:user.id,action:'requested'});

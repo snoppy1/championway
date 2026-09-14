@@ -1,0 +1,8 @@
+.competition-type-filter { padding-top: 26px; }
+.type-buttons { display: flex; gap: 10px; }
+.subtype-reveal { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-top: 14px; animation: reveal-subtypes 240ms ease-out both; }
+.subtype-options { display: flex; gap: 9px; max-width: 100%; overflow-x: auto; padding: 5px 4px 10px; }
+.subtype-options button { flex: 0 0 auto; white-space: nowrap; }
+.type-reset { font-size: 13px; white-space: nowrap; }
+@keyframes reveal-subtypes { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .subtype-reveal { animation: none; } }

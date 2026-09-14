@@ -48,11 +48,80 @@ async function setup(baseURL: string) {
 /* กลุ่มแชตเกิดจากนัดที่เมนเทอร์รับแล้วเท่านั้น เทสจึงต้องเดินเส้นทางจริง:
    เมนเทอร์เปิดช่องเวลา → เจ้าของทีมขอจอง → เมนเทอร์รับ → ได้ห้องแชต */
 const EVENT = 'venture-ignite';
+
+test('booking races, expiry, overlap, cancellation and room reuse preserve the appointment history', async ({ baseURL }) => {
+  test.setTimeout(90000);
+  const s = await setup(baseURL!);
+  const [owner, mentor, other] = s.clients;
+  const ask = (client: APIRequestContext, slotId: string, context = 'First consultation') => client.post('/api/journey/bookings', {
+    data: { mentorId: s.mentorId, competition: EVENT, slotId, title: 'Test team', context },
+  });
+  const respond = (id: string, action: string) => mentor.post(`/api/journey/bookings/${id}/respond`, { data: { action, noConflict: true, reason: 'Changed plans' } });
+  try {
+    const slot = await openSlot(mentor, 48);
+    const [first, second] = await Promise.all([ask(owner, slot), ask(other, slot)]);
+    expect([first.status(), second.status()].sort()).toEqual([201, 409]);
+    const winner = first.status() === 201 ? owner : other;
+    const { id } = await (first.status() === 201 ? first : second).json();
+    const later = await openSlot(mentor, 52);
+    expect((await ask(winner, later)).status()).toBe(409);
+    const [slotRow] = await db.select().from(mentorSlots).where(eq(mentorSlots.id, slot));
+    expect((await mentor.post('/api/journey/profile/slots', { data: { startsAt: new Date(slotRow.startsAt.getTime() + 1800000).toISOString() } })).status()).toBe(409);
+    expect((await mentor.delete(`/api/journey/profile/slots/${slot}`)).status()).toBe(409);
+    const [held] = await db.select().from(bookings).where(eq(bookings.id, id));
+    expect(held.expiresAt.getTime() - Date.now()).toBeGreaterThan(23 * 3600000);
+    expect(held.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(24 * 3600000);
+    await db.update(bookings).set({ expiresAt: new Date(0) }).where(eq(bookings.id, id));
+    expect((await respond(id, 'accept')).status()).toBe(409);
+    const replacement = await ask(owner, slot);
+    expect(replacement.status()).toBe(201);
+    const replacementId = (await replacement.json()).id;
+    const accepts = await Promise.all([respond(replacementId, 'accept'), respond(replacementId, 'accept')]);
+    expect(accepts.map(r => r.status())).toEqual([200, 200]);
+    const roomId = (await accepts[0].json()).roomId;
+    expect((await accepts[1].json()).roomId).toBe(roomId);
+    // Imported/legacy slots can overlap even though the slot editor rejects them.
+    const overlapId = `slot-overlap-${randomUUID()}`;
+    await db.insert(mentorSlots).values({ id: overlapId, mentorId: s.mentorId, startsAt: new Date(slotRow.startsAt.getTime() + 1800000), endsAt: new Date(slotRow.endsAt.getTime() + 1800000) });
+    const publicProfile = await (await owner.get(`/api/journey/mentors/${s.mentorId}?competition=${EVENT}`)).json();
+    expect(publicProfile.mentor.slots.some((item: { id: string }) => item.id === overlapId)).toBe(false);
+    expect((await ask(other, overlapId)).status()).toBe(409);
+    // Even a historical pending booking cannot be confirmed over a confirmed appointment.
+    const legacyId = `booking-overlap-${randomUUID()}`;
+    await db.insert(bookings).values({ ...held, id: legacyId, slotId: overlapId, ownerId: s.accounts[2].id, status: 'pending', expiresAt: new Date(Date.now() + 3600000) });
+    expect((await respond(legacyId, 'accept')).status()).toBe(409);
+    expect((await respond(legacyId, 'cancel')).status()).toBe(200);
+    expect((await owner.get(`/api/chats/${roomId}`)).status()).toBe(200);
+    expect((await other.get(`/api/chats/${roomId}`)).status()).toBe(404);
+    expect((await respond(replacementId, 'cancel')).status()).toBe(200);
+    const rebook = await ask(owner, slot, 'Second consultation with a new brief');
+    expect(rebook.status()).toBe(201);
+    const nextId = (await rebook.json()).id;
+    expect((await (await respond(nextId, 'accept')).json()).roomId).toBe(roomId);
+    const detail = await (await owner.get(`/api/chats/${roomId}`)).json();
+    expect(detail.appointments).toHaveLength(2);
+    expect(detail.appointments.find((a: { id: string }) => a.id === replacementId).status).toBe('cancelled');
+    expect(detail.appointments.find((a: { id: string }) => a.id === nextId).context).toBe('Second consultation with a new brief');
+
+    // A near-term request expires at the start, even without a cron job.
+    const near = await openSlot(mentor, 2);
+    const nearResponse = await ask(other, near);
+    expect(nearResponse.status()).toBe(201);
+    const nearId = (await nearResponse.json()).id;
+    const [nearBooking] = await db.select().from(bookings).where(eq(bookings.id, nearId));
+    const [nearSlot] = await db.select().from(mentorSlots).where(eq(mentorSlots.id, near));
+    expect(nearBooking.expiresAt.toISOString()).toBe(nearSlot.startsAt.toISOString());
+    await db.update(mentorSlots).set({ startsAt: new Date(Date.now() - 60000), endsAt: new Date(Date.now() + 3540000) }).where(eq(mentorSlots.id, near));
+    await db.update(bookings).set({ expiresAt: new Date(Date.now() - 60000) }).where(eq(bookings.id, nearId));
+    expect((await respond(nearId, 'accept')).status()).toBe(409);
+    expect((await (await other.get('/api/journey/profile')).json()).bookings.find((b: { id: string }) => b.id === nearId).status).toBe('expired');
+  } finally { await s.close(); }
+});
 async function openSlot(mentor: APIRequestContext, hoursAhead: number) {
   const startsAt = new Date(Date.now() + hoursAhead * 3600000).toISOString();
   expect((await mentor.post('/api/journey/profile/slots', { data: { startsAt } })).status()).toBe(201);
   const profile = await (await mentor.get('/api/journey/profile')).json();
-  return profile.slots.at(-1).id as string;
+  return profile.slots.find((slot: { startsAt: string }) => new Date(slot.startsAt).toISOString() === startsAt).id as string;
 }
 async function bookRoom(owner: APIRequestContext, mentor: APIRequestContext, mentorId: string) {
   const slotId = await openSlot(mentor, 24);

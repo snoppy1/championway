@@ -326,7 +326,7 @@ export function OrganiserSubmit() {
                   <span>{kinds[id]}</span>
                 </label>
               ))}
-            </div>, 'ใช้แสดงบนหน้า “อยากแข่งงานไหน” และใช้จับคู่กับเมนเทอร์')}
+            </div>, 'ใช้แสดงบนหน้า “สำรวจการแข่งขัน” และใช้จับคู่กับเมนเทอร์')}
 
             {group('หมวดของงาน', <div className="topics">
               {themeKeys.map((id) => (

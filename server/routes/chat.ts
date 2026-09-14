@@ -4,7 +4,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { and, eq, gt, desc, asc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { chatRooms, chatMembers, chatInvites, chatMessages, users } from '../db/schema.js';
+import { chatRooms, chatMembers, chatInvites, chatMessages, users, bookings, mentorSlots, competitions } from '../db/schema.js';
 import { requireUser, type AppEnv } from '../lib/guards.js';
 import { newId } from '../lib/id.js';
 import { env } from '../lib/env.js';
@@ -64,7 +64,15 @@ chat.get('/:id', async c => {
   const members = await db.select({ id: users.id, name: users.name, readAt: chatMembers.readAt }).from(chatMembers).innerJoin(users, eq(users.id, chatMembers.userId)).where(eq(chatMembers.roomId, room.id));
   const invites = room.ownerId === c.get('user')!.id ? await db.select({ id: chatInvites.id, email: chatInvites.email, expiresAt: chatInvites.expiresAt }).from(chatInvites).where(eq(chatInvites.roomId, room.id)) : [];
   const { meetingUrl: _url, meetingAt: _at, ...safe } = room;
-  return c.json({ room: safe, members, invites });
+  // Membership is checked above: teammates can read the appointment, outsiders cannot.
+  const appointments = await db.select({
+    id: bookings.id, title: bookings.title, context: bookings.context,
+    eventName: competitions.name, startsAt: mentorSlots.startsAt, endsAt: mentorSlots.endsAt,
+    status: sql<string>`CASE WHEN ${bookings.status} = 'confirmed' AND ${mentorSlots.endsAt} <= clock_timestamp() THEN 'elapsed' ELSE ${bookings.status} END`,
+  }).from(bookings).innerJoin(mentorSlots, eq(bookings.slotId, mentorSlots.id))
+    .innerJoin(competitions, eq(bookings.competitionId, competitions.id))
+    .where(eq(bookings.roomId, room.id)).orderBy(mentorSlots.startsAt, bookings.id);
+  return c.json({ room: safe, members, invites, appointments });
 });
 chat.post('/:id/invites', async c => {
   const p = z.object({ email: z.string().trim().toLowerCase().email().max(200) }).safeParse(await c.req.json());

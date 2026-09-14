@@ -183,3 +183,4 @@ img.profile-avatar { object-fit: cover; }
   .profile-head-actions { margin-left: 0; }
   .fact-list > div { grid-template-columns: 1fr; gap: 2px; }
 }
+.booking-context { white-space: pre-wrap; overflow-wrap: anywhere; }

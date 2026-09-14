@@ -43,7 +43,7 @@ test('search, category and timing filters all live in the URL', async ({ page })
   await page.goto('/?category=design');
   const designCount = await apiTotal(page, 'cat=design');
   await expect(page.locator('.competition-card')).toHaveCount(designCount);
-  await expect(page.getByRole('button', { name: 'ศิลปะและออกแบบ', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('status').first()).toContainText('ศิลปะและออกแบบ');
 
   await page.goto('/');
   await page.getByRole('button', { name: 'ตัวกรอง' }).click();
@@ -61,7 +61,7 @@ test('an unknown category or page in the URL falls back instead of breaking', as
   await page.goto('/?category=not-real&sort=nonsense&page=99');
   const total = await apiTotal(page);
   await expect(page.locator('.competition-card')).toHaveCount(total - (Math.ceil(total / PER_PAGE) - 1) * PER_PAGE);
-  await expect(page.getByRole('button', { name: 'ทั้งหมด', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Hackathon', exact: true })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('sorting by prize puts the largest award first', async ({ page }) => {
@@ -107,8 +107,12 @@ test('every competition opens from a direct URL with all five sections', async (
 
 test('returning from a detail page keeps the search, filter and scroll position', async ({ page }) => {
   await page.goto('/?category=business&sort=prize');
+  await expect(page.locator('.competition-card').first()).toBeVisible();
   // scrollTo rather than mouse.wheel: the wheel does not move the page under mobile emulation.
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
+  // Playwright scrolls an off-screen link into view before clicking. Measure the
+  // position the user actually leaves from, after that adjustment.
+  await page.locator('.competition-card').first().getByRole('link', { name: /ดูรายละเอียด/ }).scrollIntoViewIfNeeded();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   const before = await page.evaluate(() => window.scrollY);
 
@@ -117,7 +121,7 @@ test('returning from a detail page keeps the search, filter and scroll position'
   await page.getByRole('link', { name: 'กลับไปหน้าแรก' }).click();
 
   await expect(page).toHaveURL(/category=business/);
-  await expect(page.getByRole('button', { name: 'ธุรกิจและผู้ประกอบการ', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('status').first()).toContainText('ธุรกิจและผู้ประกอบการ');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before - 50);
 });
 
@@ -130,7 +134,10 @@ test('an unknown slug shows the not-found page, not a blank screen', async ({ pa
 
 test('explore: the kind tabs and theme filters live in the URL and survive a reload', async ({ page }) => {
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'อยากแข่งงานไหน' })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('group', { name: 'ประเภทการแข่งขัน', exact: true }).getByRole('button')).toHaveCount(2);
+  await expect(page.locator('.subtype-options')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'อยากแข่งงานไหน', exact: true })).toHaveCount(0);
   const all = await page.getByRole('status').first().textContent();
 
   await page.getByRole('button', { name: 'Hackathon', exact: true }).click();
@@ -143,19 +150,27 @@ test('explore: the kind tabs and theme filters live in the URL and survive a rel
   expect(await page.getByRole('status').first().textContent()).not.toBe(all);
 
   // check() อ่านสถานะก่อนที่ router จะเขียน URL เสร็จ จึงใช้ click() แล้วค่อยยืนยันผล
-  await page.getByRole('checkbox', { name: 'การแพทย์' }).click();
-  await expect(page.getByRole('checkbox', { name: 'การแพทย์' })).toBeChecked();
+  await page.getByRole('button', { name: 'การแพทย์', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'การแพทย์', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page).toHaveURL(/theme=medical/);
   const filtered = await page.getByRole('status').first().textContent();
 
   await page.reload();
-  await expect(page.getByRole('checkbox', { name: 'การแพทย์' })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'การแพทย์', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Hackathon', exact: true })).toHaveAttribute('aria-pressed', 'true');
   expect(await page.getByRole('status').first().textContent()).toBe(filtered);
+  await page.locator('.competition-type-filter').screenshot({ path: `artifacts/type-filter-${page.viewportSize()!.width}.png`, animations: 'disabled' });
 
   // เวทีที่ยังไม่จัดประเภทต้องไม่ขึ้นหน้านี้ หน้ารายละเอียดจึงเปิดได้ทุกใบที่แสดง
   await page.locator('.competition-card .detail-link').first().click();
   await expect(page.getByRole('heading', { name: 'เมนเทอร์สำหรับงานนี้' })).toBeVisible();
+  await page.goBack();
+  await page.getByRole('button', { name: 'แข่งเคส', exact: true }).click();
+  await expect(page).toHaveURL(/kind=case_competition/);
+  await expect(page.getByRole('button', { name: 'การแพทย์', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'แข่งเคส', exact: true }).click();
+  await expect(page.locator('.subtype-options')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'แข่งเคส', exact: true })).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('the old mentor link redirects to the competition, where its mentors now live', async ({ page }) => {
@@ -165,8 +180,8 @@ test('the old mentor link redirects to the competition, where its mentors now li
   await expect(page.getByRole('heading', { name: 'เมนเทอร์สำหรับงานนี้' })).toBeVisible();
 
   await page.goto('/mentors');
-  await expect(page).toHaveURL(/\/explore/);
-  await expect(page.getByRole('heading', { level: 1, name: 'อยากแข่งงานไหน' })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('button', { name: 'Hackathon', exact: true })).toBeVisible();
 });
 
 test('keyboard reaches the search box and the skip link', async ({ page }) => {

@@ -220,13 +220,14 @@ export function Profile() {
                 <small className="muted"> · {booking.eventName} · {asMentor ? 'คุณเป็นเมนเทอร์' : `เมนเทอร์ ${booking.mentorName}`}</small>
                 <p>{thaiTime(booking.startsAt)} – {new Date(booking.endsAt).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' })}</p>
                 <p className={`status-pill is-${booking.status}`}>{bookingLabel[booking.status] ?? booking.status}</p>
+                <p className="booking-context"><strong>ข้อความแนะนำทีม</strong><br />{booking.context}</p>
                 {booking.reason && <p className="muted">เหตุผล: {booking.reason}</p>}
                 {booking.roomId && <p><Link to={`/chats/${booking.roomId}`}>เปิดแชตของนัดนี้</Link></p>}
               </div>
               {open && <BookingActions booking={booking} asMentor={asMentor} busy={busy} act={act} />}
             </li>;
           })}
-        </ul> : <p className="muted">ยังไม่มีนัด เริ่มจากเลือกเวทีที่ <Link to="/explore">อยากแข่งงานไหน</Link></p>}
+        </ul> : <p className="muted">ยังไม่มีนัด เริ่มจากเลือกเวทีที่ <Link to="/">สำรวจการแข่งขัน</Link></p>}
       </section>
     </>}
   </main>;
@@ -240,8 +241,8 @@ function SlotEditor({ slots, busy, act }: { slots: Slot[]; busy: boolean; act: (
   function add(event: FormEvent) {
     event.preventDefault();
     if (!when) return;
-    // ช่องกรอกเป็นเวลาในเครื่องผู้ใช้ ส่งเป็น ISO พร้อม offset ให้เซิร์ฟเวอร์เก็บ UTC
-    void act(() => post('/journey/profile/slots', { startsAt: new Date(when).toISOString() })).then(() => setWhen(''));
+    // ช่องนี้ระบุเวลาไทยเสมอ ไม่ใช้ timezone ของเครื่องผู้ใช้
+    void act(() => post('/journey/profile/slots', { startsAt: new Date(`${when}+07:00`).toISOString() }));
   }
 
   return <section className="panel profile-block">

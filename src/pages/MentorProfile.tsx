@@ -116,7 +116,8 @@ export function MentorProfile() {
       {!data?.competition ? <p className="muted">
         เลือกเวทีก่อนจึงจะขอจองได้ เพราะนัดหนึ่งครั้งผูกกับงานหนึ่งงาน
         {' '}<Link to="/explore">ไปเลือกเวที</Link>
-      </p> : !mentor.slots.length ? <p className="muted">ตอนนี้เมนเทอร์ยังไม่ได้เปิดช่องเวลาว่าง ลองกลับมาดูใหม่ภายหลัง</p>
+      </p> : !data.match ? <p className="muted">เมนเทอร์ไม่พร้อมช่วยงานนี้ในขณะนี้ <Link to={backLink}>กลับไปเลือกเมนเทอร์สำหรับงานนี้</Link></p>
+        : !mentor.slots.length ? <p className="muted">ตอนนี้เมนเทอร์ยังไม่ได้เปิดช่องเวลาว่าง ลองกลับมาดูใหม่ภายหลัง</p>
         : !user ? <p className="muted">
           <Link to={`/signin?next=${encodeURIComponent(`/mentors/${mentor.id}?competition=${data.competition.slug}`)}`}>เข้าสู่ระบบ</Link>
           {' '}เพื่อขอจองเวลาคุย
@@ -139,7 +140,7 @@ export function MentorProfile() {
               placeholder="บอกสิ่งที่เตรียมไว้แล้ว จุดที่ติด และผลลัพธ์ที่อยากได้จากการคุย" />
           </label>
           <p className="notice">
-            คำขอจะกันเวลานี้ไว้จนกว่าเมนเทอร์จะตอบ หรือครบ 24 ชั่วโมง แล้วแต่ว่าอย่างใดถึงก่อน
+            คำขอจะกันเวลานี้ไว้จนกว่าเมนเทอร์จะตอบ ครบ 24 ชั่วโมง หรือถึงเวลาเริ่มนัด แล้วแต่ว่าอย่างใดถึงก่อน
             เมื่อเมนเทอร์รับคำขอ ระบบจะเปิดแชตกลุ่มให้คุยกันในเว็บ ยังไม่มีการเก็บเงิน
           </p>
           {message && <p className="auth-message" role="alert">{message}</p>}

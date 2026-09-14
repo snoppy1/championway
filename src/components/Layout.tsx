@@ -24,9 +24,6 @@ function Header() {
       </Link>
       <nav className="main-nav" aria-label="เมนูหลัก">
         <NavLink to="/" end>สำรวจการแข่งขัน</NavLink>
-        {/* เส้นทางหลักเริ่มจาก "อยากแข่งงานไหน" แล้วค่อยไปหาเมนเทอร์ของงานนั้น
-            จึงไม่มีเมนูเมนเทอร์แยกอีกต่อไป การสมัครเป็นเมนเทอร์ย้ายไปอยู่ในหน้าโปรไฟล์ */}
-        <NavLink to="/explore">อยากแข่งงานไหน</NavLink>
         {user && <NavLink to="/profile">โปรไฟล์</NavLink>}
         {user && <NavLink to="/chats">แชตของฉัน</NavLink>}
         <span className="nav-soon" title="เปิดเร็ว ๆ นี้">คลังความรู้</span>
@@ -82,7 +79,6 @@ export function Layout() {
           <div>
             <strong>ค้นหา</strong>
             <Link to="/">สำรวจการแข่งขัน</Link>
-            <Link to="/explore">อยากแข่งงานไหน</Link>
           </div>
           <div>
             <strong>สำหรับผู้จัดการแข่งขัน</strong>

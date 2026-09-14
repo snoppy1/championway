@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createAccount, removeAccount, signIn } from './helpers';
 import type { TestAccount } from './helpers';
+import { db } from '../server/db/client';
+import { competitionSubmissions, competitions } from '../server/db/schema';
+import { eq } from 'drizzle-orm';
 
 const pages = [
   ['overview', '/admin'],
@@ -123,7 +126,16 @@ test('publishing needs every check, and the listing then appears on the public s
   expect(created.status()).toBe(201);
   const { id } = await created.json() as { id: string };
 
+  // Older submissions may have no new taxonomy. They must not publish invisibly.
+  await db.update(competitionSubmissions).set({ kind: null, themes: [] }).where(eq(competitionSubmissions.id, id));
+
   await signIn(page, reviewer, `/admin/competitions/${id}`);
+  await expect(page.getByRole('heading', { level: 1, name: marker })).toBeVisible();
+  const review = await (await page.request.get(`/api/admin/competition-submissions/${id}`)).json();
+  const blocked = await page.request.post(`/api/admin/competition-submissions/${id}/decision`, { data: { decision: 'publish', checks: review.checks } });
+  expect(blocked.status()).toBe(422);
+  await page.getByLabel('ประเภทการแข่งขัน *').selectOption('hackathon');
+  await page.getByRole('checkbox', { name: 'นวัตกรรม', exact: true }).check();
   const publish = page.getByRole('button', { name: 'เผยแพร่' });
   await expect(publish).toBeDisabled();
 
@@ -151,6 +163,14 @@ test('publishing needs every check, and the listing then appears on the public s
   expect(body.total).toBe(1);
   expect(body.items[0].prizeValue).toBe(12345);
   expect(body.items[0].source).toBe('organiser');
+
+  const published = await (await page.request.get(`/api/admin/competition-submissions/${id}`)).json();
+  expect(published.submission.publicationState).toBe('visible');
+  const listingId = published.submission.publishedCompetitionId;
+  await db.update(competitions).set({ themes: [] }).where(eq(competitions.id, listingId));
+  expect((await (await page.request.get(`/api/admin/competition-submissions/${id}`)).json()).submission.publicationState).toBe('unclassified');
+  await db.delete(competitions).where(eq(competitions.id, listingId));
+  expect((await (await page.request.get(`/api/admin/competition-submissions/${id}`)).json()).submission.publicationState).toBe('missing');
 
   await removeAccount(organiser);
 });

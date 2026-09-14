@@ -10,6 +10,7 @@ import type { CategoryId, Competition, Level, OpportunityType, Region, Reward } 
 import { CoverArt } from '../../components/CoverArt';
 import { useApi } from '../../lib/useApi';
 import { ReviewDecision } from './ReviewDecision';
+import { kinds, themes } from '../../data/focus';
 
 export type SubmissionStatus = 'pending' | 'info' | 'published' | 'rejected';
 export const statusLabels: Record<SubmissionStatus, string> = {
@@ -21,6 +22,10 @@ export type ReviewEvent = {
 };
 
 type Submission = {
+  kind: string | null;
+  themes: string[];
+  publicationState: 'visible' | 'missing' | 'unclassified' | null;
+  publicationSlug: string | null;
   id: string;
   status: SubmissionStatus;
   submittedAt: string;
@@ -61,6 +66,64 @@ export const REVIEW_TARGET_DAYS = 2;
 
 export function StatusPill({ status }: { status: SubmissionStatus }) {
   return <span className={`status-pill is-${status}`}>{statusLabels[status]}</span>;
+}
+
+function CompetitionPublication({ submission }: { submission: Submission }) {
+  if (submission.status !== 'published') return <StatusPill status={submission.status} />;
+  if (submission.publicationState === 'missing') return <span className="status-pill is-info">เคยเผยแพร่ — ไม่พบเวทีบนเว็บแล้ว</span>;
+  if (submission.publicationState === 'unclassified') return <span className="status-pill is-info">ยังไม่ขึ้นหน้าหลัก — รอจัดประเภท</span>;
+  return <StatusPill status="published" />;
+}
+
+/* เวทีที่ไม่มีประเภทหรือหมวดจะไม่ขึ้นหน้า "อยากแข่งงานไหน" เลย การเผยแพร่ทั้งที่ยังว่าง
+   จึงเท่ากับเผยแพร่ของที่ไม่มีใครเห็น ผู้ตรวจต้องเติมให้ครบตรงนี้ก่อนกดเผยแพร่
+   ผู้จัดกรอกมาแล้วก็ขึ้นให้เป็นค่าตั้งต้น ผู้ตรวจแก้ได้ */
+function CompetitionDecision({ submission, checks, reload }: {
+  submission: Submission; checks: string[]; reload: () => void;
+}) {
+  const [kind, setKind] = useState(submission.kind ?? '');
+  const [selected, setSelected] = useState<string[]>(submission.themes ?? []);
+
+  return <div className="review-decide">
+    {!submission.publishedCompetitionId && <section className="admin-block">
+      <h2>ประเภทและหมวดที่จะแสดงหน้าหลัก</h2>
+      <dl className="admin-fields">
+        {/* label ต้องแยกกับ htmlFor ถ้าครอบ select ไว้ ชื่อที่โปรแกรมอ่านหน้าจอได้
+            จะกลายเป็นข้อความของตัวเลือกทุกอันต่อท้ายชื่อช่อง */}
+        <div className="admin-field">
+          <dt><label htmlFor="publish-kind">ประเภทการแข่งขัน *</label></dt>
+          <dd>
+            <select id="publish-kind" value={kind} onChange={(event) => setKind(event.target.value)}>
+              <option value="">เลือกประเภท</option>
+              {Object.entries(kinds).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </dd>
+        </div>
+        <div className="admin-field">
+          <dt>หมวดการแข่งขัน *</dt>
+          <dd>
+            <div className="pick-grid">
+              {Object.entries(themes).map(([id, label]) => <label className="pick" key={id}>
+                <input
+                  type="checkbox" checked={selected.includes(id)}
+                  onChange={() => setSelected((current) => (current.includes(id)
+                    ? current.filter((value) => value !== id)
+                    : [...current, id]))}
+                />
+                <span>{label}</span>
+              </label>)}
+            </div>
+            <span className="admin-muted">เลือกอย่างน้อยหนึ่งหมวด ใช้จับคู่เวทีนี้กับความถนัดของเมนเทอร์</span>
+          </dd>
+        </div>
+      </dl>
+    </section>}
+    <ReviewDecision
+      checks={checks} noun="งาน" onDone={reload}
+      endpoint={`/admin/competition-submissions/${submission.id}`}
+      publication={{ kind, themes: selected }}
+    />
+  </div>;
 }
 
 export const statusFilters: { id: SubmissionStatus | 'all'; label: string }[] = [
@@ -147,7 +210,7 @@ export function AdminCompetitionQueue() {
     {!loading && (rows.length > 0 ? <ul className="queue-list">
       {rows.map((item) => <li className="queue-row" key={item.id}>
         <div className="queue-main">
-          <StatusPill status={item.status} />
+          <CompetitionPublication submission={item} />
           <h2><Link to={`/admin/competitions/${item.id}`}>{item.name}</Link></h2>
           <p className="admin-muted">{item.organizerName} · {item.categories.map(categoryLabel).join(' · ')}</p>
         </div>
@@ -239,7 +302,7 @@ export function AdminCompetitionReview() {
     <header className="admin-page-head">
       <div className="admin-title-row">
         <h1>{submission.name}</h1>
-        <StatusPill status={submission.status} />
+        <CompetitionPublication submission={submission} />
       </div>
       <p className="admin-muted">
         ใบ {submission.id} · ส่งเมื่อ {formatDate(submission.submittedAt.slice(0, 10))} · รอมาแล้ว {waitingDays(submission.submittedAt)} วัน
@@ -247,6 +310,9 @@ export function AdminCompetitionReview() {
     </header>
 
     <Trail events={submission.events} />
+    {submission.publicationState === 'unclassified' && <p className="admin-message">เวทียังไม่มีประเภทหรือหมวดใหม่ จึงไม่แสดงหน้าหลัก <Link to={`/admin/listings/${submission.publishedCompetitionId}`}>จัดประเภทเวทีนี้</Link></p>}
+    {submission.publicationState === 'missing' && <p className="admin-message">รายการเวทีที่เคยเชื่อมกับใบนี้ถูกนำออกแล้ว ตรวจข้อมูลและจัดประเภทให้ครบก่อนเผยแพร่อีกครั้ง</p>}
+    {submission.publicationState === 'visible' && <p><Link to={`/competitions/${submission.publicationSlug}`}>ดูเวทีที่เผยแพร่บนเว็บ</Link></p>}
 
     <div className="review-grid">
       <div className="review-body">
@@ -296,10 +362,7 @@ export function AdminCompetitionReview() {
         <AttachedFiles files={submission.files} />
       </div>
 
-      <ReviewDecision
-        checks={checks} noun="งาน" onDone={reload}
-        endpoint={`/admin/competition-submissions/${submission.id}`}
-      />
+      <CompetitionDecision key={submission.id} submission={submission} checks={checks} reload={reload} />
     </div>
   </>;
 }

@@ -43,6 +43,35 @@ const decisionBody = z.object({
   note: z.string().trim().max(2000).default(''),
   checks: z.array(z.string()).default([]),
 });
+const competitionDecisionBody = decisionBody.extend({
+  kind: z.enum(kindKeys as [Kind, ...Kind[]]).optional(),
+  themes: z.array(z.enum(themeKeys as [Theme, ...Theme[]])).max(4)
+    .transform((list) => [...new Set(list)]).optional(),
+});
+
+type PublishedListing = Pick<typeof competitions.$inferSelect, 'id' | 'slug' | 'kind' | 'themes'>;
+
+/* "เผยแพร่แล้ว" กับ "คนเห็นจริง" ไม่ใช่เรื่องเดียวกัน เวทีที่ไม่มีประเภทหรือหมวด
+   จะถูกกรองออกจากหน้าสำรวจ ใบนั้นจึงยังไม่ถึงผู้สมัครแม้สถานะจะขึ้นว่าเผยแพร่แล้ว
+   คิวต้องบอกความต่างนี้ ไม่อย่างนั้นทีมงานจะคิดว่างานจบแล้วทั้งที่ยังไม่มีใครเห็น */
+function publicationInfo(
+  row: typeof competitionSubmissions.$inferSelect,
+  listings: PublishedListing[],
+) {
+  if (row.status !== 'published') return { publicationState: null, publicationSlug: null };
+  const listing = listings.find((item) => item.id === row.publishedCompetitionId);
+  if (!listing) return { publicationState: 'missing', publicationSlug: null };
+  const classified = Boolean(listing.kind) && listing.themes.length > 0;
+  return { publicationState: classified ? 'visible' : 'unclassified', publicationSlug: listing.slug };
+}
+
+/** อ่านเวทีที่ใบเหล่านี้เผยแพร่ไว้ทีเดียว ไม่ยิงทีละใบตอนวาดคิว */
+async function publishedListings(rows: (typeof competitionSubmissions.$inferSelect)[]) {
+  const ids = rows.map((row) => row.publishedCompetitionId).filter((id): id is string => Boolean(id));
+  if (!ids.length) return [];
+  return db.select({ id: competitions.id, slug: competitions.slug, kind: competitions.kind, themes: competitions.themes })
+    .from(competitions).where(inArray(competitions.id, ids));
+}
 
 /** กฎเดียวกับที่หน้าเว็บบังคับ แต่บังคับซ้ำที่นี่ เพราะหน้าเว็บถูกข้ามได้เสมอ */
 function guardDecision(body: z.infer<typeof decisionBody>, required: string[]) {
@@ -116,9 +145,11 @@ admin.get('/competition-submissions', async (c) => {
     ? await db.select().from(submissionCategories)
       .where(inArray(submissionCategories.submissionId, ids)).orderBy(asc(submissionCategories.position))
     : [];
+  const listings = await publishedListings(rows);
   return c.json({
     items: rows.map((row) => ({
       ...row,
+      ...publicationInfo(row, listings),
       categories: cats.filter((item) => item.submissionId === row.id).map((item) => item.category),
     })),
   });
@@ -138,6 +169,7 @@ async function loadCompetitionSubmission(id: string) {
   ]);
   return {
     ...row,
+    ...publicationInfo(row, await publishedListings([row])),
     categories: cats.map((item) => item.category),
     levels: levels.map((item) => item.level),
     rewards: rewards.map((item) => item.reward),
@@ -151,7 +183,7 @@ admin.get('/competition-submissions/:id', async (c) => {
 });
 
 admin.post('/competition-submissions/:id/decision', async (c) => {
-  const parsed = decisionBody.safeParse(await c.req.json().catch(() => ({})));
+  const parsed = competitionDecisionBody.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
   const body = parsed.data;
   guardDecision(body, competitionChecks);
@@ -162,11 +194,15 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
   let publishedSlug: string | null = null;
 
   await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(competitionSubmissions).where(eq(competitionSubmissions.id, id)).for('update');
     if (body.decision === 'publish') {
       // ใบที่เผยแพร่ไปแล้วห้ามสร้างเวทีซ้ำ
-      if (submission.publishedCompetitionId) {
+      if (current.publishedCompetitionId) {
         throw new HTTPException(409, { message: 'ใบนี้เผยแพร่ไปแล้ว' });
       }
+      const kind = body.kind ?? current.kind;
+      const themes = body.themes ?? current.themes;
+      if (!kind || !themes.length) throw new HTTPException(422, { message: 'เลือกประเภท Hackathon หรือแข่งเคส และอย่างน้อยหนึ่งหมวดก่อนเผยแพร่ เพื่อให้เวทีแสดงในหน้าหลัก' });
       const competitionId = newId('cmp');
       const base = slugify(submission.name, competitionId);
       const taken = await tx.select({ slug: competitions.slug }).from(competitions)
@@ -176,10 +212,8 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
       await tx.insert(competitions).values({
         id: competitionId,
         slug: publishedSlug,
-        // ใบที่ส่งมาก่อนมีสองช่องนี้จะยังไม่มีประเภท หน้ารายการเวทีจะขึ้นว่า "ยังไม่จัดประเภท"
-        // ให้ผู้ตรวจเข้าไปเติมเอง ดีกว่าเดาประเภทแทนผู้จัด
-        kind: submission.kind,
-        themes: submission.themes,
+        kind,
+        themes,
         name: submission.name,
         description: submission.description,
         type: submission.type,
@@ -210,7 +244,7 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
         await tx.insert(competitionRewards).values(submission.rewards.map((reward) => ({ competitionId, reward })));
       }
       await tx.update(competitionSubmissions)
-        .set({ status: 'published', publishedCompetitionId: competitionId })
+        .set({ status: 'published', publishedCompetitionId: competitionId, kind, themes })
         .where(eq(competitionSubmissions.id, id));
     } else {
       await tx.update(competitionSubmissions)

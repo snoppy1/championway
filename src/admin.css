@@ -101,6 +101,22 @@
 .review-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 26px; align-items: start; }
 .review-body { display: grid; gap: 18px; min-width: 0; }
 
+/* คอลัมน์ตัดสินใจ: บล็อกจัดประเภทวางบนกล่องปุ่มเผยแพร่ กว้างแค่ 360px
+   จึงวางชื่อช่องไว้เหนือช่องกรอก ไม่ใช้สองคอลัมน์เหมือนหน้าฟอร์มเต็ม */
+.review-decide { display: grid; gap: 18px; min-width: 0; }
+.review-decide .admin-field { grid-template-columns: 1fr; gap: 6px; }
+.review-decide label { font-weight: 600; }
+.review-decide select {
+  display: block; width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+
 .admin-trail {
   margin-bottom: 20px;
   padding: 18px 22px;

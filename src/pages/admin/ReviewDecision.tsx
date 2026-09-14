@@ -13,11 +13,12 @@ const labels: Record<Decision, string> = {
  * ปุ่มเผยแพร่กดไม่ได้จนกว่าจะติ๊กครบทุกข้อ และอีกสองปุ่มต้องมีเหตุผลติดไปด้วยเสมอ
  * กฎเดียวกันนี้ถูกบังคับซ้ำที่เซิร์ฟเวอร์ เพราะหน้าเว็บถูกข้ามได้เสมอ
  */
-export function ReviewDecision({ checks, endpoint, noun, onDone }: {
+export function ReviewDecision({ checks, endpoint, noun, onDone, publication }: {
   checks: string[];
   endpoint: string;
   noun: string;
   onDone: () => void;
+  publication?: { kind: string; themes: string[] };
 }) {
   const [ticked, setTicked] = useState<string[]>([]);
   const [note, setNote] = useState('');
@@ -28,6 +29,10 @@ export function ReviewDecision({ checks, endpoint, noun, onDone }: {
   const remaining = checks.filter((check) => !ticked.includes(check)).length;
 
   async function decide(decision: Decision) {
+    if (decision === 'publish' && publication && (!publication.kind || !publication.themes.length)) {
+      setMessage('เลือกประเภทการแข่งขันและอย่างน้อยหนึ่งหมวดก่อนเผยแพร่');
+      return;
+    }
     if (decision !== 'publish' && !note.trim()) {
       setMessage(`กรอกเหตุผลก่อน เพราะข้อความนี้คือสิ่งที่ผู้ส่ง${noun}จะได้อ่าน`);
       document.getElementById('review-note')?.focus();
@@ -36,7 +41,7 @@ export function ReviewDecision({ checks, endpoint, noun, onDone }: {
     setMessage('');
     setBusy(true);
     try {
-      await post(`${endpoint}/decision`, { decision, note, checks: ticked });
+      await post(`${endpoint}/decision`, { decision, note, checks: ticked, ...(publication && decision === 'publish' ? publication : {}) });
       setDone(`บันทึกผลแล้ว: ${labels[decision]}`);
       onDone();
     } catch (error) {

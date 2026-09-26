@@ -135,7 +135,9 @@ test('an unknown slug shows the not-found page, not a blank screen', async ({ pa
 test('explore: the kind tabs and theme filters live in the URL and survive a reload', async ({ page }) => {
   await page.goto('/explore');
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('group', { name: 'ประเภทการแข่งขัน', exact: true }).getByRole('button')).toHaveCount(2);
+  // "ทั้งหมด" ต้องติดอยู่ตั้งแต่เปิดหน้ามา ไม่ใช่ปล่อยให้ทั้งแถวดูไม่มีอะไรถูกเลือก
+  await expect(page.getByRole('group', { name: 'ประเภทการแข่งขัน', exact: true }).getByRole('button')).toHaveCount(3);
+  await expect(page.getByRole('button', { name: 'ทั้งหมด', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.subtype-options')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'อยากแข่งงานไหน', exact: true })).toHaveCount(0);
   const all = await page.getByRole('status').first().textContent();
@@ -171,6 +173,16 @@ test('explore: the kind tabs and theme filters live in the URL and survive a rel
   await page.getByRole('button', { name: 'แข่งเคส', exact: true }).click();
   await expect(page.locator('.subtype-options')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'แข่งเคส', exact: true })).toHaveAttribute('aria-expanded', 'false');
+
+  // ปุ่ม "ทั้งหมด" ล้างทั้งประเภทและหมวดในครั้งเดียว และกลับมาเป็นปุ่มที่ติดอยู่
+  await page.getByRole('button', { name: 'Hackathon', exact: true }).click();
+  await page.getByRole('button', { name: 'ธุรกิจ', exact: true }).click();
+  await expect(page).toHaveURL(/theme=business/);
+  await page.getByRole('button', { name: 'ทั้งหมด', exact: true }).click();
+  await expect(page).not.toHaveURL(/kind=|theme=/);
+  await expect(page.getByRole('button', { name: 'ทั้งหมด', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.subtype-options')).toHaveCount(0);
+  expect(await page.getByRole('status').first().textContent()).toBe(all);
 });
 
 test('the old mentor link redirects to the competition, where its mentors now live', async ({ page }) => {

@@ -1,8 +1,30 @@
 .competition-type-filter { padding-top: 26px; }
-.type-buttons { display: flex; gap: 10px; }
+.type-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ไอคอนอยู่หน้าข้อความในปุ่มเดียวกัน จึงต้องจัดแนวกลางให้ตัวปุ่มเอง
+   ทำใต้ .competition-type-filter ไม่ใช่แก้ .tab-button ทั้งเว็บ
+   สูงอย่างน้อย 44px ตาม design.md ข้อ 6 เรื่องพื้นที่กด */
+.competition-type-filter .tab-button {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 44px;
+}
+.competition-type-filter .tab-button svg { flex-shrink: 0; }
+
 .subtype-reveal { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-top: 14px; animation: reveal-subtypes 240ms ease-out both; }
 .subtype-options { display: flex; gap: 9px; max-width: 100%; overflow-x: auto; padding: 5px 4px 10px; }
-.subtype-options button { flex: 0 0 auto; white-space: nowrap; }
+.subtype-options .tab-button { flex: 0 0 auto; white-space: nowrap; }
+
+/* หมวดย่อยเป็นชั้นรองของประเภทงาน จึงใช้พื้นม่วงอ่อนแทนพื้นขาวมีขอบ
+   ให้เห็นว่าเป็นตัวเลือกคนละระดับกับแถวบน ไม่ใช่ปุ่มชุดเดียวกันที่บังเอิญอยู่ล่าง */
+.subtype-options .tab-button {
+  padding: 10px 16px;
+  border-color: transparent;
+  background: var(--purple-tint);
+  color: var(--purple-deep);
+  font-size: 13.5px;
+}
+.subtype-options .tab-button:hover { border-color: #cbb0f0; color: var(--purple-deep); }
+
 .type-reset { font-size: 13px; white-space: nowrap; }
 @keyframes reveal-subtypes { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 @media (prefers-reduced-motion: reduce) { .subtype-reveal { animation: none; } }

@@ -23,6 +23,10 @@
   --radius-lg: 20px;
   --display: 'Anuphan', 'IBM Plex Sans Thai', sans-serif;
   --body: 'IBM Plex Sans Thai', 'IBM Plex Sans', sans-serif;
+  /* เว็บออกแบบมาเป็นโทนสว่างอย่างเดียว บอกเบราว์เซอร์ที่มีโหมดมืดอัตโนมัติ
+     (Chrome/Opera/Samsung บนมือถือ) ว่าอย่ากลับสีเอง ไม่อย่างนั้นโลโก้พื้นขาว
+     กับภาพปกจะถูกกลับสีจนดูพัง */
+  color-scheme: only light;
 }
 
 * { box-sizing: border-box; }
@@ -89,7 +93,10 @@ main:focus { outline: none; }
 .brand-mark { width: 36px; height: 37px; display: block; flex-shrink: 0; }
 .brand-name { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.2px; }
 
-.main-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-right: auto; }
+.header-menu { display: contents; }
+.main-nav { order: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-right: auto; }
+.header-saved { order: 2; }
+.icon-button.menu-toggle { display: none; }
 .main-nav a {
   white-space: nowrap;
   padding: 8px 12px;
@@ -102,9 +109,10 @@ main:focus { outline: none; }
 .main-nav a.active { color: var(--ink); background: #f6efe9; font-weight: 600; }
 
 .nav-soon { padding: 8px 12px; color: #6b6377; font-size: 14.5px; cursor: default; }
+.nav-soon small { margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--gold-tint); color: #7c5c16; font-size: 11px; font-weight: 600; }
 .footer-links .nav-soon { padding: 0; font-size: 14px; }
 
-.header-actions { display: flex; align-items: center; gap: 14px; }
+.header-actions { order: 3; display: flex; align-items: center; gap: 14px; }
 
 .header-note {
   flex-basis: 100%;
@@ -948,8 +956,10 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 }
 
 @media (max-width: 700px) {
-  .shell { padding: 0 18px; }
-  .hero-inner { padding-block: 48px 80px; }
+  /* padding-inline เท่านั้น ถ้าใช้ padding: 0 18px จะไปลบ padding-block
+     ของทุกส่วนที่มีคลาส .shell ด้วย (hero, highlights, results) จนแต่ละส่วนชนกัน */
+  .shell { padding-inline: 18px; }
+  .hero-inner { padding-block: 40px 56px; }
   .field-grid, .choice-grid, .policy-grid, .mentor-inside { grid-template-columns: 1fr; }
   .mentor-booking { border-left: 0; border-top: 1px solid var(--line); padding: 18px 0 0; }
   .panel { padding: 18px; }
@@ -973,3 +983,75 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 }
 .auth-card .auth-remember { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
 .auth-card .auth-remember input { width: 18px; height: 18px; margin: 3px 0 0; padding: 0; flex: 0 0 auto; accent-color: var(--purple); }
+
+/* ---------- mobile ---------- */
+
+@media (max-width: 860px) {
+  .header-inner { flex-wrap: wrap; gap: 10px; padding-block: 10px; }
+  .brand-link { margin-right: auto; }
+  .icon-button.menu-toggle { display: grid; order: 3; }
+  .header-saved { order: 2; }
+  .header-menu {
+    display: none;
+    order: 4;
+    flex-basis: 100%;
+    flex-direction: column;
+    gap: 14px;
+    padding-block: 8px 6px;
+    border-top: 1px solid var(--line);
+  }
+  .header-menu.is-open { display: flex; }
+  .main-nav { flex-direction: column; align-items: stretch; gap: 2px; margin-right: 0; padding-top: 6px; }
+  .main-nav a, .main-nav .nav-soon { display: flex; align-items: center; min-height: 46px; padding: 10px 12px; font-size: 15px; }
+  .header-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .header-actions > * { justify-content: center; text-align: center; min-height: 46px; display: flex; align-items: center; }
+  .header-actions .account-name { grid-column: 1 / -1; max-width: none; justify-content: flex-start; }
+}
+
+@media (max-width: 700px) {
+  .brand-name { font-size: 17px; }
+  .hero-wordmark { max-width: 92%; }
+  .hero-tagline { margin-top: 14px; }
+  .hero-lead { margin-top: 12px; font-size: 14.5px; line-height: 1.75; text-wrap: balance; }
+
+  .highlights { padding-block: 28px 70px; }
+  .section-head { margin-bottom: 10px; }
+  .section-head h2, .results-title h2 { font-size: 21px; }
+  .trend-scroller { gap: 12px; margin-inline: -18px; padding-inline: 18px; scroll-padding-inline: 18px; margin-bottom: 0; }
+  .trend-card { flex-basis: min(280px, 80vw); padding: 14px; }
+  .trend-card b { font-size: 14.5px; line-height: 1.4; }
+  .trend-card small { display: block; line-height: 1.5; }
+
+  .search-bar { gap: 10px; padding: 12px; border-radius: 16px; }
+  .search-field { flex-basis: 100%; min-width: 0; }
+  .search-field input { padding-block: 13px; font-size: 16px; }
+  .search-bar .primary-button, .filter-toggle { flex: 1; justify-content: center; padding: 12px 16px; }
+
+  /* ประเภทงานเป็นแถวเดียวที่เลื่อนแนวนอน แทนการตัดบรรทัดที่ทิ้งปุ่มเดี่ยวไว้บรรทัดล่าง */
+  .competition-type-filter { padding-top: 20px; }
+  .type-buttons { flex-wrap: nowrap; overflow-x: auto; margin-inline: -18px; padding: 2px 18px 6px; scrollbar-width: none; }
+  .type-buttons::-webkit-scrollbar { display: none; }
+  .type-buttons .tab-button { flex: 0 0 auto; white-space: nowrap; padding: 9px 16px; }
+  .subtype-options { margin-inline: -18px; padding-inline: 18px; }
+
+  .results { padding-block: 26px 12px; }
+  .results-head { align-items: center; justify-content: space-between; padding-bottom: 14px; }
+  .sort-field { margin-left: 0; }
+  .card-grid { grid-template-columns: 1fr; gap: 18px; padding-top: 18px; }
+  .competition-card:hover { transform: none; }
+  .card-body { padding: 18px; }
+  .competition-card h3 { font-size: 18.5px; }
+  .card-facts { gap: 8px 16px; }
+
+  .page { padding-block: 20px 32px; }
+  .detail-hero { padding: 18px; gap: 18px; border-radius: 20px; }
+  .article-section { gap: 12px; }
+
+  .site-footer { margin-top: 36px; }
+  .footer-grid { gap: 26px; padding-block: 34px 26px; }
+  .footer-links { gap: 20px 40px; }
+  .footer-bottom { padding-block: 16px 28px; line-height: 1.6; }
+
+  .auth-page { padding-block: 24px 48px; }
+  .auth-card { padding: 22px 18px; }
+}

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Menu, X } from 'lucide-react';
 import { BookmarkSimple } from './icons';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { isReviewer, useAuth } from '../data/auth';
@@ -14,6 +15,15 @@ function Header() {
   const saved = useSavedSlugs();
   const { pathname, search } = useLocation();
   const { user, loading, signOut } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  // เมนูบนมือถือปิดเองเมื่อเปลี่ยนหน้า ไม่อย่างนั้นจะค้างบังเนื้อหาหน้าใหม่
+  useEffect(() => { setMenuOpen(false); }, [pathname, search]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [menuOpen]);
   // กลับมาที่หน้าเดิมหลังเข้าสู่ระบบ แต่ไม่วนกลับมาหน้าเข้าสู่ระบบเอง
   const next = pathname.startsWith('/signin') || pathname.startsWith('/signup') ? '/' : `${pathname}${search}`;
 
@@ -22,27 +32,39 @@ function Header() {
       <Link to="/" className="brand-link" aria-label="ChampionWays หน้าแรก">
         <BrandMark /><span className="brand-name">ChampionWays</span>
       </Link>
-      <nav className="main-nav" aria-label="เมนูหลัก">
-        <NavLink to="/" end>สำรวจการแข่งขัน</NavLink>
-        {user && <NavLink to="/profile">โปรไฟล์</NavLink>}
-        {user && <NavLink to="/chats">แชตของฉัน</NavLink>}
-        <span className="nav-soon" title="เปิดเร็ว ๆ นี้">คลังความรู้</span>
-      </nav>
-      <div className="header-actions">
-        <Link to="/?saved=1" className="icon-button" aria-label={`รายการที่บันทึก ${saved.length} รายการ`}>
-          <BookmarkSimple size={19} filled={saved.length > 0} />
-          {saved.length > 0 && <span className="saved-badge" aria-hidden="true">{saved.length}</span>}
-        </Link>
-        {loading ? <span className="account-loading" aria-hidden="true" /> : user ? <>
-          {isReviewer(user) && <Link className="ghost-button" to="/admin">หน้าจัดการ</Link>}
-          {/* ชื่อบนหัวเว็บคือทางเข้าโปรไฟล์ ใช้ของที่มีอยู่แล้วแทนการเพิ่มปุ่มใหม่ให้แถบบนแน่นขึ้น */}
-          <Link className="account-name" to="/profile" title={`โปรไฟล์ของฉัน · ${user.email}`}>{user.name}</Link>
-          <button type="button" className="ghost-button" onClick={() => { void signOut(); }}>ออกจากระบบ</button>
-        </> : <>
-          <Link className="ghost-button" to={`/signin?next=${encodeURIComponent(next)}`}>เข้าสู่ระบบ</Link>
-          <Link className="primary-button" to={`/signup?next=${encodeURIComponent(next)}`}>สมัครสมาชิก</Link>
-        </>}
+      {/* จอกว้างใช้ display: contents ให้ลูกเรียงอยู่ในแถบเดียวกับโลโก้ตามเดิม
+          จอแคบกลายเป็นแผงเมนูที่เปิดจากปุ่มสามขีด หัวเว็บจึงเหลือแถวเดียว */}
+      <div className={menuOpen ? 'header-menu is-open' : 'header-menu'} id="site-menu">
+        <nav className="main-nav" aria-label="เมนูหลัก">
+          <NavLink to="/" end>สำรวจการแข่งขัน</NavLink>
+          {user && <NavLink to="/profile">โปรไฟล์</NavLink>}
+          {user && <NavLink to="/chats">แชตของฉัน</NavLink>}
+          <span className="nav-soon" title="เปิดเร็ว ๆ นี้">คลังความรู้ <small>เร็ว ๆ นี้</small></span>
+        </nav>
+        <div className="header-actions">
+          {loading ? <span className="account-loading" aria-hidden="true" /> : user ? <>
+            {isReviewer(user) && <Link className="ghost-button" to="/admin">หน้าจัดการ</Link>}
+            {/* ชื่อบนหัวเว็บคือทางเข้าโปรไฟล์ ใช้ของที่มีอยู่แล้วแทนการเพิ่มปุ่มใหม่ให้แถบบนแน่นขึ้น */}
+            <Link className="account-name" to="/profile" title={`โปรไฟล์ของฉัน · ${user.email}`}>{user.name}</Link>
+            <button type="button" className="ghost-button" onClick={() => { void signOut(); }}>ออกจากระบบ</button>
+          </> : <>
+            <Link className="ghost-button" to={`/signin?next=${encodeURIComponent(next)}`}>เข้าสู่ระบบ</Link>
+            <Link className="primary-button" to={`/signup?next=${encodeURIComponent(next)}`}>สมัครสมาชิก</Link>
+          </>}
+        </div>
       </div>
+      <Link to="/?saved=1" className="icon-button header-saved" aria-label={`รายการที่บันทึก ${saved.length} รายการ`}>
+        <BookmarkSimple size={19} filled={saved.length > 0} />
+        {saved.length > 0 && <span className="saved-badge" aria-hidden="true">{saved.length}</span>}
+      </Link>
+      <button
+        type="button" className="icon-button menu-toggle"
+        aria-expanded={menuOpen} aria-controls="site-menu"
+        aria-label={menuOpen ? 'ปิดเมนู' : 'เปิดเมนู'}
+        onClick={() => setMenuOpen((open) => !open)}
+      >
+        {menuOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
+      </button>
     </div>
   </header>;
 }

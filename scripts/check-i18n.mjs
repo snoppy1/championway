@@ -27,16 +27,14 @@ const PENDING = new Set([
   'src/pages/Profile.tsx',
   'src/pages/ProfileEdit.tsx',
   'src/pages/SignIn.tsx',
-  'src/pages/admin/AdminCompetitions.tsx',
-  'src/pages/admin/AdminLayout.tsx',
-  'src/pages/admin/AdminListings.tsx',
-  'src/pages/admin/AdminMentors.tsx',
-  'src/pages/admin/AdminOverview.tsx',
-  'src/pages/admin/ReviewDecision.tsx',
 ]);
 
 /** พจนานุกรมภาษาไทยคือที่ที่ภาษาไทยควรอยู่ */
 const ALLOWED = new Set(['src/i18n/th.ts']);
+
+/* หน้าจัดการเป็นภาษาไทยอย่างเดียวโดยตั้งใจ เพราะใช้กันเองในทีม (ผู้ใช้ตัดสิน 30 ก.ย. 2569)
+   ไม่ต้องย้ายไป src/i18n และไม่นับเป็นงานค้าง */
+const THAI_ONLY = (path) => path.startsWith('src/pages/admin/');
 
 const THAI = /[฀-๿]/;
 
@@ -59,7 +57,7 @@ const stillPending = [];
 
 for (const path of files('src')) {
   const rel = relative('.', path).split(sep).join('/');
-  if (ALLOWED.has(rel)) continue;
+  if (ALLOWED.has(rel) || THAI_ONLY(rel)) continue;
   const lines = stripComments(readFileSync(path, 'utf8')).split('\n');
   const hits = lines.map((line, i) => [i + 1, line]).filter(([, line]) => THAI.test(line));
 
@@ -73,7 +71,9 @@ for (const path of files('src')) {
   }
 }
 
-console.log(`ย้ายเสร็จแล้ว: ${files('src').length - stillPending.length - ALLOWED.size} ไฟล์ · ยังค้าง: ${stillPending.length} ไฟล์`);
+const all = files('src').map((path) => relative('.', path).split(sep).join('/'));
+const thaiOnly = all.filter(THAI_ONLY).length;
+console.log(`ย้ายเสร็จแล้ว: ${all.length - stillPending.length - ALLOWED.size - thaiOnly} ไฟล์ · ยังค้าง: ${stillPending.length} ไฟล์ · หน้าจัดการภาษาไทย: ${thaiOnly} ไฟล์`);
 if (problems.length) {
   console.error(problems.join('\n'));
   process.exit(1);

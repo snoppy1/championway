@@ -50,7 +50,9 @@
   /* existing hardcoded values given names so new code can reference them */
   --line-purple: #ddd0f4;
   --line-input: #dcd2e6;
-  --focus-ring: #b197e2;
+  /* ม่วงเข้มของแบรนด์ ตัดกับพื้นทุกสีของเว็บเกิน 5:1 (เกณฑ์ 3:1)
+     ค่าเดิม #b197e2 ได้แค่ 2.3–2.5:1 คนใช้คีย์บอร์ดมองไม่ค่อยเห็นว่าอยู่ปุ่มไหน */
+  --focus-ring: var(--purple-bright);
   --danger: #a3341f;
   --danger-tint: var(--peach);
   --danger-line: var(--peach-line);
@@ -123,7 +125,9 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
 img, svg { max-width: 100%; }
 
-:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+/* เส้นบาง 2px แต่สีเข้ม เว้นช่องจากขอบปุ่ม 2px ให้ดูคมและเบา ไม่หนาเตอะ
+   โผล่เฉพาะตอนใช้คีย์บอร์ด (:focus-visible) คนใช้เมาส์หรือแตะจอจะไม่เห็น */
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 /* Each route focuses <main> so screen readers land on the new page; that move is
    programmatic, so it must not draw a ring around the whole page. */
 main:focus { outline: none; }
@@ -1156,7 +1160,7 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
   transition: background-color var(--dur-fast) var(--ease-out);
 }
 .lang-toggle button:is(:hover, .is-hover) { background: var(--purple-tint); }
-.lang-toggle button:is(:focus-visible, .is-focus) { position: relative; z-index: 1; outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.lang-toggle button:is(:focus-visible, .is-focus) { position: relative; z-index: 1; outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .lang-toggle button:is(:active, .is-active) { background: var(--line-purple); }
 .lang-toggle button[aria-pressed="true"] { background: var(--purple); color: var(--on-purple); font-weight: 700; }
 .lang-toggle button[aria-pressed="true"]:is(:hover, .is-hover) { background: var(--purple-deep); }

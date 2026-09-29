@@ -1,4 +1,5 @@
 import { expect, test as base } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createAccount, removeAccount, signIn } from './helpers';
 import type { TestAccount } from './helpers';
@@ -19,8 +20,16 @@ const test = base.extend<{ member: TestAccount }>({
   },
 });
 
+/* จอแคบยุบหัวเว็บเหลือแถวเดียวแล้วเก็บเมนูไว้หลังปุ่มสามขีด ชื่อผู้ใช้จึงอยู่ในแผงที่ต้องเปิดก่อน
+   จอกว้างไม่มีปุ่มนี้ ตัวช่วยจึงข้ามไปเองเมื่อมองไม่เห็น เทสเดียวกันจึงใช้ได้ทุกขนาดจอ */
+async function openHeaderMenu(page: Page) {
+  const toggle = page.getByRole('button', { name: 'เปิดเมนู' });
+  if (await toggle.isVisible()) await toggle.click();
+}
+
 test('the header name opens the profile, and the profile links to the edit page', async ({ page, member }) => {
   await signIn(page, member, '/');
+  await openHeaderMenu(page);
   const headerName = page.locator('.site-header').getByRole('link', { name: 'Test Account' });
   await expect(headerName).toBeVisible();
   await headerName.click();
@@ -48,6 +57,7 @@ test('saving the profile updates the page and the header without a reload', asyn
 
   await expect(page.getByText('บันทึกแล้ว')).toBeVisible();
   // ชื่อบนหัวเว็บมาจาก context เดียวกัน ต้องเปลี่ยนทันทีโดยไม่ต้องโหลดหน้าใหม่
+  await openHeaderMenu(page);
   await expect(page.locator('.site-header').getByRole('link', { name: 'น้องแชมป์' })).toBeVisible();
 
   await page.goto('/profile');

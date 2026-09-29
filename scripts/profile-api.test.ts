@@ -156,6 +156,26 @@ test('editing your own profile, email and password', async (t) => {
       assert.equal(await verifyPassword('first-password-1', row.passwordHash), true);
     });
 
+    await t.test('a login with the old password racing a password change never survives it', async () => {
+      /* ล็อกอินด้วยรหัสเก่าหลายครั้งพร้อมกับการเปลี่ยนรหัส ไม่ว่าจังหวะจะออกมาแบบไหน
+         เมื่อทุกคำขอจบ ต้องเหลือ session เดียวคืออันที่การเปลี่ยนรหัสออกให้ (Astra รีวิวพบ 30 ก.ย. 2569) */
+      /* ล็อกอินที่รอดได้ต้องอ่านรหัสเก่าก่อนการเปลี่ยนรหัสบันทึก แล้วออก session หลังการเตะออก
+         ช่องนี้แคบ จึงทยอยยิงล็อกอินให้กระจายตลอดช่วงที่การเปลี่ยนรหัสกำลังทำงาน ไม่ใช่ยิงพร้อมกันทีเดียว */
+      const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+      for (let round = 0; round < 2; round++) {
+        const me = await makeUser();
+        const change = send('/api/auth/password', me.cookie, 'POST', { current: 'start-password-1', next: `rotated-password-${round}` });
+        const logins = Array.from({ length: 60 }, (_, i) => wait(i * 25).then(() => send('/api/auth/login', '', 'POST', {
+          email: me.row.email, password: 'start-password-1', remember: true,
+        })));
+        const [changed] = await Promise.all([change, ...logins]);
+        assert.equal(changed.status, 200);
+        const kept = changed.headers.getSetCookie().find((value) => value.startsWith('cw_session='))!.split(';')[0].slice('cw_session='.length);
+        const left = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, me.row.id));
+        assert.deepEqual(left.map((row) => row.id), [kept], `round ${round}: a session from the old password survived`);
+      }
+    });
+
     await t.test('changing the password signs other devices out but keeps this one', async () => {
       const me = await makeUser();
       const otherDevice = await createSession(me.row.id);

@@ -26,10 +26,13 @@ export type SessionUser = {
   googleLinked: boolean;
 };
 
-export async function createSession(userId: string, remember = true) {
+/** ใช้ได้ทั้ง db และ tx ของ transaction เพื่อให้สร้างหรือลบ session ในธุรกรรมเดียวกับการเปลี่ยนรหัสผ่านได้ */
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function createSession(userId: string, remember = true, executor: Executor = db) {
   const id = newToken();
   const expiresAt = new Date(Date.now() + (remember ? TTL_DAYS * 86400000 : 8 * 3600000));
-  await db.insert(sessions).values({ id, userId, expiresAt });
+  await executor.insert(sessions).values({ id, userId, expiresAt });
   return { id, expiresAt };
 }
 
@@ -54,8 +57,8 @@ export async function destroySession(sessionId: string) {
   await db.delete(sessions).where(eq(sessions.id, sessionId));
 }
 
-export async function destroyAllSessions(userId: string) {
-  await db.delete(sessions).where(eq(sessions.userId, userId));
+export async function destroyAllSessions(userId: string, executor: Executor = db) {
+  await executor.delete(sessions).where(eq(sessions.userId, userId));
 }
 
 /** เก็บกวาด session ที่หมดอายุ เรียกตอนล็อกอินสำเร็จก็พอ ไม่ต้องมี cron */

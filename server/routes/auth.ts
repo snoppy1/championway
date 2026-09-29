@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import { users } from '../db/schema.js';
@@ -112,7 +112,16 @@ auth.post('/login', async (c) => {
   }
 
   await pruneSessions();
-  const session = await createSession(found.id, parsed.data.remember);
+  /* ตรวจรหัสผ่าน (scrypt) ใช้เวลา ถ้าเจ้าของเปลี่ยนรหัสผ่านระหว่างนั้น session ที่ออกทีหลัง
+     จะรอดจากการเตะอุปกรณ์อื่นออก ล็อกแถวผู้ใช้แล้วเช็กซ้ำว่ารหัสยังเป็นตัวเดิมก่อนออก session
+     การเปลี่ยนรหัสผ่านล็อกแถวเดียวกัน สองอย่างนี้จึงทำทีละอัน (Astra รีวิวพบ 30 ก.ย. 2569) */
+  const session = await db.transaction(async (tx) => {
+    const [current] = await tx.select({ passwordHash: users.passwordHash }).from(users)
+      .where(eq(users.id, found.id)).for('update');
+    if (current?.passwordHash !== found.passwordHash) return null;
+    return createSession(found.id, parsed.data.remember, tx);
+  });
+  if (!session) throw new HTTPException(401, { message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
   setSessionCookie(c, session.id, session.expiresAt, parsed.data.remember);
   return c.json({ user: publicUser(found) });
 });
@@ -213,8 +222,13 @@ auth.post('/email', requireUser, async (c) => {
   const [updated] = await db.update(users)
     // อีเมลใหม่ยังไม่ผ่านการยืนยัน ต้องล้างสถานะเดิม ไม่อย่างนั้นจะได้สิทธิ์ของอีเมลที่ยืนยันแล้วไปฟรี ๆ
     .set({ email, emailVerifiedAt: null })
-    .where(eq(users.id, user.id))
+    /* เช็กซ้ำตอนเขียนจริงว่ายังไม่ได้ผูก Google ถ้าการผูก Google เกิดขึ้นระหว่างที่คำขอนี้รอ
+       จะไม่มีแถวถูกแก้ ไม่อย่างนั้นอีเมลใหม่จะติดสถานะ "ยืนยันแล้ว" ที่ Google ตั้งให้อีเมลเดิม */
+    .where(and(eq(users.id, user.id), isNull(users.googleId)))
     .returning();
+  if (!updated) {
+    throw new HTTPException(409, { message: 'บัญชีนี้เพิ่งผูกกับ Google อีเมลจึงเปลี่ยนที่นี่ไม่ได้แล้ว' });
+  }
   return c.json({ user: publicUser(updated) });
 });
 
@@ -238,16 +252,27 @@ auth.post('/password', requireUser, async (c) => {
   const problem = passwordProblem(body.next);
   if (problem) throw new HTTPException(400, { message: problem });
 
-  const [updated] = await db.update(users)
-    .set({ passwordHash: await hashPassword(body.next) })
-    .where(eq(users.id, user.id))
-    .returning();
+  const nextHash = await hashPassword(body.next);
+  const remember = await sessionRemembers(sessionIdFrom(c));
 
   /* เปลี่ยนรหัสผ่านแล้วต้องเตะอุปกรณ์อื่นออก ไม่อย่างนั้นคนที่แอบใช้บัญชีอยู่จะยังอยู่ต่อได้
-     แล้วออกคุกกี้ใหม่ให้เครื่องที่เพิ่งเปลี่ยน จะได้ไม่ต้องล็อกอินซ้ำทันที */
-  const remember = await sessionRemembers(sessionIdFrom(c));
-  await destroyAllSessions(user.id);
-  const session = await createSession(user.id, remember);
+     แล้วออกคุกกี้ใหม่ให้เครื่องที่เพิ่งเปลี่ยน จะได้ไม่ต้องล็อกอินซ้ำทันที
+     ทำทั้งหมดในธุรกรรมเดียวที่ล็อกแถวผู้ใช้ ให้ล็อกอินด้วยรหัสเก่าที่ค้างอยู่แทรกกลางไม่ได้ */
+  const result = await db.transaction(async (tx) => {
+    const [locked] = await tx.select({ passwordHash: users.passwordHash }).from(users)
+      .where(eq(users.id, user.id)).for('update');
+    /* ถ้ามีการเปลี่ยนรหัสอีกคำขอหนึ่งบันทึกไปก่อนระหว่างที่คำขอนี้ตรวจรหัสเดิม
+       รหัสเดิมที่ตรวจผ่านมาก็ไม่ใช่ตัวปัจจุบันแล้ว ต้องปฏิเสธ ไม่ให้คำขอหลังทับคำขอแรก */
+    if (locked?.passwordHash !== row.passwordHash) return null;
+    const [changed] = await tx.update(users)
+      .set({ passwordHash: nextHash })
+      .where(eq(users.id, user.id))
+      .returning();
+    await destroyAllSessions(user.id, tx);
+    return { updated: changed, session: await createSession(user.id, remember, tx) };
+  });
+  if (!result) throw new HTTPException(409, { message: 'รหัสผ่านเพิ่งถูกเปลี่ยนจากอีกหน้าหนึ่ง ลองใหม่อีกครั้ง' });
+  const { updated, session } = result;
   setSessionCookie(c, session.id, session.expiresAt, remember);
 
   return c.json({ user: publicUser(updated) });
@@ -316,9 +341,14 @@ auth.get('/google/callback', async (c) => {
         return fail('อีเมลนี้มีบัญชีอยู่แล้ว กรุณาใช้วิธีเข้าสู่ระบบเดิม');
       }
       // ผูกบัญชี Google เข้ากับบัญชีอีเมลเดิม ทำได้เพราะ Google ยืนยันอีเมลนั้นแล้ว
+      /* เงื่อนไขซ้ำตอนเขียนจริง: อีเมลต้องยังเป็นอันที่ Google เพิ่งยืนยัน และยังไม่มีบัญชี Google ผูกอยู่
+         ถ้าเจ้าของเปลี่ยนอีเมลระหว่างที่รอ Google ตอบกลับ จะไม่มีแถวถูกแก้ และไม่มีอีเมลอื่นได้สถานะยืนยันไปฟรี
+         (Astra รีวิวพบ 30 ก.ย. 2569) */
       [account] = await db.update(users)
         .set({ googleId: profile.sub, emailVerifiedAt: new Date(), avatarUrl: byEmail.avatarUrl ?? profile.picture ?? null })
-        .where(eq(users.id, byEmail.id)).returning();
+        .where(and(eq(users.id, byEmail.id), eq(users.email, email), isNull(users.googleId)))
+        .returning();
+      if (!account) return fail('ข้อมูลบัญชีเปลี่ยนระหว่างเข้าสู่ระบบ ลองใหม่อีกครั้ง');
     } else {
       [account] = await db.insert(users).values({
         id: newId('usr'),

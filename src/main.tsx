@@ -14,6 +14,7 @@ import '@fontsource/anuphan/latin-500.css';
 import '@fontsource/anuphan/latin-600.css';
 import '@fontsource/anuphan/latin-700.css';
 import { AuthProvider } from './data/auth';
+import { I18nProvider } from './i18n';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Explore } from './pages/Explore';
@@ -73,5 +74,5 @@ const router = createBrowserRouter([{
 }], { basename });
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><AuthProvider><RouterProvider router={router} /></AuthProvider></StrictMode>,
+  <StrictMode><I18nProvider><AuthProvider><RouterProvider router={router} /></AuthProvider></I18nProvider></StrictMode>,
 );

@@ -227,3 +227,40 @@ Desktop ใช้ sidebar 230px กับฟอร์มหลัก ช่อ�
 - กดประเภทเดิมซ้ำหรือล้างประเภทและหมวดเพื่อกลับไปทุกประเภท เมื่อสลับประเภทล้างหมวดย่อยเดิม รักษาคำค้นและตัวกรองเพิ่มเติม พร้อมกลับหน้าผลลัพธ์แรก
 - เก็บ kind/theme ใน URL รองรับ refresh/back/share และแสดงประเภทกับหมวดใหม่บนการ์ดการแข่งขัน
 - ภาพตรวจรับ: `artifacts/type-filter-{390,768,1440}.png`
+
+## Rising Star — ส่วนขยายของระบบดีไซน์ (ทิศทาง 1 "ทำเนียบม่วงทอง")
+
+เป็นส่วนขยายของระบบเดิม ไม่ใช่การออกแบบใหม่ ไม่มี token หรือ class เดิมตัวใดถูกแก้ ม่วง = สิ่งที่กดได้, ทอง = สิ่งที่ได้มาจริง (เหรียญ ป้าย) ไม่ใช้ตกแต่ง, พลัม = พื้นของแผงเดียวที่ต้องการให้เด่น (เดือนนี้ และหัวการ์ดชวนสมัคร) ห้ามใช้กับปุ่ม
+
+**กฎ: ห้ามใส่ค่าตายตัว** components ใหม่ใช้ `var(--token)` เท่านั้น ไม่มี hex, rgb() หรือขนาดสีที่ใส่ตรง ๆ ค่าใหม่ที่ต้องใช้ให้เพิ่มเป็น token ใน `:root` ของ [styles.css](../src/styles.css) ก่อน CSS ของ components อยู่ใน [rising-star.css](../src/rising-star.css) (นำเข้าด้วย `@import` บนสุดของ styles.css) หน้าอ้างอิงที่แสดงทุก token และทุกสถานะ: `design/system/index.html` (ภาพ `mobile.png`, `desktop.png`, ตัวอย่างขนาดมือถือ `phone.html`)
+
+### Token ที่เพิ่ม (ค่าเดิมใช้ต่อ: `--paper --card --ink --ink-deep --muted --muted-soft --line --line-warm --purple --purple-deep --purple-soft --purple-tint --gold --gold-tint --peach --peach-line --brand-gradient --shadow-lift`)
+
+| กลุ่ม | Token | ค่า |
+| --- | --- | --- |
+| พลัม | `--plum` `--plum-raised` `--plum-line` `--plum-avatar` | `#2E1065` · ขาว 7% · ขาว 16% · `#4C2A8F` |
+| ข้อความบนพลัม | `--on-plum` `--on-plum-muted` `--on-plum-accent` `--on-purple` | ขาว · `#D9CDF2` · `--gold` · ขาว |
+| ทองบนพื้นอ่อน | `--gold-line` `--gold-ink` `--gold-star` | `#EFD88A` · `#5A4300` · `#C99A06` |
+| เหรียญ 1/2/3 | `--medal-{1,2,3}-bg` / `-ink` | ทอง `#F5D95C`/`#3A2A00` · เงิน `#E4E0EA`/`#2D2838` · ทองแดง `#EFD9C6`/`#4A2C12` |
+| avatar | `--avatar-bg` `--avatar-ink` `--avatar-plain-bg` `--avatar-plain-ink` | ไล่สีเดียวกับ `.podium-avatar` · `--purple-deep` · `--line-warm` · `--muted` |
+| ตั้งชื่อให้ค่าเดิม | `--line-purple` `--line-input` `--focus-ring` `--danger` `--success` (+ `-tint`, `-line`) | `#DDD0F4` `#DCD2E6` `#B197E2` `#A3341F` `#1D6440` |
+| ระยะ 4px | `--space-1…18` | 4 8 12 16 20 24 32 48 72 |
+| มุมโค้ง | `--radius-sm/md/card/panel/pill` | 9 · 11 · 16 · 18 · 999 |
+| ขนาดตัวอักษร | `--text-xs…display` | 12 13 14 15 16 17 20 26 40 56 |
+| อื่น ๆ | `--shadow-plum` `--dur-fast/base` `--ease-out` `--leading-body/heading` | 120ms · 200ms · 1.65 · 1.35 |
+
+### Components (ทุกตัวมี default / hover / focus-visible / active / disabled ตามที่เกี่ยวข้อง ปุ่มกดมีอย่างน้อย 44px)
+
+`.rs-avatar` (`--plain`, `.rs-avatar-wrap`) · `.rs-medal` (`--2 --3 --sm --lg`) · `.rs-pill` · `.rs-month` (`--now` พื้นพลัม, `--past` การ์ดขาว) พร้อม `.rs-winner` และ `.rs-rank-row` · `.rs-fold__toggle` + `.rs-fold__body` (ปุ่มจริงที่มี `aria-expanded` พับเดือนที่แล้วบนมือถือ ≤700px, desktop แสดงเสมอ) · `.rs-hall`, `.rs-months`, `.rs-layout`, `.rs-section-head` · `.rs-list` / `.rs-row` (มีอันดับ) และ `.rs-list--plain` (ไม่มีอันดับ) พร้อม `.rs-row__action` ใช้คู่ `.ghost-button` · `.rs-upsell` (sticky บน desktop) พร้อม `.rs-perks`, `.rs-upsell__cta` ใช้คู่ `.primary-button` · `.rs-code` ช่องโค้ดส่วนลด (ว่าง / โฟกัส / กรอกแล้ว / ถูกต้อง `.is-valid` / ผิด `aria-invalid="true"` พร้อมไอคอนและข้อความ / disabled / loading `aria-busy="true"` บน `.rs-code__apply`) `.is-hover .is-focus .is-active` มีไว้ให้หน้าอ้างอิงแสดงสถานะนิ่ง ๆ เท่านั้น หน้าจริงห้ามใส่
+
+### ปุ่มสลับภาษา `.lang-toggle`
+
+`<div class="lang-toggle" role="group" aria-label="Language"><button aria-pressed>EN</button><button aria-pressed>TH</button></div>` ปุ่มที่เลือกแสดงด้วยพื้นม่วงและตัวหนา (ไม่พึ่งสีอย่างเดียว) ปุ่มละ 44×44px วางในแถว `.header-actions` บน desktop และเต็มแถวใน `.header-menu` ที่เปิดบนมือถือ
+
+### ตัวอักษรสองภาษา
+
+หัวข้อภาษาอังกฤษใช้ `letter-spacing: -0.4px` ตามเดิม ภาษาไทยตั้งเป็น 0 ผ่าน `:lang(th)` (ครอบ h1–h3, ชื่อแบรนด์, eyebrow, หัวลิงก์ footer, kind-chip) ห้ามเว้นระยะตัวอักษรไทย เนื้อหาไทยใช้ line-height 1.65 (ไม่ต่ำกว่า 1.6) ฟอนต์ Anuphan และ IBM Plex Sans (Latin) โหลดครบใน `src/main.tsx` แล้ว
+
+### Contrast ที่ยังไม่ถึงเกณฑ์ (ค่าเดิม ไม่ได้แก้)
+
+`--focus-ring` (#B197E2) บนพื้นขาวได้ 2.50:1 และ `--line-input` (#DCD2E6) ได้ 1.46:1 ต่ำกว่า 3:1 สำหรับองค์ประกอบที่ไม่ใช่ข้อความ ควรเข้มขึ้นเมื่อผู้ใช้อนุมัติให้ปรับทั้งเว็บ

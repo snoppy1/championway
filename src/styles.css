@@ -1,3 +1,5 @@
+@import "./rising-star.css";
+
 :root {
   --paper: #fcfbfe;
   --card: #ffffff;
@@ -17,6 +19,78 @@
   --gold: #f5d95c;
   --gold-tint: #fff9e5;
   --brand-gradient: linear-gradient(135deg, #6d28d9, #7c3aed);
+
+  /* ---- Rising Star extension (added, nothing above changed) ---- */
+  /* plum: the one celebrated panel ("this month") and the upsell header. Never for actions. */
+  --plum: #2e1065;
+  --plum-raised: rgb(255 255 255 / 7%);
+  --plum-line: rgb(255 255 255 / 16%);
+  --plum-avatar: #4c2a8f;
+  --on-purple: #fff;
+  --on-plum: var(--on-purple);
+  --on-plum-muted: #d9cdf2;
+  --on-plum-accent: var(--gold);
+  --shadow-plum: 0 30px 50px -30px rgb(46 16 101 / 60%);
+  /* gold = earned. Ink and line colours for gold-tinted surfaces */
+  --gold-line: #efd88a;
+  --gold-ink: #5a4300;
+  --gold-star: #c99a06;
+  /* medal discs, rank 1 / 2 / 3 */
+  --medal-1-bg: var(--gold);
+  --medal-1-ink: #3a2a00;
+  --medal-2-bg: #e4e0ea;
+  --medal-2-ink: #2d2838;
+  --medal-3-bg: #efd9c6;
+  --medal-3-ink: #4a2c12;
+  /* avatars: same gradient as .podium-avatar */
+  --avatar-bg: linear-gradient(145deg, #e9ddff, #fff1b5);
+  --avatar-ink: var(--purple-deep);
+  --avatar-plain-bg: var(--line-warm);
+  --avatar-plain-ink: var(--muted);
+  /* existing hardcoded values given names so new code can reference them */
+  --line-purple: #ddd0f4;
+  --line-input: #dcd2e6;
+  --focus-ring: #b197e2;
+  --danger: #a3341f;
+  --danger-tint: var(--peach);
+  --danger-line: var(--peach-line);
+  --success: #1d6440;
+  --success-tint: #f6fbf8;
+  --success-line: #bcdfcb;
+
+  /* spacing, 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-18: 72px;
+  /* radii (--radius 12px and --radius-lg 20px above are unchanged) */
+  --radius-sm: 9px;
+  --radius-md: 11px;
+  --radius-card: 16px;
+  --radius-panel: 18px;
+  --radius-pill: 999px;
+  /* type scale */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-input: 16px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --text-3xl: 40px;
+  --text-display: 56px;
+  --leading-body: 1.65;
+  --leading-heading: 1.35;
+  /* motion */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --shadow-card: 0 1px 2px rgb(28 25 23 / 4%), 0 14px 30px -22px rgb(28 25 23 / 34%);
   --shadow-lift: 0 2px 4px rgb(28 25 23 / 5%), 0 30px 50px -28px rgb(109 40 217 / 42%);
   --radius: 12px;
@@ -49,7 +123,7 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
 img, svg { max-width: 100%; }
 
-:focus-visible { outline: 3px solid #b197e2; outline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
 /* Each route focuses <main> so screen readers land on the new page; that move is
    programmatic, so it must not draw a ring around the whole page. */
 main:focus { outline: none; }
@@ -1055,3 +1129,47 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
   .auth-page { padding-block: 24px 48px; }
   .auth-card { padding: 22px 18px; }
 }
+
+/* ---------- language toggle (header + collapsed mobile menu) ---------- */
+
+/* Two-option segmented control. Pressed = filled + bold, so state never relies on colour alone.
+   Markup: <div class="lang-toggle" role="group" aria-label="Language"><button aria-pressed="true">EN</button>...</div> */
+.lang-toggle {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--line-purple);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.lang-toggle button {
+  flex: 1 1 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: calc(var(--radius-md) - 1px);
+  background: transparent;
+  color: var(--purple-deep);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.lang-toggle button:is(:hover, .is-hover) { background: var(--purple-tint); }
+.lang-toggle button:is(:focus-visible, .is-focus) { position: relative; z-index: 1; outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.lang-toggle button:is(:active, .is-active) { background: var(--line-purple); }
+.lang-toggle button[aria-pressed="true"] { background: var(--purple); color: var(--on-purple); font-weight: 700; }
+.lang-toggle button[aria-pressed="true"]:is(:hover, .is-hover) { background: var(--purple-deep); }
+.lang-toggle button[aria-pressed="true"]:is(:active, .is-active) { background: var(--plum); }
+
+@media (max-width: 860px) {
+  /* inside the collapsed menu the toggle takes the full actions row */
+  .header-actions .lang-toggle { grid-column: 1 / -1; min-height: 46px; }
+  .header-menu > .lang-toggle { align-self: stretch; }
+}
+
+/* ---------- language-aware typography ---------- */
+
+/* English keeps the tight heading tracking above. Thai must never be letter-spaced:
+   it collapses tone marks and vowels above/below the line. Body stays >= 1.6 line-height. */
+:lang(th) :is(h1, h2, h3, .brand-name, .eyebrow, .footer-links strong, .kind-chip) { letter-spacing: 0; }

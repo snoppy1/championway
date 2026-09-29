@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "node scripts/test-environment.mjs test",
     "test:ui": "node scripts/test-environment.mjs test --ui",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "test:safety": "node --import tsx --test scripts/database-safety.test.ts",
     "test:auth": "node scripts/test-environment.mjs auth",
     "dev:api": "tsx watch server/index.ts",

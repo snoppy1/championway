@@ -5,13 +5,25 @@ import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-rou
 import { isReviewer, useAuth } from '../data/auth';
 import { useSavedSlugs } from '../data/saved';
 import trophy from '../assets/trophy.png';
+import { useI18n } from '../i18n';
 
 /** The wordmark beside it already says ChampionWays, so the image is decorative. */
 export function BrandMark() {
   return <img className="brand-mark" src={trophy} alt="" width={36} height={37} />;
 }
 
+/* ปุ่มสลับภาษา ค่าตั้งต้นคืออังกฤษ ป้ายบนปุ่มเป็นรหัสภาษา EN/TH เหมือนกันทั้งสองภาษา
+   ผู้ใช้ที่อ่านภาษาปัจจุบันไม่ออกจะได้ยังหาปุ่มเจอ */
+function LangToggle() {
+  const { lang, setLang, t } = useI18n();
+  return <div className="lang-toggle" role="group" aria-label={t.nav.language}>
+    <button type="button" aria-pressed={lang === 'en'} lang="en" onClick={() => setLang('en')}>EN</button>
+    <button type="button" aria-pressed={lang === 'th'} lang="en" onClick={() => setLang('th')}>TH</button>
+  </div>;
+}
+
 function Header() {
+  const { t } = useI18n();
   const saved = useSavedSlugs();
   const { pathname, search } = useLocation();
   const { user, loading, signOut } = useAuth();
@@ -29,38 +41,39 @@ function Header() {
 
   return <header className="site-header">
     <div className="shell header-inner">
-      <Link to="/" className="brand-link" aria-label="ChampionWays หน้าแรก">
+      <Link to="/" className="brand-link" aria-label={t.common.homeLink}>
         <BrandMark /><span className="brand-name">ChampionWays</span>
       </Link>
       {/* จอกว้างใช้ display: contents ให้ลูกเรียงอยู่ในแถบเดียวกับโลโก้ตามเดิม
           จอแคบกลายเป็นแผงเมนูที่เปิดจากปุ่มสามขีด หัวเว็บจึงเหลือแถวเดียว */}
       <div className={menuOpen ? 'header-menu is-open' : 'header-menu'} id="site-menu">
-        <nav className="main-nav" aria-label="เมนูหลัก">
-          <NavLink to="/" end>สำรวจการแข่งขัน</NavLink>
-          {user && <NavLink to="/profile">โปรไฟล์</NavLink>}
-          {user && <NavLink to="/chats">แชตของฉัน</NavLink>}
-          <span className="nav-soon" title="เปิดเร็ว ๆ นี้">คลังความรู้ <small>เร็ว ๆ นี้</small></span>
+        <nav className="main-nav" aria-label={t.nav.mainMenu}>
+          <NavLink to="/" end>{t.nav.explore}</NavLink>
+          {user && <NavLink to="/profile">{t.nav.profile}</NavLink>}
+          {user && <NavLink to="/chats">{t.nav.chats}</NavLink>}
+          <span className="nav-soon" title={t.common.comingSoon}>{t.nav.library} <small>{t.common.soonTag}</small></span>
         </nav>
         <div className="header-actions">
+          <LangToggle />
           {loading ? <span className="account-loading" aria-hidden="true" /> : user ? <>
-            {isReviewer(user) && <Link className="ghost-button" to="/admin">หน้าจัดการ</Link>}
+            {isReviewer(user) && <Link className="ghost-button" to="/admin">{t.nav.admin}</Link>}
             {/* ชื่อบนหัวเว็บคือทางเข้าโปรไฟล์ ใช้ของที่มีอยู่แล้วแทนการเพิ่มปุ่มใหม่ให้แถบบนแน่นขึ้น */}
-            <Link className="account-name" to="/profile" title={`โปรไฟล์ของฉัน · ${user.email}`}>{user.name}</Link>
-            <button type="button" className="ghost-button" onClick={() => { void signOut(); }}>ออกจากระบบ</button>
+            <Link className="account-name" to="/profile" title={t.nav.profileTitle(user.email)}>{user.name}</Link>
+            <button type="button" className="ghost-button" onClick={() => { void signOut(); }}>{t.nav.signOut}</button>
           </> : <>
-            <Link className="ghost-button" to={`/signin?next=${encodeURIComponent(next)}`}>เข้าสู่ระบบ</Link>
-            <Link className="primary-button" to={`/signup?next=${encodeURIComponent(next)}`}>สมัครสมาชิก</Link>
+            <Link className="ghost-button" to={`/signin?next=${encodeURIComponent(next)}`}>{t.nav.signIn}</Link>
+            <Link className="primary-button" to={`/signup?next=${encodeURIComponent(next)}`}>{t.nav.signUp}</Link>
           </>}
         </div>
       </div>
-      <Link to="/?saved=1" className="icon-button header-saved" aria-label={`รายการที่บันทึก ${saved.length} รายการ`}>
+      <Link to="/?saved=1" className="icon-button header-saved" aria-label={t.nav.savedItems(saved.length)}>
         <BookmarkSimple size={19} filled={saved.length > 0} />
         {saved.length > 0 && <span className="saved-badge" aria-hidden="true">{saved.length}</span>}
       </Link>
       <button
         type="button" className="icon-button menu-toggle"
         aria-expanded={menuOpen} aria-controls="site-menu"
-        aria-label={menuOpen ? 'ปิดเมนู' : 'เปิดเมนู'}
+        aria-label={menuOpen ? t.nav.closeMenu : t.nav.openMenu}
         onClick={() => setMenuOpen((open) => !open)}
       >
         {menuOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
@@ -70,6 +83,7 @@ function Header() {
 }
 
 export function Layout() {
+  const { t } = useI18n();
   const { pathname } = useLocation();
   const lastPath = useRef(pathname);
   useEffect(() => {
@@ -85,35 +99,35 @@ export function Layout() {
   }, [pathname]);
 
   return <>
-    <a className="skip-link" href="#main">ข้ามไปเนื้อหาหลัก</a>
+    <a className="skip-link" href="#main">{t.common.skipToContent}</a>
     <div className="top-rule" />
     <Header />
     <Outlet />
     <footer className="site-footer">
       <div className="shell footer-grid">
         <div className="footer-brand">
-          <Link to="/" className="brand-link" aria-label="ChampionWays หน้าแรก">
+          <Link to="/" className="brand-link" aria-label={t.common.homeLink}>
             <BrandMark /><span className="brand-name">ChampionWays</span>
           </Link>
-          <p>เส้นทางของแชมป์เริ่มจากเวทีแรก — เรารวมการแข่งขันไว้ให้ค้นหาง่าย และเก็บเวทีที่สนใจไว้ในที่เดียว</p>
+          <p>{t.footer.tagline}</p>
         </div>
         <div className="footer-links">
           <div>
-            <strong>ค้นหา</strong>
-            <Link to="/">สำรวจการแข่งขัน</Link>
+            <strong>{t.footer.find}</strong>
+            <Link to="/">{t.nav.explore}</Link>
           </div>
           <div>
-            <strong>สำหรับผู้จัดการแข่งขัน</strong>
+            <strong>{t.footer.forOrganizers}</strong>
             {/* ฟอร์มผู้จัดงานพร้อมแล้วที่ /organizers แต่ยังไม่เปิดทางเข้า
                 เพราะฟอร์มสัญญาว่าจะแจ้งผลทางอีเมล ซึ่งยังส่งถึงผู้จัดไม่ได้
                 จนกว่าจะมีโดเมนของตัวเองไปยืนยันกับผู้ให้บริการอีเมล
                 เปลี่ยนกลับเป็น Link ได้ทันทีเมื่อพร้อม */}
-            <span className="nav-soon" title="เปิดเร็ว ๆ นี้">ลงงานแข่งขันฟรี</span>
-            <span className="nav-soon" title="เปิดเร็ว ๆ นี้">แจ้งเพิ่มเวทีแข่งขัน</span>
+            <span className="nav-soon" title={t.common.comingSoon}>{t.footer.listForFree}</span>
+            <span className="nav-soon" title={t.common.comingSoon}>{t.footer.suggestCompetition}</span>
           </div>
         </div>
       </div>
-      <div className="shell footer-bottom">ChampionWays · ค้นหาเวทีที่สนใจ และเตรียมพร้อมไปกับเมนเทอร์</div>
+      <div className="shell footer-bottom">{t.footer.bottomLine}</div>
     </footer>
     <ScrollRestoration getKey={(location) => (location.pathname === '/' ? location.pathname + location.search : location.key)} />
   </>;

@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ทำเนียบ Rising Star</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Direction 1 — ทำเนียบม่วงทอง (evolves the current brand)
+   Purple = everything you can press. Gold = earned, never decorative.
+   Plum is new: it holds the one celebrated panel so the gold reads as a medal. */
+:root {
+  --paper: #fcfbfe;
+  --card: #ffffff;
+  --ink: #1c1917;
+  --muted: #5f5750;          /* darker than old --muted (#6b625c) so 13px metadata still passes AA */
+  --line: #eae5f0;
+  --purple: #6d28d9;         /* actions */
+  --purple-tint: #f4eeff;    /* hall band, selected rows */
+  --plum: #2e1065;           /* this month's panel only */
+  --gold: #f5d95c;           /* medals, badge star */
+  --gold-tint: #fff6d6;      /* badge surface */
+  --display: 'Anuphan', 'IBM Plex Sans Thai', sans-serif;
+  --body: 'IBM Plex Sans Thai', sans-serif;
+  --r: 14px;
+  color-scheme: only light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15px/1.7 var(--body); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p, ol, ul { margin: 0; padding: 0; }
+ol, ul { list-style: none; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.35; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid #b197e2; outline-offset: 3px; }
+.shell { max-width: 1180px; margin: 0 auto; padding-inline: 28px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* header */
+.top { background: var(--card); border-bottom: 1px solid var(--line); border-top: 3px solid var(--purple); }
+.top .shell { display: flex; align-items: center; gap: 28px; min-height: 72px; }
+.brand { display: flex; min-height: 44px; align-items: center; gap: 10px; font: 700 19px var(--display); color: var(--ink); text-decoration: none; }
+.brand img { width: 34px; height: 34px; object-fit: contain; }
+.nav { display: flex; gap: 4px; }
+.nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 10px; color: var(--muted); text-decoration: none; font-weight: 500; }
+.nav a[aria-current] { background: var(--purple-tint); color: var(--purple); }
+.me { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.me .av { width: 40px; height: 40px; font-size: 16px; }
+
+/* avatars */
+.av { display: inline-grid; place-items: center; flex: none; border-radius: 50%; background: #ece6f7; color: #3b2470; font: 600 18px var(--display); }
+
+/* hall of fame */
+.hall { background: var(--purple-tint); padding: 44px 0 52px; border-bottom: 1px solid var(--line); }
+.hall-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.hall-head h1 { font-size: 40px; font-weight: 700; color: #21172d; }
+.hall-head p { color: var(--muted); max-width: 46ch; margin-top: 6px; }
+.sample { flex: none; font-size: 13px; color: var(--muted); border: 1px dashed #c9bde0; border-radius: 999px; padding: 4px 12px; }
+.months { display: grid; grid-template-columns: 1fr 1.45fr 1fr; gap: 20px; align-items: start; }
+.month { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; }
+.month summary { list-style: none; cursor: default; }
+.month summary::-webkit-details-marker { display: none; }
+.m-label { font-size: 13px; color: var(--muted); font-weight: 500; }
+.month h2 { font-size: 20px; font-weight: 600; }
+.m-toggle { display: none; }
+
+.first { display: flex; align-items: center; gap: 14px; margin: 18px 0 14px; padding-bottom: 16px; border-bottom: 1px solid var(--line); position: relative; }
+.side .first .medal { position: absolute; left: 38px; top: 36px; box-shadow: 0 0 0 3px #fff; width: 24px; height: 24px; font-size: 13px; }
+.first .av { width: 56px; height: 56px; font-size: 22px; }
+.medal { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font: 700 14px var(--display); background: var(--gold); color: #3a2a00; flex: none; }
+.medal.m2 { background: #e4e0ea; color: #2d2838; }
+.medal.m3 { background: #efd9c6; color: #4a2c12; }
+.first .who { min-width: 0; }
+.first .name { font: 600 17px/1.4 var(--display); }
+.spec { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.count { margin-left: auto; text-align: right; flex: none; }
+.count b { display: block; font: 700 26px/1 var(--display); }
+.count span { font-size: 13px; color: var(--muted); }
+.rest li { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.rest .av { width: 36px; height: 36px; font-size: 15px; }
+.rest .name { font-weight: 500; font-size: 14px; line-height: 1.5; }
+.rest .n { margin-left: auto; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.rest .n b { color: var(--ink); font-weight: 600; }
+
+/* the loud one: this month */
+.month.now { background: var(--plum); border-color: var(--plum); color: #fff; padding: 26px 26px 22px; box-shadow: 0 30px 50px -30px rgb(46 16 101 / 60%); }
+.now .m-label { color: var(--gold); }
+.now h2 { font-size: 26px; color: #fff; }
+.now .closing { font-size: 13px; color: #d9cdf2; margin-top: 2px; }
+.now .first { flex-direction: column; align-items: flex-start; gap: 10px; border-color: rgb(255 255 255 / 16%); padding-bottom: 20px; margin-top: 22px; position: relative; }
+.now .first .av { width: 96px; height: 96px; font-size: 40px; background: var(--gold); color: #3a2a00; }
+.now .first .medal { position: absolute; left: 72px; top: 70px; width: 34px; height: 34px; font-size: 17px; background: #fff; color: var(--plum); box-shadow: 0 0 0 3px var(--plum); }
+.now .first .name { font-size: 26px; }
+.now .spec { color: #d9cdf2; font-size: 14px; }
+.now .count { position: absolute; right: 0; top: 8px; }
+.now .count b { font-size: 56px; color: var(--gold); }
+.now .count span { color: #d9cdf2; font-size: 14px; }
+.now .rest { display: grid; gap: 8px; }
+.now .rest li { background: rgb(255 255 255 / 7%); border-radius: 10px; padding: 8px 14px; }
+.now .rest .name { font-size: 15px; }
+.now .rest .n { color: #d9cdf2; }
+.now .rest .n b { color: #fff; }
+.now .rest .av { background: #4c2a8f; color: #fff; }
+.side .m-label { color: var(--muted); }
+
+/* main */
+.main { display: grid; grid-template-columns: 1fr 340px; gap: 40px; padding-block: 48px 72px; align-items: start; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.sec-head h2 { font-size: 26px; font-weight: 600; }
+.sec-sub { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+
+.ranked { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); }
+.row { display: grid; grid-template-columns: 44px 52px 1fr auto; align-items: center; gap: 14px; padding: 16px 20px; }
+.ranked .row + .row { border-top: 1px solid var(--line); }
+.rk { font: 700 24px var(--display); color: var(--purple); text-align: center; }
+.row .av { width: 52px; height: 52px; font-size: 21px; }
+.row .name { font: 600 17px/1.4 var(--display); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.meta { font-size: 13px; color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 600; }
+.badge { display: inline-flex; align-items: center; gap: 5px; background: var(--gold-tint); color: #5a4300; border: 1px solid #efd88a; border-radius: 999px; padding: 1px 10px 1px 7px; font: 600 12px/1.8 var(--body); }
+.badge svg { width: 13px; height: 13px; }
+.btn-ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border: 1px solid #d8ccef; border-radius: 10px; background: #fff; color: var(--purple); font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap; }
+.btn-ghost:hover { background: var(--purple-tint); }
+
+.others { margin-top: 48px; }
+.others .row { grid-template-columns: 52px 1fr auto; padding: 14px 4px; border-top: 1px solid var(--line); }
+.others .row:last-child { border-bottom: 1px solid var(--line); }
+.others .row .av { background: #f0eeec; color: #4a423c; }
+.others .name { font-weight: 500; font-size: 16px; }
+
+/* upsell */
+.upsell { position: sticky; top: 20px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.up-top { background: var(--plum); color: #fff; padding: 22px 22px 20px; }
+.up-top .for { font-size: 13px; color: var(--gold); font-weight: 500; }
+.up-top h3 { font-size: 22px; margin-top: 4px; }
+.price { display: flex; align-items: baseline; gap: 8px; margin-top: 14px; }
+.price b { font: 700 44px/1 var(--display); color: var(--gold); }
+.price span { color: #d9cdf2; font-size: 14px; }
+.up-body { padding: 20px 22px 22px; }
+.perks li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; font-size: 14px; line-height: 1.65; padding: 6px 0; }
+.perks svg { width: 20px; height: 20px; margin-top: 2px; color: var(--purple); }
+.code { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.code label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.code .field { display: flex; gap: 8px; }
+.code input { flex: 1; min-width: 0; min-height: 44px; border: 1px solid #d8ccef; border-radius: 9px; padding: 0 12px; background: #fff; }
+.code .help { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; margin-top: 18px; border: 0; border-radius: 11px; background: var(--purple); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; }
+.btn:hover { background: #5b21b6; }
+.fine { font-size: 13px; color: var(--muted); margin-top: 10px; text-align: center; }
+
+/* phone: this month first and whole; the two past months fold to their winner */
+@media (max-width: 700px) {
+  .shell { padding-inline: 16px; }
+  .nav, .me .who-t { display: none; }
+  .hall { padding: 28px 0 32px; }
+  .hall-head { flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 20px; }
+  .hall-head h1 { font-size: 30px; }
+  .months { grid-template-columns: 1fr; gap: 12px; }
+  .month.now { order: -1; padding: 22px 18px 18px; }
+  .now .count b { font-size: 44px; }
+  .now .first .av { width: 80px; height: 80px; font-size: 34px; }
+  .now .first .medal { left: 58px; top: 58px; }
+  .now .first .name { font-size: 22px; }
+  .now .rest { grid-template-columns: 1fr; gap: 8px; }
+  .month.side { padding: 0; }
+  .side summary { display: block; padding: 12px 16px 4px; cursor: pointer; }
+  .sum-head { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: 44px; }
+  .side h2 { font-size: 16px; }
+  .side .first { margin: 8px 0 8px; padding: 0; border: 0; }
+  .side .first .medal { left: 30px; top: 28px; }
+  .side .first .av { width: 44px; height: 44px; font-size: 18px; }
+  .side .rest { padding: 0 16px 12px; }
+  .m-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--purple); font-weight: 600; min-height: 44px; }
+  .m-toggle svg { width: 16px; height: 16px; transition: transform .2s; }
+  .side[open] .m-toggle svg { transform: rotate(180deg); }
+  .main { grid-template-columns: 1fr; gap: 0; padding-block: 32px 56px; }
+  .upsell { position: static; margin-top: 32px; }
+  .row { grid-template-columns: 32px 44px 1fr; gap: 10px; padding: 14px; }
+  .row .av { width: 44px; height: 44px; font-size: 18px; }
+  .row .act { grid-column: 3; justify-self: start; }
+  .rk { font-size: 20px; }
+  .others .row { grid-template-columns: 44px 1fr; padding: 14px 0; }
+  .others .row .act { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="shell">
+    <a class="brand" href="#"><img src="../../../src/assets/trophy.png" alt="">ChampionWays</a>
+    <nav class="nav" aria-label="หลัก">
+      <a href="#">สำรวจการแข่งขัน</a>
+      <a href="#" aria-current="page">เมนเทอร์</a>
+      <a href="#">คลังความรู้</a>
+    </nav>
+    <div class="me"><span class="who-t">ศศิธร · เมนเทอร์</span><span class="av" aria-hidden="true">ศ</span></div>
+  </div>
+</header>
+
+<main>
+<section class="hall" aria-labelledby="hall-title">
+  <div class="shell">
+    <div class="hall-head">
+      <div>
+        <h1 id="hall-title">ทำเนียบ Rising Star</h1>
+        <p>เมนเทอร์ที่ให้คำปรึกษาสำเร็จมากที่สุดในแต่ละเดือน นับเฉพาะนัดที่ยืนยันแล้วและถึงเวลานัดแล้ว</p>
+      </div>
+      <span class="sample">อันดับตัวอย่าง ยังไม่ใช่ข้อมูลจริง</span>
+    </div>
+
+    <div class="months">
+      <!-- left: last month -->
+      <details class="month side" open>
+        <summary>
+          <div class="sum-head"><div><p class="m-label">เดือนที่แล้ว</p><h2>สิงหาคม 2569</h2></div>
+          <span class="m-toggle">อันดับ 2–3 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></div>
+        <div class="first"><span class="av" aria-hidden="true">ณ</span><div class="who"><p class="name">ณัฐชยา วงศ์ทอง</p><p class="spec">Data Science และ Hackathon</p></div><span class="medal" aria-label="อันดับ 1">1</span><div class="count"><b>17</b><span>ครั้ง</span></div></div>
+        </summary>
+        <ol class="rest">
+          <li><span class="medal m2" aria-label="อันดับ 2">2</span><span class="av" aria-hidden="true">ธ</span><span class="name">ธนกฤต แก้วมณี</span><span class="n"><b>12</b> ครั้ง</span></li>
+          <li><span class="medal m3" aria-label="อันดับ 3">3</span><span class="av" aria-hidden="true">พ</span><span class="name">พิมพ์ลภัส จันทร์เพ็ญ</span><span class="n"><b>10</b> ครั้ง</span></li>
+        </ol>
+      </details>
+
+      <!-- centre: this month -->
+      <section class="month now" aria-labelledby="now-title">
+        <p class="m-label">เดือนนี้</p>
+        <h2 id="now-title">กันยายน 2569</h2>
+        <p class="closing">ปิดอันดับคืนนี้ 23:59 น.</p>
+        <div class="first">
+          <span class="av" aria-hidden="true">ป</span>
+          <span class="medal" aria-label="อันดับ 1">1</span>
+          <div class="who"><p class="name">ปัณณวัฒน์ ศรีสุข</p><p class="spec">แผนธุรกิจและการพิชช์</p></div>
+          <div class="count"><b>14</b><span>ครั้งที่ปรึกษาสำเร็จ</span></div>
+        </div>
+        <ol class="rest">
+          <li><span class="medal m2" aria-label="อันดับ 2">2</span><span class="av" aria-hidden="true">ณ</span><span class="name">ณัฐชยา วงศ์ทอง</span><span class="n"><b>11</b> ครั้ง</span></li>
+          <li><span class="medal m3" aria-label="อันดับ 3">3</span><span class="av" aria-hidden="true">ก</span><span class="name">กฤติน อ่อนละมัย</span><span class="n"><b>9</b> ครั้ง</span></li>
+        </ol>
+      </section>
+
+      <!-- right: two months ago -->
+      <details class="month side" open>
+        <summary>
+          <div class="sum-head"><div><p class="m-label">สองเดือนก่อน</p><h2>กรกฎาคม 2569</h2></div>
+          <span class="m-toggle">อันดับ 2–3 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></div>
+        <div class="first"><span class="av" aria-hidden="true">ศ</span><div class="who"><p class="name">ศุภวิชญ์ บุญมา</p><p class="spec">แข่งเคสธุรกิจ</p></div><span class="medal" aria-label="อันดับ 1">1</span><div class="count"><b>12</b><span>ครั้ง</span></div></div>
+        </summary>
+        <ol class="rest">
+          <li><span class="medal m2" aria-label="อันดับ 2">2</span><span class="av" aria-hidden="true">ป</span><span class="name">ปัณณวัฒน์ ศรีสุข</span><span class="n"><b>9</b> ครั้ง</span></li>
+          <li><span class="medal m3" aria-label="อันดับ 3">3</span><span class="av" aria-hidden="true">อ</span><span class="name">อรปรียา สุวรรณรัตน์</span><span class="n"><b>8</b> ครั้ง</span></li>
+        </ol>
+      </details>
+    </div>
+  </div>
+</section>
+
+<div class="shell main">
+  <div>
+    <section aria-labelledby="ranked-title">
+      <div class="sec-head"><h2 id="ranked-title">Rising Star เดือนนี้</h2></div>
+      <p class="sec-sub">6 คน · เรียงตามจำนวนนัดที่ปรึกษาสำเร็จในเดือนกันยายน</p>
+      <ol class="ranked">
+        <li class="row"><span class="rk" aria-label="อันดับ 1">1</span><span class="av" aria-hidden="true">ป</span><div><p class="name">ปัณณวัฒน์ ศรีสุข <span class="badge"><svg viewBox="0 0 24 24" fill="#c99a06" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">แผนธุรกิจและการพิชช์ · อดีตแชมป์ Asia Pitch 2567</p><p class="meta"><b>14</b> ครั้งเดือนนี้ · 60 นาที 450 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+        <li class="row"><span class="rk" aria-label="อันดับ 2">2</span><span class="av" aria-hidden="true">ณ</span><div><p class="name">ณัฐชยา วงศ์ทอง <span class="badge"><svg viewBox="0 0 24 24" fill="#c99a06" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">Data Science และ Hackathon</p><p class="meta"><b>11</b> ครั้งเดือนนี้ · 60 นาที 390 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+        <li class="row"><span class="rk" aria-label="อันดับ 3">3</span><span class="av" aria-hidden="true">ก</span><div><p class="name">กฤติน อ่อนละมัย <span class="badge"><svg viewBox="0 0 24 24" fill="#c99a06" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">UX/UI และงานออกแบบ</p><p class="meta"><b>9</b> ครั้งเดือนนี้ · 60 นาที 500 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+        <li class="row"><span class="rk" aria-label="อันดับ 4">4</span><span class="av" aria-hidden="true">ธ</span><div><p class="name">ธนกฤต แก้วมณี <span class="badge"><svg viewBox="0 0 24 24" fill="#c99a06" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">หุ่นยนต์และ IoT</p><p class="meta"><b>7</b> ครั้งเดือนนี้ · 60 นาที 350 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+        <li class="row"><span class="rk" aria-label="อันดับ 5">5</span><span class="av" aria-hidden="true">พ</span><div><p class="name">พิมพ์ลภัส จันทร์เพ็ญ <span class="badge"><svg viewBox="0 0 24 24" fill="#c99a06" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">โครงงานวิทยาศาสตร์</p><p class="meta"><b>6</b> ครั้งเดือนนี้ · 60 นาที 300 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+        <li class="row"><span class="rk" aria-label="อันดับ 6">6</span><span class="av" aria-hidden="true">อ</span><div><p class="name">อรปรียา สุวรรณรัตน์ <span class="badge"><svg viewBox="0 0 24 24" fill="#c99a06" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">โต้วาทีภาษาอังกฤษ</p><p class="meta"><b>4</b> ครั้งเดือนนี้ · 60 นาที 420 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+      </ol>
+    </section>
+
+    <section class="others" aria-labelledby="others-title">
+      <div class="sec-head"><h2 id="others-title">เมนเทอร์ทั้งหมด</h2></div>
+      <p class="sec-sub">เรียงตามเมนเทอร์ที่เข้าร่วมล่าสุด</p>
+      <ul>
+        <li class="row"><span class="av" aria-hidden="true">ช</span><div><p class="name">ชยพล ทองดี</p><p class="spec">พัฒนาเว็บสำหรับ Hackathon</p><p class="meta">60 นาที 250 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+        <li class="row"><span class="av" aria-hidden="true">ภ</span><div><p class="name">ภาคิน เจริญผล</p><p class="spec">คณิตศาสตร์โอลิมปิก</p><p class="meta">60 นาที 400 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+        <li class="row"><span class="av" aria-hidden="true">ว</span><div><p class="name">วริศรา มีสุข</p><p class="spec">ออกแบบโปสเตอร์ประกวด</p><p class="meta">60 นาที 300 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+        <li class="row"><span class="av" aria-hidden="true">ศ</span><div><p class="name">ศิริกานต์ พรหมวงศ์</p><p class="spec">สุนทรพจน์ภาษาไทย</p><p class="meta">60 นาที 280 บาท</p></div><a class="btn-ghost act" href="#">ดูโปรไฟล์</a></li>
+      </ul>
+    </section>
+  </div>
+
+  <aside class="upsell" aria-labelledby="up-title">
+    <div class="up-top">
+      <p class="for">สำหรับเมนเทอร์</p>
+      <h3 id="up-title">ให้นักเรียนเจอคุณก่อนคนอื่น</h3>
+      <p class="price"><b>99</b><span>บาท / เดือน</span></p>
+    </div>
+    <div class="up-body">
+      <ul class="perks">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg>ขึ้นรายชื่อช่วงบนสุด เรียงอันดับตามนัดที่ปรึกษาสำเร็จ</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg>มีสิทธิ์ติดทำเนียบประจำเดือน ชื่ออยู่บนหน้านี้ต่อไปอีก 2 เดือน</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg>ป้าย Rising Star บนโปรไฟล์และผลค้นหา</li>
+      </ul>
+      <form class="code" onsubmit="return false">
+        <label for="code1">โค้ดส่วนลด</label>
+        <div class="field"><input id="code1" name="code" autocomplete="off" placeholder="เช่น RISING-XXXX"><button class="btn-ghost" type="submit">ใช้โค้ด</button></div>
+        <p class="help">ไม่มีโค้ดก็สมัครได้ ราคาเต็ม 99 บาท</p>
+        <button class="btn" type="button">สมัคร Rising Star</button>
+        <p class="fine">ต่ออายุทุกเดือน · ชำระเงินยังไม่เปิดในหน้าตัวอย่างนี้</p>
+      </form>
+    </div>
+  </aside>
+</div>
+</main>
+<script>
+  // Phone: fold the two past months to their winner; desktop keeps everything open.
+  const mq = matchMedia('(max-width: 700px)');
+  const apply = () => document.querySelectorAll('details.side').forEach(d => { d.open = !mq.matches; });
+  apply(); mq.addEventListener('change', apply);
+  document.querySelectorAll('details.side summary').forEach(s => s.addEventListener('click', e => { if (!mq.matches) e.preventDefault(); }));
+</script>
+</body>
+</html>

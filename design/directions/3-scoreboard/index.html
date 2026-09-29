@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ลีก Rising Star</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,500;0,600;0,700;1,700;1,800&family=Noto+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Direction 3 — สกอร์บอร์ด (a clear departure)
+   A league table. Podium heights are the real data (bar height = completed consultations),
+   so rank is something you can measure, not just a label. Ink navy carries structure;
+   one signal lime marks "leader right now" and the mentor's own entry ticket. */
+:root {
+  --paper: #f2f3ee;
+  --card: #ffffff;
+  --ink: #0f1b2d;
+  --muted: #4a5363;
+  --line: #d9dcd3;
+  --lime: #c5f04a;           /* the single accent — always under ink text, never as text */
+  --bar-past: #dfe2d9;       /* past months' bars */
+  --display: 'Kanit', 'Noto Sans Thai', sans-serif;
+  --body: 'Noto Sans Thai', sans-serif;
+  color-scheme: only light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15px/1.7 var(--body); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p, ol, ul { margin: 0; padding: 0; }
+ol, ul { list-style: none; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.3; }
+button, input { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; box-shadow: 0 0 0 6px var(--lime); }
+.shell { max-width: 1200px; margin: 0 auto; padding-inline: 28px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.here { width: 26px; height: 26px; }
+.fig { font-family: var(--display); font-style: italic; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* header */
+.top { background: var(--ink); color: #fff; }
+.top .shell { display: flex; align-items: center; gap: 24px; min-height: 64px; }
+.brand { font: 700 20px var(--display); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.brand i { width: 12px; height: 12px; background: var(--lime); transform: skewX(-12deg); display: inline-block; }
+.top nav { display: flex; gap: 2px; }
+.top nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; text-decoration: none; color: #c6ccd6; font-size: 15px; }
+.top nav a[aria-current] { color: #fff; box-shadow: inset 0 -3px 0 var(--lime); }
+.acct { margin-left: auto; font-size: 14px; color: #c6ccd6; }
+
+/* hall of fame */
+.hall { padding-block: 36px 40px; }
+.hall-head { display: flex; justify-content: space-between; align-items: end; gap: 20px; flex-wrap: wrap; }
+.hall h1 { font-size: 44px; font-weight: 700; }
+.hall-head p { color: var(--muted); font-size: 14px; max-width: 52ch; }
+.rail { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 16px; margin-top: 24px; align-items: end; }
+.board { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 18px 18px 0; display: flex; flex-direction: column; }
+.board header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.board h2 { font-size: 18px; }
+.board .tag { font-size: 13px; color: var(--muted); }
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 8px; align-items: end; margin-top: 16px; }
+.slot { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
+.slot .av { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #e8ebe3; font: 600 16px var(--display); margin-bottom: 6px; }
+.slot .nm { font: 500 14px/1.35 var(--display); }
+.slot .sp { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
+.bar { width: 100%; height: calc(52px + var(--n) * 5px); background: var(--bar-past); border-radius: 4px 4px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 8px; }
+.bar b { font-size: 30px; line-height: 1; }
+.bar span { font-size: 12px; font-weight: 500; }
+.board:not(.now) .bar > span:not(.pl) { display: none; }
+.bar .pl { font: 600 13px var(--display); margin-top: auto; padding-bottom: 6px; }
+.p1 .bar { background: var(--ink); color: #fff; }
+
+/* this month: the loud one */
+.board.now { border: 2px solid var(--ink); padding: 22px 24px 0; }
+.now h2 { font-size: 24px; }
+.now .live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; background: var(--lime); padding: 2px 10px; border-radius: 3px; }
+.now .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+.now .podium { gap: 12px; margin-top: 22px; }
+.now .bar { height: calc(84px + var(--n) * 9px); background: var(--ink); color: #fff; }
+.now .bar b { font-size: 44px; }
+.now .p1 .bar { background: var(--lime); color: var(--ink); }
+.now .p1 .av { width: 64px; height: 64px; font-size: 26px; background: var(--ink); color: var(--lime); }
+.now .p1 .nm { font-size: 18px; font-weight: 600; }
+.now .slot .av { width: 48px; height: 48px; font-size: 19px; }
+.now .slot .nm { font-size: 15px; }
+.rail-hint { display: none; }
+
+/* standings */
+.main { display: grid; grid-template-columns: 1fr 350px; gap: 32px; padding-block: 8px 72px; align-items: start; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; }
+.sec-head h2 { font-size: 28px; }
+.sec-head p { font-size: 14px; color: var(--muted); }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+th { font: 500 13px var(--body); color: var(--muted); text-align: left; padding: 10px 14px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th.r, td.r { text-align: right; }
+.pos { font-size: 28px; width: 64px; }
+.who { display: flex; align-items: center; gap: 12px; }
+.who .av { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: #e8ebe3; font: 600 17px var(--display); flex: none; }
+.who .nm { font: 600 16px/1.4 var(--display); }
+.who .sp { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.rs { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font: 600 11.5px/1 var(--display); border: 1.5px solid var(--ink); padding: 3px 6px 2px; border-radius: 3px; vertical-align: 2px; white-space: nowrap; }
+.rs svg { width: 11px; height: 11px; }
+.cnt { font-size: 26px; }
+.delta { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.delta svg { width: 14px; height: 14px; }
+.btn-line { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1.5px solid var(--ink); border-radius: 4px; background: #fff; font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap; }
+.btn-line:hover { background: var(--paper); }
+tr.lead-row td { background: #fbfdf3; }
+tr.lead-row .pos { box-shadow: inset 6px 0 0 var(--lime); }
+
+/* the mentor's own "ghost" row: where you'd be if you joined */
+tr.ghost td { background: repeating-linear-gradient(-45deg, #fff, #fff 8px, #f5f7ef 8px, #f5f7ef 16px); border-top: 2px dashed var(--ink); border-bottom: 2px dashed var(--ink); }
+tr.ghost .pos { color: #7b8494; }
+tr.ghost .av { background: var(--ink); color: var(--lime); }
+tr.ghost .gl { font-size: 13px; font-weight: 600; }
+.btn-lime { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 0; border-radius: 4px; background: var(--lime); color: var(--ink); font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap; box-shadow: inset 0 0 0 1.5px var(--ink); }
+
+/* free mentors */
+.free { margin-top: 44px; grid-column: 1; }
+.free ul { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.free li { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+.free .who { flex: 1; min-width: 0; }
+.free .nm { font-weight: 500; }
+.free .price { font-size: 13px; color: var(--muted); }
+
+/* ticket */
+.ticket { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 20px; background: var(--card); border: 2px solid var(--ink); border-radius: 8px; }
+.stub { background: var(--lime); padding: 18px 20px 16px; border-radius: 6px 6px 0 0; border-bottom: 2px dashed var(--ink); position: relative; }
+.stub::before, .stub::after { content: ""; position: absolute; bottom: -11px; width: 20px; height: 20px; border-radius: 50%; background: var(--paper); border: 2px solid var(--ink); }
+.stub::before { left: -12px; clip-path: inset(0 0 0 50%); }
+.stub::after { right: -12px; clip-path: inset(0 50% 0 0); }
+.stub .k { font: 600 13px var(--display); }
+.stub h3 { font-size: 24px; font-weight: 700; margin-top: 2px; }
+.stub .pr { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+.stub .pr b { font-size: 56px; line-height: 1; }
+.stub .pr span { font-size: 15px; font-weight: 500; }
+.tk-body { padding: 20px; }
+.you { font-size: 14px; background: var(--paper); border-radius: 4px; padding: 10px 12px; margin-bottom: 14px; }
+.you b { font-family: var(--display); }
+.perks li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; font-size: 14px; padding: 5px 0; line-height: 1.6; }
+.perks svg { width: 18px; height: 18px; margin-top: 3px; }
+.code { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.code label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+.code .field { display: flex; gap: 8px; }
+.code input { flex: 1; min-width: 0; min-height: 44px; border: 1.5px solid #9aa2ad; border-radius: 4px; padding: 0 12px; background: #fff; }
+.code input[aria-invalid="true"] { border-color: #b42318; }
+.err { display: flex; gap: 6px; font-size: 13px; color: #b42318; margin-top: 6px; line-height: 1.55; }
+.err svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.cta { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 50px; margin-top: 16px; border: 0; border-radius: 4px; background: var(--ink); color: #fff; font: 600 16px var(--display); cursor: pointer; }
+.cta:hover { background: #1d2d45; }
+.fine { font-size: 13px; color: var(--muted); margin-top: 8px; text-align: center; }
+
+@media (max-width: 700px) {
+  .shell { padding-inline: 16px; }
+  .top nav, .acct { display: none; }
+  .hall { padding-block: 24px 28px; }
+  .hall h1 { font-size: 32px; }
+  /* phone: a swipe rail, this month first, the next card peeking so it reads as "more" */
+  .rail { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; margin-inline: -16px; padding: 0 16px 14px; align-items: stretch; }
+  .rail::-webkit-scrollbar { height: 6px; }
+  .rail::-webkit-scrollbar-thumb { background: #aab1bb; border-radius: 3px; }
+  .rail::-webkit-scrollbar-track { background: var(--line); border-radius: 3px; margin-inline: 16px; }
+  .board { flex: 0 0 84%; scroll-snap-align: start; justify-content: flex-end; }
+  .board.now { order: -1; padding: 18px 16px 0; }
+  .now .bar { height: calc(76px + var(--n) * 6px); }
+  .slot .sn { display: none; }
+  .now .bar b { font-size: 34px; }
+  .rail-hint { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .rail-hint svg { width: 16px; height: 16px; }
+  .main { grid-template-columns: 1fr; gap: 28px; padding-block: 0 56px; }
+  .ticket { position: static; grid-column: auto; grid-row: auto; }
+  .free { grid-column: auto; margin-top: 0; }
+  .sec-head h2 { font-size: 24px; }
+  /* table → stacked rows */
+  table, tbody, tr, td { display: block; }
+  thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  table { border-radius: 6px; }
+  tr { display: grid; grid-template-columns: 44px 1fr auto; gap: 2px 10px; padding: 12px; border-bottom: 1px solid var(--line); align-items: center; }
+  td { padding: 0; border: 0; }
+  td.pos { width: auto; grid-row: span 2; font-size: 26px; }
+  td.whocell { grid-column: 2 / 4; }
+  td.cnt { grid-column: 2; font-size: 15px; font-style: normal; font-family: var(--body); font-weight: 500; text-align: left; }
+  td.cnt::after { content: " นัดเดือนนี้"; font-weight: 400; color: var(--muted); }
+  td.dl { grid-column: 3; text-align: right; }
+  td.act { grid-column: 2 / 4; margin-top: 6px; }
+  td.act .btn-line, td.act .btn-lime { width: 100%; }
+  tr.lead-row { background: #fbfdf3; box-shadow: inset 6px 0 0 var(--lime); }
+  tr.lead-row td { background: none; }
+  tr.lead-row .pos { box-shadow: none; }
+  tr.ghost { background: repeating-linear-gradient(-45deg, #fff, #fff 8px, #f5f7ef 8px, #f5f7ef 16px); border-top: 2px dashed var(--ink); border-bottom: 2px dashed var(--ink); }
+  tr.ghost td { background: none; border: 0; }
+  .free ul { grid-template-columns: 1fr; }
+  .free li { flex-wrap: wrap; }
+  .free .btn-line { width: 100%; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="shell">
+    <a class="brand" href="#"><i aria-hidden="true"></i>ChampionWays</a>
+    <nav aria-label="หลัก"><a href="#">การแข่งขัน</a><a href="#" aria-current="page">เมนเทอร์</a><a href="#">แชต</a></nav>
+    <span class="acct">ศศิธร · บัญชีเมนเทอร์</span>
+  </div>
+</header>
+
+<main>
+<section class="hall shell" aria-labelledby="hall-title">
+  <div class="hall-head">
+    <h1 id="hall-title">ลีก Rising Star</h1>
+    <p>แท่งสูงต่างกันตามจำนวนนัดปรึกษาที่จบจริง ไม่นับนัดที่ยกเลิก · ข้อมูลตัวอย่าง</p>
+  </div>
+
+  <div class="rail" tabindex="0" aria-label="อันดับ 3 เดือนล่าสุด เลื่อนดูเดือนก่อนหน้าได้">
+    <!-- left: last month -->
+    <section class="board" aria-labelledby="b-aug">
+      <header><h2 id="b-aug">สิงหาคม</h2><span class="tag">เดือนที่แล้ว</span></header>
+      <ol class="podium">
+        <li class="slot p2" style="order:1"><span class="av" aria-hidden="true">ธ</span><span class="nm">ธนกฤต</span><span class="sp">หุ่นยนต์</span><div class="bar" style="--n:12"><b class="fig">12</b><span>นัด</span><span class="pl">อันดับ 2</span></div></li>
+        <li class="slot p1" style="order:2"><span class="av" aria-hidden="true">ณ</span><span class="nm">ณัฐชยา</span><span class="sp">Data Science</span><div class="bar" style="--n:17"><b class="fig">17</b><span>นัด</span><span class="pl">อันดับ 1</span></div></li>
+        <li class="slot p3" style="order:3"><span class="av" aria-hidden="true">พ</span><span class="nm">พิมพ์ลภัส</span><span class="sp">วิทยาศาสตร์</span><div class="bar" style="--n:10"><b class="fig">10</b><span>นัด</span><span class="pl">อันดับ 3</span></div></li>
+      </ol>
+    </section>
+
+    <!-- centre: this month -->
+    <section class="board now" aria-labelledby="b-sep">
+      <header><h2 id="b-sep">กันยายน</h2><span class="live">กำลังนับ · ปิดคืนนี้ 23:59</span></header>
+      <ol class="podium">
+        <li class="slot p2" style="order:1"><span class="av" aria-hidden="true">ณ</span><span class="nm">ณัฐชยา<span class="sn"> วงศ์ทอง</span></span><span class="sp">Data Science</span><div class="bar" style="--n:11"><b class="fig">11</b><span>นัด</span><span class="pl">อันดับ 2</span></div></li>
+        <li class="slot p1" style="order:2"><span class="av" aria-hidden="true">ป</span><span class="nm">ปัณณวัฒน์<span class="sn"> ศรีสุข</span></span><span class="sp">พิชช์ธุรกิจ</span><div class="bar" style="--n:14"><b class="fig">14</b><span>นัด</span><span class="pl">อันดับ 1</span></div></li>
+        <li class="slot p3" style="order:3"><span class="av" aria-hidden="true">ก</span><span class="nm">กฤติน<span class="sn"> อ่อนละมัย</span></span><span class="sp">UX/UI</span><div class="bar" style="--n:9"><b class="fig">9</b><span>นัด</span><span class="pl">อันดับ 3</span></div></li>
+      </ol>
+    </section>
+
+    <!-- right: two months ago -->
+    <section class="board" aria-labelledby="b-jul">
+      <header><h2 id="b-jul">กรกฎาคม</h2><span class="tag">สองเดือนก่อน</span></header>
+      <ol class="podium">
+        <li class="slot p2" style="order:1"><span class="av" aria-hidden="true">ป</span><span class="nm">ปัณณวัฒน์</span><span class="sp">พิชช์</span><div class="bar" style="--n:9"><b class="fig">9</b><span>นัด</span><span class="pl">อันดับ 2</span></div></li>
+        <li class="slot p1" style="order:2"><span class="av" aria-hidden="true">ศ</span><span class="nm">ศุภวิชญ์</span><span class="sp">เคสธุรกิจ</span><div class="bar" style="--n:12"><b class="fig">12</b><span>นัด</span><span class="pl">อันดับ 1</span></div></li>
+        <li class="slot p3" style="order:3"><span class="av" aria-hidden="true">อ</span><span class="nm">อรปรียา</span><span class="sp">โต้วาที</span><div class="bar" style="--n:8"><b class="fig">8</b><span>นัด</span><span class="pl">อันดับ 3</span></div></li>
+      </ol>
+    </section>
+  </div>
+  <p class="rail-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>เลื่อนเพื่อดู ส.ค. และ ก.ค.</p>
+</section>
+
+<div class="shell main">
+  <section class="standings" aria-labelledby="st-title">
+    <div class="sec-head"><h2 id="st-title">ตารางอันดับ กันยายน</h2><p>Rising Star 6 คน · เทียบกับอันดับเดือนสิงหาคม</p></div>
+    <table>
+      <thead><tr><th>อันดับ</th><th>เมนเทอร์</th><th class="r">นัดสำเร็จ</th><th>เทียบเดือนก่อน</th><th><span class="sr-only">ดูโปรไฟล์</span></th></tr></thead>
+      <tbody>
+        <tr class="lead-row"><td class="pos fig">1</td><td class="whocell"><div class="who"><span class="av" aria-hidden="true">ป</span><div><p class="nm">ปัณณวัฒน์ ศรีสุข<span class="rs"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>RISING STAR</span></p><p class="sp">แผนธุรกิจและการพิชช์ · 450 บาท/60 นาที</p></div></div></td><td class="r cnt fig">14</td><td class="dl"><span class="delta"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 5 20 17H4z"/></svg>ขึ้น 4</span></td><td class="act"><a class="btn-line" href="#">ดูโปรไฟล์</a></td></tr>
+        <tr><td class="pos fig">2</td><td class="whocell"><div class="who"><span class="av" aria-hidden="true">ณ</span><div><p class="nm">ณัฐชยา วงศ์ทอง<span class="rs"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>RISING STAR</span></p><p class="sp">Data Science และ Hackathon · 390 บาท/60 นาที</p></div></div></td><td class="r cnt fig">11</td><td class="dl"><span class="delta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19 4 7h16z"/></svg>ลง 1</span></td><td class="act"><a class="btn-line" href="#">ดูโปรไฟล์</a></td></tr>
+        <tr><td class="pos fig">3</td><td class="whocell"><div class="who"><span class="av" aria-hidden="true">ก</span><div><p class="nm">กฤติน อ่อนละมัย<span class="rs"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>RISING STAR</span></p><p class="sp">UX/UI และงานออกแบบ · 500 บาท/60 นาที</p></div></div></td><td class="r cnt fig">9</td><td class="dl"><span class="delta"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 5 20 17H4z"/></svg>ขึ้น 1</span></td><td class="act"><a class="btn-line" href="#">ดูโปรไฟล์</a></td></tr>
+        <tr><td class="pos fig">4</td><td class="whocell"><div class="who"><span class="av" aria-hidden="true">ธ</span><div><p class="nm">ธนกฤต แก้วมณี<span class="rs"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>RISING STAR</span></p><p class="sp">หุ่นยนต์และ IoT · 350 บาท/60 นาที</p></div></div></td><td class="r cnt fig">7</td><td class="dl"><span class="delta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19 4 7h16z"/></svg>ลง 2</span></td><td class="act"><a class="btn-line" href="#">ดูโปรไฟล์</a></td></tr>
+        <tr><td class="pos fig">5</td><td class="whocell"><div class="who"><span class="av" aria-hidden="true">พ</span><div><p class="nm">พิมพ์ลภัส จันทร์เพ็ญ<span class="rs"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>RISING STAR</span></p><p class="sp">โครงงานวิทยาศาสตร์ · 300 บาท/60 นาที</p></div></div></td><td class="r cnt fig">6</td><td class="dl"><span class="delta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19 4 7h16z"/></svg>ลง 2</span></td><td class="act"><a class="btn-line" href="#">ดูโปรไฟล์</a></td></tr>
+        <tr class="ghost"><td class="pos"><span class="sr-only">ตำแหน่งของคุณ</span><svg class="here" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></td><td class="whocell"><div class="who"><span class="av" aria-hidden="true">ศ</span><div><p class="nm">คุณ · ศศิธร ทองประเสริฐ</p><p class="sp gl">ถ้าเข้าลีกวันนี้ คุณจะอยู่ตรงนี้ เป็นอันดับ 6 ด้วยนัดที่ทำไปแล้ว</p></div></div></td><td class="r cnt fig">5</td><td class="dl"><span class="delta">ยังไม่เข้าลีก</span></td><td class="act"><a class="btn-lime" href="#ticket">ดูตั๋ว 99 บาท</a></td></tr>
+        <tr><td class="pos fig">6</td><td class="whocell"><div class="who"><span class="av" aria-hidden="true">อ</span><div><p class="nm">อรปรียา สุวรรณรัตน์<span class="rs"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>RISING STAR</span></p><p class="sp">โต้วาทีภาษาอังกฤษ · 420 บาท/60 นาที</p></div></div></td><td class="r cnt fig">4</td><td class="dl"><span class="delta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12h14"/></svg>เท่าเดิม</span></td><td class="act"><a class="btn-line" href="#">ดูโปรไฟล์</a></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <aside class="ticket" id="ticket" aria-labelledby="tk-title">
+    <div class="stub">
+      <p class="k">ตั๋วเข้าลีกรายเดือน</p>
+      <h3 id="tk-title">Rising Star</h3>
+      <p class="pr"><b class="fig">99</b><span>บาท / เดือน</span></p>
+    </div>
+    <div class="tk-body">
+      <p class="you">เดือนนี้คุณจบนัดไปแล้ว <b>5</b> นัด เข้าลีกวันนี้ได้อันดับ <b>6</b> ทันที</p>
+      <ul class="perks">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg>อยู่ในตารางอันดับ เหนือเมนเทอร์ทั่วไปทุกคน</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg>ลุ้นขึ้นโพเดียมประจำเดือน โชว์ต่ออีก 2 เดือน</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg>ป้าย RISING STAR ข้างชื่อในทุกหน้า</li>
+      </ul>
+      <form class="code" onsubmit="return false">
+        <label for="code3">โค้ดส่วนลด</label>
+        <div class="field"><input id="code3" value="RISINGSTR" aria-invalid="true" aria-describedby="code3-err" autocomplete="off"><button class="btn-line" type="submit">ใช้โค้ด</button></div>
+        <p class="err" id="code3-err" role="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>ไม่พบโค้ดนี้ ตรวจตัวสะกดอีกครั้ง หรือสมัครราคาเต็มได้เลย</p>
+        <button class="cta" type="button">เข้าลีก 99 บาท</button>
+        <p class="fine">หน้าตัวอย่าง ยังไม่เชื่อมระบบชำระเงิน</p>
+      </form>
+    </div>
+  </aside>
+
+  <section class="free" aria-labelledby="free-title">
+    <div class="sec-head"><h2 id="free-title">เมนเทอร์ทั้งหมด</h2><p>เรียงตามชื่อ</p></div>
+    <ul>
+      <li><div class="who"><span class="av" aria-hidden="true">ช</span><div><p class="nm">ชยพล ทองดี</p><p class="sp">พัฒนาเว็บสำหรับ Hackathon · 250 บาท</p></div></div><a class="btn-line" href="#">ดูโปรไฟล์</a></li>
+      <li><div class="who"><span class="av" aria-hidden="true">ภ</span><div><p class="nm">ภาคิน เจริญผล</p><p class="sp">คณิตศาสตร์โอลิมปิก · 400 บาท</p></div></div><a class="btn-line" href="#">ดูโปรไฟล์</a></li>
+      <li><div class="who"><span class="av" aria-hidden="true">ว</span><div><p class="nm">วริศรา มีสุข</p><p class="sp">ออกแบบโปสเตอร์ประกวด · 300 บาท</p></div></div><a class="btn-line" href="#">ดูโปรไฟล์</a></li>
+      <li><div class="who"><span class="av" aria-hidden="true">ศ</span><div><p class="nm">ศิริกานต์ พรหมวงศ์</p><p class="sp">สุนทรพจน์ภาษาไทย · 280 บาท</p></div></div><a class="btn-line" href="#">ดูโปรไฟล์</a></li>
+    </ul>
+  </section>
+</div>
+</main>
+</body>
+</html>

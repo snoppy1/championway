@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChampionWays design system · Rising Star</title>
+<link rel="stylesheet" href="../../node_modules/@fontsource/ibm-plex-sans-thai/thai-400.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/ibm-plex-sans-thai/thai-500.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/ibm-plex-sans-thai/thai-600.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/ibm-plex-sans/latin-400.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/ibm-plex-sans/latin-500.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/ibm-plex-sans/latin-600.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/anuphan/thai-500.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/anuphan/thai-600.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/anuphan/thai-700.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/anuphan/latin-500.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/anuphan/latin-600.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/anuphan/latin-700.css">
+<link rel="stylesheet" href="../../src/styles.css">
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<div class="top-rule"></div>
+<header class="doc-head doc">
+  <p class="eyebrow">CHAMPIONWAYS DESIGN SYSTEM</p>
+  <h1>Rising Star extension</h1>
+  <p>Direction 1, “ทำเนียบม่วงทอง”. An extension of the current system, not a redesign: purple is what you press, gold is what you have earned, plum holds the single celebrated panel. Every value below is read live from <code>src/styles.css</code> and <code>src/rising-star.css</code>.</p>
+  <nav class="doc-nav" aria-label="Sections">
+    <a href="#tokens">Tokens</a><a href="#lang">Language toggle</a><a href="#type">Typography</a><a href="#atoms">Medal, avatar, pill</a><a href="#months">Month panels</a><a href="#lists">Lists</a><a href="#upsell">Upsell and code field</a><a href="#fold">Mobile fold</a><a href="#contrast">Contrast</a>
+  </nav>
+</header>
+
+<main class="doc">
+<!-- ============ TOKENS ============ -->
+<section class="block" id="tokens">
+  <h2>Tokens</h2>
+  <p class="note">Purple badge = existing token, reused unchanged. Gold badge = added for Rising Star. Nothing existing was changed.</p>
+  <h3>Reused (existing)</h3><div class="sw-grid" id="sw-reuse"></div>
+  <h3>Plum surface and on-plum text (new)</h3><div class="sw-grid" id="sw-plum"></div>
+  <h3>Gold tint, medals, avatars (new)</h3><div class="sw-grid" id="sw-gold"></div>
+  <h3>Named from existing hardcoded values, plus state colours (new names, same values)</h3><div class="sw-grid" id="sw-named"></div>
+  <h3>Spacing, 4px base</h3><div id="sc-space"></div>
+  <h3>Radius</h3><div id="sc-radius"></div>
+  <h3>Type scale</h3><div id="sc-type"></div>
+  <h3>Shadow and motion</h3><div id="sc-misc"></div>
+</section>
+
+<!-- ============ LANG TOGGLE ============ -->
+<section class="block" id="lang">
+  <h2>Language toggle <code>.lang-toggle</code></h2>
+  <p class="note">Two options, EN and TH, labelled the same in both languages. Pressed = filled purple + bold weight + <code>aria-pressed="true"</code>, so state is never colour alone. Each button is 44×44 minimum.</p>
+  <h3>States</h3><div class="cells" id="lt-states"></div>
+  <h3>In the site header (desktop)</h3>
+  <div class="hdr-mock"><header class="site-header"><div class="header-inner">
+    <a class="brand-link" href="#"><img class="brand-mark" src="../../src/assets/trophy.png" alt=""><span class="brand-name">ChampionWays</span></a>
+    <div class="header-menu"><nav class="main-nav" aria-label="Main"><a class="active" href="#">Explore</a><a href="#">Mentors</a><span class="nav-soon">Library <small>Soon</small></span></nav>
+    <div class="header-actions" id="hdr-actions"></div></div></div></header></div>
+  <h3>Inside the collapsed mobile menu (390px frame below on desktop; the page itself on phones)</h3>
+  <iframe class="phone" src="phone.html" title="Phone-width preview"></iframe>
+  <p class="phone-only note">On a phone the header menu takes the toggle across the full actions row, 46px tall.</p>
+</section>
+
+<!-- ============ TYPE ============ -->
+<section class="block" id="type">
+  <h2>Language-aware typography</h2>
+  <p class="note">English headings keep the tight <code>letter-spacing: -0.4px</code>. Thai headings get <code>0</code> through <code>:lang(th)</code>. Body line-height stays 1.65 (Thai needs ≥ 1.6 for tone marks and vowels). Fonts: Anuphan (headings) and IBM Plex Sans / IBM Plex Sans Thai (body), Latin and Thai subsets both loaded in <code>src/main.tsx</code>.</p>
+  <div class="pair">
+    <div class="type-sample" lang="en"><small>lang="en"</small><h4>Rising Star Hall of Fame</h4><p>The mentors with the most successful sessions each month. Only confirmed sessions whose time has passed count toward the ranking.</p></div>
+    <div class="type-sample" lang="th"><small>lang="th"</small><h4>ทำเนียบ Rising Star ประจำเดือน</h4><p>เมนเทอร์ที่ให้คำปรึกษาสำเร็จมากที่สุดในแต่ละเดือน นับเฉพาะนัดที่ยืนยันแล้วและถึงเวลานัดแล้ว ผู้ที่ติดอันดับจะได้ป้ายบนโปรไฟล์</p></div>
+  </div>
+</section>
+
+<!-- ============ ATOMS ============ -->
+<section class="block" id="atoms">
+  <h2>Medal, avatar, Rising Star pill</h2>
+  <p class="note">Medals carry the rank as text and an <code>aria-label</code>; the disc colour is decoration. Avatars are decorative (<code>aria-hidden</code>) because the name sits beside them.</p>
+  <div class="cells" id="atoms-cells"></div>
+</section>
+
+<!-- ============ MONTHS ============ -->
+<section class="block" id="months">
+  <h2>Hall of Fame month panels</h2>
+  <p class="note">Featured this-month panel on plum, past months as white cards. The winner block and the compact rank rows are parts of the panel. Shown at desktop width (three columns); the phone layout is in “Mobile fold”.</p>
+  <h3>English</h3><div id="hall-en"></div>
+  <h3>Thai</h3><div id="hall-th"></div>
+</section>
+
+<!-- ============ LISTS ============ -->
+<section class="block" id="lists">
+  <h2>Ranked row and unranked row</h2>
+  <p class="note">Ranked: rank number, avatar, name with pill, specialty, meta, one ghost action. Unranked: no frame, no rank, neutral avatar. The action reuses <code>.ghost-button</code> plus <code>.rs-row__action</code> for the 44px target.</p>
+  <div class="pair">
+    <div lang="en"><small>English</small><div class="rs-section" id="list-en"></div></div>
+    <div lang="th"><small>Thai</small><div class="rs-section" id="list-th"></div></div>
+  </div>
+  <h3>Row action states</h3><div class="cells" id="row-states"></div>
+</section>
+
+<!-- ============ UPSELL ============ -->
+<section class="block" id="upsell">
+  <h2>Upsell card and discount-code field</h2>
+  <p class="note">The card is sticky at 20px from the top on desktop and static on phones. The code field is optional: empty is a valid state and the help text says so. Invalid and valid use an icon and words as well as colour.</p>
+  <div class="pair">
+    <div lang="en" id="up-en"></div>
+    <div lang="th" id="up-th"></div>
+  </div>
+  <h3>Code field states (English)</h3><div class="cells" id="code-en"></div>
+  <h3>Code field states (Thai)</h3><div class="cells" id="code-th"></div>
+  <h3>Call to action states</h3><div class="cells" id="cta-states"></div>
+</section>
+
+<!-- ============ FOLD ============ -->
+<section class="block" id="fold">
+  <h2>Mobile fold</h2>
+  <p class="note">At ≤ 700px this month stays first and whole. Each past month folds to its winner and a real <code>&lt;button aria-expanded aria-controls&gt;</code> reveals ranks 2–3 (44px target). From 701px the control is hidden and the body is always shown, even if the <code>hidden</code> attribute is still set. Try the buttons in the phone preview.</p>
+  <p class="phone-only note">This page is already phone width, so the panels above are the folded version.</p>
+</section>
+
+<!-- ============ CONTRAST ============ -->
+<section class="block" id="contrast">
+  <h2>Contrast (WCAG 2.1 AA)</h2>
+  <p class="note">Text needs 4.5:1 (3:1 for large text and non-text UI). Computed from the token values.</p>
+  <table class="tbl" id="contrast-tbl"><thead><tr><th>Pair</th><th>Ratio</th><th>Needs</th><th>Result</th></tr></thead><tbody></tbody></table>
+</section>
+</main>
+
+<script src="demo.js"></script>
+<script>
+(function () {
+  const cs = getComputedStyle(document.documentElement);
+  const val = (n) => cs.getPropertyValue(n).trim();
+  const RS = window.RS;
+
+  const sw = (id, names, badge, onPlum) => {
+    document.getElementById(id).innerHTML = names.map((n) => `<div class="sw"><i class="${onPlum ? 'on-plum' : ''}"><b style="display:block;height:100%;background:var(${n})"></b></i><div><strong>${n}</strong><span>${val(n)}</span><em class="${badge === 'reuse' ? 'reuse' : ''}">${badge === 'reuse' ? 'existing' : 'new'}</em></div></div>`).join('');
+  };
+  sw('sw-reuse', ['--paper', '--card', '--ink', '--ink-deep', '--muted', '--muted-soft', '--line', '--line-warm', '--purple', '--purple-deep', '--purple-soft', '--purple-tint', '--gold', '--gold-tint', '--peach', '--peach-line', '--brand-gradient', '--shadow-lift', '--radius', '--radius-lg'].filter((n) => !n.startsWith('--radius') && n !== '--shadow-lift'), 'reuse');
+  sw('sw-plum', ['--plum', '--plum-raised', '--plum-line', '--plum-avatar', '--on-plum', '--on-plum-muted', '--on-plum-accent'], 'new', true);
+  sw('sw-gold', ['--gold-line', '--gold-ink', '--gold-star', '--medal-1-bg', '--medal-1-ink', '--medal-2-bg', '--medal-2-ink', '--medal-3-bg', '--medal-3-ink', '--avatar-bg', '--avatar-ink', '--avatar-plain-bg', '--avatar-plain-ink'], 'new');
+  sw('sw-named', ['--on-purple', '--line-purple', '--line-input', '--focus-ring', '--danger', '--danger-tint', '--danger-line', '--success', '--success-tint', '--success-line'], 'new');
+
+  const scale = (id, names, render) => { document.getElementById(id).innerHTML = names.map((n) => `<div class="scale-row"><code>${n}</code><span class="val">${val(n)}</span>${render(n)}</div>`).join(''); };
+  scale('sc-space', ['--space-1', '--space-2', '--space-3', '--space-4', '--space-5', '--space-6', '--space-8', '--space-12', '--space-18'], (n) => `<span class="bar" style="width:var(${n})"></span>`);
+  scale('sc-radius', ['--radius-sm', '--radius-md', '--radius', '--radius-card', '--radius-panel', '--radius-lg', '--radius-pill'], (n) => `<span class="rad" style="border-radius:var(${n})"></span>`);
+  scale('sc-type', ['--text-xs', '--text-sm', '--text-base', '--text-md', '--text-input', '--text-lg', '--text-xl', '--text-2xl', '--text-3xl', '--text-display'], (n) => `<span style="font:600 var(${n})/1.3 var(--display)">Rising Star ทำเนียบ</span>`);
+  document.getElementById('sc-misc').innerHTML =
+    ['--shadow-card', '--shadow-lift', '--shadow-plum'].map((n) => `<div class="scale-row"><code>${n}</code><span class="shd" style="box-shadow:var(${n})"></span></div>`).join('') +
+    ['--dur-fast', '--dur-base', '--ease-out', '--leading-body', '--leading-heading'].map((n) => `<div class="scale-row"><code>${n}</code><span class="val">${val(n)}</span></div>`).join('');
+
+  // language toggle states
+  const cell = (label, html, cls = '') => `<div class="cell ${cls}"><small>${label}</small>${html}</div>`;
+  const LT = RS.langToggle;
+  document.getElementById('lt-states').innerHTML =
+    cell('EN pressed · default', LT('en')) + cell('EN pressed · hover on TH', LT('en', { th: 'hover' })) + cell('EN pressed · hover on EN', LT('en', { en: 'hover' })) +
+    cell('EN pressed · focus-visible on TH', LT('en', { th: 'focus' })) + cell('EN pressed · active on TH', LT('en', { th: 'active' })) + cell('EN pressed · disabled', LT('en', {}, true)) +
+    cell('TH pressed · default', LT('th')) + cell('TH pressed · hover on EN', LT('th', { en: 'hover' })) + cell('TH pressed · hover on TH', LT('th', { th: 'hover' })) +
+    cell('TH pressed · focus-visible on EN', LT('th', { en: 'focus' })) + cell('TH pressed · active on EN', LT('th', { en: 'active' })) + cell('TH pressed · disabled', LT('th', {}, true));
+  document.getElementById('hdr-actions').innerHTML = LT('en') + '<a class="ghost-button" href="#">Sign in</a><a class="primary-button" href="#">Sign up</a>';
+
+  // atoms
+  const A = document.getElementById('atoms-cells');
+  A.innerHTML =
+    cell('Medal 1 / 2 / 3 · 26px', `<div style="display:flex;gap:var(--space-3)">${RS.medal(1, '', 'en')}${RS.medal(2, '', 'en')}${RS.medal(3, '', 'en')}</div>`) +
+    cell('Medal sm 24 / lg 34', `<div style="display:flex;gap:var(--space-3);align-items:center">${RS.medal(1, 'rs-medal--sm', 'en')}${RS.medal(1, 'rs-medal--lg', 'en')}</div>`) +
+    cell('Medal on avatar (on white)', `<span class="rs-avatar-wrap"><span class="rs-avatar" style="--avatar-size:56px" aria-hidden="true">N</span>${RS.medal(1, '', 'en')}</span>`) +
+    cell('Avatar ranked / plain / TH', `<div style="display:flex;gap:var(--space-3)">${RS.av('P')}${RS.av('S', 'rs-avatar--plain')}${RS.av('ณ')}</div>`) +
+    cell('Rising Star pill · EN', RS.pill('en')) + cell('Rising Star pill · TH', RS.pill('th'));
+
+  // months
+  document.getElementById('hall-en').innerHTML = RS.hall('en', 'he', true);
+  document.getElementById('hall-th').innerHTML = RS.hall('th', 'ht', true);
+  RS.fold(document);
+  // desktop reference shows all rows: remove fold buttons' effect by leaving hidden attribute off
+  document.querySelectorAll('.rs-fold__body').forEach((b) => (b.hidden = false));
+
+  // lists
+  document.getElementById('list-en').innerHTML = '<h3 class="rs-section-head" style="margin-top:0"><span>' + RS.T.en.rankedTitle + '</span></h3>' + RS.ranked('en') + '<div style="height:var(--space-6)"></div>' + RS.plain('en');
+  document.getElementById('list-th').innerHTML = '<h3 class="rs-section-head" style="margin-top:0"><span>' + RS.T.th.rankedTitle + '</span></h3>' + RS.ranked('th') + '<div style="height:var(--space-6)"></div>' + RS.plain('th');
+  const act = (cls, label) => `<a class="ghost-button rs-row__action ${cls}" href="#">${label}</a>`;
+  document.getElementById('row-states').innerHTML = cell('default', act('', 'View profile')) + cell('hover', act('is-hover', 'View profile')) + cell('focus-visible', act('is-focus', 'View profile')) + cell('active', act('is-active', 'View profile')) +
+    cell('disabled', '<button class="ghost-button rs-row__action" disabled>View profile</button>') + cell('loading', '<button class="ghost-button rs-row__action rs-code__apply" aria-busy="true" aria-disabled="true">Loading</button>') + cell('default · TH', act('', 'ดูโปรไฟล์'));
+
+  // upsell
+  document.getElementById('up-en').innerHTML = RS.upsell('en', 'ue', 'empty', false);
+  document.getElementById('up-th').innerHTML = RS.upsell('th', 'ut', 'empty', false);
+  const states = [['empty', ''], ['empty', 'hover'], ['empty', 'focus'], ['filled', ''], ['valid', ''], ['invalid', ''], ['disabled', ''], ['loading', '']];
+  const lbl = (s, f) => (f ? s + ' · ' + f : s);
+  ['en', 'th'].forEach((l) => { document.getElementById('code-' + l).innerHTML = states.map(([s, f], i) => cell(lbl(s, f), RS.code(l, 'c' + l + i, s, f))).join(''); });
+  const cta = (cls, extra = '') => `<button class="primary-button rs-upsell__cta ${cls}" type="button" ${extra}>Join Rising Star</button>`;
+  document.getElementById('cta-states').innerHTML = cell('default', cta('')) + cell('hover', cta('is-hover')) + cell('focus-visible', cta('is-focus')) + cell('active', cta('is-active')) + cell('disabled', cta('', 'disabled')) + cell('loading', cta('', 'aria-busy="true" aria-disabled="true"'));
+
+  // contrast table
+  const rows = [
+    ['ink on white', 17.49, 4.5], ['ink-deep on purple-tint (hall title)', 15.49, 4.5], ['muted on white', 5.95, 4.5], ['muted on purple-tint (hall lead, sample tag)', 5.38, 4.5],
+    ['muted-soft on white (placeholder)', 4.97, 4.5], ['muted on line-warm (plain avatar)', 5.0, 4.5], ['purple on white (rank number, 24px bold)', 7.1, 3], ['purple-deep on white (ghost action)', 8.98, 4.5],
+    ['on-plum on plum', 15.24, 4.5], ['on-plum-muted on plum', 10.13, 4.5], ['on-plum-accent (gold) on plum', 10.86, 4.5],
+    ['on-plum-muted on plum-raised', 8.5, 4.5], ['on-plum on plum-raised', 12.78, 4.5], ['gold on plum-raised', 9.1, 4.5], ['on-plum on plum-avatar', 10.32, 4.5],
+    ['medal-1 ink on gold', 9.9, 4.5], ['medal-2 ink on silver', 10.97, 4.5], ['medal-3 ink on bronze', 9.28, 4.5], ['plum on white (medal on plum panel)', 15.24, 4.5], ['medal-1 ink on gold (winner avatar on plum)', 9.9, 4.5],
+    ['gold-ink on gold-tint (pill)', 8.91, 4.5], ['avatar-ink on avatar gradient', 6.95, 4.5], ['on-purple on purple (toggle pressed)', 7.1, 4.5], ['on-purple on purple-deep (pressed hover)', 8.98, 4.5],
+    ['purple-deep on white (toggle unpressed)', 8.98, 4.5], ['purple-deep on purple-tint (toggle hover)', 8.12, 4.5],
+    ['danger on white / on peach', 6.18, 4.5], ['success on white / on success-tint', 6.81, 4.5], ['on-purple on brand gradient (CTA)', 5.7, 4.5],
+    ['focus-ring on white (non-text)', 2.5, 3], ['focus-ring on purple-tint (non-text)', 2.26, 3], ['gold focus on plum (non-text)', 10.86, 3], ['line-input on white (non-text)', 1.46, 3], ['danger / success field border on tint (non-text)', 6.18, 3],
+  ];
+  document.querySelector('#contrast-tbl tbody').innerHTML = rows.map(([n, r, need]) => `<tr><td>${n}</td><td>${r.toFixed(2)}:1</td><td>${need}:1</td><td class="${r >= need ? 'ok' : 'no'}">${r >= need ? 'Pass' : 'Below target (existing token, see report)'}</td></tr>`).join('');
+})();
+</script>
+</body>
+</html>

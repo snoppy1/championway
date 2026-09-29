@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api } from './api';
+import { ApiError, api, messages } from './api';
 
 type State<T> = { data: T | null; error: string; loading: boolean };
 
@@ -21,7 +21,7 @@ export function useApi<T>(path: string | null) {
       .then((data) => { if (!cancelled) setState({ data, error: '', loading: false }); })
       .catch((error: unknown) => {
         if (cancelled) return;
-        const message = error instanceof ApiError ? error.message : 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ';
+        const message = error instanceof ApiError ? error.message : messages().errors.unreachable;
         setState({ data: null, error: message, loading: false });
       });
     return () => { cancelled = true; };

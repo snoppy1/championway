@@ -1,9 +1,19 @@
+import { en } from '../i18n/en';
+import { th } from '../i18n/th';
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
     this.name = 'ApiError';
   }
 }
+
+/* ภาษาที่ผู้ใช้เลือก ส่งไปกับทุกคำขอ ให้เซิร์ฟเวอร์ตอบข้อความ error เป็นภาษาเดียวกับหน้าเว็บ
+   I18nProvider เป็นคนตั้งค่านี้ ตัวแปรระดับโมดูลเพราะ api() ถูกเรียกนอก React ด้วย */
+let requestLanguage = 'en';
+export function setRequestLanguage(lang: string) { requestLanguage = lang; }
+/** ข้อความของภาษาที่เลือกอยู่ สำหรับโค้ดที่อยู่นอก React ใช้ useI18n() ไม่ได้ */
+export const messages = () => (requestLanguage === 'th' ? th : en);
 
 /* เรียก API ด้วย path เดียวกับหน้าเว็บเสมอ คุกกี้ session จึงเป็น same-site
    ตอน dev มี Vite proxy พา /api ไปที่เซิร์ฟเวอร์ ตอน production อยู่โดเมนเดียวกัน */
@@ -12,6 +22,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     credentials: 'same-origin',
     ...init,
     headers: {
+      'x-lang': requestLanguage,
       ...(init.body ? { 'content-type': 'application/json' } : {}),
       ...init.headers,
     },
@@ -28,7 +39,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     const fromServer = typeof payload === 'object' && payload && 'error' in payload
       ? String((payload as { error: unknown }).error)
       : '';
-    throw new ApiError(response.status, fromServer || `เซิร์ฟเวอร์ตอบผิดพลาด (HTTP ${response.status})`);
+    throw new ApiError(response.status, fromServer || messages().errors.serverStatus(response.status));
   }
   return payload as T;
 }

@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>หน้าหนึ่ง Rising Star</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;700;800&family=IBM+Plex+Sans+Thai+Looped:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Direction 2 — หน้าหนึ่ง (a clear departure)
+   A monthly honour column in a newspaper. Rank is expressed by type size alone:
+   no podium, no medal colours, no cards. One accent (vermilion) marks rank numerals
+   and the one action; everything else is ink on newsprint separated by rules. */
+:root {
+  --paper: #f6f1e7;          /* newsprint */
+  --paper-2: #efe7d8;        /* slip / tabs surface */
+  --ink: #1a1714;
+  --muted: #564e45;
+  --rule: #d6cbb8;
+  --rule-strong: #1a1714;
+  --accent: #b3301a;         /* vermilion: rank numerals + primary action */
+  --accent-deep: #8f2412;
+  --display: 'Noto Serif Thai', serif;
+  --body: 'IBM Plex Sans Thai Looped', sans-serif;
+  color-scheme: only light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.75 var(--body); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p, ol, ul { margin: 0; padding: 0; }
+ol, ul { list-style: none; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.3; font-weight: 700; }
+button, input { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.shell { max-width: 1200px; margin: 0 auto; padding-inline: 32px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.tabs { border: 0; padding: 0; margin: 0; }
+.num { font-family: var(--display); font-variant-numeric: lining-nums tabular-nums; }
+
+/* masthead */
+.mast { border-bottom: 3px double var(--rule-strong); }
+.mast .shell { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 76px; gap: 16px; }
+.mast .date { font-size: 13px; color: var(--muted); }
+.brand { font: 800 26px var(--display); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+.mast nav { justify-self: end; display: flex; gap: 4px; }
+.mast nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; text-decoration: none; font-size: 15px; color: var(--muted); }
+.mast nav a[aria-current] { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 8px; }
+
+/* hall of fame */
+.hall { padding-block: 40px 56px; }
+.kicker { font-size: 14px; color: var(--muted); }
+.hall h1 { font-size: 64px; font-weight: 800; line-height: 1.2; margin: 4px 0 8px; }
+.hall .dek { max-width: 58ch; color: var(--muted); }
+.hall .dek em { font-style: normal; color: var(--ink); }
+
+.tabs { display: none; }
+.cols { display: grid; grid-template-columns: 1fr 1.7fr 1fr; margin-top: 36px; border-top: 1px solid var(--rule-strong); }
+.col { padding: 22px 28px 8px; }
+.col + .col { border-left: 1px solid var(--rule); }
+.col:first-child { padding-left: 0; }
+.col:last-child { padding-right: 0; }
+.col h2 { font-size: 20px; font-weight: 700; }
+.col .when { font-size: 13px; color: var(--muted); }
+
+.lead { display: grid; grid-template-columns: auto 1fr; column-gap: 18px; align-items: end; margin: 18px 0 16px; padding-bottom: 18px; border-bottom: 1px solid var(--rule); }
+.lead .big { font: 800 96px/0.9 var(--display); color: var(--accent); }
+.lead .who { padding-bottom: 6px; }
+.lead .name { font: 700 24px/1.35 var(--display); }
+.lead .spec { font-size: 14px; color: var(--muted); line-height: 1.6; }
+.lead .tally { grid-column: 1 / -1; margin-top: 14px; font-size: 15px; }
+.lead .tally b { font: 700 22px var(--display); }
+.ini { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--ink); font: 700 16px var(--display); flex: none; }
+
+.runner { display: grid; grid-template-columns: 34px 1fr auto; align-items: baseline; gap: 10px; padding: 8px 0; }
+.runner + .runner { border-top: 1px dotted var(--rule); }
+.runner .n { font: 700 26px/1 var(--display); color: var(--accent); }
+.runner .name { font-weight: 600; font-size: 16px; }
+.runner .spec { display: block; font-size: 13px; color: var(--muted); font-weight: 400; }
+.runner .c { font-size: 14px; white-space: nowrap; }
+.runner .c b { font: 700 18px var(--display); }
+
+/* centre column: the loud one */
+.col.now { padding-inline: 36px; }
+.now h2 { font-size: 30px; }
+.now .lead { grid-template-columns: auto auto 1fr; align-items: center; }
+.now .lead .big { font-size: 200px; line-height: 0.82; margin-left: -8px; }
+.now .lead .ini { width: 76px; height: 76px; font-size: 32px; background: var(--ink); color: var(--paper); border: 0; align-self: center; }
+.now .lead .name { font-size: 38px; }
+.now .lead .spec { font-size: 16px; }
+.now .lead .tally { font-size: 16px; }
+.now .lead .tally b { font-size: 30px; }
+.now .runner .n { font-size: 34px; }
+.now .runner .name { font-size: 19px; }
+.side .lead { grid-template-columns: auto auto 1fr; align-items: center; column-gap: 12px; }
+.side .lead .big { font-size: 80px; }
+.side .lead .name { font-size: 20px; }
+
+.note { margin-top: 20px; font-size: 13px; color: var(--muted); }
+
+/* ledger */
+.ledger-wrap { border-top: 3px double var(--rule-strong); padding-top: 40px; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--rule-strong); }
+.sec-head h2 { font-size: 32px; }
+.sec-head p { font-size: 14px; color: var(--muted); }
+.entry { display: grid; grid-template-columns: 72px 1fr 150px 170px; align-items: center; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--rule); }
+.entry .n { font: 800 44px/1 var(--display); color: var(--accent); }
+.entry .name { font: 700 21px/1.4 var(--display); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.entry .spec { font-size: 15px; color: var(--muted); }
+.mark { display: inline-flex; align-items: center; gap: 5px; font: 600 13px/1.6 var(--body); color: var(--accent-deep); }
+.mark svg { width: 14px; height: 14px; }
+.entry .stat { font-size: 14px; color: var(--muted); line-height: 1.5; }
+.entry .stat b { display: block; font: 700 24px/1.2 var(--display); color: var(--ink); }
+.more { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; min-height: 44px; font-weight: 600; font-size: 15px; text-decoration: none; border-bottom: 1.5px solid var(--ink); justify-self: end; }
+.more svg { width: 16px; height: 16px; }
+
+/* upsell slip — sits exactly at the boundary between ranked and unranked */
+.slip { margin: 44px 0; background: var(--paper-2); border: 1px solid var(--rule); border-top: 3px solid var(--accent); display: grid; grid-template-columns: 1.2fr 1fr; }
+.slip-l { padding: 30px 32px; }
+.slip-l .for { font-size: 14px; color: var(--accent-deep); font-weight: 600; }
+.slip-l h3 { font-size: 30px; margin: 4px 0 12px; line-height: 1.35; }
+.slip-l ol { counter-reset: p; }
+.slip-l li { counter-increment: p; display: grid; grid-template-columns: 28px 1fr; gap: 8px; padding: 6px 0; font-size: 15px; }
+.slip-l li::before { content: counter(p); font: 700 18px var(--display); color: var(--accent); }
+.slip-r { padding: 30px 32px; border-left: 1px dashed #b9ab93; }
+.price { display: flex; align-items: baseline; gap: 10px; }
+.price b { font: 800 72px/1 var(--display); }
+.price span { font-size: 16px; color: var(--muted); }
+.code { margin-top: 18px; }
+.code label { display: block; font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+.code .field { display: flex; gap: 8px; }
+.code input { flex: 1; min-width: 0; min-height: 48px; border: 1px solid #a89a82; border-radius: 4px; background: #fffdf8; padding: 0 14px; letter-spacing: 0.04em; }
+.code .apply { min-height: 48px; padding: 0 18px; border: 1.5px solid var(--ink); border-radius: 4px; background: transparent; font-weight: 600; cursor: pointer; }
+.code .ok { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 14px; color: #1f5130; }
+.code .ok svg { width: 18px; height: 18px; flex: none; }
+.code .ok s { color: var(--muted); }
+.cta { display: flex; justify-content: center; align-items: center; width: 100%; min-height: 52px; margin-top: 18px; border: 0; border-radius: 4px; background: var(--accent); color: #fff; font-weight: 600; font-size: 16px; cursor: pointer; }
+.cta:hover { background: var(--accent-deep); }
+.fine { font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+/* unranked directory */
+.dir { columns: 2; column-gap: 48px; padding-top: 8px; }
+.dir li { break-inside: avoid; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+.dir .name { font: 600 18px/1.4 var(--display); }
+.dir .spec { font-size: 14px; color: var(--muted); }
+.foot { padding: 48px 0 64px; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .mast .shell { grid-template-columns: 1fr auto; }
+  .mast .date { display: none; }
+  .brand { justify-self: start; }
+}
+@media (max-width: 700px) {
+  .shell { padding-inline: 16px; }
+  .mast nav a:not([aria-current]) { display: none; }
+  .brand { font-size: 22px; }
+  .hall { padding-block: 24px 36px; }
+  .hall h1 { font-size: 40px; }
+  /* one month at a time; this month is selected by default */
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 24px; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; }
+  .tabs input { position: absolute; opacity: 0; pointer-events: none; }
+  .tabs label { display: grid; place-items: center; min-height: 48px; font-size: 14px; text-align: center; line-height: 1.3; cursor: pointer; padding: 4px; }
+  .tabs label:not(:first-of-type) { border-left: 1px solid var(--ink); }
+  .tabs input:checked + label { background: var(--ink); color: var(--paper); font-weight: 600; }
+  .tabs input:focus-visible + label { outline: 3px solid var(--accent); outline-offset: -3px; }
+  .cols { display: block; margin-top: 0; border-top: 0; }
+  .col, .col.now { padding: 20px 0 0; display: none; }
+  .col + .col { border-left: 0; }
+  body:has(#t-aug:checked) .col.aug,
+  body:has(#t-sep:checked) .col.sep,
+  body:has(#t-jul:checked) .col.jul { display: block; }
+  .now h2, .col h2 { font-size: 24px; }
+  .now .lead, .side .lead { grid-template-columns: auto auto 1fr; column-gap: 12px; }
+  .lead .tally { grid-column: 1 / -1; }
+  .now .lead .big, .side .lead .big { font-size: 112px; }
+  .now .lead .ini { width: 56px; height: 56px; font-size: 24px; }
+  .side .lead .ini { width: 56px; height: 56px; font-size: 24px; }
+  .now .lead .name, .side .lead .name { font-size: 24px; }
+  .ledger-wrap { padding-top: 28px; }
+  .sec-head h2 { font-size: 26px; }
+  .entry { grid-template-columns: 48px 1fr; gap: 4px 14px; padding: 16px 0; }
+  .entry .n { font-size: 36px; grid-row: span 3; align-self: start; }
+  .entry .stat, .entry .more { grid-column: 2; justify-self: start; }
+  .entry .stat b { display: inline; font-size: 18px; margin-right: 4px; }
+  .slip { grid-template-columns: 1fr; margin: 32px 0; }
+  .slip-l, .slip-r { padding: 22px 18px; }
+  .slip-r { border-left: 0; border-top: 1px dashed #b9ab93; }
+  .slip-l h3 { font-size: 24px; }
+  .price b { font-size: 56px; }
+  .dir { columns: 1; }
+}
+</style>
+</head>
+<body>
+<header class="mast">
+  <div class="shell">
+    <p class="date">ฉบับวันพุธที่ 30 กันยายน 2569</p>
+    <a class="brand" href="#">ChampionWays</a>
+    <nav aria-label="หลัก">
+      <a href="#">การแข่งขัน</a>
+      <a href="#" aria-current="page">เมนเทอร์</a>
+      <a href="#">บัญชีของฉัน</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section class="hall shell" aria-labelledby="hall-title">
+  <p class="kicker">ทำเนียบประจำเดือน</p>
+  <h1 id="hall-title">Rising Star</h1>
+  <p class="dek">สามเมนเทอร์ที่ให้คำปรึกษาจบครบ 60 นาทีมากที่สุดของแต่ละเดือน <em>นับเฉพาะนัดที่ยืนยันและถึงเวลานัดแล้ว</em> ยกเลิกไม่นับ</p>
+
+  <fieldset class="tabs">
+    <legend class="sr-only">เลือกเดือน</legend>
+    <input type="radio" name="m" id="t-jul"><label for="t-jul">ก.ค.</label>
+    <input type="radio" name="m" id="t-aug"><label for="t-aug">ส.ค.</label>
+    <input type="radio" name="m" id="t-sep" checked><label for="t-sep">ก.ย.<br>เดือนนี้</label>
+  </fieldset>
+
+  <div class="cols">
+    <article class="col side aug" aria-labelledby="h-aug">
+      <h2 id="h-aug">สิงหาคม</h2><p class="when">เดือนที่แล้ว · ปิดอันดับแล้ว</p>
+      <div class="lead"><span class="big num" aria-label="อันดับ 1">1</span><span class="ini" aria-hidden="true">ณ</span><div class="who"><p class="name">ณัฐชยา วงศ์ทอง</p><p class="spec">Data Science และ Hackathon</p></div><p class="tally"><b class="num">17</b> ครั้ง</p></div>
+      <ol>
+        <li class="runner"><span class="n num" aria-label="อันดับ 2">2</span><span class="name">ธนกฤต แก้วมณี<span class="spec">หุ่นยนต์และ IoT</span></span><span class="c"><b class="num">12</b> ครั้ง</span></li>
+        <li class="runner"><span class="n num" aria-label="อันดับ 3">3</span><span class="name">พิมพ์ลภัส จันทร์เพ็ญ<span class="spec">โครงงานวิทยาศาสตร์</span></span><span class="c"><b class="num">10</b> ครั้ง</span></li>
+      </ol>
+    </article>
+
+    <article class="col now sep" aria-labelledby="h-sep">
+      <h2 id="h-sep">กันยายน</h2><p class="when">เดือนนี้ · ปิดอันดับคืนนี้ 23:59 น.</p>
+      <div class="lead"><span class="big num" aria-label="อันดับ 1">1</span><span class="ini" aria-hidden="true">ป</span><div class="who"><p class="name">ปัณณวัฒน์ ศรีสุข</p><p class="spec">แผนธุรกิจและการพิชช์</p></div><p class="tally">ให้คำปรึกษาสำเร็จ <b class="num">14</b> ครั้ง นำอันดับสองอยู่ 3 ครั้ง</p></div>
+      <ol>
+        <li class="runner"><span class="n num" aria-label="อันดับ 2">2</span><span class="name">ณัฐชยา วงศ์ทอง<span class="spec">Data Science และ Hackathon</span></span><span class="c"><b class="num">11</b> ครั้ง</span></li>
+        <li class="runner"><span class="n num" aria-label="อันดับ 3">3</span><span class="name">กฤติน อ่อนละมัย<span class="spec">UX/UI และงานออกแบบ</span></span><span class="c"><b class="num">9</b> ครั้ง</span></li>
+      </ol>
+    </article>
+
+    <article class="col side jul" aria-labelledby="h-jul">
+      <h2 id="h-jul">กรกฎาคม</h2><p class="when">สองเดือนก่อน · ปิดอันดับแล้ว</p>
+      <div class="lead"><span class="big num" aria-label="อันดับ 1">1</span><span class="ini" aria-hidden="true">ศ</span><div class="who"><p class="name">ศุภวิชญ์ บุญมา</p><p class="spec">แข่งเคสธุรกิจ</p></div><p class="tally"><b class="num">12</b> ครั้ง</p></div>
+      <ol>
+        <li class="runner"><span class="n num" aria-label="อันดับ 2">2</span><span class="name">ปัณณวัฒน์ ศรีสุข<span class="spec">แผนธุรกิจและการพิชช์</span></span><span class="c"><b class="num">9</b> ครั้ง</span></li>
+        <li class="runner"><span class="n num" aria-label="อันดับ 3">3</span><span class="name">อรปรียา สุวรรณรัตน์<span class="spec">โต้วาทีภาษาอังกฤษ</span></span><span class="c"><b class="num">8</b> ครั้ง</span></li>
+      </ol>
+    </article>
+  </div>
+  <p class="note">อันดับในหน้านี้เป็นข้อมูลตัวอย่าง</p>
+</section>
+
+<div class="shell">
+  <section class="ledger-wrap" aria-labelledby="ledger-title">
+    <div class="sec-head"><h2 id="ledger-title">อันดับเดือนกันยายน</h2><p>เมนเทอร์ Rising Star 6 คน · เรียงตามนัดที่ปรึกษาสำเร็จ</p></div>
+    <ol>
+      <li class="entry"><span class="n num" aria-label="อันดับ 1">1</span><div><p class="name">ปัณณวัฒน์ ศรีสุข <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">แผนธุรกิจและการพิชช์ · อดีตแชมป์ Asia Pitch 2567</p></div><p class="stat"><b class="num">14</b>ครั้งเดือนนี้</p><a class="more" href="#">60 นาที 450 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+      <li class="entry"><span class="n num" aria-label="อันดับ 2">2</span><div><p class="name">ณัฐชยา วงศ์ทอง <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">Data Science และ Hackathon</p></div><p class="stat"><b class="num">11</b>ครั้งเดือนนี้</p><a class="more" href="#">60 นาที 390 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+      <li class="entry"><span class="n num" aria-label="อันดับ 3">3</span><div><p class="name">กฤติน อ่อนละมัย <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">UX/UI และงานออกแบบ</p></div><p class="stat"><b class="num">9</b>ครั้งเดือนนี้</p><a class="more" href="#">60 นาที 500 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+      <li class="entry"><span class="n num" aria-label="อันดับ 4">4</span><div><p class="name">ธนกฤต แก้วมณี <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">หุ่นยนต์และ IoT</p></div><p class="stat"><b class="num">7</b>ครั้งเดือนนี้</p><a class="more" href="#">60 นาที 350 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+      <li class="entry"><span class="n num" aria-label="อันดับ 5">5</span><div><p class="name">พิมพ์ลภัส จันทร์เพ็ญ <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">โครงงานวิทยาศาสตร์</p></div><p class="stat"><b class="num">6</b>ครั้งเดือนนี้</p><a class="more" href="#">60 นาที 300 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+      <li class="entry"><span class="n num" aria-label="อันดับ 6">6</span><div><p class="name">อรปรียา สุวรรณรัตน์ <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>Rising Star</span></p><p class="spec">โต้วาทีภาษาอังกฤษ</p></div><p class="stat"><b class="num">4</b>ครั้งเดือนนี้</p><a class="more" href="#">60 นาที 420 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+    </ol>
+  </section>
+
+  <aside class="slip" aria-labelledby="slip-title">
+    <div class="slip-l">
+      <p class="for">ถึงเมนเทอร์ ศศิธร</p>
+      <h3 id="slip-title">เดือนนี้คุณให้คำปรึกษาไปแล้ว 5 ครั้ง ชื่อคุณควรอยู่ในรายการข้างบน</h3>
+      <ol>
+        <li>ได้ลำดับในรายการนี้ นักเรียนเห็นก่อนเมนเทอร์ทั่วไป</li>
+        <li>มีสิทธิ์ขึ้นทำเนียบประจำเดือน และคงอยู่บนหน้านี้อีกสองเดือน</li>
+        <li>เครื่องหมาย Rising Star ข้างชื่อ ทั้งในโปรไฟล์และผลค้นหา</li>
+      </ol>
+    </div>
+    <form class="slip-r" onsubmit="return false">
+      <p class="price"><b class="num">99</b><span>บาทต่อเดือน</span></p>
+      <div class="code">
+        <label for="code2">โค้ดส่วนลด</label>
+        <div class="field"><input id="code2" value="NEWMENTOR" autocomplete="off" aria-describedby="code2-ok"><button class="apply" type="submit">ใช้โค้ด</button></div>
+        <p class="ok" id="code2-ok" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>ใช้โค้ดแล้ว ราคา <s>99</s> เหลือ 39 บาท</span></p>
+      </div>
+      <button class="cta" type="button">สมัคร Rising Star · 39 บาท</button>
+      <p class="fine">ตัวอย่างหน้าจอ ยังไม่ตัดเงินจริง</p>
+    </form>
+  </aside>
+
+  <section aria-labelledby="dir-title">
+    <div class="sec-head"><h2 id="dir-title">เมนเทอร์ทั้งหมด</h2><p>เรียงตามชื่อ</p></div>
+    <ul class="dir">
+      <li><div><p class="name">ชยพล ทองดี</p><p class="spec">พัฒนาเว็บสำหรับ Hackathon</p></div><a class="more" href="#">250 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+      <li><div><p class="name">ภาคิน เจริญผล</p><p class="spec">คณิตศาสตร์โอลิมปิก</p></div><a class="more" href="#">400 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+      <li><div><p class="name">วริศรา มีสุข</p><p class="spec">ออกแบบโปสเตอร์ประกวด</p></div><a class="more" href="#">300 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+      <li><div><p class="name">ศิริกานต์ พรหมวงศ์</p><p class="spec">สุนทรพจน์ภาษาไทย</p></div><a class="more" href="#">280 บาท <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></li>
+    </ul>
+  </section>
+  <p class="foot">ราคาทุกรายการคือ 60 นาทีต่อหนึ่งนัด</p>
+</div>
+</main>
+</body>
+</html>

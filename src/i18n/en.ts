@@ -513,7 +513,6 @@ export const en = {
     sourceLine: (source: string, date: string) => `${source} · Last checked ${date}`,
     openSource: 'Open the original announcement',
     noSourceLink: 'There is no link to the original announcement yet. Please check the details with the organizer before you apply.',
-    seeMentors: 'See available mentors',
     overview: 'What this competition is about',
     audience: 'Who it is for',
     format: 'Format',

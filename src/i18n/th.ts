@@ -509,7 +509,6 @@ export const th: Messages = {
     sourceLine: (source, date) => `${source} · ตรวจล่าสุด ${date}`,
     openSource: 'เปิดประกาศต้นทาง',
     noSourceLink: 'ยังไม่มีลิงก์ประกาศต้นทาง โปรดตรวจสอบรายละเอียดกับผู้จัดก่อนสมัคร',
-    seeMentors: 'ดูเมนเทอร์ที่พร้อมให้ปรึกษา',
     overview: 'เวทีนี้เกี่ยวกับอะไร',
     audience: 'เหมาะกับใคร',
     format: 'รูปแบบการแข่งขัน',

@@ -427,13 +427,11 @@ test('the competition page tabs work with mouse, keyboard and deep links', async
   await page.keyboard.press('End');
   await expect(mentors).toBeFocused();
 
-  // ลิงก์เก่า #event-mentors ยังพาไปแท็บเมนเทอร์ และปุ่มในกล่องสรุปสลับแท็บให้
+  // ลิงก์เก่า #event-mentors ยังพาไปแท็บเมนเทอร์ ส่วนปุ่มในกล่องสรุปเอาออกแล้วตามที่ผู้ใช้สั่ง ใช้แท็บด้านบนแทน
   await page.goto(`/competitions/${slug}#event-mentors`);
   await expect(mentors).toHaveAttribute('aria-selected', 'true');
   await details.click();
-  await page.getByRole('button', { name: 'ดูเมนเทอร์ที่พร้อมให้ปรึกษา' }).click();
-  await expect(mentors).toHaveAttribute('aria-selected', 'true');
-  await expect(mentors).toBeFocused();
+  await expect(page.locator('.detail-side').getByRole('button')).toHaveCount(0);
 });
 
 test('a competition nobody mentors says so and points to the Hall of Fame', async ({ page }) => {

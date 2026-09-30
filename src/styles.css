@@ -619,19 +619,19 @@ main:focus { outline: none; }
 .detail-hero p { font-size: 15px; line-height: 1.8; color: #5f5668; }
 .detail-cover { border-radius: 18px; overflow: hidden; border: 1px solid var(--line); }
 
-.detail-grid { display: grid; grid-template-columns: 320px 1fr; gap: 32px; margin-top: 32px; align-items: start; }
+.detail-grid { display: grid; grid-template-columns: 400px 1fr; gap: 32px; margin-top: 32px; align-items: start; }
 .summary-panel {
-  padding: 24px;
+  padding: 28px 30px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--card);
   box-shadow: var(--shadow-card);
 }
-.summary-panel h2 { font-size: 19px; font-weight: 600; margin-bottom: 16px; }
-.summary-panel dl { margin: 0; display: grid; gap: 14px; }
-.summary-panel dt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
-.summary-panel dd { margin: 4px 0 0; font-weight: 600; }
-.summary-panel svg { color: var(--purple); }
+.summary-panel h2 { font-size: 23px; font-weight: 600; margin-bottom: 22px; }
+.summary-panel dl { margin: 0; display: grid; gap: 20px; }
+.summary-panel dt { display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: var(--muted); }
+.summary-panel dd { margin: 6px 0 0; font-size: 18px; font-weight: 600; line-height: 1.45; }
+.summary-panel svg { color: var(--purple); width: 19px; height: 19px; flex-shrink: 0; }
 .side-note { margin-top: 16px; font-size: 12.5px; color: var(--muted-soft); }
 
 .article-section { display: flex; gap: 18px; padding-block: 26px; border-top: 1px solid var(--line); }
@@ -905,18 +905,18 @@ legend { margin-bottom: 12px; font-weight: 600; }
 .category-pill.is-more { background: var(--purple-tint); color: var(--purple-deep); }
 
 .source-panel {
-  margin-top: 16px;
-  padding: 18px 20px;
+  margin-top: 18px;
+  padding: 22px 24px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--purple-tint);
 }
 .source-panel h2 {
   display: flex; align-items: center; gap: 8px;
-  font-size: 14px; font-weight: 600; color: var(--purple-deep);
-  margin-bottom: 8px;
+  font-size: 16px; font-weight: 600; color: var(--purple-deep);
+  margin-bottom: 10px;
 }
-.source-panel p { font-size: 12.5px; color: var(--muted); }
+.source-panel p { font-size: 14.5px; line-height: 1.6; color: var(--muted); }
 .source-panel a { display: inline-flex; align-items: center; gap: 6px; color: var(--purple-deep); font-weight: 600; }
 .source-panel .side-note { margin-top: 6px; color: var(--muted); }
 

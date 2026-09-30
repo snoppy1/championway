@@ -220,12 +220,6 @@ export function Detail() {
             : <p className="side-note">{s.noSourceLink}</p>}
         </div>
 
-        <p style={{ marginTop: 14 }}>
-          <button type="button" className="ghost-button cx-button" onClick={() => {
-            selectTab('mentors', true);
-            document.getElementById('competition-tabs')?.scrollIntoView({ block: 'start' });
-          }}>{s.seeMentors}</button>
-        </p>
       </aside>
 
       <div className="detail-article">

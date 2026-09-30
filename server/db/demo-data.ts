@@ -37,6 +37,9 @@ const risingStarPlan: Record<string, { member: number[]; sessions: [number, numb
   'mentor-aom': { member: [], sessions: [2, 0, 0] },
 };
 
+/** บัญชีสมมติของข้อมูล Rising Star ตัวอย่าง seed ต้องลบทิ้งก่อนใส่ใหม่ ไม่อย่างนั้นการใส่จะข้ามเพราะเห็นว่ามีอยู่แล้ว */
+export const demoUserIds = [DEMO_STUDENT, ...Object.keys(risingStarPlan).map(demoMentorUser)];
+
 const BANGKOK = 7 * 3600_000;
 function monthRange(now: Date, offset: number) {
   const local = new Date(now.getTime() + BANGKOK);

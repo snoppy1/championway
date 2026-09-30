@@ -26,7 +26,10 @@ function bangkokMonth(now: Date, offset: number) {
   return { key, start, end };
 }
 
-type Period = { mentorId: string; startsAt: Date; endsAt: Date };
+/** ตัวอักษรแรกสำหรับรูปวงกลม ข้ามสระหน้า (เ แ โ ใ ไ) ไม่งั้น "เจ" จะขึ้นแค่ "เ" */
+const initialOf = (text: string) => text.replace(/^[เแโใไ]+/, '').slice(0, 1).toUpperCase() || text.slice(0, 1);
+
+type Period = { mentorId: string; startsAt: Date; endsAt: Date; source: string };
 const overlaps = (p: Period, start: Date, end: Date) => p.startsAt < end && p.endsAt > start;
 
 risingStar.get('/', async (c) => {
@@ -38,7 +41,7 @@ risingStar.get('/', async (c) => {
       id: mentors.id, name: mentors.name, avatar: mentors.avatar, bio: mentors.bio,
       focus: mentors.weeklyFocus, price: mentors.price,
     }).from(mentors),
-    db.select({ mentorId: risingStarPeriods.mentorId, startsAt: risingStarPeriods.startsAt, endsAt: risingStarPeriods.endsAt })
+    db.select({ mentorId: risingStarPeriods.mentorId, startsAt: risingStarPeriods.startsAt, endsAt: risingStarPeriods.endsAt, source: risingStarPeriods.source })
       .from(risingStarPeriods).where(gt(risingStarPeriods.endsAt, twoAgo.start)),
     db.select({ mentorId: bookings.mentorId, endsAt: mentorSlots.endsAt })
       .from(bookings).innerJoin(mentorSlots, eq(bookings.slotId, mentorSlots.id))
@@ -57,7 +60,7 @@ risingStar.get('/', async (c) => {
   const card = (id: string, count: number) => {
     const mentor = byId.get(id)!;
     return {
-      id: mentor.id, name: mentor.name, initial: mentor.avatar.slice(0, 1),
+      id: mentor.id, name: mentor.name, initial: initialOf(mentor.avatar || mentor.name),
       specialty: mentor.focus ?? mentor.bio, price: mentor.price, count,
     };
   };
@@ -106,6 +109,9 @@ risingStar.get('/', async (c) => {
     }
   }
 
+  // มีช่วงสมาชิกตัวอย่างอยู่ในสามเดือนนี้ หน้าเว็บจะติดป้ายว่าอันดับยังไม่ใช่ข้อมูลจริง
+  const demo = periods.some((p) => p.source === 'demo');
+
   c.header('Cache-Control', 'private, no-store');
-  return c.json({ hall, ranked, others, viewer });
+  return c.json({ hall, ranked, others, viewer, demo });
 });

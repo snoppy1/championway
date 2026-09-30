@@ -40,12 +40,12 @@
   --medal-1-ink: #3a2a00;
   --medal-2-bg: #e4e0ea;
   --medal-2-ink: #2d2838;
-  --medal-3-bg: #efd9c6;
+  --medal-3-bg: #e6b98c;
   --medal-3-ink: #4a2c12;
-  /* avatars: same gradient as .podium-avatar */
-  --avatar-bg: linear-gradient(145deg, #e9ddff, #fff1b5);
-  --avatar-ink: var(--purple-deep);
-  --avatar-plain-bg: var(--line-warm);
+  /* avatars: flat lavender for Rising Star members, flat grey for everyone else (direction 1) */
+  --avatar-bg: #ece6f7;
+  --avatar-ink: #3b2470;
+  --avatar-plain-bg: #ebe9ee;
   --avatar-plain-ink: var(--muted);
   /* existing hardcoded values given names so new code can reference them */
   --line-purple: #ddd0f4;

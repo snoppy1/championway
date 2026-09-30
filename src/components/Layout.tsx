@@ -49,6 +49,7 @@ function Header() {
       <div className={menuOpen ? 'header-menu is-open' : 'header-menu'} id="site-menu">
         <nav className="main-nav" aria-label={t.nav.mainMenu}>
           <NavLink to="/" end>{t.nav.explore}</NavLink>
+          <NavLink to="/mentors">{t.nav.mentors}</NavLink>
           {user && <NavLink to="/profile">{t.nav.profile}</NavLink>}
           {user && <NavLink to="/chats">{t.nav.chats}</NavLink>}
           <span className="nav-soon" title={t.common.comingSoon}>{t.nav.library} <small>{t.common.soonTag}</small></span>

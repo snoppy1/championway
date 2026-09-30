@@ -19,7 +19,7 @@ import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Explore } from './pages/Explore';
 import { MentorProfile } from './pages/MentorProfile';
-import { MentorsRedirect } from './pages/MentorsRedirect';
+import { MentorsRoute } from './pages/MentorsRoute';
 import { MentorApplication } from './pages/MentorApplication';
 import { Profile } from './pages/Profile';
 import { ProfileEdit } from './pages/ProfileEdit';
@@ -45,7 +45,7 @@ const router = createBrowserRouter([{
     { path: '/explore', element: <Explore /> },
     { path: '/competitions', element: <Navigate to="/explore" replace /> },
     { path: '/competitions/:slug', element: <Detail /> },
-    { path: '/mentors', element: <MentorsRedirect /> },
+    { path: '/mentors', element: <MentorsRoute /> },
     { path: '/mentors/apply', element: <MentorApplication /> },
     { path: '/mentors/:id', element: <MentorProfile /> },
     { path: '/profile', element: <Profile /> },

@@ -1,11 +1,12 @@
 import { client, db } from './client.js';
 import {
   bookingEvents, bookings, competitionCategories, competitionLevels, competitionRewards, competitions, mentorAwards,
-  mentorSubmissions, mentors, reviewEvents, submissionCategories, submissionLevels,
+  mentorSubmissions, mentors, reviewEvents, users, submissionCategories, submissionLevels,
   submissionRewards, competitionSubmissions,
 } from './schema.js';
 import { pathToFileURL } from 'node:url';
-import { demoTotals, insertDemoData } from './demo-data.js';
+import { inArray } from 'drizzle-orm';
+import { demoTotals, demoUserIds, insertDemoData } from './demo-data.js';
 import { testDatabase } from '../lib/database-safety.js';
 
 /* ย้ายข้อมูลตัวอย่างที่เคยอยู่ในไฟล์ TypeScript เข้าฐานข้อมูล รันซ้ำได้เพราะล้างของเดิมก่อน
@@ -30,6 +31,8 @@ export async function seed() {
     await tx.delete(competitionRewards);
     await tx.delete(competitions);
     await tx.delete(mentors);
+    // บัญชีสมมติของ Rising Star ต้องหายไปด้วย ไม่อย่างนั้น insertDemoData เห็นว่ามีแล้วและข้ามการใส่การปรึกษา
+    await tx.delete(users).where(inArray(users.id, demoUserIds));
 
     await insertDemoData(tx);
   });

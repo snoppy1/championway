@@ -72,13 +72,13 @@
 .rs-hall { padding-block: var(--space-12) 52px; border-bottom: 1px solid var(--line); background: var(--purple-tint); }
 .rs-hall__head { display: flex; align-items: end; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-8); }
 .rs-hall__head h1 { font-size: var(--text-3xl); font-weight: 700; line-height: var(--leading-heading); color: var(--ink-deep); }
-.rs-hall__head p { max-width: 46ch; margin-top: var(--space-1); color: var(--muted); }
-.rs-sample {
-  flex: none; padding: var(--space-1) var(--space-3);
+.rs-hall__head p { max-width: 34em; margin-top: var(--space-1); color: var(--muted); }
+.rs-hall__head .rs-sample {
+  display: inline-block; margin-top: var(--space-3); padding: var(--space-1) var(--space-3);
   border: 1px dashed var(--line-purple); border-radius: var(--radius-pill);
   color: var(--muted); font-size: var(--text-sm);
 }
-.rs-months { display: grid; grid-template-columns: 1fr 1.45fr 1fr; gap: var(--space-5); align-items: start; }
+.rs-months { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr) minmax(0, 1fr); gap: var(--space-5); align-items: start; }
 
 .rs-month {
   --rs-surface: var(--card);
@@ -100,6 +100,8 @@
 }
 .rs-winner .rs-avatar { --avatar-size: 56px; }
 .rs-winner__who { min-width: 0; }
+/* a long specialty must not make one side card taller than the other */
+.rs-month--past .rs-winner__spec { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 3.2em; overflow: hidden; }
 .rs-winner__name { font: 600 var(--text-lg)/1.4 var(--display); overflow-wrap: break-word; }
 .rs-winner__spec { font-size: var(--text-sm); line-height: 1.6; color: var(--muted); }
 .rs-winner__count { margin-left: auto; flex: none; text-align: right; }
@@ -127,7 +129,7 @@
 .rs-month__closing { margin-top: 2px; font-size: var(--text-sm); color: var(--on-plum-muted); }
 .rs-month--now .rs-winner {
   position: relative;
-  flex-direction: column; align-items: flex-start; gap: var(--space-2);
+  flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-4);
   margin-top: var(--space-6); padding-bottom: var(--space-5);
   border-color: var(--plum-line);
 }
@@ -135,7 +137,9 @@
 .rs-month--now .rs-winner .rs-medal { --medal-size: 34px; --medal-bg: var(--on-plum); --medal-ink: var(--plum); }
 .rs-month--now .rs-winner__name { font-size: var(--text-2xl); }
 .rs-month--now .rs-winner__spec { font-size: var(--text-base); color: var(--on-plum-muted); }
-.rs-month--now .rs-winner__count { position: absolute; right: 0; top: var(--space-2); }
+.rs-month--now .rs-winner .rs-avatar-wrap { margin-right: 100%; }
+.rs-month--now .rs-winner__who { flex: 1 1 0; }
+.rs-month--now .rs-winner__count { flex: 0 1 auto; max-width: 50%; }
 .rs-month--now .rs-winner__count b { font-size: var(--text-display); color: var(--on-plum-accent); }
 .rs-month--now .rs-winner__count span { font-size: var(--text-base); color: var(--on-plum-muted); }
 .rs-month--now .rs-rank-row { padding: var(--space-2) var(--space-4); border-radius: var(--radius-sm); background: var(--plum-raised); }
@@ -148,7 +152,7 @@
 /* fold control: shown on phones only. A real button, so state is exposed via aria-expanded. */
 .rs-fold__toggle {
   display: none; align-items: center; gap: var(--space-1);
-  min-height: 44px; padding: 0 var(--space-1);
+  min-width: 44px; min-height: 44px; padding: 0 var(--space-1);
   border: 0; border-radius: var(--radius-sm); background: none;
   color: var(--purple-deep); font-size: var(--text-sm); font-weight: 600;
 }
@@ -168,7 +172,7 @@
 .rs-section-sub { margin-bottom: 18px; font-size: var(--text-base); color: var(--muted); }
 .rs-section + .rs-section { margin-top: var(--space-12); }
 
-.rs-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); }
+.rs-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); box-shadow: var(--shadow-card); }
 .rs-row {
   display: grid; grid-template-columns: 44px 52px 1fr auto; align-items: center; gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
@@ -187,13 +191,20 @@
   min-height: 44px; padding-inline: 18px;
   font-size: var(--text-base); font-weight: 600; white-space: nowrap;
 }
+.rs-row__action-icon { display: none; width: 20px; height: 20px; }
 .rs-row__action:is(:active, .is-active) { background: var(--line-purple); }
 .rs-row__action.is-hover { background: var(--purple-tint); }
 .rs-row__action.is-focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* unranked: no frame, no rank number, neutral avatar */
-.rs-list--plain { border: 0; border-radius: 0; background: none; }
-.rs-list--plain > .rs-row { grid-template-columns: 52px 1fr auto; padding: var(--space-4) var(--space-1); border-top: 1px solid var(--line); }
+.rs-list--plain { border: 0; border-radius: 0; background: none; box-shadow: none; }
+/* no rank column, so avatars start at the content edge; the right padding matches the ranked card
+   (its padding plus 1px border) so both lists' buttons end on the same line */
+.rs-list--plain > .rs-row {
+  grid-template-columns: 52px 1fr auto;
+  padding: var(--space-4) calc(var(--space-5) + 1px) var(--space-4) 0;
+  border-top: 1px solid var(--line);
+}
 .rs-list--plain > .rs-row:last-child { border-bottom: 1px solid var(--line); }
 .rs-list--plain .rs-row__name { font-size: var(--text-input); font-weight: 500; }
 
@@ -219,8 +230,9 @@
   display: flex; justify-content: center; width: 100%; min-height: 48px; margin-top: 18px;
   font-size: var(--text-md);
 }
-.rs-upsell__cta:is(:active, .is-active) { transform: translateY(1px); box-shadow: none; }
-.rs-upsell__cta.is-hover { box-shadow: var(--shadow-lift); }
+.rs-upsell__cta:is(:active, .is-active) { transform: translateY(1px); }
+.primary-button.rs-upsell__cta, .primary-button.rs-upsell__cta:not(:disabled):hover { box-shadow: none; }
+.primary-button.rs-upsell__cta:not(:disabled):is(:hover, .is-hover) { background: var(--purple-deep); }
 .rs-upsell__cta.is-focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* discount-code field */
@@ -259,6 +271,72 @@
 }
 @keyframes rs-spin { to { transform: rotate(360deg); } }
 
+
+/* ---------- page additions (Rising Star page) ---------- */
+
+/* DOM order is this month, last month, two months ago, so phones and screen readers meet the
+   current month first. On wide screens the months are placed back in time order, this month centred. */
+@media (min-width: 701px) {
+  .rs-slot--last { grid-column: 1; grid-row: 1; }
+  .rs-slot--now { grid-column: 2; grid-row: 1; }
+  .rs-slot--older { grid-column: 3; grid-row: 1; }
+}
+
+/* a mentor's name is the link; its ::after stretches the hit area over the whole card or row */
+.rs-winner, .rs-rank-row { position: relative; }
+.rs-namelink { color: inherit; }
+.rs-namelink::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-sm); }
+.rs-namelink:is(:hover, .is-hover) { text-decoration: underline; text-underline-offset: 4px; }
+.rs-namelink:focus-visible { outline: none; }
+.rs-namelink:focus-visible::after { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.rs-month--now .rs-namelink:focus-visible::after { outline-color: var(--on-plum-accent); }
+
+.rs-month__empty { margin-top: var(--space-5); color: var(--muted); font-size: var(--text-base); line-height: var(--leading-body); }
+.rs-month--now .rs-month__empty { color: var(--on-plum-muted); font-size: var(--text-md); }
+
+.rs-lists { min-width: 0; }
+.rs-upsell__lead { margin-bottom: var(--space-3); font-size: var(--text-md); line-height: var(--leading-body); }
+
+/* empty and error blocks */
+.rs-empty {
+  padding: var(--space-8) var(--space-6);
+  border: 1px dashed var(--line-purple); border-radius: var(--radius-card);
+  background: var(--card); color: var(--muted); text-align: center;
+}
+.rs-empty h3 { margin-bottom: var(--space-1); font-size: var(--text-lg); font-weight: 600; color: var(--ink); }
+.rs-state {
+  padding: var(--space-8) var(--space-6);
+  border: 1px solid var(--danger-line); border-radius: var(--radius-card);
+  background: var(--danger-tint); text-align: center;
+}
+.rs-state h2 { font-size: var(--text-xl); font-weight: 600; color: var(--danger); }
+.rs-state p { margin-top: var(--space-1); color: var(--ink); }
+.rs-state__action { min-height: 44px; margin-top: var(--space-4); font-weight: 600; }
+
+/* "you are already a member" note, takes the upsell's place */
+.rs-note {
+  position: sticky; top: var(--space-5);
+  padding: var(--space-5); border: 1px solid var(--gold-line); border-radius: var(--radius-panel);
+  background: var(--gold-tint);
+}
+.rs-note h2 { margin-top: var(--space-2); font-size: var(--text-xl); font-weight: 600; line-height: var(--leading-heading); }
+.rs-note p + p { margin-top: var(--space-1); }
+.rs-note p:not(.rs-pill) { color: var(--gold-ink); font-size: var(--text-md); }
+
+/* loading placeholders */
+.rs-skeleton {
+  border: 1px solid var(--line); border-radius: var(--radius-card);
+  background: linear-gradient(105deg, var(--card) 30%, var(--purple-tint) 50%, var(--card) 70%);
+  background-size: 300% 100%;
+  animation: rs-shimmer 1.4s ease-in-out infinite;
+}
+.rs-skeleton--now { min-height: calc(var(--space-18) * 5); }
+.rs-skeleton--past { min-height: calc(var(--space-18) * 3); }
+.rs-skeleton--row { min-height: calc(var(--space-12) * 2); }
+.rs-skeleton--row + .rs-skeleton--row { margin-top: var(--space-3); }
+.rs-skeleton--upsell { min-height: calc(var(--space-18) * 5); border-radius: var(--radius-panel); }
+@keyframes rs-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
 /* ---------- phone ---------- */
 
 @media (max-width: 700px) {
@@ -273,7 +351,8 @@
 
   /* past months fold to their winner */
   .rs-month--past { padding: 0; }
-  .rs-month--past .rs-month__head { padding: var(--space-3) var(--space-4) 0; }
+  .rs-month--past .rs-month__head { position: relative; min-height: 44px; padding: var(--space-3) var(--space-4) 0; }
+  .rs-month--past .rs-winner__spec { min-height: 0; }
   .rs-month--past .rs-month__title { font-size: var(--text-md); }
   .rs-month--past .rs-winner { margin-block: var(--space-2); padding: 0 var(--space-4); border: 0; }
   .rs-month--past .rs-winner .rs-avatar { --avatar-size: 44px; }
@@ -281,19 +360,27 @@
   .rs-month--past .rs-winner__count b { font-size: var(--text-xl); }
   .rs-month--past .rs-fold__body { padding: 0 var(--space-4) var(--space-3); }
   .rs-month--past .rs-fold__body[hidden] { display: none; }
-  .rs-fold__toggle { display: inline-flex; }
+  /* the toggle is stretched over the month header, so the whole row is the 44px+ target */
+  .rs-fold__toggle {
+    display: inline-flex; position: absolute; inset: 0; justify-content: flex-end;
+    padding-inline: var(--space-4); border-radius: var(--radius-card);
+  }
 
   .rs-layout { grid-template-columns: 1fr; gap: 0; padding-block: var(--space-8) 56px; }
-  .rs-upsell { position: static; margin-top: var(--space-8); }
-  .rs-row { grid-template-columns: 32px 44px 1fr; gap: var(--space-3); padding: var(--space-4) 14px; }
+  .rs-upsell, .rs-note { position: static; margin-top: var(--space-8); }
+  .rs-month--past .rs-month__empty { margin: 0; padding: var(--space-2) var(--space-4) var(--space-4); }
+  .rs-row { grid-template-columns: 32px 44px 1fr 44px; gap: var(--space-3); padding: var(--space-4) 14px; }
   .rs-row .rs-avatar { --avatar-size: 44px; }
-  .rs-row__action { grid-column: 3; justify-self: start; }
+  .rs-row__action { position: relative; width: 44px; padding: 0; }
+  .rs-row__action-icon { display: block; }
+  .rs-row__action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .rs-list--plain > .rs-row { grid-template-columns: 44px 1fr 44px; padding: var(--space-4) 14px var(--space-4) 0; }
   .rs-row__rank { font-size: var(--text-xl); }
-  .rs-list--plain > .rs-row { grid-template-columns: 44px 1fr; padding-inline: 0; }
-  .rs-list--plain .rs-row__action { grid-column: 2; }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
   .rs-fold__toggle svg, .rs-code__input, .lang-toggle button { transition: none; }
+  .rs-skeleton { animation: none; }
   .rs-upsell__cta[aria-busy="true"]::before, .rs-code__apply[aria-busy="true"]::before { animation: none; border-top-color: currentcolor; }
 }

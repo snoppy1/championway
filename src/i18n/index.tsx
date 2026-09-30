@@ -4,12 +4,13 @@ import { en } from './en';
 import { th } from './th';
 import type { Messages } from './en';
 import { setRequestLanguage } from '../lib/api';
+import type { Lang } from './format';
 
 /* ภาษาของหน้าเว็บ ค่าตั้งต้นคืออังกฤษ จำตัวเลือกไว้ในเบราว์เซอร์นั้น
    และตั้ง <html lang> ให้ตรง เพื่อให้กฎตัวอักษรไทยใน CSS (:lang(th)) กับโปรแกรมอ่านหน้าจอทำงานถูก
    เนื้อหาที่ผู้ใช้เขียนเอง เช่นรายละเอียดเวทีหรือประวัติเมนเทอร์ ไม่ได้แปล แสดงตามภาษาที่เขียนมา */
 
-export type Lang = 'en' | 'th';
+export type { Lang };
 export const langs: Lang[] = ['en', 'th'];
 const dictionaries: Record<Lang, Messages> = { en, th };
 const STORAGE_KEY = 'cw-lang';

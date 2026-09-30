@@ -3,7 +3,8 @@ import {
   Briefcase, CodeXml, GraduationCap, LayoutGrid, Lightbulb, Stethoscope, TrendingUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { kinds, kindKeys, themeKeys, themes, type Kind, type Theme } from '../data/focus';
+import { kindKeys, themeKeys, type Kind, type Theme } from '../data/focus';
+import { useI18n } from '../i18n';
 import './competition-type-filter.css';
 
 /* ไอคอนอยู่ที่นี่ ไม่ได้อยู่ใน data/focus.ts เพราะไฟล์นั้นเซิร์ฟเวอร์ก็นำเข้าไปใช้
@@ -22,6 +23,8 @@ const themeIcons: Record<Theme, LucideIcon> = {
 };
 
 export function CompetitionTypeFilter() {
+  const { t } = useI18n();
+  const s = t.filters;
   const [params, setParams] = useSearchParams();
   const rawKind = params.get('kind') as Kind;
   const kind = kindKeys.includes(rawKind) ? rawKind : null;
@@ -37,7 +40,7 @@ export function CompetitionTypeFilter() {
   }
 
   return <div className="competition-type-filter">
-    <div className="type-buttons" role="group" aria-label="ประเภทการแข่งขัน">
+    <div className="type-buttons" role="group" aria-label={s.typeGroup}>
       {/* "ทั้งหมด" คือค่าตั้งต้น ติดอยู่เมื่อยังไม่เลือกประเภท เพื่อให้เห็นว่ากำลังดูทุกเวที
           ไม่ใช่ปล่อยให้ทั้งแถวดูไม่มีอะไรถูกเลือก */}
       <button
@@ -46,7 +49,7 @@ export function CompetitionTypeFilter() {
         aria-pressed={kind === null}
         onClick={() => change(null)}
       >
-        <LayoutGrid size={16} aria-hidden="true" />ทั้งหมด
+        <LayoutGrid size={16} aria-hidden="true" />{s.all}
       </button>
       {kindKeys.map((id) => {
         const Icon = kindIcons[id];
@@ -58,13 +61,13 @@ export function CompetitionTypeFilter() {
           aria-controls={expanded ? 'competition-subtypes' : undefined}
           onClick={() => change(kind === id ? null : id)}
         >
-          <Icon size={16} aria-hidden="true" />{kinds[id]}
+          <Icon size={16} aria-hidden="true" />{t.taxonomy.kinds[id]}
         </button>;
       })}
     </div>
 
     {expanded && <div className="subtype-reveal" id="competition-subtypes" key={kind}>
-      <div className="subtype-options" role="group" aria-label={`หมวดย่อย ${kinds[kind!]}`}>
+      <div className="subtype-options" role="group" aria-label={s.subtypeGroup(t.taxonomy.kinds[kind!])}>
         {themeKeys.map((id) => {
           const Icon = themeIcons[id];
           return <button
@@ -75,14 +78,14 @@ export function CompetitionTypeFilter() {
               ? selected.filter((item) => item !== id)
               : [...selected, id])}
           >
-            <Icon size={15} aria-hidden="true" />{themes[id]}
+            <Icon size={15} aria-hidden="true" />{t.taxonomy.themes[id]}
           </button>;
         })}
       </div>
       {/* ปุ่ม "ทั้งหมด" ล้างทั้งประเภทและหมวดอยู่แล้ว ปุ่มนี้จึงเหลือหน้าที่เดียว
           คือล้างเฉพาะหมวดย่อยแต่คงประเภทไว้ และขึ้นเฉพาะตอนที่มีหมวดให้ล้างจริง */}
       {selected.length > 0 && <button type="button" className="link-button type-reset" onClick={() => change(kind)}>
-        ล้างหมวดย่อย
+        {s.clearSubtypes}
       </button>}
     </div>}
   </div>;

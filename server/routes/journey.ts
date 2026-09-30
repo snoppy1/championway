@@ -7,7 +7,8 @@ import { bookings, bookingEvents, chatMembers, chatRooms, competitions, mentorAw
 import { requireUser, requireReviewer, type AppEnv } from '../lib/guards.js';
 import { newId } from '../lib/id.js';
 import { env } from '../lib/env.js';
-import { scoreThemes, RULE_VERSION, themes } from '../../src/data/focus.js';
+import { scoreThemes, RULE_VERSION } from '../../src/data/focus.js';
+import type { MatchReason } from '../../src/data/focus.js';
 
 export const journey = new Hono<AppEnv>();
 journey.use('*', async (c, next) => {
@@ -63,7 +64,7 @@ async function eligible(mentorId: string, competitionId: string, eventThemes: st
   const info = await mentorInfo(row);
   const matching = info.scores.filter(s=>s.active && eventThemes.includes(s.theme));
   if (choice?.choice !== 'help' && !matching.length) return null;
-  return { ...info, direct:choice?.choice === 'help', matchCount:matching.length, matchScore:matching.reduce((n,s)=>n+s.score,0), reasons:[...(choice?.choice === 'help' ? ['เลือกช่วยงานนี้'] : []), ...matching.map(s=>`${s.reasons.some(r=>r.startsWith('ผลงาน'))?'ผลงานที่ตรวจแล้วตรงหมวด':'ความถนัดตรงหมวด'}${themes[s.theme]}`)] };
+  return { ...info, direct:choice?.choice === 'help', matchCount:matching.length, matchScore:matching.reduce((n,s)=>n+s.score,0), reasons:[...(choice?.choice === 'help' ? [{code:'chose'} as MatchReason] : []), ...matching.map((s): MatchReason => ({code:s.reasons.some(r=>r.code==='verified')?'verified':'aptitude',theme:s.theme}))] };
 }
 journey.get('/competitions/:slug/mentors', async c => {
   const e = await event(c.req.param('slug'));

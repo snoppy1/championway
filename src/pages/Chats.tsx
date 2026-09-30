@@ -4,7 +4,8 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { MessageCircle, Paperclip, Send, Users } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { api, post, ApiError } from '../lib/api';
-import { thaiTime } from '../data/focus';
+import { useI18n } from '../i18n';
+import { formatDateTime, formatLocalDateTime } from '../i18n/format';
 import '../chat.css';
 
 type Room = { id: string; title: string; context: string; status: string; ownerId: string; mentorUserId: string };
@@ -16,51 +17,56 @@ type Detail = { room: Room; members: Member[]; invites: Invite[]; appointments: 
 type Inbox = { rooms: Room[]; invites: Invite[] };
 /* กลุ่มเกิดจากนัดที่เมนเทอร์รับแล้วเท่านั้น จึงเป็น active ตั้งแต่แรก
    สองสถานะที่เหลือไว้อ่านห้องเก่าที่สร้างก่อนเปลี่ยนเส้นทาง */
-const statusLabel: Record<string, string> = { pending: 'รอเมนเทอร์รับคำขอ', active: 'เมนเทอร์เข้ากลุ่มแล้ว', declined: 'เมนเทอร์ปฏิเสธคำขอ' };
-const errorText = (e: unknown) => e instanceof Error ? e.message : 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง';
-const date = (s: string) => new Date(s).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+const errorText = (e: unknown, fallback: string) => e instanceof Error ? e.message : fallback;
 
 function Appointments({ detail }: { detail: Detail }) {
+  const { t, lang } = useI18n();
+  const s = t.chats;
   const appointments = detail.appointments ?? [];
   const next = appointments.find(item => item.status === 'confirmed');
   const history = appointments.filter(item => item.id !== next?.id);
   const render = (item: Appointment) => <article key={item.id}>
     <strong>{item.title} · {item.eventName}</strong>
-    <p>{thaiTime(item.startsAt)} – {thaiTime(item.endsAt)} (เวลาไทย)</p>
-    <p>{({ confirmed: 'ยืนยันแล้ว', cancelled: 'ยกเลิกแล้ว', elapsed: 'พ้นเวลานัดแล้ว' } as Record<string, string>)[item.status] ?? item.status}</p>
+    <p>{formatDateTime(item.startsAt, lang)} – {formatDateTime(item.endsAt, lang)} {t.journey.thaiTimeNote}</p>
+    <p>{s.appointmentStatus[item.status] ?? item.status}</p>
     <p className="appointment-context">{item.context}</p>
   </article>;
-  return <section className="chat-pinned" aria-label="รายละเอียดนัดในกลุ่ม">
-    <h2>{next ? 'นัดปรึกษาที่กำลังจะถึง / กำลังคุย' : 'นัดปรึกษาของกลุ่ม'}</h2>
+  return <section className="chat-pinned" aria-label={s.appointmentsLabel}>
+    <h2>{next ? s.upcoming : s.groupAppointments}</h2>
     {next && render(next)}
-    {!!history.length && <details><summary>นัดอื่นและประวัติ ({history.length})</summary>{history.map(render)}</details>}
-    {!appointments.length && <><strong>โจทย์ของทีม</strong><p className="appointment-context">{detail.room.context}</p><p>ยังไม่มีข้อมูลนัดที่เชื่อมกับกลุ่มนี้</p></>}
-    <small>ปรึกษาผ่านแชต 60 นาที · พ้นเวลานัดไม่ได้ยืนยันว่าให้บริการครบแล้ว</small>
+    {!!history.length && <details><summary>{s.history(history.length)}</summary>{history.map(render)}</details>}
+    {!appointments.length && <><strong>{s.teamBrief}</strong><p className="appointment-context">{detail.room.context}</p><p>{s.noAppointments}</p></>}
+    <small>{s.appointmentNote}</small>
   </section>;
 }
 
 export function Chats() {
+  const { t } = useI18n();
   const { user, loading } = useAuth();
   const { id } = useParams();
-  if (loading) return <main id="main" className="shell page">กำลังโหลดบัญชี…</main>;
+  if (loading) return <main id="main" className="shell page">{t.chats.loadingAccount}</main>;
   if (!user) return <Navigate to={`/signin?next=${encodeURIComponent(id ? `/chats/${id}` : '/chats')}`} replace />;
   return id ? <ChatRoom key={id} id={id} /> : <ChatInbox />;
 }
 
 function ChatInbox() {
+  const { t, lang } = useI18n();
+  const s = t.chats;
   const [data, setData] = useState<Inbox>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const load = () => api<Inbox>('/chats').then(setData).catch(e => setError(errorText(e)));
-  useEffect(() => { document.title = 'แชตของฉัน — ChampionWays'; void load(); const timer = setInterval(() => { if (!document.hidden) void load(); }, 5000); return () => clearInterval(timer); }, []);
-  async function act(path: string, body: unknown) { setBusy(true); setError(''); try { await post(path, body); await load(); } catch (e) { setError(errorText(e)); } finally { setBusy(false); } }
-  return <main id="main" tabIndex={-1} className="shell page chat-page"><div className="chat-heading"><div><p className="eyebrow">YOUR TEAM SPACE</p><h1>แชตของฉัน</h1><p>คุยกับทีม เก็บไฟล์ และนัดพบเมนเทอร์ในที่เดียว</p></div><Link className="ghost-button" to="/explore">หาเวทีและเมนเทอร์</Link></div><p role="alert" className="chat-error">{error}</p>
-    {!!data?.invites.length && <section className="panel"><h2>คำเชิญเข้ากลุ่ม</h2><p>คำเชิญผูกกับอีเมลนี้ ต้องยืนยันอีเมลผ่าน Google ก่อนรับคำเชิญ</p>{data.invites.map(i => <div className="chat-invite" key={i.id}><h3>{i.title}</h3><small>หมดอายุ {date(i.expiresAt)}</small><button className="primary-button" disabled={busy} onClick={() => void act(`/chats/invites/${i.id}/accept`, {})}>ยอมรับคำเชิญ</button></div>)}</section>}
-    <section className="chat-room-list" aria-label="กลุ่มของฉัน">{data?.rooms.map(r => <Link to={`/chats/${r.id}`} className="chat-room-card" key={r.id}><span className="chat-room-icon"><MessageCircle aria-hidden="true" /></span><div><h2>{r.title}</h2><p>{statusLabel[r.status]}</p></div><span aria-hidden="true">→</span></Link>)}{data && !data.rooms.length && <div className="empty-state"><MessageCircle aria-hidden="true" /><h2>ยังไม่มีกลุ่มสนทนา</h2><p>เลือกเวทีที่สนใจ แล้วขอจองเวลาคุยกับเมนเทอร์ กลุ่มจะเปิดให้เมื่อเมนเทอร์รับคำขอ</p></div>}{!data && !error && <p role="status">กำลังโหลดกลุ่ม…</p>}</section>
+  const load = () => api<Inbox>('/chats').then(setData).catch(e => setError(errorText(e, s.connectFailed)));
+  useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; void load(); const timer = setInterval(() => { if (!document.hidden) void load(); }, 5000); return () => clearInterval(timer); }, []);
+  async function act(path: string, body: unknown) { setBusy(true); setError(''); try { await post(path, body); await load(); } catch (e) { setError(errorText(e, s.connectFailed)); } finally { setBusy(false); } }
+  return <main id="main" tabIndex={-1} className="shell page chat-page"><div className="chat-heading"><div><p className="eyebrow">{s.eyebrow}</p><h1>{s.pageTitle}</h1><p>{s.lead}</p></div><Link className="ghost-button" to="/explore">{s.findCta}</Link></div><p role="alert" className="chat-error">{error}</p>
+    {!!data?.invites.length && <section className="panel"><h2>{s.invitesTitle}</h2><p>{s.invitesNote}</p>{data.invites.map(i => <div className="chat-invite" key={i.id}><h3>{i.title}</h3><small>{s.expires(formatLocalDateTime(i.expiresAt, lang))}</small><button className="primary-button" disabled={busy} onClick={() => void act(`/chats/invites/${i.id}/accept`, {})}>{s.accept}</button></div>)}</section>}
+    <section className="chat-room-list" aria-label={s.groupsLabel}>{data?.rooms.map(r => <Link to={`/chats/${r.id}`} className="chat-room-card" key={r.id}><span className="chat-room-icon"><MessageCircle aria-hidden="true" /></span><div><h2>{r.title}</h2><p>{s.roomStatus[r.status]}</p></div><span aria-hidden="true">→</span></Link>)}{data && !data.rooms.length && <div className="empty-state"><MessageCircle aria-hidden="true" /><h2>{s.noGroups}</h2><p>{s.noGroupsText}</p></div>}{!data && !error && <p role="status">{s.loadingGroups}</p>}</section>
   </main>;
 }
 
 function ChatRoom({ id }: { id: string }) {
+  const { t, lang } = useI18n();
+  const s = t.chats;
   const { user } = useAuth();
   const [detail, setDetail] = useState<Detail>();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -93,23 +99,23 @@ function ChatRoom({ id }: { id: string }) {
       setDetail(d); document.title = `${d.room.title} — ChampionWays`;
       if (!messageRef.current.length) setHasMore(m.hasMore);
       merge(m.messages);
-    } catch (e) { if (live.current) { setError(errorText(e)); if (e instanceof ApiError && [401,403,404].includes(e.status)) { setDetail(undefined); setMessages([]); messageRef.current = []; } } }
+    } catch (e) { if (live.current) { setError(errorText(e, s.connectFailed)); if (e instanceof ApiError && [401,403,404].includes(e.status)) { setDetail(undefined); setMessages([]); messageRef.current = []; } } }
   }
   useEffect(() => { live.current = true; let running = false; const tick = async () => { if (running || document.hidden) return; running = true; await refresh(); running = false; }; void tick(); const timer = setInterval(() => void tick(), 3000); return () => { live.current = false; clearInterval(timer); }; }, [id]);
   useEffect(() => { if (atBottom.current && log.current) log.current.scrollTop = log.current.scrollHeight; void markRead(); }, [messages]);
-  async function act(path: string, body: unknown, method = 'POST') { setBusy(true); setError(''); try { await api(path, { method, ...(method === 'POST' ? { body: JSON.stringify(body) } : {}) }); await refresh(); return true; } catch (e) { setError(errorText(e)); return false; } finally { setBusy(false); } }
+  async function act(path: string, body: unknown, method = 'POST') { setBusy(true); setError(''); try { await api(path, { method, ...(method === 'POST' ? { body: JSON.stringify(body) } : {}) }); await refresh(); return true; } catch (e) { setError(errorText(e, s.connectFailed)); return false; } finally { setBusy(false); } }
   async function send(e: FormEvent) {
     e.preventDefault(); if (!text.trim() && !file) return; setBusy(true); setError('');
     const body = new FormData(); body.set('text', text); body.set('clientId', retryId); if (file) body.set('file', file);
-    try { const response = await fetch(`/api/chats/${id}/messages`, { method: 'POST', body, credentials: 'same-origin' }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'ส่งไม่สำเร็จ'); setText(''); setFile(undefined); if (upload.current) upload.current.value = ''; setRetryId(crypto.randomUUID()); atBottom.current = true; await refresh(); } catch (e) { setError(`${errorText(e)} — ข้อความยังอยู่ กดส่งเพื่อลองใหม่ได้`); } finally { setBusy(false); }
+    try { const response = await fetch(`/api/chats/${id}/messages`, { method: 'POST', body, credentials: 'same-origin' }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? s.sendFailed); setText(''); setFile(undefined); if (upload.current) upload.current.value = ''; setRetryId(crypto.randomUUID()); atBottom.current = true; await refresh(); } catch (e) { setError(s.retryHint(errorText(e, s.connectFailed))); } finally { setBusy(false); }
   }
-  async function older() { setMoreBusy(true); const height = log.current?.scrollHeight ?? 0; try { const data = await api<{ messages: Message[]; hasMore: boolean }>(`/chats/${id}/messages?before=${messages[0].id}`); atBottom.current = false; merge(data.messages); setHasMore(data.hasMore); requestAnimationFrame(() => { if (log.current) log.current.scrollTop += log.current.scrollHeight - height; }); } catch (e) { setError(errorText(e)); } finally { setMoreBusy(false); } }
+  async function older() { setMoreBusy(true); const height = log.current?.scrollHeight ?? 0; try { const data = await api<{ messages: Message[]; hasMore: boolean }>(`/chats/${id}/messages?before=${messages[0].id}`); atBottom.current = false; merge(data.messages); setHasMore(data.hasMore); requestAnimationFrame(() => { if (log.current) log.current.scrollTop += log.current.scrollHeight - height; }); } catch (e) { setError(errorText(e, s.connectFailed)); } finally { setMoreBusy(false); } }
   const owner = detail?.room.ownerId === user!.id;
-  return <main id="main" tabIndex={-1} className="shell page chat-page"><Link to="/chats" className="chat-back">← กลุ่มทั้งหมด</Link><p role="alert" className="chat-error">{error}</p>{!detail ? <p role="status">{error ? 'กลับไปหน้ากลุ่มเพื่อตรวจสิทธิ์หรือคำเชิญของคุณ' : 'กำลังโหลดห้องสนทนา…'}</p> : <>
-    <header className="chat-heading"><div><p className="eyebrow">TEAM CONVERSATION</p><h1>{detail.room.title}</h1><p>{statusLabel[detail.room.status]} · {detail.members.length} สมาชิก</p></div><a className="ghost-button" href="#chat-members"><Users size={16} aria-hidden="true" /> สมาชิกกลุ่ม</a></header>
-    <div className="chat-layout"><section className="chat-conversation" aria-label="ห้องสนทนา"><Appointments detail={detail} />      <div className="chat-log" ref={log} role="log" aria-label="ข้อความในกลุ่ม" aria-live="polite" onScroll={() => { const el = log.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; void markRead(); }}>{hasMore && <button className="ghost-button" disabled={moreBusy} onClick={() => void older()}>โหลดข้อความก่อนหน้า</button>}{!messages.length && <div className="chat-welcome"><MessageCircle size={32} aria-hidden="true" /><h2>เริ่มบทสนทนาของทีม</h2><p>แนะนำทีม หรือส่งโจทย์ที่อยากให้เมนเทอร์ช่วยดู</p></div>}{messages.map(m => <article className={`chat-message ${m.senderId === user!.id ? 'mine' : ''}`} key={m.id}><span className="chat-sender">{m.senderId === user!.id ? 'คุณ' : m.name}</span><div className="chat-bubble">{m.body && <p>{m.body}</p>}{m.fileName && <a href={`/api/chats/${id}/files/${m.id}`} target="_blank" rel="noopener noreferrer"><Paperclip size={14} aria-hidden="true" /> {m.fileName}</a>}</div><small>{date(m.createdAt)}{m.senderId === user!.id && ` · อ่านแล้ว ${detail.members.filter(member => member.id !== user!.id && member.readAt && new Date(member.readAt) >= new Date(m.createdAt)).length}`}</small></article>)}</div>
-      <form className="chat-composer" onSubmit={send}><label htmlFor="chat-text" className="sr-only">ข้อความ</label><textarea id="chat-text" maxLength={4000} rows={2} disabled={busy || detail.room.status === 'declined'} value={text} onChange={e => { setText(e.target.value); setRetryId(crypto.randomUUID()); }} placeholder="พิมพ์ข้อความถึงทีม…" /><div className="chat-composer-actions"><label className="chat-file"><Paperclip size={18} aria-hidden="true" /><span>แนบไฟล์</span><input ref={upload} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" disabled={busy || detail.room.status === 'declined'} onChange={e => { const f = e.target.files?.[0]; if (f && f.size > 2 * 1024 * 1024) { setError('ไฟล์ต้องไม่เกิน 2 MB'); e.target.value = ''; setFile(undefined); } else { setFile(f); setRetryId(crypto.randomUUID()); } }} /></label><small>รูปภาพ / PDF ≤ 2 MB</small><button className="primary-button" disabled={busy || (!text.trim() && !file) || detail.room.status === 'declined'}><Send size={16} aria-hidden="true" />{busy ? 'กำลังส่ง…' : 'ส่ง'}</button></div>{file && <p className="chat-selected-file">{file.name} <button type="button" onClick={() => { setFile(undefined); if (upload.current) upload.current.value = ''; setRetryId(crypto.randomUUID()); }}>นำไฟล์ออก</button></p>}</form>
-    </section><aside className="chat-sidebar"><section id="chat-members" className="panel"><h2>สมาชิกกลุ่ม</h2><ul>{detail.members.map(m => <li key={m.id}><div><strong>{m.name}</strong><small>{m.id === detail.room.ownerId ? 'เจ้าของกลุ่ม / ผู้ติดต่อจ้าง' : m.id === detail.room.mentorUserId ? 'เมนเทอร์' : 'สมาชิกทีม'}</small></div>{owner && ![detail.room.ownerId, detail.room.mentorUserId].includes(m.id) && <button className="link-button" onClick={() => { if (window.confirm(`นำ ${m.name} ออกจากกลุ่ม?`)) void act(`/chats/${id}/members/${m.id}`, {}, 'DELETE'); }} disabled={busy}>นำออก</button>}</li>)}</ul>{owner ? <form onSubmit={async e => { e.preventDefault(); if (await act(`/chats/${id}/invites`, { email })) { setEmail(''); setNotice('สร้างคำเชิญแล้ว ผู้รับจะเห็นในหน้าแชตเมื่อเข้าสู่ระบบด้วยอีเมลนี้ ไม่มีการส่งอีเมลอัตโนมัติ'); } }}><label>อีเมลสมาชิกที่ต้องการเชิญ<input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><button className="ghost-button" disabled={busy}>เชิญสมาชิก</button><p role="status">{notice}</p></form> : <p className="chat-muted">เจ้าของกลุ่มเป็นผู้เพิ่มสมาชิกเท่านั้น</p>}{owner && detail.invites.map(i => <div className="chat-invite" key={i.id}><p>{i.email}</p><small>หมดอายุ {date(i.expiresAt)}</small><button disabled={busy} className="link-button" onClick={() => void act(`/chats/${id}/invites/${i.id}`, {}, 'DELETE')}>ยกเลิกคำเชิญ</button></div>)}</section>
-    <section className="panel"><h2>เวลานัด</h2><p className="chat-muted">ปรึกษากันในแชตนี้ตามเวลาที่ตกลงไว้ ดูรายละเอียดนัดได้ที่ <Link to="/profile">โปรไฟล์ของฉัน</Link> เว็บนี้ไม่มีการนัดผ่านลิงก์คอลภายนอก</p></section><p className="chat-muted">แชตอัปเดตประมาณทุก 3 วินาทีขณะเปิดหน้า · คำขอคุยนี้ยังไม่มีระบบชำระเงิน</p></aside></div>
+  return <main id="main" tabIndex={-1} className="shell page chat-page"><Link to="/chats" className="chat-back">{s.back}</Link><p role="alert" className="chat-error">{error}</p>{!detail ? <p role="status">{error ? s.recover : s.loadingRoom}</p> : <>
+    <header className="chat-heading"><div><p className="eyebrow">{s.roomEyebrow}</p><h1>{detail.room.title}</h1><p>{s.roomStatus[detail.room.status]} · {s.memberCount(detail.members.length)}</p></div><a className="ghost-button" href="#chat-members"><Users size={16} aria-hidden="true" /> {s.membersButton}</a></header>
+    <div className="chat-layout"><section className="chat-conversation" aria-label={s.conversation}><Appointments detail={detail} />      <div className="chat-log" ref={log} role="log" aria-label={s.log} aria-live="polite" onScroll={() => { const el = log.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; void markRead(); }}>{hasMore && <button className="ghost-button" disabled={moreBusy} onClick={() => void older()}>{s.loadOlder}</button>}{!messages.length && <div className="chat-welcome"><MessageCircle size={32} aria-hidden="true" /><h2>{s.welcomeTitle}</h2><p>{s.welcomeText}</p></div>}{messages.map(m => <article className={`chat-message ${m.senderId === user!.id ? 'mine' : ''}`} key={m.id}><span className="chat-sender">{m.senderId === user!.id ? s.you : m.name}</span><div className="chat-bubble">{m.body && <p>{m.body}</p>}{m.fileName && <a href={`/api/chats/${id}/files/${m.id}`} target="_blank" rel="noopener noreferrer"><Paperclip size={14} aria-hidden="true" /> {m.fileName}</a>}</div><small>{formatLocalDateTime(m.createdAt, lang)}{m.senderId === user!.id && s.readBy(detail.members.filter(member => member.id !== user!.id && member.readAt && new Date(member.readAt) >= new Date(m.createdAt)).length)}</small></article>)}</div>
+      <form className="chat-composer" onSubmit={send}><label htmlFor="chat-text" className="sr-only">{s.messageLabel}</label><textarea id="chat-text" maxLength={4000} rows={2} disabled={busy || detail.room.status === 'declined'} value={text} onChange={e => { setText(e.target.value); setRetryId(crypto.randomUUID()); }} placeholder={s.messagePlaceholder} /><div className="chat-composer-actions"><label className="chat-file"><Paperclip size={18} aria-hidden="true" /><span>{s.attach}</span><input ref={upload} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" disabled={busy || detail.room.status === 'declined'} onChange={e => { const f = e.target.files?.[0]; if (f && f.size > 2 * 1024 * 1024) { setError(s.fileTooBig); e.target.value = ''; setFile(undefined); } else { setFile(f); setRetryId(crypto.randomUUID()); } }} /></label><small>{s.fileNote}</small><button className="primary-button" disabled={busy || (!text.trim() && !file) || detail.room.status === 'declined'}><Send size={16} aria-hidden="true" />{busy ? s.sending : s.send}</button></div>{file && <p className="chat-selected-file">{file.name} <button type="button" onClick={() => { setFile(undefined); if (upload.current) upload.current.value = ''; setRetryId(crypto.randomUUID()); }}>{s.removeFile}</button></p>}</form>
+    </section><aside className="chat-sidebar"><section id="chat-members" className="panel"><h2>{s.membersTitle}</h2><ul>{detail.members.map(m => <li key={m.id}><div><strong>{m.name}</strong><small>{m.id === detail.room.ownerId ? s.roleOwner : m.id === detail.room.mentorUserId ? s.roleMentor : s.roleMember}</small></div>{owner && ![detail.room.ownerId, detail.room.mentorUserId].includes(m.id) && <button className="link-button" onClick={() => { if (window.confirm(s.removeMemberConfirm(m.name))) void act(`/chats/${id}/members/${m.id}`, {}, 'DELETE'); }} disabled={busy}>{s.removeMember}</button>}</li>)}</ul>{owner ? <form onSubmit={async e => { e.preventDefault(); if (await act(`/chats/${id}/invites`, { email })) { setEmail(''); setNotice(s.inviteCreated); } }}><label>{s.inviteEmail}<input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><button className="ghost-button" disabled={busy}>{s.inviteMember}</button><p role="status">{notice}</p></form> : <p className="chat-muted">{s.ownerOnly}</p>}{owner && detail.invites.map(i => <div className="chat-invite" key={i.id}><p>{i.email}</p><small>{s.expires(formatLocalDateTime(i.expiresAt, lang))}</small><button disabled={busy} className="link-button" onClick={() => void act(`/chats/${id}/invites/${i.id}`, {}, 'DELETE')}>{s.cancelInvite}</button></div>)}</section>
+    <section className="panel"><h2>{s.timeTitle}</h2><p className="chat-muted">{s.timeBefore}<Link to="/profile">{s.timeLink}</Link>{s.timeAfter}</p></section><p className="chat-muted">{s.pollNote}</p></aside></div>
   </>}</main>;
 }

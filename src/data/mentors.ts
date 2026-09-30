@@ -1,22 +1,19 @@
 import type { CategoryId } from './competitions.js';
 import { findCompetition } from './competitions.js';
+import { mentors } from './sample-mentors.js';
+import { topicIds, topicValues } from './stored-values.js';
+import { th } from '../i18n/th.js';
+import { locales } from '../i18n/format.js';
+import type { Lang } from '../i18n/format.js';
+import type { Messages } from '../i18n/en.js';
 
-/** Proposed six-topic taxonomy. Replace with the owner's final vocabulary. */
-export const topics = [
-  'ตีโจทย์และหาไอเดีย',
-  'วางแผนและแบ่งงาน',
-  'พัฒนาต้นแบบ',
-  'ออกแบบสไลด์',
-  'Pitching และตอบคำถาม',
-  'วิเคราะห์ผลงานหลังแข่ง',
-];
+export { mentors };
 
-export const problems = [
-  'ยังไม่มี idea หรือไม่แน่ใจว่าตรงโจทย์',
-  'มี idea แล้วแต่ไม่รู้จะทำทัน',
-  'ทำเสร็จแล้วแต่พรีเซนต์ไม่เป็น',
-  'แพ้มาแล้วอยากรู้ว่าพลาดตรงไหน',
-];
+/** Proposed six-topic taxonomy. Replace with the owner's final vocabulary. Stored as Thai text; see stored-values.ts. */
+export const topics: string[] = topicIds.map((id) => topicValues[id]);
+
+/** Thai wording of the four team problems for Thai-only consumers. The web pages read t.taxonomy.problems. */
+export const problems: string[] = th.taxonomy.problems;
 
 /** Which topics answer each problem, by index into `topics`. */
 const problemTopics = [[0], [1, 2], [3, 4], [5]];
@@ -44,57 +41,6 @@ export interface Mentor {
   weeklyFocus?: string;
 }
 
-// Every mentor, award and price below is a fictional prototype fixture.
-export const mentors: Mentor[] = [
-  {
-    id: 'mentor-mind', name: 'พี่มายด์ ก.', avatar: 'มายด์',
-    bio: 'บริหารธุรกิจ ปี 4 · มหาวิทยาลัยตัวอย่าง', replyTime: '2 ชั่วโมง',
-    wonSlug: 'venture-ignite', category: 'business', topics: [0, 4], price: 800,
-    best: 'ช่วยเปลี่ยนโจทย์กว้างให้เป็นไอเดียที่อธิบายได้ใน 1 นาที',
-    cannot: 'ไม่รับทำแผนธุรกิจหรือเขียนสไลด์แทนทีม',
-    firstSlotInDays: 1, verified: true, weeklyRank: 1, weeklyFocus: 'วิเคราะห์โจทย์และฝึก Pitching',
-  },
-  {
-    id: 'mentor-jay', name: 'พี่เจ ธ.', avatar: 'เจ',
-    bio: 'วิศวกรรมคอมพิวเตอร์ ปี 4 · มหาวิทยาลัยตัวอย่าง', replyTime: '2 ชั่วโมง',
-    wonSlug: 'bangkok-hack-48', category: 'technology', topics: [1, 2], price: 900,
-    best: 'ช่วยวางแผน MVP และเลือกสิ่งที่ควรทำก่อน',
-    cannot: 'ไม่รับพัฒนาระบบจริงแทนทั้งทีม',
-    firstSlotInDays: 2, verified: true, weeklyRank: 2, weeklyFocus: 'พัฒนาต้นแบบและเทคโนโลยี',
-  },
-  {
-    id: 'mentor-nut', name: 'พี่นัท ว.', avatar: 'นัท',
-    bio: 'Product Designer · Design Studio ตัวอย่าง', replyTime: '6 ชั่วโมง',
-    wonSlug: 'poster-unbound', category: 'design', topics: [0, 5], price: 700,
-    best: 'ช่วยวิเคราะห์ฟีดแบ็กและหาจุดที่งานยังไม่ตอบโจทย์',
-    cannot: 'ไม่รับออกแบบชิ้นงานส่งประกวดแทน',
-    firstSlotInDays: 3, verified: true, weeklyRank: 3, weeklyFocus: 'ออกแบบแนวคิดและผลงาน',
-  },
-  {
-    id: 'mentor-tae', name: 'พี่เต้ ส.', avatar: 'เต้',
-    bio: 'Business Analyst · Studio ตัวอย่าง', replyTime: '4 ชั่วโมง',
-    wonSlug: 'retail-growth-case-challenge', category: 'business', topics: [0, 1], price: 600,
-    best: 'ช่วยตัดขอบเขตงานและแบ่งหน้าที่ให้ทีมทำทัน',
-    cannot: 'ไม่ช่วยเขียนโค้ดหรือทำโมเดลการเงินเชิงลึก',
-    firstSlotInDays: 2, verified: true,
-  },
-  {
-    id: 'mentor-pim', name: 'พี่พิม พ.', avatar: 'พิม',
-    bio: 'นิเทศศาสตร์ ปี 4 · มหาวิทยาลัยตัวอย่าง', replyTime: '3 ชั่วโมง',
-    wonSlug: null, category: null, topics: [3, 4], price: 500,
-    best: 'ช่วยเรียงเรื่องและซ้อมตอบคำถามให้กรรมการเข้าใจ',
-    cannot: 'ไม่รับตรวจความถูกต้องเชิงวิศวกรรม',
-    firstSlotInDays: 1, verified: false,
-  },
-  {
-    id: 'mentor-aom', name: 'พี่ออม ร.', avatar: 'ออม',
-    bio: 'ที่ปรึกษาโครงการ · Innovation Lab ตัวอย่าง', replyTime: '5 ชั่วโมง',
-    wonSlug: 'venture-ignite', category: 'business', topics: [0, 5], price: 1000,
-    best: 'ช่วยทบทวนจุดอ่อนของไอเดียและหลักฐานที่ยังขาด',
-    cannot: 'ไม่รับประกันรางวัลหรือผลการเข้ารอบ',
-    firstSlotInDays: 25, verified: true,
-  },
-];
 
 export const podium = mentors
   .filter((mentor): mentor is Mentor & { weeklyRank: 1 | 2 | 3 } => mentor.weeklyRank !== undefined)
@@ -151,9 +97,9 @@ export function tierAgainst(
   return null;
 }
 
-const thaiSlot = new Intl.DateTimeFormat('th-TH', {
-  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
-});
-export function formatSlot(slot: Date) {
-  return thaiSlot.format(slot) + ' น.';
+export function formatSlot(slot: Date, t: Messages = th, lang: Lang = 'th') {
+  const text = new Intl.DateTimeFormat(locales[lang], {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(slot);
+  return t.competition.slotTime(text);
 }

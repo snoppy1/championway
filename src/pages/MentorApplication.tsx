@@ -2,12 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, ClipboardCheck, Eye, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { topics } from '../data/mentors';
+import { evidenceValues, occupationValues, topicIds, topicValues } from '../data/stored-values';
+import type { OccupationId, TopicId } from '../data/stored-values';
+import { occupationLabel } from '../data/profile';
 import { useAuth } from '../data/auth';
 import { ApiError, post } from '../lib/api';
+import { useI18n } from '../i18n';
 import '../form.css';
 
-const steps = ['ข้อมูลผู้สมัคร', 'ประสบการณ์และรางวัล', 'บริการและคิว', 'ตรวจทานและส่ง'];
+/* ใบสมัครเมนเทอร์ไม่มีตัวเลือก "นักเรียน" เพราะเมนเทอร์ต้องผ่านเวทีมาแล้ว */
+const applicantStatuses: OccupationId[] = ['university', 'working', 'other'];
 /* ราคาและคิวไม่อยู่ในใบสมัครรอบนี้ เพราะยังไม่มีระบบชำระเงิน
    เมนเทอร์ที่ผ่านอนุมัติแล้วเปิดช่องเวลาเองได้ที่หน้าโปรไฟล์ */
 type Field = 'first' | 'last' | 'nickname' | 'email' | 'occupation' | 'organization' | 'role' | 'experience' | 'portfolio' | 'best' | 'cannot';
@@ -16,23 +20,19 @@ const empty: Record<Field, string> = { first: '', last: '', nickname: '', email:
 
 type ConsentKey = 'accuracy' | 'guidanceOnly' | 'noOffPlatform' | 'noJudging' | 'payment';
 /** Every box starts unticked and all of them are required before the sample submit. */
-const consentItems: { key: ConsentKey; label: string }[] = [
-  { key: 'accuracy', label: 'ยืนยันว่าข้อมูลและหลักฐานเป็นของฉัน และยินยอมให้ตรวจสอบเพื่อพิจารณาใบสมัคร' },
-  { key: 'guidanceOnly', label: 'ยอมรับว่าจะให้คำแนะนำ โดยไม่ทำงานหรือจัดทำผลงานส่งแข่งขันแทนทีม' },
-  { key: 'noOffPlatform', label: 'ยอมรับว่าจะไม่รับงานนอกระบบกับลูกค้าที่พบผ่าน ChampionWays' },
-  { key: 'noJudging', label: 'ยอมรับว่าจะไม่ให้คำปรึกษากับทีมที่ตนเองเป็นกรรมการตัดสิน' },
-  { key: 'payment', label: 'รับทราบว่ารอบนี้ยังไม่มีการเก็บเงิน และการปรึกษาทั้งหมดเกิดขึ้นในแชตของเว็บ' },
-];
+const consentKeys: ConsentKey[] = ['accuracy', 'guidanceOnly', 'noOffPlatform', 'noJudging', 'payment'];
 const noConsent: Record<ConsentKey, boolean> = { accuracy: false, guidanceOnly: false, noOffPlatform: false, noJudging: false, payment: false };
 
 export function MentorApplication() {
+  const { t } = useI18n();
+  const s = t.mentorApply;
   const [stage, setStage] = useState(0);
   const [values, setValues] = useState(empty);
   const [awards, setAwards] = useState<Award[]>([]);
   const nextAward = useRef(0);
   const [portrait, setPortrait] = useState<File>();
   const [portraitUrl, setPortraitUrl] = useState('');
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [selectedTopics, setSelectedTopics] = useState<TopicId[]>([]);
   const [consent, setConsent] = useState(noConsent);
   const [message, setMessage] = useState('');
   const [complete, setComplete] = useState(false);
@@ -43,7 +43,7 @@ export function MentorApplication() {
   const previousStage = useRef(stage);
   const previousComplete = useRef(complete);
 
-  useEffect(() => { document.title = 'สมัครเป็นเมนเทอร์ — ChampionWays'; }, []);
+  useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
   useEffect(() => {
     if (!portrait || !['image/jpeg', 'image/png', 'image/webp'].includes(portrait.type) || portrait.size > 5 * 1024 * 1024) { setPortraitUrl(''); return; }
     const url = URL.createObjectURL(portrait);
@@ -70,23 +70,23 @@ export function MentorApplication() {
     const active = formRef.current?.querySelector(`fieldset[data-stage="${stage}"]`);
     for (const element of active?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input,select,textarea') ?? []) {
       element.setCustomValidity('');
-      if (element.required && ['text', 'textarea'].includes(element.type) && !element.value.trim()) element.setCustomValidity('กรุณากรอกข้อมูลให้ครบ');
+      if (element.required && ['text', 'textarea'].includes(element.type) && !element.value.trim()) element.setCustomValidity(s.errors.fillAll);
       if (!element.reportValidity()) return false;
     }
     let error = '';
     let missingConsent: ConsentKey | undefined;
-    if (stage === 0 && portrait && (!['image/png', 'image/jpeg', 'image/webp'].includes(portrait.type) || portrait.size > 5 * 1024 * 1024)) error = 'เลือกรูป JPG, PNG หรือ WebP ไม่เกิน 5 MB';
+    if (stage === 0 && portrait && (!['image/png', 'image/jpeg', 'image/webp'].includes(portrait.type) || portrait.size > 5 * 1024 * 1024)) error = s.errors.portrait;
     if (stage === 1) {
-      if (!awards.length && !values.portfolio.trim()) error = 'เพิ่มหลักฐานรางวัล หรือใส่ลิงก์ผลงานก่อนดำเนินการต่อ';
+      if (!awards.length && !values.portfolio.trim()) error = s.errors.needEvidence;
       for (const award of awards) {
-        if (!award.url.trim() && !award.file) error = 'แต่ละรางวัลต้องมีลิงก์ประกาศหรือไฟล์หลักฐาน';
-        if (award.file && (award.file.size > 10 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png'].includes(award.file.type))) error = 'หลักฐานต้องเป็น PDF, JPG หรือ PNG ไม่เกิน 10 MB';
+        if (!award.url.trim() && !award.file) error = s.errors.awardNeedsProof;
+        if (award.file && (award.file.size > 10 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png'].includes(award.file.type))) error = s.errors.evidenceFile;
       }
     }
-    if (stage === 2 && selectedTopics.length !== 2) error = 'เลือกความถนัดให้ครบ 2 หัวข้อ';
+    if (stage === 2 && selectedTopics.length !== 2) error = s.errors.pickTwo;
     if (stage === 3) {
-      missingConsent = consentItems.find((item) => !consent[item.key])?.key;
-      if (missingConsent) error = 'ติ๊กยอมรับเงื่อนไขให้ครบทุกข้อก่อนส่งใบสมัคร';
+      missingConsent = consentKeys.find((key) => !consent[key]);
+      if (missingConsent) error = s.errors.consentMissing;
     }
     setMessage(error);
     if (missingConsent) document.getElementById(`consent-${missingConsent}`)?.focus();
@@ -101,18 +101,20 @@ export function MentorApplication() {
         firstName: values.first, lastName: values.last, nickname: values.nickname,
         email: values.email, occupation: values.occupation, organization: values.organization,
         role: values.role, experience: values.experience, portfolio: values.portfolio,
-        best: values.best, cannot: values.cannot, topics: selectedTopics,
+        best: values.best, cannot: values.cannot,
+        // ฐานข้อมูลเก็บความถนัดเป็นข้อความไทยตามเดิม ไม่ว่าผู้ใช้เลือกภาษาไหน
+        topics: selectedTopics.map((id) => topicValues[id]),
         awards: awards.map((award) => ({
           title: award.title,
           competitionSlug: null,
           year: award.year,
           // ไฟล์ยังไม่ถูกอัปโหลด บันทึกชื่อไฟล์ไว้ให้คนตรวจรู้ว่าต้องขออะไรเพิ่ม
-          evidence: award.url || (award.file ? `ไฟล์แนบ: ${award.file.name}` : 'ยังไม่แนบหลักฐาน'),
+          evidence: award.url || (award.file ? evidenceValues.file(award.file.name) : evidenceValues.none),
         })),
       });
       setComplete(true);
     } catch (error) {
-      setMessage(error instanceof ApiError ? error.message : 'ส่งใบสมัครไม่สำเร็จ ลองใหม่อีกครั้ง');
+      setMessage(error instanceof ApiError ? error.message : s.errors.sendFailed);
     } finally {
       setSending(false);
     }
@@ -123,7 +125,7 @@ export function MentorApplication() {
     if (!validate()) return;
     if (stage < 3) { setStage(stage + 1); return; }
     if (!user) {
-      setMessage('ต้องเข้าสู่ระบบก่อนส่งใบสมัคร');
+      setMessage(s.errors.needSignIn);
       return;
     }
     void submitApplication();
@@ -136,104 +138,104 @@ export function MentorApplication() {
   </section>;
 
   const reviewGroup = (title: string, target: number, children: ReactNode) => <section className="group review-group">
-    <div className="group-head"><h3>{title}</h3><button className="plain" type="button" aria-label={`แก้ไข${title}`} onClick={() => goTo(target)}>แก้ไข</button></div>
+    <div className="group-head"><h3>{title}</h3><button className="plain" type="button" aria-label={s.editAria(title)} onClick={() => goTo(target)}>{s.edit}</button></div>
     {children}
   </section>;
 
-  const consentBox = (key: ConsentKey, label: string) => <label className="check consent-check" key={key} htmlFor={`consent-${key}`}>
+  const consentBox = (key: ConsentKey) => <label className="check consent-check" key={key} htmlFor={`consent-${key}`}>
     <input id={`consent-${key}`} type="checkbox" checked={consent[key]} onChange={(event) => setConsent({ ...consent, [key]: event.target.checked })} />
-    <span>{label}</span>
+    <span>{s.consent[key]}</span>
   </label>;
 
   return <main id="main" tabIndex={-1}><div id="cw-apply" className="cw-form">
     <section className="hero">
-      <div className="application-hero-inner"><Link className="application-back" to="/profile"><ArrowLeft size={16} aria-hidden="true" />กลับไปโปรไฟล์</Link><span className="tag">FOR THE NEXT GENERATION</span><h1>ประสบการณ์ของคุณ<br />ช่วยให้ทีมถัดไปไปได้ไกลขึ้น</h1><p className="muted">บอกสิ่งที่คุณถนัด พร้อมหลักฐานที่ช่วยให้ทีมมั่นใจก่อนเลือกปรึกษา</p><p className="application-prototype">ใบสมัครจะส่งให้ทีมงานตรวจสอบก่อนเผยแพร่โปรไฟล์</p></div>
+      <div className="application-hero-inner"><Link className="application-back" to="/profile"><ArrowLeft size={16} aria-hidden="true" />{s.backToProfile}</Link><span className="tag">{s.eyebrow}</span><h1>{s.titleFirst}<br />{s.titleSecond}</h1><p className="muted">{s.lead}</p><p className="application-prototype">{s.reviewNote}</p></div>
     </section>
     <div className="layout">
-      <aside aria-label="ขั้นตอนการสมัคร"><ol className="steps">{steps.map((step, index) => <li key={step} className={`step ${index === stage ? 'current' : index < stage ? 'done' : ''}`} aria-current={index === stage ? 'step' : undefined}><b>{index + 1}</b>{step}</li>)}</ol><div className="aside-note"><ShieldCheck aria-hidden="true" /><h3>ตรวจสอบก่อนเผยแพร่</h3><p className="muted">ส่งใบสมัคร → ตรวจข้อมูลและหลักฐาน → แจ้งผลทางอีเมล</p></div><div className="aside-note"><Eye aria-hidden="true" /><h3>คุณเห็นก่อนว่าทีมจะเห็นอะไร</h3><p className="muted">แสดงชื่อและนามสกุลย่อ ส่วนอีเมลกับไฟล์หลักฐานใช้สำหรับตรวจสอบเท่านั้น</p></div></aside>
+      <aside aria-label={s.stepsLabel}><ol className="steps">{s.steps.map((step, index) => <li key={step} className={`step ${index === stage ? 'current' : index < stage ? 'done' : ''}`} aria-current={index === stage ? 'step' : undefined}><b>{index + 1}</b>{step}</li>)}</ol><div className="aside-note"><ShieldCheck aria-hidden="true" /><h3>{s.asideReviewTitle}</h3><p className="muted">{s.asideReviewText}</p></div><div className="aside-note"><Eye aria-hidden="true" /><h3>{s.asideSeeTitle}</h3><p className="muted">{s.asideSeeText}</p></div></aside>
       <div className="sheet" ref={sheetRef}>
         <form ref={formRef} onSubmit={next} hidden={complete} noValidate onInput={(event) => { if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) event.target.setCustomValidity(''); }}>
           <fieldset data-stage="0" hidden={stage !== 0} disabled={stage !== 0}>
-            <legend className="sr-only">ข้อมูลผู้สมัคร</legend><div className="intro"><h2 tabIndex={-1}>เริ่มจากแนะนำตัวคุณ</h2><p className="muted">ใช้ข้อมูลที่ตรวจสอบได้ เพื่อให้การจับคู่เริ่มต้นจากความไว้วางใจ</p></div>
-            <div className="grid">{field('first', 'ชื่อจริง *', { required: true, maxLength: 50, autoComplete: 'given-name' })}{field('last', 'นามสกุล *', { required: true, maxLength: 60, autoComplete: 'family-name' }, 'แสดงสาธารณะเฉพาะอักษรแรก')}</div>
-            {field('nickname', 'ชื่อที่อยากให้ทีมเรียก *', { required: true, maxLength: 30, placeholder: 'เช่น พี่มายด์' })}
-            {field('email', 'อีเมลติดต่อ *', { type: 'email', required: true, autoComplete: 'email' }, 'ใช้แจ้งผลใบสมัคร ไม่แสดงบนโปรไฟล์')}
-            <div className="grid"><label htmlFor="apply-occupation">สถานะ *<select id="apply-occupation" required value={values.occupation} onChange={(event) => set('occupation', event.target.value)}><option value="">เลือกสถานะ</option><option>นักศึกษา</option><option>ทำงานแล้ว</option><option>อิสระ / อื่น ๆ</option></select></label>{field('organization', 'มหาวิทยาลัยหรือที่ทำงาน *', { required: true, maxLength: 100 })}</div>
-            {field('role', 'คณะและชั้นปี หรือตำแหน่งงาน *', { required: true, maxLength: 100, placeholder: 'เช่น บริหารธุรกิจ ปี 4' })}
-            <label htmlFor="apply-portrait">รูปโปรไฟล์ (ไม่บังคับ)<input id="apply-portrait" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { reviewAgain(); setPortrait(event.target.files?.[0]); }} /><small>JPG, PNG หรือ WebP ไม่เกิน 5 MB · ถ้าไม่ใส่จะใช้ตัวย่อชื่อ</small></label>
+            <legend className="sr-only">{s.steps[0]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage0Title}</h2><p className="muted">{s.stage0Lead}</p></div>
+            <div className="grid">{field('first', s.firstName, { required: true, maxLength: 50, autoComplete: 'given-name' })}{field('last', s.lastName, { required: true, maxLength: 60, autoComplete: 'family-name' }, s.lastNameHint)}</div>
+            {field('nickname', s.nickname, { required: true, maxLength: 30, placeholder: s.nicknamePlaceholder })}
+            {field('email', s.email, { type: 'email', required: true, autoComplete: 'email' }, s.emailHint)}
+            <div className="grid"><label htmlFor="apply-occupation">{s.occupation}<select id="apply-occupation" required value={values.occupation} onChange={(event) => set('occupation', event.target.value)}><option value="">{s.occupationPlaceholder}</option>{applicantStatuses.map((id) => <option key={id} value={occupationValues[id]}>{t.taxonomy.occupations[id]}</option>)}</select></label>{field('organization', s.organization, { required: true, maxLength: 100 })}</div>
+            {field('role', s.role, { required: true, maxLength: 100, placeholder: s.rolePlaceholder })}
+            <label htmlFor="apply-portrait">{s.portrait}<input id="apply-portrait" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { reviewAgain(); setPortrait(event.target.files?.[0]); }} /><small>{s.portraitHint}</small></label>
           </fieldset>
 
           <fieldset data-stage="1" hidden={stage !== 1} disabled={stage !== 1}>
-            <legend className="sr-only">ประสบการณ์และรางวัล</legend><div className="intro"><h2 tabIndex={-1}>ให้ประสบการณ์เล่าแทนคุณ</h2><p className="muted">เรียงจากเส้นทางของคุณ ไปหาหลักฐานที่ตรวจสอบได้ และผลงานที่ทีมเปิดดูได้</p></div>
-            {group('เส้นทางของคุณกับการแข่งขัน', <label htmlFor="apply-experience">เล่าประสบการณ์ *<textarea id="apply-experience" required maxLength={600} value={values.experience} onChange={(event) => set('experience', event.target.value)} placeholder="เคยทำหน้าที่อะไรในทีม และเรียนรู้อะไรจากเวทีนั้น" /></label>, 'เล่าสั้น ๆ ว่าเคยรับบทบาทอะไร และทีมได้อะไรจากคุณ')}
-            {group('หลักฐานรางวัล', <>
+            <legend className="sr-only">{s.steps[1]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage1Title}</h2><p className="muted">{s.stage1Lead}</p></div>
+            {group(s.journeyGroup, <label htmlFor="apply-experience">{s.experience}<textarea id="apply-experience" required maxLength={600} value={values.experience} onChange={(event) => set('experience', event.target.value)} placeholder={s.experiencePlaceholder} /></label>, s.journeyHint)}
+            {group(s.awardsGroup, <>
               {awards.map((award, index) => <div className="award" key={award.id}>
-                <div className="award-header"><h4>รางวัลที่ {index + 1} จาก 2</h4><button className="plain" type="button" aria-label={`ลบรางวัล ${index + 1}`} onClick={() => { reviewAgain(); setAwards(awards.filter((item) => item.id !== award.id)); }}>ลบรางวัล</button></div>
-                <label>ชื่อการแข่งขัน *<input required maxLength={120} value={award.title} onChange={(event) => updateAward(award.id, { title: event.target.value })} /></label>
-                <div className="grid"><label>รางวัลที่ได้รับ *<input required maxLength={100} value={award.prize} onChange={(event) => updateAward(award.id, { prize: event.target.value })} placeholder="เช่น ชนะเลิศ" /></label><label>ปี พ.ศ. *<input type="number" required min={2500} max={new Date().getFullYear() + 543} value={award.year} onChange={(event) => updateAward(award.id, { year: event.target.value })} /></label></div>
-                <label>ลิงก์ประกาศผล<input type="url" value={award.url} onChange={(event) => updateAward(award.id, { url: event.target.value })} placeholder="https://..." /></label>
-                <label>หรือแนบหลักฐาน<input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => updateAward(award.id, { file: event.target.files?.[0] })} /><small>PDF, JPG หรือ PNG ไม่เกิน 10 MB · เห็นเฉพาะผู้ตรวจใบสมัคร ไม่แสดงบนโปรไฟล์</small></label>
+                <div className="award-header"><h4>{s.awardHeading(index + 1)}</h4><button className="plain" type="button" aria-label={s.removeAwardAria(index + 1)} onClick={() => { reviewAgain(); setAwards(awards.filter((item) => item.id !== award.id)); }}>{s.removeAward}</button></div>
+                <label>{s.awardTitle}<input required maxLength={120} value={award.title} onChange={(event) => updateAward(award.id, { title: event.target.value })} /></label>
+                <div className="grid"><label>{s.awardPrize}<input required maxLength={100} value={award.prize} onChange={(event) => updateAward(award.id, { prize: event.target.value })} placeholder={s.awardPrizePlaceholder} /></label><label>{s.awardYear}<input type="number" required min={2500} max={new Date().getFullYear() + 543} value={award.year} onChange={(event) => updateAward(award.id, { year: event.target.value })} /></label></div>
+                <label>{s.awardUrl}<input type="url" value={award.url} onChange={(event) => updateAward(award.id, { url: event.target.value })} placeholder="https://..." /></label>
+                <label>{s.awardFile}<input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => updateAward(award.id, { file: event.target.files?.[0] })} /><small>{s.awardFileHint}</small></label>
               </div>)}
-              {awards.length < 2 && <button type="button" onClick={() => { reviewAgain(); setAwards([...awards, { id: ++nextAward.current, title: '', prize: '', year: '', url: '' }]); }}>+ เพิ่มรางวัล (สูงสุด 2 งาน)</button>}
-              <div className="note">ยังไม่มีรางวัล? ข้ามส่วนนี้ได้ แล้วใส่ลิงก์ผลงานด้านล่างแทน เราพิจารณาจากสายทักษะและประสบการณ์ได้เช่นกัน</div>
-            </>, 'เพิ่มได้สูงสุด 2 งาน แต่ละงานต้องมีลิงก์ประกาศผลหรือไฟล์หลักฐานอย่างน้อยหนึ่งอย่าง', <span className="count">{awards.length} จาก 2</span>)}
-            {group('ผลงานหรือ Portfolio', <>
-              {field('portfolio', 'ลิงก์ผลงาน', { type: 'url', placeholder: 'https://...' }, 'จำเป็นเมื่อไม่ได้เพิ่มรางวัล')}
-              <div className="note">ป้าย “ยืนยันแล้ว” จะแสดงหลังตรวจหลักฐานผ่านเท่านั้น การส่งใบสมัครไม่ได้ทำให้ได้รับป้ายทันที</div>
+              {awards.length < 2 && <button type="button" onClick={() => { reviewAgain(); setAwards([...awards, { id: ++nextAward.current, title: '', prize: '', year: '', url: '' }]); }}>{s.addAward}</button>}
+              <div className="note">{s.noAwardsNote}</div>
+            </>, s.awardsHint, <span className="count">{s.awardsCount(awards.length)}</span>)}
+            {group(s.portfolioGroup, <>
+              {field('portfolio', s.portfolioLink, { type: 'url', placeholder: 'https://...' }, s.portfolioHint)}
+              <div className="note">{s.verifiedNote}</div>
             </>)}
           </fieldset>
 
           <fieldset data-stage="2" hidden={stage !== 2} disabled={stage !== 2}>
-            <legend className="sr-only">บริการและคิว</legend><div className="intro"><h2 tabIndex={-1}>บอกให้ชัดว่าช่วยอะไรได้</h2><p className="muted">ขอบเขตที่ชัดเจนช่วยให้ทั้งคุณและทีมคาดหวังตรงกัน</p></div>
-            {group('ขอบเขตการช่วย', <>
-              {field('best', 'ช่วยได้ดีที่สุด *', { required: true, maxLength: 120, placeholder: 'เช่น ช่วยเปลี่ยนโจทย์กว้างให้เป็นไอเดียที่นำเสนอได้' }, 'หนึ่งบรรทัด แสดงบนแถวเมนเทอร์')}
-              {field('cannot', 'ช่วยไม่ได้ *', { required: true, maxLength: 120, placeholder: 'เช่น ไม่รับเขียนโค้ดหรือทำงานส่งแทนทีม' }, 'บังคับกรอก เพื่อให้ทีมรู้ขอบเขตก่อนจอง')}
+            <legend className="sr-only">{s.steps[2]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage2Title}</h2><p className="muted">{s.stage2Lead}</p></div>
+            {group(s.scopeGroup, <>
+              {field('best', s.best, { required: true, maxLength: 120, placeholder: s.bestPlaceholder }, s.bestHint)}
+              {field('cannot', s.cannot, { required: true, maxLength: 120, placeholder: s.cannotPlaceholder }, s.cannotHint)}
             </>)}
-            {group('ความถนัด', <div className="topics" role="group" aria-labelledby="topic-label">
-              {topics.map((topic) => <label className="check topic" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={(event) => { if (event.target.checked && selectedTopics.length === 2) { setMessage('เลือกได้สูงสุด 2 หัวข้อ'); return; } reviewAgain(); setSelectedTopics(event.target.checked ? [...selectedTopics, topic] : selectedTopics.filter((item) => item !== topic)); setMessage(''); }} /><span>{topic}</span></label>)}
-            </div>, 'เลือกสองเรื่องที่คุณช่วยได้ดีที่สุด ทีมใช้สองหัวข้อนี้ค้นหาคุณ', <span className="count" id="topic-label" aria-live="polite">เลือกแล้ว {selectedTopics.length} จาก 2 *</span>)}
-            <p className="muted">เมื่อใบสมัครผ่านการตรวจแล้ว คุณจะเปิดช่องเวลาว่างครั้งละ 60 นาทีได้เองที่หน้าโปรไฟล์</p>
+            {group(s.strengthsGroup, <div className="topics" role="group" aria-labelledby="topic-label">
+              {topicIds.map((topic) => <label className="check topic" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={(event) => { if (event.target.checked && selectedTopics.length === 2) { setMessage(s.errors.maxTopics); return; } reviewAgain(); setSelectedTopics(event.target.checked ? [...selectedTopics, topic] : selectedTopics.filter((item) => item !== topic)); setMessage(''); }} /><span>{t.taxonomy.topics[topic]}</span></label>)}
+            </div>, s.strengthsHint, <span className="count" id="topic-label" aria-live="polite">{s.strengthsCount(selectedTopics.length)}</span>)}
+            <p className="muted">{s.slotsNote}</p>
           </fieldset>
 
           <fieldset data-stage="3" hidden={stage !== 3} disabled={stage !== 3}>
-            <legend className="sr-only">ตรวจทานและส่ง</legend><div className="intro"><h2 tabIndex={-1}>ตรวจทานก่อนส่งใบสมัคร</h2><p className="muted">ดูสิ่งที่ทีมจะเห็นก่อน แล้วตรวจข้อมูลที่ใช้พิจารณา แก้ไขส่วนไหนก็กดปุ่มแก้ไขของส่วนนั้น</p></div>
-            {group('ตัวอย่างโปรไฟล์ที่ทีมจะเห็น', <div className="profile">
-              {portraitUrl ? <img className="avatar" src={portraitUrl} alt="รูปโปรไฟล์ที่เลือก" /> : <div className="avatar" aria-hidden="true">{values.first.slice(0, 1)}</div>}
+            <legend className="sr-only">{s.steps[3]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage3Title}</h2><p className="muted">{s.stage3Lead}</p></div>
+            {group(s.previewGroup, <div className="profile">
+              {portraitUrl ? <img className="avatar" src={portraitUrl} alt={s.portraitAlt} /> : <div className="avatar" aria-hidden="true">{values.first.slice(0, 1)}</div>}
               <h4>{values.nickname} {values.last.trim().slice(0, 1)}.</h4>
               <p className="muted">{values.role} · {values.organization}</p>
-              <p><strong>ช่วยได้ดีที่สุด:</strong> {values.best}</p>
-              <p><strong>ช่วยไม่ได้:</strong> {values.cannot}</p>
-              <p>{selectedTopics.map((topic) => <span className="tag" key={topic}>{topic}</span>)}</p>
-              <small>ปรึกษาครั้งละ 60 นาทีในแชตของเว็บ รอบนี้ยังไม่มีการเก็บเงิน</small>
-            </div>, 'นามสกุลย่อเหลืออักษรแรก ส่วนอีเมลและไฟล์หลักฐานไม่แสดงในโปรไฟล์')}
-            {reviewGroup('ข้อมูลผู้สมัคร', 0, <>
-              <div className="review"><small>ชื่อ–นามสกุล · ใช้ตรวจสอบ</small><strong>{values.first} {values.last}</strong></div>
-              <div className="review"><small>อีเมลแจ้งผล · ไม่แสดงสาธารณะ</small><strong>{values.email}</strong></div>
-              <div className="review"><small>สถานะและที่สังกัด</small>{values.occupation} · {values.organization}</div>
+              <p><strong>{s.bestLabel}</strong> {values.best}</p>
+              <p><strong>{s.cannotLabel}</strong> {values.cannot}</p>
+              <p>{selectedTopics.map((topic) => <span className="tag" key={topic}>{t.taxonomy.topics[topic]}</span>)}</p>
+              <small>{s.previewFooter}</small>
+            </div>, s.previewHint)}
+            {reviewGroup(s.reviewApplicant, 0, <>
+              <div className="review"><small>{s.reviewFullName}</small><strong>{values.first} {values.last}</strong></div>
+              <div className="review"><small>{s.reviewEmail}</small><strong>{values.email}</strong></div>
+              <div className="review"><small>{s.reviewStatus}</small>{occupationLabel(values.occupation, t)} · {values.organization}</div>
             </>)}
-            {reviewGroup('ประสบการณ์และหลักฐาน', 1, <>
-              <div className="review"><small>ประสบการณ์</small>{values.experience}</div>
-              {awards.map((award) => <div className="review" key={award.id}><strong>{award.title}</strong><p>{award.prize} · {award.year}</p><small>รอตรวจสอบ · {award.file?.name || award.url}</small></div>)}
-              {values.portfolio && <div className="review"><small>ลิงก์ผลงานหรือ Portfolio</small>{values.portfolio}</div>}
-              {!awards.length && <div className="review"><small>หลักฐานรางวัล</small>ไม่ได้เพิ่มรางวัล · พิจารณาจากประสบการณ์และผลงาน</div>}
+            {reviewGroup(s.reviewExperienceGroup, 1, <>
+              <div className="review"><small>{s.reviewExperience}</small>{values.experience}</div>
+              {awards.map((award) => <div className="review" key={award.id}><strong>{award.title}</strong><p>{award.prize} · {award.year}</p><small>{s.reviewAwaiting(award.file?.name || award.url)}</small></div>)}
+              {values.portfolio && <div className="review"><small>{s.reviewPortfolio}</small>{values.portfolio}</div>}
+              {!awards.length && <div className="review"><small>{s.reviewAwardsLabel}</small>{s.reviewNoAwards}</div>}
             </>)}
-            {reviewGroup('ความถนัด', 2, <>
-              <div className="review"><small>ความถนัด</small>{selectedTopics.join(' · ')}</div>
+            {reviewGroup(s.strengthsGroup, 2, <>
+              <div className="review"><small>{s.reviewStrengths}</small>{selectedTopics.map((topic) => t.taxonomy.topics[topic]).join(' · ')}</div>
             </>)}
-            {group('ความยินยอมและเงื่อนไขการเป็นเมนเทอร์', <>
-              <div className="consent-list">{consentItems.slice(0, 4).map((item) => consentBox(item.key, item.label))}</div>
-              <div className="consent-payment">{consentBox('payment', consentItems[4].label)}</div>
-              <div className="note">อีเมล นามสกุลเต็ม และไฟล์หลักฐานไม่แสดงในแถวเมนเทอร์ · โปรไฟล์ยังไม่เผยแพร่จนกว่าจะตรวจสอบผ่าน</div>
-            </>, 'ต้องติ๊กครบทุกข้อจึงส่งใบสมัครได้ หากกลับไปแก้ข้อมูล ข้อแรกจะถูกล้างให้ตรวจทานใหม่')}
+            {group(s.consentGroup, <>
+              <div className="consent-list">{consentKeys.slice(0, 4).map(consentBox)}</div>
+              <div className="consent-payment">{consentBox('payment')}</div>
+              <div className="note">{s.consentNote}</div>
+            </>, s.consentHint)}
           </fieldset>
           {!authLoading && !user && <p className="note" role="status">
-            ต้อง<Link to="/signin?next=/mentors/apply">เข้าสู่ระบบ</Link>ก่อนจึงจะส่งใบสมัครได้ กรอกข้อมูลไว้ก่อนได้ แต่กดส่งไม่ได้จนกว่าจะเข้าสู่ระบบ
+            {s.signInBefore}<Link to="/signin?next=/mentors/apply">{s.signInLink}</Link>{s.signInAfter}
           </p>}
-          <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>ย้อนกลับ</button>}<span className="muted">ขั้นตอน {stage + 1} จาก 4</span><button className="primary" type="submit" disabled={sending}>{stage === 3 ? (sending ? 'กำลังส่ง…' : 'ส่งใบสมัคร') : 'ถัดไป'}{stage < 3 && <ArrowRight aria-hidden="true" />}</button></div>
+          <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>{s.back}</button>}<span className="muted">{s.stepOf(stage + 1)}</span><button className="primary" type="submit" disabled={sending}>{stage === 3 ? (sending ? s.submitting : s.submit) : s.next}{stage < 3 && <ArrowRight aria-hidden="true" />}</button></div>
         </form>
-        {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>ส่งใบสมัครแล้ว</h2><p>ใบสมัครเข้าคิวตรวจแล้ว ทีมงานจะตรวจข้อมูลและหลักฐาน แล้วแจ้งผลทุกกรณี</p><div className="note">ไฟล์ที่เลือกยังไม่ถูกอัปโหลด ระบบบันทึกเฉพาะชื่อไฟล์ โปรดเตรียมลิงก์หลักฐานที่เปิดดูได้เพื่อให้ทีมงานตรวจสอบ</div><p className="muted">สถานะที่รองรับ: รอตรวจสอบ → ขอข้อมูลเพิ่มเติม → อนุมัติ / ไม่อนุมัติ</p><button type="button" onClick={() => setComplete(false)}>กลับไปตรวจใบสมัคร</button><Link className="application-return" to="/profile">ดูสถานะในโปรไฟล์</Link></div>}
+        {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>{s.doneTitle}</h2><p>{s.doneText}</p><div className="note">{s.doneNote}</div><p className="muted">{s.doneStatuses}</p><button type="button" onClick={() => setComplete(false)}>{s.doneBack}</button><Link className="application-return" to="/profile">{s.doneProfile}</Link></div>}
       </div>
     </div>
-    <p className="application-local-note">ข้อมูลกรอกเก็บเฉพาะระหว่างเปิดหน้านี้ ปิด รีเฟรช หรือออกจากหน้าสมัครแล้วหาย</p>
+    <p className="application-local-note">{s.localNote}</p>
   </div></main>;
 }

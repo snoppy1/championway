@@ -9,28 +9,26 @@ import { join, relative, sep } from 'node:path';
    - ไฟล์ในรายการไม่มีภาษาไทยแล้ว → ตก ให้ลบออกจากรายการ รายการจะได้หดลงจริง
    คอมเมนต์เขียนไทยได้ตามปกติ สคริปต์ตัดคอมเมนต์ทิ้งก่อนตรวจ */
 
-const PENDING = new Set([
-  'src/components/CompetitionTypeFilter.tsx',
-  'src/components/FilterPanel.tsx',
-  'src/data/competitions.ts',
-  'src/data/focus.ts',
-  'src/data/mentors.ts',
-  'src/data/profile.ts',
-  'src/data/submissions.ts',
-  'src/pages/Chats.tsx',
-  'src/pages/Detail.tsx',
-  'src/pages/Home.tsx',
-  'src/pages/MentorApplication.tsx',
-  'src/pages/MentorProfile.tsx',
-  'src/pages/OrganiserSubmit.tsx',
-  'src/pages/Organisers.tsx',
-  'src/pages/Profile.tsx',
-  'src/pages/ProfileEdit.tsx',
-  'src/pages/SignIn.tsx',
-]);
+const PENDING = new Set([]);
+
 
 /** พจนานุกรมภาษาไทยคือที่ที่ภาษาไทยควรอยู่ */
 const ALLOWED = new Set(['src/i18n/th.ts']);
+
+/* ไฟล์เหล่านี้มีภาษาไทยอยู่ได้เพราะเป็นเนื้อหาหรือข้อมูลที่ระบบเก็บ ไม่ใช่ข้อความของหน้าเว็บ
+   ป้ายที่ผู้ใช้เห็น (หมวด ระดับ ภูมิภาค ประเภท ความถนัด ฯลฯ) ต้องอยู่ใน src/i18n เท่านั้น
+   - sample-*.ts  ข้อมูลตัวอย่างสมมติ (ชื่อเวที ประวัติเมนเทอร์ ใบส่งเวที) เป็นเนื้อหาไม่ใช่ UI
+                  ใช้เติมฐานข้อมูลตอน seed และในเทส ข้อมูลจริงมาจากฐานข้อมูลแทนที่ภายหลัง
+   - stored-values.ts  ค่าที่บันทึกลงฐานข้อมูลเป็นข้อความไทย (ความถนัด สถานะการเรียนหรือทำงาน)
+                  เปลี่ยนตามภาษาหน้าเว็บไม่ได้ ไม่งั้นแถวเดิมจะไม่ตรงกับตัวเลือก
+   - focus-keywords.ts  คลังคำไทยและอังกฤษสำหรับเทียบข้อความที่เมนเทอร์เขียนเอง ไม่ได้แสดงให้ใครเห็น */
+const CONTENT = new Set([
+  'src/data/sample-competitions.ts',
+  'src/data/sample-mentors.ts',
+  'src/data/sample-submissions.ts',
+  'src/data/stored-values.ts',
+  'src/data/focus-keywords.ts',
+]);
 
 /* หน้าจัดการเป็นภาษาไทยอย่างเดียวโดยตั้งใจ เพราะใช้กันเองในทีม (ผู้ใช้ตัดสิน 30 ก.ย. 2569)
    ไม่ต้องย้ายไป src/i18n และไม่นับเป็นงานค้าง */
@@ -57,7 +55,7 @@ const stillPending = [];
 
 for (const path of files('src')) {
   const rel = relative('.', path).split(sep).join('/');
-  if (ALLOWED.has(rel) || THAI_ONLY(rel)) continue;
+  if (ALLOWED.has(rel) || CONTENT.has(rel) || THAI_ONLY(rel)) continue;
   const lines = stripComments(readFileSync(path, 'utf8')).split('\n');
   const hits = lines.map((line, i) => [i + 1, line]).filter(([, line]) => THAI.test(line));
 
@@ -73,7 +71,8 @@ for (const path of files('src')) {
 
 const all = files('src').map((path) => relative('.', path).split(sep).join('/'));
 const thaiOnly = all.filter(THAI_ONLY).length;
-console.log(`ย้ายเสร็จแล้ว: ${all.length - stillPending.length - ALLOWED.size - thaiOnly} ไฟล์ · ยังค้าง: ${stillPending.length} ไฟล์ · หน้าจัดการภาษาไทย: ${thaiOnly} ไฟล์`);
+const content = all.filter((path) => CONTENT.has(path)).length;
+console.log(`ย้ายเสร็จแล้ว: ${all.length - stillPending.length - ALLOWED.size - content - thaiOnly} ไฟล์ · ยังค้าง: ${stillPending.length} ไฟล์ · ไฟล์เนื้อหาและค่าที่เก็บ: ${content} ไฟล์ · หน้าจัดการภาษาไทย: ${thaiOnly} ไฟล์`);
 if (problems.length) {
   console.error(problems.join('\n'));
   process.exit(1);

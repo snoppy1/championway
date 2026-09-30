@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { ArrowRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Timer, Trophy } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
-  activeFilterCount, categoryLabel, daysLeft, formatDeadline, primaryCategory,
+  activeFilterCount, daysLeft, formatDeadline, primaryCategory,
   prizeLabel, sortOptions,
 } from '../data/competitions';
 import type { Competition, Filters, SortId } from '../data/competitions';
@@ -16,34 +16,36 @@ import { BookmarkSimple } from '../components/icons';
 import wordmark from '../assets/wordmark.jpg';
 
 import { CompetitionTypeFilter } from '../components/CompetitionTypeFilter';
-import { kinds, themes } from '../data/focus';
+import { useI18n } from '../i18n';
 import '../journey.css';
 
 const PER_PAGE = 6;
 
 function Highlights({ onReady }: { onReady: (ready: boolean) => void }) {
+  const { t } = useI18n();
+  const s = t.home;
   const { data: trendingData, loading } = useApi<{ items: Competition[] }>('/competitions?sort=new&perPage=6');
   useEffect(() => { onReady(!loading); }, [loading, onReady]);
   const trending = trendingData?.items ?? [];
   /* เอารายการเมนเทอร์แนะนำออกจากหน้าแรกแล้ว เพราะการเลือกเมนเทอร์ต้องเริ่มจากเวทีที่จะลงแข่ง
      ไม่ใช่จากอันดับความนิยมที่ไม่มีสถิติรองรับ */
   if (!trending.length) return null;
-  return <section className="shell highlights" aria-label="การแข่งขันล่าสุด">
+  return <section className="shell highlights" aria-label={s.latestTitle}>
     {!!trending.length && <>
     <div className="section-head">
       <div>
-        <h2 id="trending-title">การแข่งขันล่าสุด</h2>
-        <p>เวทีที่เพิ่มเข้ามาล่าสุด เลือกดูรายละเอียดเพื่อเตรียมตัว</p>
+        <h2 id="trending-title">{s.latestTitle}</h2>
+        <p>{s.latestLead}</p>
       </div>
     </div>
     {/* เลื่อนเองด้วยแถบข้างล่าง ไม่เลื่อนอัตโนมัติ จึงไม่ต้องมีปุ่มหยุด
         ต้องรับ focus ได้เพื่อให้เลื่อนด้วยลูกศรบนคีย์บอร์ดได้เหมือนกับเมาส์ */}
-    <div className="trend-scroller" tabIndex={0} role="group" aria-label="การแข่งขันล่าสุด เลื่อนดูด้านข้างได้">
+    <div className="trend-scroller" tabIndex={0} role="group" aria-label={s.latestScroll}>
       {trending.map((competition, index) => <div className="trend-card" key={competition.slug}>
         <span className="trend-rank" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
         <div>
           <b>{competition.name}</b>
-          <small>{categoryLabel(primaryCategory(competition))} · {competition.org}</small>
+          <small>{t.taxonomy.categories[primaryCategory(competition)]} · {competition.org}</small>
         </div>
       </div>)}
     </div></>}
@@ -51,6 +53,8 @@ function Highlights({ onReady }: { onReady: (ready: boolean) => void }) {
 }
 
 function CompetitionCard({ competition }: { competition: Competition }) {
+  const { t, lang } = useI18n();
+  const s = t.home;
   const { search } = useLocation();
   const saved = useSavedSlugs();
   const isSaved = saved.includes(competition.slug);
@@ -62,23 +66,23 @@ function CompetitionCard({ competition }: { competition: Competition }) {
     {competition.featured && <div className="card-featured-bar" aria-hidden="true" />}
     <div className="card-cover">
       <CoverArt category={first} seed={competition.slug} />
-      {competition.kind && <span className="kind-chip">{kinds[competition.kind]}</span>}
-      {urgent && <span className="urgent-chip"><Timer size={13} aria-hidden="true" />ปิดรับอีก {left} วัน</span>}
+      {competition.kind && <span className="kind-chip">{t.taxonomy.kinds[competition.kind]}</span>}
+      {urgent && <span className="urgent-chip"><Timer size={13} aria-hidden="true" />{t.competition.closesInDays(left)}</span>}
     </div>
     <div className="card-body">
       <div className="card-meta">
-        {competition.themes?.map(theme => <span className="category-pill" key={theme}>{themes[theme]}</span>)}
+        {competition.themes?.map(theme => <span className="category-pill" key={theme}>{t.taxonomy.themes[theme]}</span>)}
         <span className="card-org">{competition.org}</span>
       </div>
       <h3><Link to={`/competitions/${competition.slug}${search}`}>{competition.name}</Link></h3>
       <p className="card-summary">{competition.description}</p>
       <div className="card-facts">
-        <span><Calendar size={15} aria-hidden="true" />ปิดรับ {formatDeadline(competition)}</span>
-        <span><Trophy size={15} aria-hidden="true" />{prizeLabel(competition)}</span>
+        <span><Calendar size={15} aria-hidden="true" />{t.competition.closes(formatDeadline(competition, lang))}</span>
+        <span><Trophy size={15} aria-hidden="true" />{prizeLabel(competition, t, lang)}</span>
       </div>
       <div className="card-actions">
-        <Link className="detail-link" to={`/competitions/${competition.slug}${search}`} aria-label={`ดูรายละเอียด ${competition.name}`}>
-          ดูรายละเอียด<ArrowRight size={14} aria-hidden="true" />
+        <Link className="detail-link" to={`/competitions/${competition.slug}${search}`} aria-label={s.viewDetailsOf(competition.name)}>
+          {s.viewDetails}<ArrowRight size={14} aria-hidden="true" />
         </Link>
         <button
           type="button"
@@ -86,7 +90,7 @@ function CompetitionCard({ competition }: { competition: Competition }) {
           aria-pressed={isSaved}
           onClick={() => toggleSaved(competition.slug)}
         >
-          <BookmarkSimple size={15} filled={isSaved} />{isSaved ? 'บันทึกแล้ว' : 'บันทึก'}
+          <BookmarkSimple size={15} filled={isSaved} />{isSaved ? s.saved : s.save}
         </button>
       </div>
     </div>
@@ -94,6 +98,8 @@ function CompetitionCard({ competition }: { competition: Competition }) {
 }
 
 export function Home() {
+  const { t } = useI18n();
+  const s = t.home;
   const [params, setParams] = useSearchParams();
   const saved = useSavedSlugs();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -107,7 +113,7 @@ export function Home() {
 
   const [draft, setDraft] = useState(filters.query);
   useEffect(() => { setDraft(filters.query); }, [filters.query]);
-  useEffect(() => { document.title = 'ChampionWays — สำรวจการแข่งขัน'; }, []);
+  useEffect(() => { document.title = `ChampionWays — ${s.pageTitle}`; }, [s.pageTitle]);
 
   function updateParam(patch: Record<string, string | null>, keepPage = false) {
     const next = new URLSearchParams(params);
@@ -160,7 +166,13 @@ export function Home() {
   const page = data?.page ?? (Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1);
   const shown = results;
   const panelCount = activeFilterCount(filters);
-  const chosenCategories = filters.categories.map(categoryLabel).join(' · ');
+  const chosenCategories = filters.categories.map((id) => t.taxonomy.categories[id]).join(' · ');
+  const summary = [
+    loading ? s.loading : s.total(total),
+    chosenCategories,
+    panelCount > 0 ? s.filterCount(panelCount) : '',
+    savedOnly ? s.savedOnly : '',
+  ].filter(Boolean).join(' · ');
 
   return <main id="main" tabIndex={-1} onClickCapture={event => {
     const link = (event.target as HTMLElement).closest('a');
@@ -171,8 +183,8 @@ export function Home() {
     <section className="hero">
       <div className="shell hero-inner">
         <h1 className="hero-wordmark"><img src={wordmark} alt="ChampionWays" /></h1>
-        <p className="hero-tagline">ทุกเวทีคือโอกาส ทุกก้าวคือการเติบโต</p>
-        <p className="hero-lead">ค้นพบการแข่งขันที่ใช่ พร้อมเรียนรู้จากคนที่เคยผ่านเวทีจริง</p>
+        <p className="hero-tagline">{s.tagline}</p>
+        <p className="hero-lead">{s.lead}</p>
       </div>
     </section>
 
@@ -182,20 +194,20 @@ export function Home() {
       <form className="search-bar" role="search" onSubmit={submitSearch}>
         <div className="search-field">
           <Search size={18} aria-hidden="true" />
-          <label className="sr-only" htmlFor="competition-search">ค้นหาการแข่งขัน</label>
+          <label className="sr-only" htmlFor="competition-search">{s.searchLabel}</label>
           <input
             id="competition-search" type="search" autoComplete="off"
-            placeholder="ค้นหาชื่อเวทีหรือสิ่งที่สนใจ"
+            placeholder={s.searchPlaceholder}
             value={draft} onChange={(event) => setDraft(event.target.value)}
           />
         </div>
-        <button className="primary-button" type="submit">ค้นหา</button>
+        <button className="primary-button" type="submit">{s.searchSubmit}</button>
         <button
           type="button" className="filter-toggle" aria-expanded={panelOpen}
           onClick={() => setPanelOpen(true)}
         >
           <SlidersHorizontal size={17} aria-hidden="true" />
-          ตัวกรอง
+          {s.filters}
           {panelCount > 0 && <span className="filter-count">{panelCount}</span>}
         </button>
       </form>
@@ -208,16 +220,16 @@ export function Home() {
     <section className="shell results" aria-labelledby="results-title">
       <div className="results-head">
         <div className="results-title">
-          <h2 id="results-title">รายการแข่งขัน</h2>
+          <h2 id="results-title">{s.resultsTitle}</h2>
           <span className="results-count" role="status">
-            {loading ? 'กำลังโหลด…' : `${total} เวที`}{chosenCategories ? ` · ${chosenCategories}` : ''}{panelCount > 0 ? ` · ตัวกรอง ${panelCount} รายการ` : ''}{savedOnly ? ' · ที่บันทึกไว้' : ''}
+            {summary}
           </span>
         </div>
         <label className="sort-field">
-          เรียงตาม
+          {s.sortBy}
           <span className="select-wrap">
             <select value={sort} onChange={(event) => updateParam({ sort: event.target.value })}>
-              {sortOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              {sortOptions.map((option) => <option key={option.id} value={option.id}>{t.taxonomy.sort[option.id]}</option>)}
             </select>
             <ChevronDown size={13} aria-hidden="true" />
           </span>
@@ -232,15 +244,15 @@ export function Home() {
         {shown.map((competition) => <CompetitionCard key={competition.slug} competition={competition} />)}
       </div> : <div className="empty-state">
         <Search size={34} aria-hidden="true" />
-        <h2>{savedOnly ? 'ยังไม่มีเวทีที่บันทึกไว้' : 'ไม่พบเวทีที่ตรงกับเงื่อนไข'}</h2>
-        <p>{savedOnly ? 'กดปุ่มบันทึกบนการ์ดเวทีที่สนใจ แล้วกลับมาดูที่นี่' : 'ลองเปลี่ยนคำค้น เอาบางหมวดออก หรือล้างตัวกรองบางข้อ'}</p>
+        <h2>{savedOnly ? s.emptySavedTitle : s.emptyNoneTitle}</h2>
+        <p>{savedOnly ? s.emptySavedText : s.emptyNoneText}</p>
         <p style={{ marginTop: 16 }}>
-          <Link className="ghost-button" to="/">ดูเวทีทั้งหมด</Link>
+          <Link className="ghost-button" to="/">{s.showAll}</Link>
         </p>
       </div>}
 
-      {pageCount > 1 && <nav className="pagination" aria-label="หน้าผลการค้นหา">
-        <button type="button" className="page-arrow" aria-label="หน้าก่อนหน้า" disabled={page === 1}
+      {pageCount > 1 && <nav className="pagination" aria-label={s.pages}>
+        <button type="button" className="page-arrow" aria-label={s.previousPage} disabled={page === 1}
           onClick={() => updateParam({ page: String(page - 1) }, true)}><ChevronLeft size={16} /></button>
         {Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => <button
           key={number} type="button"
@@ -248,7 +260,7 @@ export function Home() {
           aria-current={number === page ? 'page' : undefined}
           onClick={() => updateParam({ page: String(number) }, true)}
         >{number}</button>)}
-        <button type="button" className="page-arrow" aria-label="หน้าถัดไป" disabled={page === pageCount}
+        <button type="button" className="page-arrow" aria-label={s.nextPage} disabled={page === pageCount}
           onClick={() => updateParam({ page: String(page + 1) }, true)}><ChevronRight size={16} /></button>
       </nav>}
     </section>

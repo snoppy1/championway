@@ -5,8 +5,10 @@ import { ArrowLeft, KeyRound, Mail, UserRound } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import type { Account } from '../data/auth';
 import { api, post, ApiError } from '../lib/api';
-import { occupations, personLevelKeys, personLevels } from '../data/profile';
+import { personLevelKeys } from '../data/profile';
 import type { PersonLevel } from '../data/profile';
+import { occupationIds, occupationValues } from '../data/stored-values';
+import { useI18n } from '../i18n';
 import '../journey.css';
 
 /* หน้าแก้ไขโปรไฟล์ของสมาชิกทั่วไป แยกเป็นสามฟอร์มที่บันทึกแยกกัน
@@ -20,21 +22,23 @@ const errorText = (failure: unknown, fallback: string) =>
   (failure instanceof ApiError ? failure.message : fallback);
 
 export function ProfileEdit() {
+  const { t } = useI18n();
+  const s = t.profileEdit;
   const { user, loading, applyUser } = useAuth();
-  useEffect(() => { document.title = 'แก้ไขโปรไฟล์ — ChampionWays'; }, []);
+  useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
 
-  if (loading) return <main id="main" className="shell page">กำลังโหลดบัญชี…</main>;
+  if (loading) return <main id="main" className="shell page">{s.loadingAccount}</main>;
   if (!user) return <Navigate to="/signin?next=/profile/edit" replace />;
 
   return <main id="main" tabIndex={-1} className="shell page journey-page">
     <p className="detail-breadcrumb">
-      <Link to="/profile"><ArrowLeft size={16} aria-hidden="true" />กลับไปโปรไฟล์</Link>
+      <Link to="/profile"><ArrowLeft size={16} aria-hidden="true" />{s.backToProfile}</Link>
     </p>
     <header className="profile-head">
       <div>
-        <p className="eyebrow">แก้ไขโปรไฟล์</p>
-        <h1>ข้อมูลของฉัน</h1>
-        <p className="muted">ชื่อและรูปที่ใส่ไว้จะแสดงบนหัวเว็บและในแชตของทีม</p>
+        <p className="eyebrow">{s.eyebrow}</p>
+        <h1>{s.title}</h1>
+        <p className="muted">{s.lead}</p>
       </div>
     </header>
 
@@ -47,6 +51,8 @@ export function ProfileEdit() {
 type FormProps = { user: Account; applyUser: (account: Account) => void };
 
 function DetailsForm({ user, applyUser }: FormProps) {
+  const { t } = useI18n();
+  const s = t.profileEdit;
   const [name, setName] = useState(user.name);
   const [bio, setBio] = useState(user.bio ?? '');
   const [occupation, setOccupation] = useState(user.occupation ?? '');
@@ -82,7 +88,7 @@ function DetailsForm({ user, applyUser }: FormProps) {
         const uploaded = await fetch('/api/files', { method: 'POST', body: form, credentials: 'same-origin' });
         const payload = await uploaded.json().catch(() => ({})) as { file?: { id: string }; error?: string };
         if (!uploaded.ok || !payload.file) {
-          throw new ApiError(uploaded.status, payload.error ?? 'อัปโหลดรูปไม่สำเร็จ');
+          throw new ApiError(uploaded.status, payload.error ?? s.uploadFailed);
         }
         avatar = { avatarFileId: payload.file.id };
       }
@@ -99,9 +105,9 @@ function DetailsForm({ user, applyUser }: FormProps) {
       applyUser(updated);
       setPicture(undefined);
       if (fileInput.current) fileInput.current.value = '';
-      setDone('บันทึกแล้ว');
+      setDone(s.saved);
     } catch (failure) {
-      setMessage(errorText(failure, 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง'));
+      setMessage(errorText(failure, s.saveFailed));
     } finally {
       setBusy(false);
     }
@@ -122,42 +128,42 @@ function DetailsForm({ user, applyUser }: FormProps) {
         }),
       });
       applyUser(updated);
-      setDone('เอารูปออกแล้ว');
+      setDone(s.photoRemoved);
     } catch (failure) {
-      setMessage(errorText(failure, 'เอารูปออกไม่สำเร็จ'));
+      setMessage(errorText(failure, s.removeFailed));
     } finally {
       setBusy(false);
     }
   }
 
   return <section className="panel profile-block">
-    <h2><UserRound size={18} aria-hidden="true" />ตัวตนและการเรียน</h2>
+    <h2><UserRound size={18} aria-hidden="true" />{s.detailsHeading}</h2>
     <form className="settings-form" onSubmit={save} noValidate>
       <div className="avatar-row">
         {preview || user.avatarUrl
           ? <img className="profile-avatar" src={preview || user.avatarUrl!} alt="" width={58} height={58} />
           : <span className="profile-avatar" aria-hidden="true">{user.name.slice(0, 1)}</span>}
         <div>
-          <label htmlFor="profile-picture">รูปโปรไฟล์</label>
+          <label htmlFor="profile-picture">{s.picture}</label>
           <input
             id="profile-picture" ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp"
             onChange={(event) => setPicture(event.target.files?.[0])}
           />
-          <small className="muted">JPG, PNG หรือ WebP ไม่เกิน 5 MB · ถ้าไม่ใส่จะใช้ตัวอักษรแรกของชื่อ</small>
+          <small className="muted">{s.pictureHint}</small>
           {user.avatarUrl && <p>
-            <button type="button" className="link-button" disabled={busy} onClick={removePicture}>เอารูปออก</button>
+            <button type="button" className="link-button" disabled={busy} onClick={removePicture}>{s.removePicture}</button>
           </p>}
         </div>
       </div>
 
-      <label>ชื่อที่แสดง *
+      <label>{s.name}
         <input required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
       </label>
 
-      <label>แนะนำตัวสั้น ๆ
+      <label>{s.bio}
         <textarea
           rows={3} maxLength={300} value={bio} onChange={(event) => setBio(event.target.value)}
-          placeholder="เช่น สนใจเวทีนวัตกรรมและกำลังหาทีมทำ Hackathon"
+          placeholder={s.bioPlaceholder}
         />
         <small className="muted">{bio.length} / 300</small>
       </label>
@@ -166,36 +172,36 @@ function DetailsForm({ user, applyUser }: FormProps) {
           จะกลายเป็นข้อความของตัวเลือกทุกอันต่อท้ายชื่อช่อง */}
       <div className="settings-pair">
         <span className="settings-field">
-          <label htmlFor="profile-occupation">สถานะ</label>
+          <label htmlFor="profile-occupation">{s.occupation}</label>
           <select id="profile-occupation" value={occupation} onChange={(event) => setOccupation(event.target.value)}>
-            <option value="">ยังไม่ระบุ</option>
-            {occupations.map((item) => <option key={item} value={item}>{item}</option>)}
+            <option value="">{s.unspecified}</option>
+            {occupationIds.map((id) => <option key={id} value={occupationValues[id]}>{t.taxonomy.occupations[id]}</option>)}
           </select>
         </span>
         <span className="settings-field">
-          <label htmlFor="profile-level">ระดับการศึกษา</label>
+          <label htmlFor="profile-level">{s.level}</label>
           <select id="profile-level" value={level} onChange={(event) => setLevel(event.target.value as PersonLevel | '')}>
-            <option value="">ยังไม่ระบุ</option>
-            {personLevelKeys.map((item) => <option key={item} value={item}>{personLevels[item]}</option>)}
+            <option value="">{s.unspecified}</option>
+            {personLevelKeys.map((item) => <option key={item} value={item}>{t.taxonomy.personLevels[item]}</option>)}
           </select>
         </span>
       </div>
 
       <div className="settings-pair">
-        <label>โรงเรียน มหาวิทยาลัย หรือที่ทำงาน
+        <label>{s.organization}
           <input maxLength={100} value={organization} onChange={(event) => setOrganization(event.target.value)} />
         </label>
-        <label>ชั้นปีหรือตำแหน่ง
+        <label>{s.position}
           <input
             maxLength={100} value={position} onChange={(event) => setPosition(event.target.value)}
-            placeholder="เช่น มัธยมศึกษาปีที่ 5"
+            placeholder={s.positionPlaceholder}
           />
         </label>
       </div>
 
       {message && <p className="auth-message" role="alert">{message}</p>}
       <p className="settings-actions">
-        <button className="primary-button" disabled={busy}>{busy ? 'กำลังบันทึก…' : 'บันทึกข้อมูล'}</button>
+        <button className="primary-button" disabled={busy}>{busy ? s.saving : s.save}</button>
         <span className="settings-done" role="status">{done}</span>
       </p>
     </form>
@@ -203,6 +209,8 @@ function DetailsForm({ user, applyUser }: FormProps) {
 }
 
 function EmailForm({ user, applyUser }: FormProps) {
+  const { t } = useI18n();
+  const s = t.profileEdit;
   const [email, setEmail] = useState(user.email);
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -218,34 +226,31 @@ function EmailForm({ user, applyUser }: FormProps) {
       const { user: updated } = await post<{ user: Account }>('/auth/email', { email, password });
       applyUser(updated);
       setPassword('');
-      setDone('เปลี่ยนอีเมลแล้ว');
+      setDone(s.emailChanged);
     } catch (failure) {
-      setMessage(errorText(failure, 'เปลี่ยนอีเมลไม่สำเร็จ'));
+      setMessage(errorText(failure, s.emailFailed));
     } finally {
       setBusy(false);
     }
   }
 
   return <section className="panel profile-block">
-    <h2><Mail size={18} aria-hidden="true" />อีเมล</h2>
+    <h2><Mail size={18} aria-hidden="true" />{s.emailHeading}</h2>
     {/* บัญชีที่ผูก Google ใช้อีเมลของ Google เป็นตัวยืนยันตัวตน เปลี่ยนที่นี่แล้วจะไม่ตรงกัน */}
-    {user.googleLinked ? <p className="muted">
-      บัญชีนี้เข้าสู่ระบบด้วย Google อีเมลจึงตามบัญชี Google เสมอ
-      ถ้าต้องการเปลี่ยน ให้เปลี่ยนที่บัญชี Google ของคุณ
-    </p> : <form className="settings-form" onSubmit={save} noValidate>
-      <label>อีเมลใหม่ *
+    {user.googleLinked ? <p className="muted">{s.googleNote}</p> : <form className="settings-form" onSubmit={save} noValidate>
+      <label>{s.newEmail}
         <input type="email" required maxLength={200} value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
-      <label>รหัสผ่านปัจจุบัน *
+      <label>{s.currentPassword}
         <input
           type="password" required maxLength={200} autoComplete="current-password"
           value={password} onChange={(event) => setPassword(event.target.value)}
         />
-        <small className="muted">ถามเพื่อยืนยันว่าเป็นเจ้าของบัญชีจริง ก่อนเปลี่ยนที่อยู่ที่ใช้เข้าระบบ</small>
+        <small className="muted">{s.passwordAsk}</small>
       </label>
       {message && <p className="auth-message" role="alert">{message}</p>}
       <p className="settings-actions">
-        <button className="primary-button" disabled={busy}>{busy ? 'กำลังบันทึก…' : 'เปลี่ยนอีเมล'}</button>
+        <button className="primary-button" disabled={busy}>{busy ? s.saving : s.changeEmail}</button>
         <span className="settings-done" role="status">{done}</span>
       </p>
     </form>}
@@ -253,6 +258,8 @@ function EmailForm({ user, applyUser }: FormProps) {
 }
 
 function PasswordForm({ user, applyUser }: FormProps) {
+  const { t } = useI18n();
+  const s = t.profileEdit;
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [message, setMessage] = useState('');
@@ -269,39 +276,37 @@ function PasswordForm({ user, applyUser }: FormProps) {
       applyUser(updated);
       setCurrent('');
       setNext('');
-      setDone('เปลี่ยนรหัสผ่านแล้ว อุปกรณ์อื่นถูกออกจากระบบ');
+      setDone(s.passwordChanged);
     } catch (failure) {
-      setMessage(errorText(failure, 'เปลี่ยนรหัสผ่านไม่สำเร็จ'));
+      setMessage(errorText(failure, s.passwordFailed));
     } finally {
       setBusy(false);
     }
   }
 
   return <section className="panel profile-block">
-    <h2><KeyRound size={18} aria-hidden="true" />รหัสผ่าน</h2>
+    <h2><KeyRound size={18} aria-hidden="true" />{s.passwordHeading}</h2>
     <p className="muted">
-      {user.hasPassword
-        ? 'เปลี่ยนแล้วอุปกรณ์อื่นที่ค้างอยู่จะถูกออกจากระบบทั้งหมด เครื่องนี้ยังอยู่ต่อได้'
-        : 'บัญชีนี้ยังไม่มีรหัสผ่านเพราะสมัครด้วย Google ตั้งไว้เพื่อให้เข้าระบบด้วยอีเมลได้อีกทาง'}
+      {user.hasPassword ? s.hasPassword : s.noPassword}
     </p>
     <form className="settings-form" onSubmit={save} noValidate>
-      {user.hasPassword && <label>รหัสผ่านปัจจุบัน *
+      {user.hasPassword && <label>{s.currentPassword}
         <input
           type="password" required maxLength={200} autoComplete="current-password"
           value={current} onChange={(event) => setCurrent(event.target.value)}
         />
       </label>}
-      <label>รหัสผ่านใหม่ *
+      <label>{s.newPassword}
         <input
           type="password" required maxLength={200} autoComplete="new-password"
           value={next} onChange={(event) => setNext(event.target.value)}
         />
-        <small className="muted">อย่างน้อย 10 ตัวอักษร</small>
+        <small className="muted">{s.minLength}</small>
       </label>
       {message && <p className="auth-message" role="alert">{message}</p>}
       <p className="settings-actions">
         <button className="primary-button" disabled={busy}>
-          {busy ? 'กำลังบันทึก…' : user.hasPassword ? 'เปลี่ยนรหัสผ่าน' : 'ตั้งรหัสผ่าน'}
+          {busy ? s.saving : user.hasPassword ? s.changePassword : s.setPassword}
         </button>
         <span className="settings-done" role="status">{done}</span>
       </p>

@@ -5,9 +5,11 @@ import { ArrowRight, LogIn, UserPlus } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { ApiError } from '../lib/api';
 import { safeNext } from '../lib/safe-next';
-
+import { useI18n } from '../i18n';
 
 export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
+  const { t } = useI18n();
+  const s = t.signIn;
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -24,8 +26,8 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
   const signup = mode === 'signup';
 
   useEffect(() => {
-    document.title = `${signup ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ'} — ChampionWays`;
-  }, [signup]);
+    document.title = `${signup ? s.titleUp : s.titleIn} — ChampionWays`;
+  }, [signup, s.titleUp, s.titleIn]);
 
   // ล็อกอินอยู่แล้วก็ไม่ต้องเห็นหน้านี้
   useEffect(() => {
@@ -42,7 +44,7 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
       navigate(next, { replace: true });
     } catch (error) {
       // ไม่ใช่ ApiError แปลว่าไม่ได้รับคำตอบกลับมาเลย คนละเรื่องกับเซิร์ฟเวอร์ตอบว่าผิดพลาด
-      setMessage(error instanceof ApiError ? error.message : 'ต่อเซิร์ฟเวอร์ไม่ติด ไม่ได้รับคำตอบกลับมา');
+      setMessage(error instanceof ApiError ? error.message : s.unreachable);
     } finally {
       setBusy(false);
     }
@@ -51,29 +53,25 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
   return <main id="main" tabIndex={-1} className="shell page auth-page">
     <div className="auth-card">
       <p className="eyebrow">ChampionWays</p>
-      <h1>{signup ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ'}</h1>
-      <p className="auth-lead">
-        {signup
-          ? 'สมัครไว้เพื่อลงงานแข่ง สมัครเป็นเมนเทอร์ และตามสถานะใบที่ส่งไว้'
-          : 'เข้าสู่ระบบเพื่อลงงานแข่ง สมัครเป็นเมนเทอร์ และดูใบที่ส่งไว้'}
-      </p>
+      <h1>{signup ? s.titleUp : s.titleIn}</h1>
+      <p className="auth-lead">{signup ? s.leadUp : s.leadIn}</p>
 
       {!signup && <label className="auth-remember">
         <input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} disabled={busy} />
-        <span>จดจำฉัน<small>คงการเข้าสู่ระบบบนอุปกรณ์นี้สูงสุด 30 วัน</small></span>
+        <span>{s.remember}<small>{s.rememberHint}</small></span>
       </label>}
 
       {googleEnabled && <>
         {/* ลิงก์ธรรมดา ไม่ใช่ fetch เพราะต้องให้เบราว์เซอร์พาไปหน้า Google จริง */}
         <a className="google-button" href={`/api/auth/google?next=${encodeURIComponent(next)}&remember=${remember ? '1' : '0'}`}>
-          <GoogleMark />เข้าสู่ระบบด้วย Google
+          <GoogleMark />{s.google}
         </a>
-        <p className="auth-divider"><span>หรือใช้อีเมล</span></p>
+        <p className="auth-divider"><span>{s.orEmail}</span></p>
       </>}
 
       <form onSubmit={submit} noValidate>
         {signup && <label>
-          ชื่อที่ใช้แสดง
+          {s.name}
           <input
             value={name} onChange={(event) => setName(event.target.value)}
             autoComplete="name" required maxLength={80}
@@ -81,7 +79,7 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
         </label>}
 
         <label>
-          อีเมล
+          {s.email}
           <input
             type="email" value={email} onChange={(event) => setEmail(event.target.value)}
             autoComplete="email" required
@@ -89,32 +87,30 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
         </label>
 
         <label>
-          รหัสผ่าน
+          {s.password}
           <input
             type="password" value={password} onChange={(event) => setPassword(event.target.value)}
             autoComplete={signup ? 'new-password' : 'current-password'} required
           />
-          {signup && <small>อย่างน้อย 10 ตัวอักษร ยาวสำคัญกว่าอักขระพิเศษ</small>}
+          {signup && <small>{s.passwordHint}</small>}
         </label>
 
         <p className="auth-message" role="alert">{message}</p>
 
         <button className="primary-button auth-submit" type="submit" disabled={busy}>
           {signup ? <UserPlus size={17} aria-hidden="true" /> : <LogIn size={17} aria-hidden="true" />}
-          {busy ? 'กำลังดำเนินการ' : signup ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ'}
+          {busy ? s.busy : signup ? s.titleUp : s.titleIn}
         </button>
       </form>
 
       <p className="auth-swap">
-        {signup ? 'มีบัญชีอยู่แล้ว' : 'ยังไม่มีบัญชี'}
+        {signup ? s.hasAccount : s.noAccount}
         <Link to={`${signup ? '/signin' : '/signup'}${params.get('next') ? `?next=${encodeURIComponent(next)}` : ''}`}>
-          {signup ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}<ArrowRight size={14} aria-hidden="true" />
+          {signup ? s.titleIn : s.titleUp}<ArrowRight size={14} aria-hidden="true" />
         </Link>
       </p>
 
-      {pathname === '/signin' && <p className="auth-note">
-        บัญชีทีมตรวจสร้างจากฝั่งเซิร์ฟเวอร์เท่านั้น สมัครเองแล้วจะยังเป็นสมาชิกทั่วไป
-      </p>}
+      {pathname === '/signin' && <p className="auth-note">{s.reviewerNote}</p>}
     </div>
   </main>;
 }

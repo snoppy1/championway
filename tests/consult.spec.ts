@@ -63,10 +63,17 @@ test('a student contacts a mentor, gets guidance, the mentor confirms, and the s
   await expect(channels.filter({ hasText: 'Instagram' })).toContainText('fixture.ig');
   await expect(channels.filter({ hasText: 'อีเมล' })).toContainText('-');
   await expect(channels.filter({ hasText: 'เบอร์โทร' })).toContainText('-');
-  await expect(contact.getByText('กำลังดำเนินการ')).toBeVisible();
+  // ค่าที่กรอกแล้วกดได้ ประกอบลิงก์จากค่าที่เมนเทอร์พิมพ์ ช่องที่ว่างไม่มีลิงก์
+  await expect(channels.filter({ hasText: 'LINE ID' }).getByRole('link')).toHaveAttribute('href', 'https://line.me/ti/p/~fixture.line');
+  await expect(channels.filter({ hasText: 'Instagram' }).getByRole('link')).toHaveAttribute('href', 'https://www.instagram.com/fixture.ig/');
+  await expect(channels.filter({ hasText: 'LINE ID' }).getByRole('link')).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(channels.filter({ hasText: 'อีเมล' }).getByRole('link')).toHaveCount(0);
+  // บรรทัดขั้นตอนบอกว่าอยู่ตรงไหน ขั้นปัจจุบันตัวหนา
+  await expect(contact.locator('.cx-steps')).toContainText('1 ติดต่อเมนเทอร์ · 2 แจ้งว่าได้รับคำแนะนำ · 3 รีวิว');
+  await expect(contact.locator('.cx-steps strong')).toHaveText('2 แจ้งว่าได้รับคำแนะนำ');
 
   await contact.getByRole('button', { name: 'ฉันได้รับคำแนะนำแล้ว' }).click();
-  await expect(contact.getByText('รอเมนเทอร์ยืนยัน').first()).toBeVisible();
+  await expect(contact.getByText('เราส่งอีเมลให้เมนเทอร์ยืนยันแล้ว')).toBeVisible();
   await expect(contact.getByRole('button', { name: 'ฉันได้รับคำแนะนำแล้ว' })).toHaveCount(0);
 
   // ฝั่งเมนเทอร์: ลิงก์ในอีเมลพามาที่รายการนี้ใน Mentor zone แล้วกดยืนยัน
@@ -81,7 +88,7 @@ test('a student contacts a mentor, gets guidance, the mentor confirms, and the s
     await expect(item).toContainText('Test แจ้งว่าได้รับคำแนะนำจากคุณ');
     await item.getByRole('button', { name: 'ยืนยันการปรึกษากับ Test' }).click();
     await expect(zone.getByText('ยืนยันแล้ว นักเรียนรีวิวคุณได้แล้ว')).toBeVisible();
-    await expect(zone.getByText('ตอนนี้ไม่มีรายการรอยืนยัน')).toBeVisible();
+    await expect(zone.getByRole('heading', { name: 'การปรึกษาที่รอยืนยัน (0)' })).toBeVisible();
   } finally {
     await zone.close();
     await mentorContext.close();
@@ -90,6 +97,7 @@ test('a student contacts a mentor, gets guidance, the mentor confirms, and the s
   // ฝั่งนักเรียน: เมื่อเมนเทอร์ยืนยันแล้วจึงรีวิวได้ ต้องเลือกดาวก่อนส่ง
   await page.reload();
   await expect(contact.getByText('เมนเทอร์ยืนยันการปรึกษานี้แล้ว')).toBeVisible();
+  await expect(contact.locator('.cx-steps strong')).toHaveText('3 รีวิว');
   await contact.getByRole('button', { name: 'ส่งรีวิว' }).click();
   await expect(contact.getByRole('alert').filter({ hasText: 'เลือก 1 ถึง 5 ดาว' })).toBeVisible();
   await contact.locator('.cx-star').nth(3).click();
@@ -194,7 +202,7 @@ test('the Consulting page lists every consultation, starts empty, and old chat l
   // ทำได้จากหน้านี้เลย ไม่ต้องกลับไปหน้าเมนเทอร์
   await item.getByRole('button', { name: 'ฉันได้รับคำแนะนำแล้ว' }).click();
   await expect(item.getByText('รอเมนเทอร์ยืนยัน').first()).toBeVisible();
-  await expect(item.getByRole('link', { name: `ดู ${fixture.name} และช่องทางติดต่อ` }).last()).toBeVisible();
+  await expect(item.getByRole('link', { name: 'ดูเมนเทอร์และช่องทางติดต่อ' })).toBeVisible();
 
   for (const old of ['/chats', '/chats/some-room']) {
     await page.goto(old);
@@ -237,7 +245,8 @@ test('the Mentor zone is for approved mentors, and a mentor can manage contacts,
 
   await signIn(page, fixture.owner, '/mentor-zone');
   await expect(page.getByRole('heading', { level: 1, name: 'โซนเมนเทอร์' })).toBeVisible();
-  await expect(page.getByText('ตอนนี้ไม่มีรายการรอยืนยัน')).toBeVisible();
+  // ไม่มีรายการรอยืนยันก็ไม่มีส่วนนี้เลย ไม่ใช่กล่องว่างที่แย่งที่
+  await expect(page.getByRole('heading', { name: /การปรึกษาที่รอยืนยัน/ })).toHaveCount(0);
 
   // ช่องทางติดต่อ: ต้องมีอย่างน้อยหนึ่งช่อง อีเมลและลิงก์ต้องถูกรูปแบบ
   const contacts = page.getByRole('region', { name: 'ช่องทางที่นักเรียนติดต่อคุณ' });
@@ -280,15 +289,22 @@ test('the Mentor zone is for approved mentors, and a mentor can manage contacts,
   const candidate = add.locator('.cx-competition').filter({ hasText: fixture.spare.name });
   await candidate.getByText('รายละเอียด').click();
   await expect(candidate).toContainText('A competition made for a test.');
+  // ถามราคาหลังเลือกเวทีเท่านั้น
+  await expect(candidate.getByLabel('ราคา (บาท)')).toHaveCount(0);
   await candidate.getByRole('button', { name: `เพิ่ม ${fixture.spare.name}` }).click();
+  await candidate.getByRole('button', { name: 'เพิ่มในรายการของฉัน' }).click();
   await expect(mine.locator('.cx-competition').filter({ hasText: fixture.spare.name })).toBeVisible();
   await mine.getByRole('button', { name: `เอา ${fixture.spare.name} ออก` }).click();
+  await expect(mine.getByText(`เอา ${fixture.spare.name} ออกจากรายการของคุณหรือไม่`).first()).toBeVisible();
+  await mine.getByRole('button', { name: 'ใช่ เอาออก' }).click();
   await expect(mine.locator('.cx-competition').filter({ hasText: fixture.spare.name })).toHaveCount(0);
   await add.getByLabel('ค้นหาเวทีที่เปิดรับสมัคร').fill('zzz-no-such-competition');
   await expect(add.getByText('ไม่พบเวทีที่ตรงกับคำค้น')).toBeVisible();
 
   // ขอเพิ่มเวทีใหม่: ตรวจฟอร์มก่อนส่ง แล้วเห็นสถานะรอทีมงาน
   const request = page.getByRole('region', { name: 'ไม่เจอเวทีของคุณ' });
+  await expect(request).toBeHidden();
+  await add.getByRole('button', { name: 'ไม่มีในรายการ? ขอเพิ่มเวที' }).click();
   await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
   await expect(request.getByRole('alert')).toContainText('กรอกชื่อเวที');
   await request.getByLabel('ชื่อเวที').fill('Brand New Cup');
@@ -299,7 +315,7 @@ test('the Mentor zone is for approved mentors, and a mentor can manage contacts,
   await request.getByLabel('รายละเอียด (ไม่บังคับ)').fill('Open to all students.');
   await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
   await expect(request.getByRole('status')).toContainText('ส่งคำขอแล้ว');
-  const submitted = request.locator('.cx-request').filter({ hasText: 'Brand New Cup' });
+  const submitted = page.locator('.cx-request').filter({ hasText: 'Brand New Cup' });
   await expect(submitted).toContainText('รอทีมงานตรวจ');
   await expect(submitted).toContainText('500 บาท / 60 นาที');
   await expectNoSideScroll(page);
@@ -441,8 +457,11 @@ test('an unreachable mentor list shows an error with a retry that recovers', asy
 
 /* ---------- คุณภาพหน้า ---------- */
 
-test('the new pages pass axe, fit the viewport, and are captured', async ({ page }, info) => {
-  const learner = await student();
+test('the new pages pass axe, fit the viewport, and are captured with realistic Thai data', async ({ page, browser, baseURL }, info) => {
+  // ภาพหน้าจอใช้เมนเทอร์และนักเรียนชื่อไทย เวทีที่ปิดรับในอีกเดือนครึ่ง ไม่ใช่ข้อมูลทดสอบภาษาอังกฤษ
+  const thai = await createMentorFixture({ thai: true });
+  const learner = await createAccount('member', { verified: true, name: 'ปรียา วงศ์สวัสดิ์' });
+  students.push(learner);
   const capture = async (name: string) => {
     if (info.project.name !== 'tablet') await page.screenshot({ path: `artifacts/${name}-${info.project.name}.png`, fullPage: true });
   };
@@ -451,30 +470,42 @@ test('the new pages pass axe, fit the viewport, and are captured', async ({ page
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
     expect(results.violations, label).toEqual([]);
   };
+  const mentorContext = await browser.newContext({ storageState: THAI_ONLY(baseURL!), viewport: page.viewportSize() ?? undefined });
+  const zone = await mentorContext.newPage();
+  try {
+    await page.goto(`/competitions/${demoCompetitions[0].slug}#mentors`);
+    await expect(page.locator('.rs-row').first()).toBeVisible();
+    await audit('competition mentors tab');
+    await capture('competition-mentors');
 
-  await page.goto(`/competitions/${demoCompetitions[0].slug}#mentors`);
-  await expect(page.locator('.rs-row').first()).toBeVisible();
-  await audit('competition mentors tab');
-  await capture('competition-mentors');
+    await signIn(page, learner, `/mentors/${thai.mentorId}?competition=${thai.competition.slug}`);
+    await page.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
+    await expect(page.locator('.cx-contacts')).toBeVisible();
+    await audit('mentor profile with contacts');
+    await capture('mentor-profile');
 
-  await signIn(page, learner, `/mentors/${fixture.mentorId}?competition=${fixture.competition.slug}`);
-  await page.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
-  await expect(page.locator('.cx-contacts')).toBeVisible();
-  await audit('mentor profile with contacts');
-  await capture('mentor-profile');
+    await page.getByRole('button', { name: 'ฉันได้รับคำแนะนำแล้ว' }).click();
+    await expect(page.getByText('เราส่งอีเมลให้เมนเทอร์ยืนยันแล้ว')).toBeVisible();
+    await page.goto('/consulting');
+    await expect(page.locator('.cx-consult').first()).toBeVisible();
+    await audit('consulting');
+    await capture('consulting');
 
-  await page.getByRole('button', { name: 'ฉันได้รับคำแนะนำแล้ว' }).click();
-  await expect(page.getByText('รอเมนเทอร์ยืนยัน').first()).toBeVisible();
-  await page.goto('/consulting');
-  await expect(page.locator('.cx-consult').first()).toBeVisible();
-  await audit('consulting');
-  await capture('consulting');
-
-  await page.context().clearCookies();
-  await signIn(page, fixture.owner, '/mentor-zone');
-  await expect(page.getByRole('region', { name: 'เวทีที่ฉันรับปรึกษา' })).toBeVisible();
-  await audit('mentor zone');
-  await capture('mentor-zone');
+    // ฝั่งเมนเทอร์มีรายการรอยืนยัน ส่วนสีทองจึงโผล่ในภาพ
+    await signIn(zone, thai.owner, '/mentor-zone');
+    await expect(zone.getByRole('heading', { name: 'การปรึกษาที่รอยืนยัน (1)' })).toBeVisible();
+    await expect(zone.getByRole('region', { name: 'เวทีที่ฉันรับปรึกษา' })).toBeVisible();
+    await zone.setViewportSize(page.viewportSize()!);
+    await zone.evaluate(() => window.scrollTo(0, 0));
+    const results = await new AxeBuilder({ page: zone }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    expect(results.violations, 'mentor zone').toEqual([]);
+    expect(await zone.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    if (info.project.name !== 'tablet') await zone.screenshot({ path: `artifacts/mentor-zone-${info.project.name}.png`, fullPage: true });
+  } finally {
+    await zone.close();
+    await mentorContext.close();
+    await thai.cleanup();
+  }
 });
 
 test('touch targets on the new pages are at least 44px tall on phones', async ({ page, viewport }) => {
@@ -485,13 +516,13 @@ test('touch targets on the new pages are at least 44px tall on phones', async ({
   await expect(page.locator('.cx-contacts')).toBeVisible();
   await page.goto('/consulting');
   await expect(page.locator('.cx-consult').first()).toBeVisible();
-  for (const box of await page.locator('main button, main a.cx-button, main .cx-link').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height))) {
+  for (const box of await page.locator('main button, main a.cx-button, main .cx-link').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
     expect(box).toBeGreaterThanOrEqual(44);
   }
   await page.context().clearCookies();
   await signIn(page, fixture.owner, '/mentor-zone');
   await expect(page.getByRole('region', { name: 'เวทีที่ฉันรับปรึกษา' })).toBeVisible();
-  for (const box of await page.locator('main button:not([disabled]), main a.cx-button, main summary').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height))) {
+  for (const box of await page.locator('main button:not([disabled]), main a.cx-button, main summary').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
     expect(box).toBeGreaterThanOrEqual(44);
   }
   // ตัวที่ถูก disabled ก็ต้องสูงพอเช่นกัน ปุ่มบันทึกราคายังไม่มีอะไรเปลี่ยนจึงถูกปิดอยู่

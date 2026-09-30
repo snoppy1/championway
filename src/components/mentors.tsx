@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useI18n } from '../i18n';
+import '../consult.css';
 import type { ListedMentor, Rating as RatingValue, RankedMentor } from '../data/consult';
 
 /* ส่วนประกอบของรายชื่อเมนเทอร์ที่ใช้ร่วมกันระหว่างหน้าทำเนียบ Rising Star กับแท็บ Available mentors
@@ -28,7 +29,7 @@ export function Rating({ rating }: { rating: RatingValue }) {
 
 function Meta({ mentor }: { mentor: ListedMentor }) {
   const { t } = useI18n();
-  return <p className="rs-row__meta"><Rating rating={mentor.rating} /> · {t.price.line(mentor.price, mentor.minutes)}</p>;
+  return <p className="rs-row__meta"><Rating rating={mentor.rating} /> · <span className="cx-nowrap">{t.price.line(mentor.price, mentor.minutes)}</span></p>;
 }
 
 /** ปุ่มดูโปรไฟล์ พกบริบทเวทีไปด้วยเมื่อมี เพื่อให้หน้าโปรไฟล์เลือกเวทีตอนกดติดต่อให้ */

@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../data/auth';
 import { post } from '../lib/api';
@@ -34,7 +35,7 @@ function CancelControl({ busy, onCancel }: { busy: boolean; onCancel: () => Prom
   const titleId = useId();
 
   if (!asking) {
-    return <button type="button" ref={openRef} className="link-button cx-link cx-link--danger" disabled={busy}
+    return <button type="button" ref={openRef} className="link-button cx-link cx-link--quiet" disabled={busy}
       onClick={() => { setAsking(true); requestAnimationFrame(() => askRef.current?.focus()); }}>{s.cancel}</button>;
   }
   // ยืนยันในที่ ไม่เด้ง dialog: ถามหนึ่งครั้งพอ เพราะกดผิดก็แค่ติดต่อเมนเทอร์ใหม่ได้
@@ -103,12 +104,17 @@ function ReviewForm({ id, verified, onDone }: { id: string; verified: boolean; o
   </form>;
 }
 
-export function ConsultFlow({ consultation, onChange }: { consultation: FlowConsultation; onChange: () => Promise<void> | void }) {
+/* viewLink: ลิงก์ "ดูเมนเทอร์และช่องทางติดต่อ" ของหน้า Consulting ใส่ในแถวปุ่มเดียวกัน ลำดับคือปุ่มหลัก → ปุ่มขอบ → ข้อความเงียบ
+   collapseReview: หน้า Consulting ซ่อนฟอร์มรีวิวไว้หลังปุ่ม "เขียนรีวิว" (ปุ่มม่วงปุ่มเดียวของการ์ด) หน้าโปรไฟล์เมนเทอร์แสดงฟอร์มเลย */
+export function ConsultFlow({ consultation, onChange, viewLink, collapseReview = false }: {
+  consultation: FlowConsultation; onChange: () => Promise<void> | void; viewLink?: ReactNode; collapseReview?: boolean;
+}) {
   const { t } = useI18n();
   const s = t.consult;
   const { user } = useAuth();
   const [busy, setBusy] = useState<'claim' | 'cancel' | null>(null);
   const [message, setMessage] = useState('');
+  const [reviewOpen, setReviewOpen] = useState(!collapseReview);
   const rootRef = useRef<HTMLDivElement>(null);
 
   async function run(kind: 'claim' | 'cancel') {
@@ -126,6 +132,7 @@ export function ConsultFlow({ consultation, onChange }: { consultation: FlowCons
   }
 
   const { status } = consultation;
+  const cancel = <CancelControl busy={busy === 'cancel'} onCancel={() => run('cancel')} />;
   return <div className="cx-flow" ref={rootRef} tabIndex={-1}>
     {status === 'active' && <>
       <p>{s.claimHelp}</p>
@@ -133,18 +140,25 @@ export function ConsultFlow({ consultation, onChange }: { consultation: FlowCons
         <button type="button" className="primary-button cx-button" disabled={busy !== null} onClick={() => { void run('claim'); }}>
           {busy === 'claim' ? s.claiming : s.claim}
         </button>
-        <CancelControl busy={busy === 'cancel'} onCancel={() => run('cancel')} />
+        {viewLink}{cancel}
       </div>
     </>}
     {status === 'claimed' && <>
       <p>{s.claimedNote}</p>
-      <CancelControl busy={busy === 'cancel'} onCancel={() => run('cancel')} />
+      <div className="cx-row">{viewLink}{cancel}</div>
     </>}
     {status === 'confirmed' && (consultation.reviewed
-      ? <p>{s.reviewedNote}{consultation.stars ? ` ${s.yourRating(consultation.stars)}.` : ''}</p>
+      ? <>
+        <p>{s.reviewedNote}{consultation.stars ? ` ${s.yourRating(consultation.stars)}.` : ''}</p>
+        {viewLink && <div className="cx-row">{viewLink}</div>}
+      </>
       : <>
         <p>{s.confirmedNote}</p>
-        <ReviewForm id={consultation.id} verified={Boolean(user?.emailVerified)} onDone={async () => { await onChange(); rootRef.current?.focus({ preventScroll: true }); }} />
+        {!reviewOpen && <div className="cx-row">
+          <button type="button" className="primary-button cx-button" onClick={() => setReviewOpen(true)}>{s.writeReview}</button>
+          {viewLink}
+        </div>}
+        {reviewOpen && <ReviewForm id={consultation.id} verified={Boolean(user?.emailVerified)} onDone={async () => { await onChange(); rootRef.current?.focus({ preventScroll: true }); }} />}
       </>)}
     {status === 'cancelled' && <p>{s.cancelledNote}</p>}
     <p className="cx-message cx-message--error" role="alert">{message}</p>

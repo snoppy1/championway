@@ -39,3 +39,27 @@ export function consultError(failure: unknown, t: Messages, scope: 'student' | '
     default: return e.generic;
   }
 }
+
+/** ลิงก์กดได้ของช่องทางติดต่อ สร้างจากค่าที่เมนเทอร์พิมพ์เอง จึงประกอบให้ปลอดภัยทุกแบบ
+    อีเมล → mailto: เบอร์ → tel: (เหลือเฉพาะตัวเลขกับ +) LINE และ Instagram → ลิงก์โปรไฟล์ที่ encode แล้ว
+    ลิงก์อื่น → เฉพาะ http(s):// ที่อ่านเป็น URL ได้ ไม่เข้าเงื่อนไขก็คืน null แล้วแสดงเป็นข้อความเฉย ๆ */
+export function contactHref(key: ContactKey, raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+  switch (key) {
+    case 'email': return /^[^\s@]+@[^\s@]+$/.test(value) ? `mailto:${value}` : null;
+    case 'phone': {
+      const digits = value.replace(/[^\d+]/g, '');
+      return digits.replace(/\D/g, '').length >= 5 ? `tel:${digits}` : null;
+    }
+    case 'line': return `https://line.me/ti/p/~${encodeURIComponent(value)}`;
+    case 'instagram': {
+      const handle = value.replace(/^@+/, '');
+      return handle ? `https://www.instagram.com/${encodeURIComponent(handle)}/` : null;
+    }
+    case 'link': {
+      if (!isWebLink(value)) return null;
+      try { return new URL(value).href; } catch { return null; }
+    }
+  }
+}

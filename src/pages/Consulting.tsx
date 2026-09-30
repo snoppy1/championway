@@ -64,22 +64,26 @@ export function Consulting() {
     </div>}
 
     {data && data.items.length > 0 && <ul className="cx-consults" aria-label={s.listLabel}>
-      {data.items.map((item) => <li className="panel cx-consult" key={item.id}>
-        <div className="cx-consult__head">
+      {data.items.map((item) => {
+        const to = `/mentors/${item.mentor.id}${item.competition ? `?competition=${encodeURIComponent(item.competition.slug)}` : ''}`;
+        return <li className="panel cx-consult" key={item.id}>
           <Avatar initial={item.mentor.initial} plain />
-          <div className="cx-consult__who">
-            <h2><Link to={`/mentors/${item.mentor.id}${item.competition ? `?competition=${encodeURIComponent(item.competition.slug)}` : ''}`}
-              aria-label={s.viewMentorOf(item.mentor.name)}>{item.mentor.name}</Link></h2>
+          <div className="cx-consult__body">
+            <div className="cx-consult__title">
+              <h2><Link to={to} aria-label={s.viewMentorOf(item.mentor.name)}>{item.mentor.name}</Link></h2>
+              <StatusPill status={item.status} reviewed={Boolean(item.review)} />
+            </div>
             <p className="cx-hint">{item.competition ? `${s.about(item.competition.name)} · ` : ''}{s.startedOn(formatDate(item.createdAt, lang))}</p>
+            {item.status === 'claimed' && item.claimedAt && <p className="cx-hint">{s.claimedOn(formatDate(item.claimedAt, lang))}</p>}
+            {item.status === 'confirmed' && item.confirmedAt && <p className="cx-hint">{s.confirmedOn(formatDate(item.confirmedAt, lang))}</p>}
+            <ConsultFlow
+              consultation={{ id: item.id, status: item.status, reviewed: Boolean(item.review), stars: item.review?.stars }}
+              onChange={reloadAsync} collapseReview
+              viewLink={item.status === 'cancelled' ? undefined : <Link className="ghost-button cx-button" to={to}>{s.viewMentor}</Link>}
+            />
           </div>
-          <StatusPill status={item.status} reviewed={Boolean(item.review)} />
-        </div>
-        {item.status === 'claimed' && item.claimedAt && <p className="cx-hint">{s.claimedOn(formatDate(item.claimedAt, lang))}</p>}
-        {item.status === 'confirmed' && item.confirmedAt && <p className="cx-hint">{s.confirmedOn(formatDate(item.confirmedAt, lang))}</p>}
-        <ConsultFlow consultation={{ id: item.id, status: item.status, reviewed: Boolean(item.review), stars: item.review?.stars }} onChange={reloadAsync} />
-        {item.status !== 'cancelled' && <p><Link className="cx-link" to={`/mentors/${item.mentor.id}${item.competition ? `?competition=${encodeURIComponent(item.competition.slug)}` : ''}`}>
-          {s.viewMentor}</Link></p>}
-      </li>)}
+        </li>;
+      })}
     </ul>}
   </main>;
 }

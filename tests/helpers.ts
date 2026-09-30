@@ -56,19 +56,25 @@ export type MentorFixture = {
 
 /** เมนเทอร์ที่ผ่านอนุมัติและผูกกับบัญชีจริง พร้อมเวทีสองเวที ข้อความเป็นอังกฤษทั้งหมด
     ทุก id ขึ้นต้นด้วย prefix สุ่ม ไม่ชนกับเทสอื่นที่รันขนาน และลบทิ้งหมดใน cleanup */
-export async function createMentorFixture(): Promise<MentorFixture> {
+export async function createMentorFixture(options: { thai?: boolean } = {}): Promise<MentorFixture> {
   const prefix = `fx-${randomBytes(4).toString('hex')}`;
-  const owner = await createAccount('member', { verified: true, name: 'Mentor Owner' });
+  // thai: ข้อมูลภาษาไทยที่สมจริงสำหรับถ่ายภาพหน้าจอ ค่าตั้งต้นเป็นอังกฤษ ให้เทสตรวจข้อความได้ตรง ๆ
+  const thai = Boolean(options.thai);
+  const owner = await createAccount('member', { verified: true, name: thai ? 'ธนพล ศรีสุข' : 'Mentor Owner' });
   const mentorId = `${prefix}-mentor`;
-  const name = `Mentor ${prefix}`;
+  const name = thai ? 'พี่ธนพล ศ.' : `Mentor ${prefix}`;
+  // วันปิดรับเป็นอีกหนึ่งเดือนครึ่งข้างหน้า ไม่ใช่ปี 2099 ที่แสดงเป็น พ.ศ. 2642
+  const closesAt = new Date(Date.now() + 45 * 86_400_000).toISOString().slice(0, 10);
   const makeCompetition = async (suffix: string) => {
     const slug = `${prefix}-${suffix}`;
-    const row = { id: `${prefix}-c-${suffix}`, slug, name: `Test Competition ${prefix} ${suffix}` };
+    const label = thai ? (suffix === 'main' ? 'การแข่งขันแผนธุรกิจนักศึกษา 2569' : 'Hackathon เพื่อสังคม 2569') : `Test Competition ${prefix} ${suffix}`;
+    const row = { id: `${prefix}-c-${suffix}`, slug, name: label };
     /* ตั้งใจไม่ใส่ kind กับหมวด เวทีจึงไม่ขึ้นหน้าแรกและหน้ารายละเอียด เทสที่นับการ์ดในหน้าแรกจะไม่เห็นเวทีของเทสนี้
        (เทสรันขนานกัน) ส่วนหน้าเวทีและแท็บเมนเทอร์ทดสอบกับเวทีตัวอย่างของ seed แทน */
     await db.insert(competitions).values({
       ...row,
-      description: 'A competition made for a test.', type: 'contest', org: 'Test Org', closesAt: '2099-01-01',
+      description: thai ? 'แข่งขันพัฒนาแผนธุรกิจและนำเสนอต่อคณะกรรมการ เปิดรับนักศึกษาทุกสาขา' : 'A competition made for a test.',
+      type: 'contest', org: thai ? 'สมาคมผู้ประกอบการรุ่นใหม่' : 'Test Org', closesAt,
       region: 'online', prizeValue: 0, prizeNote: 'Certificate', teamMin: 1, teamMax: 3, keywords: [],
       sourceUrl: 'https://example.test', source: 'editorial', lastVerifiedAt: '2026-09-30',
     });
@@ -77,15 +83,18 @@ export async function createMentorFixture(): Promise<MentorFixture> {
   const competition = await makeCompetition('main');
   const spare = await makeCompetition('spare');
   await db.insert(mentors).values({
-    id: mentorId, name, avatar: 'T', bio: 'Helps teams plan.', replyTime: '1 day', topics: [],
-    best: 'Scoping a project.', cannot: 'Writing code for you.', verified: true,
+    id: mentorId, name, avatar: thai ? 'ธ' : 'T', bio: thai ? 'ที่ปรึกษาแผนธุรกิจและการนำเสนอ' : 'Helps teams plan.',
+    replyTime: '1 day', topics: [],
+    best: thai ? 'ช่วยตีโจทย์และซ้อมพิทช์' : 'Scoping a project.', cannot: thai ? 'ไม่รับทำงานส่งแทนทีม' : 'Writing code for you.', verified: true,
     contactLine: 'fixture.line', contactInstagram: 'fixture.ig', price: 500, minutes: 60,
   });
   await db.insert(mentorSubmissions).values({
     id: `${prefix}-ms`, status: 'published', userId: owner.id, publishedMentorId: mentorId,
     firstName: 'Mentor', lastName: 'Owner', nickname: 'Mentor', email: owner.email, phone: '', occupation: 'working',
-    organization: 'Test Org', role: 'Tester', experience: 'Led three teams to the final round.', best: 'Scoping a project.',
-    cannot: 'Writing code for you.', topics: [],
+    organization: 'Test Org', role: 'Tester',
+    experience: thai ? 'เคยเป็นหัวหน้าทีมชนะเลิศการแข่งขันแผนธุรกิจระดับประเทศสองปีซ้อน และเป็นกรรมการรับเชิญของเวทีนักศึกษา' : 'Led three teams to the final round.',
+    best: thai ? 'ช่วยตีโจทย์และซ้อมพิทช์' : 'Scoping a project.',
+    cannot: thai ? 'ไม่รับทำงานส่งแทนทีม' : 'Writing code for you.', topics: [],
   });
   await db.insert(mentorCompetitionChoices).values({
     mentorId, competitionId: competition.id, choice: 'help', price: 500, minutes: 60,

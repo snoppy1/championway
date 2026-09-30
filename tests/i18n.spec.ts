@@ -280,13 +280,13 @@ test('the contact flow, consulting, mentor zone and verify pages have no Thai in
     await signInEnglish(page, fixture.owner, '/mentor-zone');
     await expect(page.getByRole('heading', { level: 1, name: 'Mentor zone' })).toBeVisible();
     const zoneContent = await contentFrom(page, '/api/consult/zone');
-    await expect(page.getByText('Nothing to confirm right now.')).toBeVisible();
     await expectNoThai(page, zoneContent);
     const contacts = page.getByRole('region', { name: 'How students reach you' });
     await contacts.getByLabel('LINE ID').fill('');
     await contacts.getByLabel('Instagram').fill('');
     await contacts.getByRole('button', { name: 'Save' }).click();
     await expect(contacts.getByText('Add at least one way to reach you.')).toBeVisible();
+    await page.getByRole('button', { name: 'Not in the list? Request a competition' }).click();
     const request = page.getByRole('region', { name: 'Do not see your competition?' });
     await request.getByRole('button', { name: 'Send request' }).click();
     await expect(request.getByText('Enter the competition name.')).toBeVisible();

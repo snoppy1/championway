@@ -35,12 +35,14 @@ type Zone = {
 };
 
 const EMAIL = /^\S+@\S+\.\S+$/;
-const PAGE = 8;
+const PAGE = 5;
 
 type Reload = () => void;
 
 /* ---------- การปรึกษาที่รอยืนยัน ---------- */
 
+/* เรื่องเดียวที่เมนเทอร์ต้องรีบทำ จึงอยู่บนสุดและเป็นสีทอง ไม่มีรายการรอก็ซ่อนทั้งส่วน
+   นับเฉพาะรายการที่นักเรียนกดว่าได้รับคำแนะนำแล้ว ส่วนคนที่เพิ่งเปิดดูช่องทางติดต่อยังไม่มีอะไรให้เมนเทอร์ทำ */
 function ConfirmSection({ items, reload }: { items: Waiting[]; reload: Reload }) {
   const { t, lang } = useI18n();
   const s = t.mentorZone;
@@ -49,6 +51,7 @@ function ConfirmSection({ items, reload }: { items: Waiting[]; reload: Reload })
   const [message, setMessage] = useState('');
   const [failed, setFailed] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const claimed = items.filter((item) => item.status === 'claimed');
 
   // มาจากลิงก์ในอีเมล: เลื่อนไปหารายการนั้นและย้ายโฟกัสไปที่มัน
   useEffect(() => {
@@ -57,7 +60,7 @@ function ConfirmSection({ items, reload }: { items: Waiting[]; reload: Reload })
     if (!target) return;
     target.scrollIntoView({ block: 'center' });
     target.focus({ preventScroll: true });
-  }, [hash, items.length]);
+  }, [hash, claimed.length]);
 
   async function confirm(id: string) {
     setBusy(id);
@@ -76,30 +79,22 @@ function ConfirmSection({ items, reload }: { items: Waiting[]; reload: Reload })
     }
   }
 
-  // ที่ต้องกดก่อนอยู่บนสุด
-  const sorted = [...items].sort((a, b) => Number(b.status === 'claimed') - Number(a.status === 'claimed'));
+  // ยืนยันครบแล้วยังต้องเห็นข้อความ "ยืนยันแล้ว" ส่วนนี้จึงหายเมื่อไม่มีทั้งรายการและข้อความ
+  if (claimed.length === 0 && !message) return null;
 
-  return <section className="panel cx-section" aria-labelledby="confirm-title">
-    <h2 id="confirm-title" tabIndex={-1} ref={titleRef}>{s.confirmTitle}</h2>
-    <p className="cx-lead">{s.confirmLead}</p>
+  return <section className="panel cx-section cx-section--urgent" aria-labelledby="confirm-title">
+    <h2 id="confirm-title" tabIndex={-1} ref={titleRef}>{s.confirmHeading(claimed.length)}</h2>
+    {claimed.length > 0 && <p className="cx-lead">{s.confirmLead}</p>}
     <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
-    {sorted.length === 0 ? <p className="cx-empty">{s.confirmEmpty}</p> : <ul className="cx-list" aria-label={s.listLabel}>
-      {sorted.map((item) => {
-        const claimed = item.status === 'claimed';
-        const isTarget = hash === `#confirm-${item.id}`;
-        return <li key={item.id} id={`confirm-${item.id}`} tabIndex={-1} className={isTarget ? 'cx-waiting is-target' : 'cx-waiting'}>
-          <div>
-            <p>{claimed
-              ? s.claimedOn(item.student, formatDate(item.claimedAt ?? item.createdAt, lang))
-              : s.openedOn(item.student, formatDate(item.createdAt, lang))}</p>
-            {!claimed && <p className="cx-hint">{s.waitingStudent}</p>}
-          </div>
-          {claimed && <button type="button" className="primary-button cx-button" disabled={busy !== ''}
-            aria-label={s.confirmAria(item.student)} onClick={() => { void confirm(item.id); }}>
-            {busy === item.id ? s.confirming : s.confirm}
-          </button>}
-        </li>;
-      })}
+    {claimed.length > 0 && <ul className="cx-list" aria-label={s.listLabel}>
+      {claimed.map((item) => <li key={item.id} id={`confirm-${item.id}`} tabIndex={-1}
+        className={hash === `#confirm-${item.id}` ? 'cx-waiting is-target' : 'cx-waiting'}>
+        <p>{s.claimedOn(item.student, formatDate(item.claimedAt ?? item.createdAt, lang))}</p>
+        <button type="button" className="primary-button cx-button" disabled={busy !== ''}
+          aria-label={s.confirmAria(item.student)} onClick={() => { void confirm(item.id); }}>
+          {busy === item.id ? s.confirming : s.confirm}
+        </button>
+      </li>)}
     </ul>}
   </section>;
 }
@@ -201,8 +196,11 @@ function ChosenRow({ item, onChanged }: { item: Chosen; onChanged: (message: str
   const [price, setPrice] = useState(text(item.price));
   const [minutes, setMinutes] = useState(text(item.minutes));
   const [busy, setBusy] = useState<'save' | 'remove' | null>(null);
+  const [asking, setAsking] = useState(false);
   const [message, setMessage] = useState('');
   const dirty = price !== text(item.price) || minutes !== text(item.minutes);
+  const askRef = useRef<HTMLButtonElement>(null);
+  const openRef = useRef<HTMLButtonElement>(null);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -233,33 +231,43 @@ function ChosenRow({ item, onChanged }: { item: Chosen; onChanged: (message: str
   }
 
   return <li className="cx-competition">
-    <div className="cx-competition__head">
-      <Link className="cx-list__title" to={`/competitions/${item.slug}#mentors`}>{item.name}</Link>
-      <p className="cx-hint">{s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))} · {t.price.line(item.price, item.minutes)}</p>
+    <div className="cx-competition__top">
+      <div className="cx-competition__head">
+        <Link className="cx-list__title" to={`/competitions/${item.slug}#mentors`}>{item.name}</Link>
+        <p className="cx-hint">{s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))} · {t.price.line(item.price, item.minutes)}</p>
+      </div>
+      {/* ลบเป็นปุ่มข้อความเงียบมุมขวาบน และถามก่อนลบ ไม่ให้กดพลาดแล้วหายไปเลย */}
+      {!asking && <button type="button" ref={openRef} className="link-button cx-link cx-link--quiet" disabled={busy !== null}
+        aria-label={s.removeAria(item.name)} onClick={() => { setAsking(true); requestAnimationFrame(() => askRef.current?.focus()); }}>{s.remove}</button>}
     </div>
+    {asking && <div className="cx-confirm" role="group" aria-label={s.removeAsk(item.name)}>
+      <p>{s.removeAsk(item.name)}</p>
+      <div className="cx-row">
+        <button type="button" className="ghost-button cx-button cx-button--danger" disabled={busy !== null} onClick={() => { void remove(); }}>{s.removeYes}</button>
+        <button type="button" ref={askRef} className="ghost-button cx-button" disabled={busy !== null}
+          onClick={() => { setAsking(false); requestAnimationFrame(() => openRef.current?.focus()); }}>{s.removeNo}</button>
+      </div>
+    </div>}
     <form className="cx-competition__form" onSubmit={(event) => { void save(event); }} noValidate>
       <PriceFields idPrefix={uid} price={price} minutes={minutes} disabled={busy !== null}
         onPrice={(value) => { setPrice(value); setMessage(''); }} onMinutes={(value) => { setMinutes(value); setMessage(''); }} />
-      <div className="cx-row">
-        <button className="ghost-button cx-button" disabled={busy !== null || !dirty} aria-label={s.saveAria(item.name)}>
-          {busy === 'save' ? s.saving : s.save}
-        </button>
-        <button type="button" className="link-button cx-link cx-link--danger" disabled={busy !== null}
-          aria-label={s.removeAria(item.name)} onClick={() => { void remove(); }}>{s.remove}</button>
-      </div>
-      <p className="cx-message cx-message--error" role="alert">{message}</p>
+      <button className="ghost-button cx-button" disabled={busy !== null || !dirty} aria-label={s.saveAria(item.name)}>
+        {busy === 'save' ? s.saving : s.save}
+      </button>
+      <p className="cx-message cx-message--error cx-competition__message" role="alert">{message}</p>
     </form>
   </li>;
 }
 
-function CompetitionsSection({ chosen, available, defaults, reload }: {
-  chosen: Chosen[]; available: Open[]; defaults: { price: number | null; minutes: number | null }; reload: Reload;
+function CompetitionsSection({ chosen, available, defaults, requests, reload }: {
+  chosen: Chosen[]; available: Open[]; defaults: { price: number | null; minutes: number | null }; requests: Request[]; reload: Reload;
 }) {
   const { t, lang } = useI18n();
   const s = t.mentorZone;
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
   const [message, setMessage] = useState('');
+  const [requesting, setRequesting] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   const done = (note: string) => { setMessage(note); reload(); titleRef.current?.focus(); };
@@ -279,7 +287,6 @@ function CompetitionsSection({ chosen, available, defaults, reload }: {
 
     <section className="panel cx-section" aria-labelledby="add-competition-title">
       <h2 id="add-competition-title">{s.addTitle}</h2>
-      <p className="cx-lead">{s.addLead}</p>
       {open.length === 0 ? <p className="cx-empty">{s.addEmpty}</p> : <>
         <div className="cx-field cx-search">
           <label htmlFor="zone-search">{s.search}</label>
@@ -292,7 +299,15 @@ function CompetitionsSection({ chosen, available, defaults, reload }: {
         {matches.length > limit && <p><button type="button" className="ghost-button cx-button" onClick={() => setLimit(limit + PAGE)}>
           {s.showMore(matches.length - limit)}</button></p>}
       </>}
+      {/* ฟอร์มขอเพิ่มเวทีซ่อนอยู่หลังลิงก์ใต้ช่องค้นหา ส่วนใหญ่หาเวทีเจอจากรายการ จึงไม่ต้องกางฟอร์มยาวไว้ก่อน */}
+      <p><button type="button" className="link-button cx-link" aria-expanded={requesting} aria-controls="request-form"
+        onClick={() => setRequesting((value) => !value)}>{s.requestToggle}</button></p>
+      <div id="request-form" hidden={!requesting}>
+        <RequestForm defaults={defaults} reload={reload} />
+      </div>
     </section>
+
+    {requests.length > 0 && <RequestList requests={requests} />}
   </>;
 }
 
@@ -302,10 +317,13 @@ function AddRow({ item, defaults, lang, onAdded }: {
   const { t } = useI18n();
   const s = t.mentorZone;
   const uid = useId();
+  const [picking, setPicking] = useState(false);
   const [price, setPrice] = useState(text(defaults.price));
   const [minutes, setMinutes] = useState(text(defaults.minutes));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const priceRef = useRef<HTMLDivElement>(null);
+  const openRef = useRef<HTMLButtonElement>(null);
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -323,33 +341,38 @@ function AddRow({ item, defaults, lang, onAdded }: {
   }
 
   return <li className="cx-competition">
-    <div className="cx-competition__head">
-      <p className="cx-list__title">{item.name}</p>
-      <p className="cx-hint">{s.organizer(item.org)} · {s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))}</p>
-      <details className="cx-details">
-        <summary>{s.details}</summary>
-        <p className="cx-prose">{item.description || s.noDetails}</p>
-        {item.sourceUrl && isWebLink(item.sourceUrl) && <p><a href={item.sourceUrl} target="_blank" rel="noreferrer noopener">
-          {s.openSource}<ExternalLink size={14} aria-hidden="true" /></a></p>}
-      </details>
-    </div>
-    <form className="cx-competition__form" onSubmit={(event) => { void add(event); }} noValidate>
-      <PriceFields idPrefix={uid} price={price} minutes={minutes} disabled={busy}
-        onPrice={(value) => { setPrice(value); setMessage(''); }} onMinutes={(value) => { setMinutes(value); setMessage(''); }} />
-      <div className="cx-row">
-        <button className="primary-button cx-button" disabled={busy} aria-label={s.addAria(item.name)}>{busy ? s.saving : s.add}</button>
+    <div className="cx-competition__top">
+      <div className="cx-competition__head">
+        <p className="cx-list__title">{item.name}</p>
+        <p className="cx-hint">{s.organizer(item.org)} · {s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))}</p>
+        <details className="cx-details">
+          <summary>{s.details}</summary>
+          <p className="cx-prose">{item.description || s.noDetails}</p>
+          {item.sourceUrl && isWebLink(item.sourceUrl) && <p><a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">
+            {s.openSource}<ExternalLink size={14} aria-hidden="true" /></a></p>}
+        </details>
       </div>
-      <p className="cx-message cx-message--error" role="alert">{message}</p>
-    </form>
+      {!picking && <button type="button" ref={openRef} className="ghost-button cx-button" aria-label={s.addAria(item.name)}
+        onClick={() => { setPicking(true); requestAnimationFrame(() => priceRef.current?.querySelector('input')?.focus()); }}>{s.add}</button>}
+    </div>
+    {/* ราคากับจำนวนนาทีถามหลังเลือกเวทีแล้วเท่านั้น ในแถวเดียวกัน ไม่ต้องมีการ์ดกรอกราคาซ้ำทุกเวที */}
+    {picking && <form className="cx-competition__form" onSubmit={(event) => { void add(event); }} noValidate>
+      <div ref={priceRef}>
+        <PriceFields idPrefix={uid} price={price} minutes={minutes} disabled={busy}
+          onPrice={(value) => { setPrice(value); setMessage(''); }} onMinutes={(value) => { setMinutes(value); setMessage(''); }} />
+      </div>
+      <button className="primary-button cx-button" disabled={busy}>{busy ? s.saving : s.addConfirm}</button>
+      <button type="button" className="link-button cx-link cx-link--quiet" disabled={busy}
+        onClick={() => { setPicking(false); requestAnimationFrame(() => openRef.current?.focus()); }}>{s.addCancel}</button>
+      <p className="cx-message cx-message--error cx-competition__message" role="alert">{message}</p>
+    </form>}
   </li>;
 }
 
 /* ---------- ขอเพิ่มเวทีใหม่ ---------- */
 
-function RequestSection({ requests, defaults, reload }: {
-  requests: Request[]; defaults: { price: number | null; minutes: number | null }; reload: Reload;
-}) {
-  const { t, lang } = useI18n();
+function RequestForm({ defaults, reload }: { defaults: { price: number | null; minutes: number | null }; reload: Reload }) {
+  const { t } = useI18n();
   const s = t.mentorZone;
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
@@ -386,8 +409,8 @@ function RequestSection({ requests, defaults, reload }: {
     }
   }
 
-  return <section className="panel cx-section" aria-labelledby="request-title">
-    <h2 id="request-title">{s.requestTitle}</h2>
+  return <section className="cx-request-form" aria-labelledby="request-title">
+    <h3 id="request-title">{s.requestTitle}</h3>
     <p className="cx-lead">{s.requestLead}</p>
     <form className="cx-form" onSubmit={(event) => { void submit(event); }} noValidate>
       <div className="cx-field">
@@ -406,13 +429,19 @@ function RequestSection({ requests, defaults, reload }: {
       <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
       <button className="primary-button cx-button" disabled={busy}>{busy ? s.reqSending : s.reqSubmit}</button>
     </form>
+  </section>;
+}
 
-    <h3 className="cx-subhead">{s.requestsTitle}</h3>
-    {requests.length === 0 ? <p className="cx-empty">{s.requestsEmpty}</p> : <ul className="cx-list cx-list--stack">
+function RequestList({ requests }: { requests: Request[] }) {
+  const { t, lang } = useI18n();
+  const s = t.mentorZone;
+  return <section className="panel cx-section" aria-labelledby="requests-title">
+    <h2 id="requests-title">{s.requestsTitle}</h2>
+    <ul className="cx-list cx-list--stack">
       {requests.map((request) => <li key={request.id} className="cx-request">
         <div>
           <p className="cx-list__title">{isWebLink(request.url)
-            ? <a href={request.url} target="_blank" rel="noreferrer noopener">{request.name}<ExternalLink size={14} aria-hidden="true" /></a>
+            ? <a href={request.url} target="_blank" rel="noopener noreferrer">{request.name}<ExternalLink size={14} aria-hidden="true" /></a>
             : request.name}</p>
           <p className="cx-hint">{s.requestedOn(formatDate(request.createdAt, lang))} · {t.price.line(request.price, request.minutes)}</p>
           {request.details && <p className="cx-prose">{request.details}</p>}
@@ -420,7 +449,7 @@ function RequestSection({ requests, defaults, reload }: {
         </div>
         <span className={`cx-pill cx-pill--req-${request.status}`}>{s.requestStatus[request.status]}</span>
       </li>)}
-    </ul>}
+    </ul>
   </section>;
 }
 
@@ -477,8 +506,8 @@ export function MentorZone() {
       <div className="cx-stack">
         <ConfirmSection items={data.consultations} reload={reload} />
         <ContactsSection contacts={mentor.contacts} reload={reload} />
-        <CompetitionsSection chosen={data.competitions} available={data.available} defaults={{ price: mentor.price, minutes: mentor.minutes }} reload={reload} />
-        <RequestSection requests={data.requests} defaults={{ price: mentor.price, minutes: mentor.minutes }} reload={reload} />
+        <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests}
+          defaults={{ price: mentor.price, minutes: mentor.minutes }} reload={reload} />
       </div>
     </>}
   </main>;

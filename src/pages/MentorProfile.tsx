@@ -4,9 +4,9 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BadgeCheck, ExternalLink } from 'lucide-react';
 import { post } from '../lib/api';
 import { useApi } from '../lib/useApi';
-import { consultError, contactKeys } from '../data/consult';
+import { consultError, contactHref, contactKeys } from '../data/consult';
 import type { ConsultStatus, Contacts, MentorCard, Rating as RatingValue } from '../data/consult';
-import { ConsultFlow, StatusPill } from '../components/ConsultFlow';
+import { ConsultFlow } from '../components/ConsultFlow';
 import { Avatar, Rating, RisingStarPill, StarIcon } from '../components/mentors';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useAuth } from '../data/auth';
@@ -40,6 +40,24 @@ function StarsRow({ stars }: { stars: number }) {
   </span>;
 }
 
+/* ขั้นปัจจุบันของนักเรียนกับเมนเทอร์คนนี้ ไม่เคยติดต่อหรือยกเลิกแล้วคือขั้น 1
+   กดติดต่อแล้วและรอเมนเทอร์ยืนยันคือขั้น 2 เมนเทอร์ยืนยันแล้ว (รวมรีวิวแล้ว) คือขั้น 3 */
+function currentStep(consultation: Payload['consultation']) {
+  if (!consultation || consultation.status === 'cancelled') return 0;
+  return consultation.status === 'confirmed' ? 2 : 1;
+}
+
+/** บรรทัดขั้นตอนธรรมดา ขั้นปัจจุบันตัวหนา ไม่ใช้ชิปตัวเลข */
+function Steps({ current }: { current: number }) {
+  const { t } = useI18n();
+  return <p className="cx-steps" aria-label={t.consult.stepsLabel}>
+    {t.consult.steps.map((step, index) => <span key={step}>
+      {index > 0 && <span aria-hidden="true"> · </span>}
+      {index === current ? <strong aria-current="step">{step}</strong> : step}
+    </span>)}
+  </p>;
+}
+
 function ContactList({ contacts }: { contacts: Contacts }) {
   const { t } = useI18n();
   const s = t.mentorProfile;
@@ -48,11 +66,14 @@ function ContactList({ contacts }: { contacts: Contacts }) {
     <dl className="cx-contacts">
       {contactKeys.map((key) => {
         const value = contacts[key].trim();
+        const href = contactHref(key, value);
+        // ช่องที่ว่างแสดงเป็น "-" ตามที่ผู้ใช้สั่ง แถวบีบให้เตี้ยเพื่อไม่กินที่ ค่าที่กรอกแล้วกดได้ทุกช่อง
         let content;
         if (!value) content = <><span aria-hidden="true">-</span><span className="sr-only">{s.notProvided}</span></>;
-        else if (key === 'email') content = <a href={`mailto:${value}`}>{value}</a>;
-        else if (key === 'link') content = <a href={value} target="_blank" rel="noreferrer noopener">{value}<ExternalLink size={14} aria-hidden="true" /></a>;
-        else content = value;
+        else if (!href) content = value;
+        else if (key === 'link') content = <a href={href} target="_blank" rel="noopener noreferrer">{value}<ExternalLink size={14} aria-hidden="true" /></a>;
+        else if (key === 'email' || key === 'phone') content = <a href={href}>{value}</a>;
+        else content = <a href={href} target="_blank" rel="noopener noreferrer">{value}</a>;
         return <div key={key}><dt>{s.channels[key]}</dt><dd>{content}</dd></div>;
       })}
     </dl>
@@ -131,9 +152,8 @@ function ContactPanel({ data, competition, reload }: { data: Payload; competitio
     body = <VerifyEmailNotice />;
   } else {
     body = <>
-      {consultation && <p className="cx-status-line"><StatusPill status={consultation.status} reviewed={consultation.reviewed} /></p>}
+      <Steps current={currentStep(consultation)} />
       {contacts && <ContactList contacts={contacts} />}
-      {consultation && contacts && consultation.status === 'active' && <p className="cx-hint">{s.talkNote}</p>}
       {consultation && <ConsultFlow consultation={consultation} onChange={reload} />}
       {(!consultation || finished) && <ContactForm
         mentorId={mentor.id} competitions={data.competitions} initial={initial} again={Boolean(consultation)} onDone={reload}

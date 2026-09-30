@@ -28,6 +28,7 @@
 .cx-button {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
   min-height: 44px; padding-inline: var(--space-5);
+  border-radius: var(--radius-pill);
   font-size: var(--text-base); font-weight: 600; line-height: 1.4; text-align: center;
   white-space: normal;
   transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
@@ -41,8 +42,8 @@
 
 .cx-link { display: inline-flex; align-items: center; min-height: 44px; padding-inline: var(--space-2); font-weight: 600; }
 .cx-link:hover { color: var(--purple-deep); }
-.cx-link--danger { color: var(--danger); }
-.cx-link--danger:hover { color: var(--danger); background: var(--danger-tint); }
+.cx-link--quiet { color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.cx-link--quiet:hover { color: var(--danger); background: var(--danger-tint); }
 .cx-link:disabled { text-decoration: none; }
 
 .cx-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
@@ -198,10 +199,10 @@
 .cx-contact-form .cx-message:empty { display: none; }
 
 .cx-contacts { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; }
-.cx-contacts > div { display: grid; grid-template-columns: minmax(0, 7em) minmax(0, 1fr); gap: var(--space-3); padding-block: var(--space-2); border-top: 1px solid var(--line); }
+.cx-contacts > div { display: grid; grid-template-columns: minmax(0, 6.5em) minmax(0, 1fr); align-items: center; gap: var(--space-3); padding-block: var(--space-1); border-top: 1px solid var(--line); }
 .cx-contacts dt { color: var(--muted); font-size: var(--text-base); }
 .cx-contacts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
-.cx-contacts a { display: inline-flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
+.cx-contacts a { display: inline-flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; min-height: 44px; }
 
 .cx-list { display: grid; margin: var(--space-3) 0 0; padding: 0; list-style: none; }
 .cx-list > li { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); padding-block: var(--space-4); border-top: 1px solid var(--line); min-width: 0; }
@@ -224,20 +225,21 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
   .cx-hero .rs-avatar { --avatar-size: 56px; }
   .cx-list > li { flex-direction: column; gap: var(--space-2); }
   .cx-list__price { max-width: none; text-align: left; }
-  .cx-contacts > div { grid-template-columns: 1fr; gap: 0; }
   .cx-notice { padding: var(--space-4); }
 }
 
 /* ---------- Consulting ---------- */
 
-.cx-consults { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-.cx-consult { min-width: 0; }
-.cx-consult__head { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
-.cx-consult__who { flex: 1 1 12em; min-width: 0; }
-.cx-consult__who h2 { font-size: var(--text-xl); font-weight: 600; line-height: var(--leading-heading); overflow-wrap: anywhere; }
-.cx-consult__who h2 a { color: var(--ink-deep); }
-.cx-consult__who h2 a:hover { color: var(--purple-deep); text-decoration: underline; text-underline-offset: 4px; }
-.cx-consult > .cx-hint { margin-top: var(--space-2); }
+.cx-consults { display: grid; gap: var(--space-4); max-width: 46em; margin: 0; padding: 0; list-style: none; }
+/* เนื้อหาทั้งการ์ดเยื้องมาอยู่แนวเดียวกับชื่อ ไม่ไหลไปชิดขอบซ้ายใต้รูป */
+.cx-consult { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-4); align-items: start; min-width: 0; }
+.cx-consult .rs-avatar { --avatar-size: 44px; }
+.cx-consult__body { min-width: 0; }
+.cx-consult__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.cx-consult__title h2 { font-size: var(--text-xl); font-weight: 600; line-height: var(--leading-heading); overflow-wrap: anywhere; }
+.cx-consult__title h2 a { color: var(--ink-deep); }
+.cx-consult__title h2 a:hover { color: var(--purple-deep); text-decoration: underline; text-underline-offset: 4px; }
+.cx-consult .cx-flow { margin-top: var(--space-3); }
 
 /* ---------- Mentor zone ---------- */
 
@@ -264,9 +266,13 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
   padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card);
 }
 .cx-list--stack > li:first-child { border-top: 1px solid var(--line); }
-.cx-competition { flex-direction: column; }
-.cx-competition__head { min-width: 0; width: 100%; }
-.cx-competition__form { display: grid; gap: var(--space-2); width: 100%; min-width: 0; }
+.cx-competition { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+.cx-competition__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+.cx-competition__head { min-width: 0; flex: 1 1 auto; }
+.cx-competition__form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); min-width: 0; }
+.cx-competition__form .cx-price-fields { grid-template-columns: repeat(2, 9em); }
+.cx-competition__message { flex: 1 0 100%; }
+.cx-competition .cx-confirm { width: 100%; }
 .cx-request > div { min-width: 0; }
 
 .cx-details { margin-top: var(--space-2); }
@@ -278,11 +284,6 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-details[open] summary { margin-bottom: var(--space-1); }
 .cx-details a { display: inline-flex; align-items: center; gap: var(--space-1); }
 
-@media (min-width: 701px) {
-  .cx-competition { flex-direction: row; align-items: flex-start; }
-  .cx-competition__head { flex: 1 1 0; }
-  .cx-competition__form { flex: 0 0 22em; width: auto; }
-}
 
 /* ---------- แท็บในหน้าเวที ---------- */
 
@@ -336,4 +337,36 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
   .rs-month--past .rs-rank-row__name { flex: 1 1 6em; }
   .rs-month--past .rs-rank-row__count { flex: 1 0 100%; margin-left: 0; text-align: left; }
   .rs-month--past .rs-rank-row__count .rating { justify-content: flex-start; }
+}
+
+/* ---------- รอบปรับหลังตรวจดีไซน์ ---------- */
+
+.cx-nowrap { white-space: nowrap; }
+
+/* ฟอร์มใน panel: ปุ่มเป็นเม็ดยาวพอดีตัวชิดซ้ายบนจอกว้าง เต็มความกว้างเฉพาะมือถือ */
+.cx-form .cx-button, .cx-contact-form .cx-button { justify-self: start; }
+@media (max-width: 700px) {
+  .cx-form > .cx-button, .cx-contact-form > .cx-button { width: 100%; justify-self: stretch; }
+  .rs-row__name { flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+}
+.cx-confirm { flex: 1 1 100%; }
+
+/* ขั้นตอนเป็นข้อความธรรมดา ขั้นปัจจุบันตัวหนา */
+.cx-steps { margin-top: var(--space-3); color: var(--muted); font-size: var(--text-base); line-height: var(--leading-body); }
+.cx-steps strong { color: var(--ink); font-weight: 700; }
+
+/* ข้อความเล็กบนพื้นอ่อนเข้มขึ้นหนึ่งขั้นให้ผ่าน 4.5:1 */
+.cx-facts dt, .cx-hero .cx-hint, .cx-me .cx-hint, .cx-hero__spec, .cx-waiting .cx-hint { color: var(--ink); }
+.cx-hero__spec { opacity: 1; }
+
+/* ส่วนที่รอยืนยันเป็นงานเร่งด่วนอย่างเดียวของ Mentor zone จึงใช้สีทอง */
+.cx-section--urgent { border-color: var(--gold-line); background: var(--gold-tint); }
+.cx-section--urgent h2, .cx-section--urgent .cx-lead { color: var(--gold-ink); }
+.cx-section--urgent .cx-list > li { border-top-color: var(--gold-line); }
+.cx-section--urgent .cx-message--ok { color: var(--gold-ink); }
+
+/* รูปปกของหน้าเวทีเป็นของตกแต่ง ซ่อนบนจอเล็กไม่ให้ดันรายการเมนเทอร์ลงไป */
+@media (max-width: 480px) {
+  .detail-cover { display: none; }
+  .detail-hero { grid-template-columns: minmax(0, 1fr); }
 }

@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { createAccount, removeAccount, signIn } from './helpers';
 import type { TestAccount } from './helpers';
 import { db } from '../server/db/client';
-import { competitionSubmissions, competitions } from '../server/db/schema';
+import { competitionSubmissions, competitions, mentorSubmissions } from '../server/db/schema';
 import { eq } from 'drizzle-orm';
 
 const pages = [
@@ -72,6 +72,20 @@ test('the mentor review separates public data from data kept for checking only',
 
   await page.goto('/admin/mentors/ms-056');
   await expect(page.locator('.award-unmatched')).toContainText('ไม่พบเวทีนี้ในระบบ');
+});
+
+test('a real application without appointment dates still opens for review', async ({ page }, testInfo) => {
+  // ฟอร์มสมัครปัจจุบันไม่ถามวันนัด ใบจริงบน dev จึงไม่มีสองช่องนี้ เคยทำหน้าตรวจพังจนกดรับหรือปฏิเสธไม่ได้
+  const id = `ms-noslot-${testInfo.project.name}`;
+  const [sample] = await db.select().from(mentorSubmissions).where(eq(mentorSubmissions.id, 'ms-057'));
+  await db.insert(mentorSubmissions).values({ ...sample, id, paidSlot: null, freeSlot: null });
+  try {
+    await signIn(page, reviewer, `/admin/mentors/${id}`);
+    await expect(page.locator('.admin-block.is-public')).toContainText('ไม่ได้ระบุ');
+    await expect(page.getByRole('button', { name: /เผยแพร่|อนุมัติ|รับ/ }).first()).toBeVisible();
+  } finally {
+    await db.delete(mentorSubmissions).where(eq(mentorSubmissions.id, id));
+  }
 });
 
 test('rejecting needs a written reason, and the reason reaches the queue', async ({ page }, testInfo) => {

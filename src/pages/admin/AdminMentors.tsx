@@ -84,8 +84,9 @@ type MentorSubmission = {
   cannot: string;
   topics: string[];
   price: number;
-  paidSlot: string;
-  freeSlot: string;
+  // ฟอร์มสมัครปัจจุบันไม่ถามวันนัด ใบสมัครจริงจึงไม่มีสองช่องนี้ได้
+  paidSlot: string | null;
+  freeSlot: string | null;
   awards: Award[];
   files: AttachedFile[];
   events: ReviewEvent[];
@@ -179,8 +180,8 @@ export function AdminMentorReview() {
             <Field label="ช่วยไม่ได้">{submission.cannot}</Field>
             <Field label="ความถนัด">{submission.topics.join(' · ')}</Field>
             <Field label="ราคา">{baht.format(submission.price)} บาทต่อทีม ต่อการปรึกษา 60 นาที</Field>
-            <Field label="คิวปรึกษา">{formatDate(submission.paidSlot.slice(0, 10))}</Field>
-            <Field label="คุยฟรี 20 นาที">{formatDate(submission.freeSlot.slice(0, 10))}</Field>
+            <Field label="คิวปรึกษา">{submission.paidSlot ? formatDate(submission.paidSlot.slice(0, 10)) : 'ไม่ได้ระบุ'}</Field>
+            <Field label="คุยฟรี 20 นาที">{submission.freeSlot ? formatDate(submission.freeSlot.slice(0, 10)) : 'ไม่ได้ระบุ'}</Field>
             <Field label="ผลงาน"><ExternalLink href={submission.portfolio || null} /></Field>
           </dl>
         </section>

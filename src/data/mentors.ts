@@ -1,5 +1,5 @@
-import type { CategoryId } from './competitions';
-import { findCompetition } from './competitions';
+import type { CategoryId } from './competitions.js';
+import { findCompetition } from './competitions.js';
 
 /** Proposed six-topic taxonomy. Replace with the owner's final vocabulary. */
 export const topics = [

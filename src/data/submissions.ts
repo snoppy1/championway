@@ -1,6 +1,6 @@
-import { competitions, daysLeft, inDays } from './competitions';
-import type { Competition } from './competitions';
-import type { CategoryId, Level, OpportunityType, Region, Reward } from './competitions';
+import { competitions, daysLeft, inDays } from './competitions.js';
+import type { Competition } from './competitions.js';
+import type { CategoryId, Level, OpportunityType, Region, Reward } from './competitions.js';
 
 /* ใบที่ส่งเข้ามาเป็นคนละเรื่องกับรายการที่เผยแพร่แล้ว จึงแยก type ออกจาก Competition
    ตาม organiser-submission.md ข้อ 4 ใบทั้งหมดด้านล่างเป็นข้อมูลตัวอย่างสำหรับต้นแบบ

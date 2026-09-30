@@ -1,4 +1,4 @@
-import type { Kind, Theme } from './focus';
+import type { Kind, Theme } from './focus.js';
 /* หมวดหมู่ ประเภทโอกาส ภูมิภาค และรางวัล ใช้ชุดเดียวกับเว็บรวมงานแข่งไทยที่ผู้จัดคุ้นเคย
    อยู่แล้ว รายละเอียดการตัดสินใจอยู่ใน competition-model.md */
 

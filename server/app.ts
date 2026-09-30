@@ -6,7 +6,7 @@ import { withUser } from './lib/guards.js';
 import { auth } from './routes/auth.js';
 import { admin } from './routes/admin.js';
 import { publicApi } from './routes/public.js';
-import { chat } from './routes/chat.js';
+import { consult } from './routes/consult.js';
 import { journey } from './routes/journey.js';
 import { risingStar } from './routes/rising-star.js';
 
@@ -31,7 +31,8 @@ app.get('/health', (c) => c.json({ ok: true }));
 
 app.route('/auth', auth);
 app.route('/admin', admin);
-app.route('/chats', chat);
+// ระบบจองและแชตในเว็บปิดแล้ว (ผู้ใช้ตัดสิน 30 ก.ย. 2569) ตารางเดิมยังเก็บไว้เป็นประวัติ
+app.route('/consult', consult);
 app.route('/journey', journey);
 app.route('/rising-star', risingStar);
 app.route('/', publicApi);

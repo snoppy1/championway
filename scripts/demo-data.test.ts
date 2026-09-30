@@ -40,26 +40,26 @@ test('demo data tools on the dev site', async (t) => {
       assert.equal(status.enabled, true);
     });
 
-    await t.test('the Rising Star ranking counts completed sessions and only members', async () => {
+    await t.test('the Rising Star ranking uses average stars and only members', async () => {
       const response = await app.request('/api/rising-star');
       assert.equal(response.status, 200);
       const data = await response.json() as {
-        hall: { month: string; closesAt: string | null; top: { rank: number; id: string; count: number }[] }[];
-        ranked: { rank: number; id: string; count: number }[];
+        hall: { month: string; closesAt: string | null; top: { rank: number; id: string; rating: { average: number } }[] }[];
+        ranked: { rank: number; id: string; rating: { average: number | null } }[];
         others: { id: string }[];
         viewer: unknown;
       };
-      const top = (i: number) => data.hall[i].top.map((row) => `${row.rank}:${row.id}:${row.count}`);
-      // เดือนนี้ · เดือนที่แล้ว · สองเดือนก่อน ตามแผนใน server/db/demo-data.ts
-      assert.deepEqual(top(0), ['1:mentor-mind:14', '2:mentor-jay:11', '3:mentor-nut:9']);
-      assert.deepEqual(top(1), ['1:mentor-jay:17', '2:mentor-mind:12', '3:mentor-nut:10']);
+      const top = (i: number) => data.hall[i].top.map((row) => `${row.rank}:${row.id}:${row.rating.average}`);
+      // เดือนนี้ · เดือนที่แล้ว · สองเดือนก่อน ตามแผนใน server/db/demo-data.ts (ค่าเฉลี่ยดาว)
+      assert.deepEqual(top(0), ['1:mentor-mind:4.8', '2:mentor-jay:4.3', '3:mentor-nut:4']);
+      assert.deepEqual(top(1), ['1:mentor-jay:4.8', '2:mentor-mind:4.3', '3:mentor-nut:4']);
       // พิมเคยเป็นแชมป์สองเดือนก่อน ตอนนี้หมดสมาชิกแล้วแต่ยังอยู่ในประวัติ
-      assert.deepEqual(top(2), ['1:mentor-pim:12', '2:mentor-mind:9', '3:mentor-jay:8']);
+      assert.deepEqual(top(2), ['1:mentor-pim:5', '2:mentor-mind:4.5', '3:mentor-jay:4']);
       assert.ok(data.hall[0].closesAt && !data.hall[1].closesAt);
 
-      // จัดอันดับเฉพาะสมาชิกตอนนี้ แม้คนที่ไม่ได้สมัครจะมีการปรึกษาเดือนนี้ก็ไม่ได้อันดับ
-      assert.deepEqual(data.ranked.map((row) => `${row.rank}:${row.id}:${row.count}`),
-        ['1:mentor-mind:14', '2:mentor-jay:11', '3:mentor-nut:9', '4:mentor-tae:5']);
+      // จัดอันดับเฉพาะสมาชิกตอนนี้ พิมมีรีวิว 5 ดาวเดือนนี้แต่ไม่ได้สมัคร จึงไม่มีอันดับ
+      assert.deepEqual(data.ranked.map((row) => `${row.rank}:${row.id}:${row.rating.average}`),
+        ['1:mentor-mind:4.8', '2:mentor-jay:4.3', '3:mentor-nut:4', '4:mentor-tae:3.5']);
       const others = data.others.map((row) => row.id);
       assert.ok(others.includes('mentor-pim') && others.includes('mentor-aom'));
       assert.ok(!others.includes('mentor-mind'));

@@ -24,6 +24,8 @@ export type SessionUser = {
      หน้าเว็บต้องรู้แค่ว่า "ตั้งรหัสผ่านไว้หรือยัง" เพื่อเลือกข้อความให้ถูก */
   hasPassword: boolean;
   googleLinked: boolean;
+  /** ยืนยันอีเมลแล้วหรือยัง ต้องยืนยันก่อนจึงเห็นช่องทางติดต่อเมนเทอร์และรีวิวได้ */
+  emailVerified: boolean;
 };
 
 /** ใช้ได้ทั้ง db และ tx ของ transaction เพื่อให้สร้างหรือลบ session ในธุรกรรมเดียวกับการเปลี่ยนรหัสผ่านได้ */
@@ -45,6 +47,7 @@ export async function readSession(sessionId: string): Promise<SessionUser | null
       position: users.position, educationLevel: users.educationLevel,
       hasPassword: sql<boolean>`${users.passwordHash} is not null`,
       googleLinked: sql<boolean>`${users.googleId} is not null`,
+      emailVerified: sql<boolean>`${users.emailVerifiedAt} is not null`,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))

@@ -1,6 +1,6 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
-  boolean, date, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex,
+  boolean, check, date, index, integer, jsonb, pgEnum, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 /* คำศัพท์ที่มีชุดตายตัวทำเป็น enum ในฐานข้อมูล ไม่ใช่ text เปล่า เพื่อให้ฐานข้อมูล
@@ -194,6 +194,17 @@ export const mentorSubmissions = pgTable('mentor_submissions', {
   cannot: text('cannot').notNull(),
   topics: text('topics').array().notNull().default([]),
   price: integer('price'),
+  /** ราคาข้างบนคิดต่อกี่นาที เช่น 500 บาท / 60 นาที หรือ 10 บาท / 1 นาที */
+  minutes: integer('minutes'),
+  /* ช่องทางติดต่อที่นักเรียนเห็นหลังกด Contact Mentor ต้องมีอย่างน้อยหนึ่งช่อง
+     แยกจาก email/phone ด้านบนซึ่งใช้ตรวจตัวตนเท่านั้นและห้ามแสดง */
+  contactEmail: text('contact_email').notNull().default(''),
+  contactLine: text('contact_line').notNull().default(''),
+  contactPhone: text('contact_phone').notNull().default(''),
+  contactInstagram: text('contact_instagram').notNull().default(''),
+  contactLink: text('contact_link').notNull().default(''),
+  /** งานแข่งที่ติ๊กไว้ตอนสมัคร จะกลายเป็นงานที่รับปรึกษาเมื่อใบสมัครผ่าน ไม่ติ๊กเลยก็ได้ */
+  competitionIds: text('competition_ids').array().notNull().default([]),
   paidSlot: timestamp('paid_slot', { withTimezone: true }),
   freeSlot: timestamp('free_slot', { withTimezone: true }),
   publishedMentorId: text('published_mentor_id'),
@@ -228,6 +239,14 @@ export const mentors = pgTable('mentors', {
   category: categoryEnum('category'),
   topics: integer('topics').array().notNull().default([]),
   price: integer('price'),
+  minutes: integer('minutes'),
+  /* ช่องทางติดต่อ ว่างได้ทุกช่อง (หน้าเว็บแสดง "-")
+     เปิดให้เฉพาะคนที่เข้าสู่ระบบและยืนยันอีเมลแล้ว */
+  contactEmail: text('contact_email').notNull().default(''),
+  contactLine: text('contact_line').notNull().default(''),
+  contactPhone: text('contact_phone').notNull().default(''),
+  contactInstagram: text('contact_instagram').notNull().default(''),
+  contactLink: text('contact_link').notNull().default(''),
   best: text('best').notNull(),
   cannot: text('cannot').notNull(),
   firstSlotInDays: integer('first_slot_in_days').notNull().default(1),
@@ -323,6 +342,9 @@ export const mentorCompetitionChoices = pgTable('mentor_competition_choices', {
   mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
   competitionId: text('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
   choice: text('choice').notNull(),
+  /** ค่าปรึกษาของงานนี้ ใส่ทั้งราคาและความยาว ว่างได้สำหรับแถวเก่าก่อนมีราคาต่องาน */
+  price: integer('price'),
+  minutes: integer('minutes'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [primaryKey({ columns: [t.mentorId, t.competitionId] })]);
 
@@ -378,6 +400,84 @@ export const risingStarPeriods = pgTable('rising_star_periods', {
   externalId: text('external_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [index('rising_star_periods_mentor_idx').on(t.mentorId, t.endsAt)]);
+
+/* ---------- ติดต่อเมนเทอร์ ยืนยัน และรีวิว ----------
+
+   ขั้นตอน (ผู้ใช้ตัดสิน 30 ก.ย. 2569 แทนระบบจองกับแชตในเว็บ)
+   กด Contact Mentor → เห็นช่องทางติดต่อ → คุยกันนอกเว็บ → นักเรียนกด "I received guidance"
+   → อีเมลถึงเมนเทอร์ → เมนเทอร์กด Confirm → นักเรียนรีวิวได้หนึ่งครั้ง
+   การยืนยันจากเมนเทอร์คือสิ่งที่กันการปั๊มคะแนน รีวิวต้องผูกกับการปรึกษาที่เมนเทอร์ยืนยันแล้วเท่านั้น
+
+   status: active (กดติดต่อแล้ว) → claimed (นักเรียนบอกว่าได้คำแนะนำแล้ว) → confirmed (เมนเทอร์ยืนยัน)
+           หรือ cancelled (นักเรียนยกเลิกก่อนเมนเทอร์ยืนยัน) */
+export const consultations = pgTable('consultations', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
+  status: text('status').$type<'active' | 'claimed' | 'confirmed' | 'cancelled'>().notNull().default('active'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  claimedAt: timestamp('claimed_at', { withTimezone: true }),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+}, t => [
+  index('consultations_user_idx').on(t.userId, t.createdAt),
+  index('consultations_mentor_idx').on(t.mentorId, t.status),
+  // เปิดค้างได้ทีละหนึ่งรายการต่อคู่นักเรียนกับเมนเทอร์ กดติดต่อซ้ำไม่สร้างแถวใหม่
+  uniqueIndex('consultations_open_key').on(t.userId, t.mentorId).where(sql`status in ('active', 'claimed')`),
+  check('consultations_status_check', sql`status in ('active', 'claimed', 'confirmed', 'cancelled')`),
+]);
+
+/** รีวิวหนึ่งอันต่อการปรึกษาที่ยืนยันแล้วหนึ่งครั้ง Rising Star ใช้ค่าเฉลี่ยดาวของรีวิวที่เขียนในเดือนนั้น
+    แอดมินซ่อนรีวิวที่น่าสงสัยได้ รีวิวที่ซ่อนไม่นับคะแนน */
+export const mentorReviews = pgTable('mentor_reviews', {
+  id: text('id').primaryKey(),
+  consultationId: text('consultation_id').notNull().references(() => consultations.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  stars: smallint('stars').notNull(),
+  comment: text('comment').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+  hiddenBy: text('hidden_by').references(() => users.id, { onDelete: 'set null' }),
+}, t => [
+  uniqueIndex('mentor_reviews_consultation_key').on(t.consultationId),
+  index('mentor_reviews_mentor_idx').on(t.mentorId, t.createdAt),
+  check('mentor_reviews_stars_check', sql`stars between 1 and 5`),
+]);
+
+/** ลิงก์ยืนยันอีเมลสำหรับบัญชีที่สมัครด้วยรหัสผ่าน เก็บแค่ค่า hash ของ token ใช้ได้ครั้งเดียว
+    ผูกกับอีเมล ณ ตอนส่ง ถ้าเปลี่ยนอีเมลหลังจากนั้น ลิงก์เก่าใช้ไม่ได้ */
+export const emailVerifications = pgTable('email_verifications', {
+  tokenHash: text('token_hash').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('email_verifications_user_idx').on(t.userId, t.createdAt)]);
+
+/** เมนเทอร์ขอเพิ่มงานแข่งที่อยากรับปรึกษา ทีมงานสร้างเวทีเองจากหน้าจัดการ แล้วผูกคำขอกับเวทีนั้น
+    ตอนอนุมัติ เมนเทอร์จะถูกใส่เป็นผู้รับปรึกษางานนั้นพร้อมราคาที่ขอไว้ */
+export const competitionRequests = pgTable('competition_requests', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  details: text('details').notNull().default(''),
+  price: integer('price').notNull(),
+  minutes: integer('minutes').notNull(),
+  status: text('status').$type<'pending' | 'approved' | 'rejected'>().notNull().default('pending'),
+  reason: text('reason').notNull().default(''),
+  competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
+  decidedBy: text('decided_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+}, t => [
+  index('competition_requests_status_idx').on(t.status, t.createdAt),
+  check('competition_requests_status_check', sql`status in ('pending', 'approved', 'rejected')`),
+]);
 
 export const mentorMatchAudit = pgTable('mentor_match_audit', {
   mentorId: text('mentor_id').primaryKey().references(() => mentors.id, { onDelete: 'cascade' }),

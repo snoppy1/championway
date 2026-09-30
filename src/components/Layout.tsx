@@ -4,6 +4,7 @@ import { BookmarkSimple } from './icons';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { isReviewer, useAuth } from '../data/auth';
 import { useSavedSlugs } from '../data/saved';
+import { useApi } from '../lib/useApi';
 import trophy from '../assets/trophy.png';
 import { useI18n } from '../i18n';
 
@@ -28,6 +29,9 @@ function Header() {
   const { pathname, search } = useLocation();
   const { user, loading, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  /* เมนเทอร์ที่ผ่านอนุมัติเห็น Mentor zone คนอื่นที่เข้าสู่ระบบเห็น Consulting
+     ระหว่างรอคำตอบยังไม่แสดงทั้งสองอย่าง จะได้ไม่เห็นป้ายเปลี่ยนกลางทาง */
+  const { data: consultMe } = useApi<{ mentorId: string | null }>(user ? '/consult/me' : null);
   // เมนูบนมือถือปิดเองเมื่อเปลี่ยนหน้า ไม่อย่างนั้นจะค้างบังเนื้อหาหน้าใหม่
   useEffect(() => { setMenuOpen(false); }, [pathname, search]);
   useEffect(() => {
@@ -49,8 +53,11 @@ function Header() {
       <div className={menuOpen ? 'header-menu is-open' : 'header-menu'} id="site-menu">
         <nav className="main-nav" aria-label={t.nav.mainMenu}>
           <NavLink to="/" end>{t.nav.explore}</NavLink>
-          <NavLink to="/mentors">{t.nav.mentors}</NavLink>
-          {user && <NavLink to="/profile">{t.nav.profile}</NavLink>}
+          {/* ชื่อผู้ใช้ทางขวาเป็นทางเข้าโปรไฟล์อยู่แล้ว จึงไม่ซ้ำเป็นเมนูอีกอัน แถบบนจะได้ยังอยู่บรรทัดเดียวที่ 1101px */}
+          <NavLink to="/mentors" end>{t.nav.hallOfFame}</NavLink>
+          {user && consultMe && (consultMe.mentorId
+            ? <NavLink to="/mentor-zone">{t.nav.mentorZone}</NavLink>
+            : <NavLink to="/consulting">{t.nav.consulting}</NavLink>)}
           <span className="nav-soon" title={t.common.comingSoon}>{t.nav.library} <small>{t.common.soonTag}</small></span>
         </nav>
         <div className="header-actions">

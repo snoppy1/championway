@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import {
   ArrowLeft, ArrowRight, Award, Building2, Calendar, Check, GraduationCap, Layers3,
   MapPin, ShieldCheck, Ticket, Trophy, Users,
@@ -12,51 +12,56 @@ import {
 import type { Competition } from '../data/competitions';
 import { CoverArt } from '../components/CoverArt';
 import { useApi } from '../lib/useApi';
-import type { MatchReason, Theme } from '../data/focus';
+import type { ListedMentor, RankedMentor } from '../data/consult';
+import { OtherRow, RankedRow } from '../components/mentors';
 import { useI18n } from '../i18n';
-import { formatDateTime } from '../i18n/format';
+import { locales } from '../i18n/format';
 import '../journey.css';
+import '../consult.css';
 
-type MentorMatch = {
-  id: string; name: string; avatar: string; bio: string; direct: boolean; reasons: MatchReason[];
-  scores: { theme: Theme; active: boolean }[];
-  slots: { id: string; startsAt: string }[];
-};
+type Tab = 'details' | 'mentors';
+type MentorsPayload = { competition: { slug: string; name: string }; risingStar: RankedMentor[]; others: ListedMentor[] };
 
-/* เมนเทอร์ที่ขึ้นตรงนี้คือผู้ผ่านอนุมัติที่มีช่องเวลาว่างและตรงกับหมวดของงานนี้เท่านั้น
-   ถ้าไม่มีใครตรง จะบอกตามจริง ไม่เติมรายชื่อที่ไม่เกี่ยวข้องให้หน้าดูเต็ม */
-function MentorsForEvent({ slug }: { slug: string }) {
+/* แท็บเมนเทอร์ที่พร้อมให้ปรึกษา: สมาชิก Rising Star ของเวทีนี้เรียงตามคะแนนรีวิวเฉลี่ยของเดือนนี้ (มีเลขอันดับ)
+   แล้วเมนเทอร์ที่ไม่ได้เป็นสมาชิกต่อท้ายโดยไม่มีอันดับ ข้อมูลและการเรียงมาจาก GET /api/consult/competitions/:slug/mentors
+   ถ้าไม่มีใครเลือกเวทีนี้ จะบอกตามจริง ไม่เติมรายชื่อที่ไม่เกี่ยวข้องให้หน้าดูเต็ม */
+function AvailableMentors({ slug }: { slug: string }) {
   const { t, lang } = useI18n();
   const s = t.detail;
-  const { data, loading } = useApi<{ items: MentorMatch[] }>(`/journey/competitions/${encodeURIComponent(slug)}/mentors`);
-  const items = data?.items ?? [];
+  const { data, error, loading, reload } = useApi<MentorsPayload>(`/consult/competitions/${encodeURIComponent(slug)}/mentors`);
+  // อันดับนับตามเดือนปฏิทินเวลาไทย
+  const month = new Intl.DateTimeFormat(locales[lang], { month: 'long', timeZone: 'Asia/Bangkok' }).format(new Date());
 
-  return <section className="related-section" aria-labelledby="event-mentors">
-    <div className="section-head">
-      <h2 id="event-mentors">{s.mentorsTitle}</h2>
-    </div>
-    {loading ? <p className="side-note">{s.mentorsLoading}</p>
-      : items.length ? <div className="mentor-match-grid">
-        {items.map((mentor) => <article className="panel mentor-match" key={mentor.id}>
-          <span className="mentor-avatar" aria-hidden="true">{mentor.avatar}</span>
-          <div>
-            <h3>{mentor.name}{mentor.direct && <span className="theme-pill">{t.journey.chosePill}</span>}</h3>
-            <p className="card-summary">{mentor.bio}</p>
-            <ul className="reason-list">{mentor.reasons.map((reason) => {
-              const text = t.journey.matchReason(reason.code, reason.code === 'chose' ? '' : t.taxonomy.themes[reason.theme]);
-              return <li key={text}>{text}</li>;
-            })}</ul>
-            <p className="muted">{s.earliest(formatDateTime(mentor.slots[0].startsAt, lang))}</p>
-            <p className="pill-row">
-              {mentor.scores.filter((score) => score.active).map((score) => <span className="theme-pill" key={score.theme}>{t.taxonomy.themes[score.theme]}</span>)}
-            </p>
-            <p className="card-actions">
-              <Link className="primary-button" to={`/mentors/${mentor.id}?competition=${slug}`}>{s.viewAndBook}</Link>
-            </p>
-          </div>
-        </article>)}
-      </div> : <p className="side-note">{s.mentorsEmpty}</p>}
-  </section>;
+  if (loading && !data) return <>
+    <p className="sr-only" role="status">{s.mentorsLoading}</p>
+    <div aria-hidden="true"><div className="rs-skeleton rs-skeleton--row" /><div className="rs-skeleton rs-skeleton--row" /></div>
+  </>;
+  if (error && !data) return <div className="cx-state cx-state--error" role="alert">
+    <h3>{s.mentorsError}</h3>
+    <p>{error}</p>
+    <button type="button" className="ghost-button cx-button" onClick={reload}>{s.mentorsRetry}</button>
+  </div>;
+  if (!data) return null;
+  if (!data.risingStar.length && !data.others.length) return <div className="cx-state">
+    <h3>{s.mentorsEmpty}</h3>
+    <p>{s.mentorsEmptyText}</p>
+    <Link className="ghost-button cx-button" to="/mentors">{s.mentorsEmptyLink}</Link>
+  </div>;
+
+  return <>
+    <section className="rs-section" aria-labelledby="rising-title">
+      <div className="rs-section-head"><h3 id="rising-title">{s.risingTitle}</h3></div>
+      <p className="rs-section-sub">{s.risingSub(month)}</p>
+      {data.risingStar.length === 0
+        ? <div className="rs-empty"><p>{s.risingEmpty}</p></div>
+        : <ol className="rs-list">{data.risingStar.map((mentor) => <RankedRow key={mentor.id} mentor={mentor} competition={slug} />)}</ol>}
+    </section>
+    {data.others.length > 0 && <section className="rs-section" aria-labelledby="others-title">
+      <div className="rs-section-head"><h3 id="others-title">{s.othersTitle}</h3></div>
+      <p className="rs-section-sub">{s.othersSub}</p>
+      <ul className="rs-list rs-list--plain">{data.others.map((mentor) => <OtherRow key={mentor.id} mentor={mentor} competition={slug} />)}</ul>
+    </section>}
+  </>;
 }
 
 export function NotFound({ reason }: { reason?: string }) {
@@ -77,12 +82,35 @@ export function Detail() {
   const { t, lang } = useI18n();
   const s = t.detail;
   const { slug } = useParams();
-  const { search } = useLocation();
+  const { search, hash, pathname } = useLocation();
   // เวทีที่เกี่ยวข้องคำนวณที่เซิร์ฟเวอร์จากหมวดที่ซ้อนกัน ส่งมาพร้อมกันในคำขอเดียว
   const { data, error, loading } = useApi<{ competition: Competition; related: Competition[] }>(
     slug ? `/competitions/${encodeURIComponent(slug)}` : null,
   );
   const competition = data?.competition;
+
+  /* สองแท็บ: รายละเอียด กับเมนเทอร์ที่พร้อมให้ปรึกษา แชร์ลิงก์ไปที่แท็บเมนเทอร์ได้ด้วย #mentors
+     (#event-mentors เป็นลิงก์เก่าที่ยังมีอยู่ในอีเมลและหน้าเมนเทอร์) แท็บเริ่มจาก hash แล้วเก็บเป็น state เอง
+     เปลี่ยนแท็บแก้ URL ด้วย replaceState ไม่ผ่าน router เพราะไม่อยากให้หน้าเด้งกลับไปบนสุด */
+  const fromHash = (value: string): Tab => (value === '#mentors' || value === '#event-mentors' ? 'mentors' : 'details');
+  const [tab, setTab] = useState<Tab>(() => fromHash(hash));
+  useEffect(() => { setTab(fromHash(hash)); }, [hash]);
+  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ details: null, mentors: null });
+
+  function selectTab(next: Tab, focus = false) {
+    setTab(next);
+    window.history.replaceState(window.history.state, '', `${pathname}${search}${next === 'mentors' ? '#mentors' : ''}`);
+    if (focus) tabRefs.current[next]?.focus();
+  }
+  function onTabKey(event: KeyboardEvent<HTMLButtonElement>) {
+    // มีสองแท็บ ลูกศรซ้ายและขวาจึงสลับไปอีกแท็บเหมือนกัน
+    const other: Tab = tab === 'details' ? 'mentors' : 'details';
+    const next = event.key === 'ArrowRight' || event.key === 'ArrowLeft' ? other
+      : event.key === 'Home' ? 'details' : event.key === 'End' ? 'mentors' : null;
+    if (!next) return;
+    event.preventDefault();
+    selectTab(next, true);
+  }
 
   useEffect(() => {
     if (competition) document.title = `${competition.name} — ChampionWays`;
@@ -129,6 +157,17 @@ export function Detail() {
       <div className="detail-cover"><CoverArt category={main} seed={`detail-${competition.slug}`} /></div>
     </section>
 
+    <div className="cx-tabs" id="competition-tabs" role="tablist" aria-label={s.tabsLabel}>
+      {(['details', 'mentors'] as Tab[]).map((id) => <button
+        key={id} type="button" role="tab" id={`tab-${id}`} aria-controls={`panel-${id}`}
+        aria-selected={tab === id} tabIndex={tab === id ? 0 : -1}
+        ref={(element) => { tabRefs.current[id] = element; }}
+        className={tab === id ? 'tab-button cx-tab active' : 'tab-button cx-tab'}
+        onClick={() => selectTab(id)} onKeyDown={onTabKey}
+      >{id === 'details' ? s.tabDetails : s.tabMentors}</button>)}
+    </div>
+
+    <div role="tabpanel" id="panel-details" aria-labelledby="tab-details" hidden={tab !== 'details'}>
     <div className="detail-grid">
       <aside className="detail-side" aria-labelledby="at-a-glance">
         <div className="summary-panel">
@@ -182,7 +221,10 @@ export function Detail() {
         </div>
 
         <p style={{ marginTop: 14 }}>
-          <a className="ghost-button" href="#event-mentors">{s.seeMentors}</a>
+          <button type="button" className="ghost-button cx-button" onClick={() => {
+            selectTab('mentors', true);
+            document.getElementById('competition-tabs')?.scrollIntoView({ block: 'start' });
+          }}>{s.seeMentors}</button>
         </p>
       </aside>
 
@@ -194,7 +236,15 @@ export function Detail() {
       </div>
     </div>
 
-    <MentorsForEvent slug={competition.slug} />
+    </div>
+
+    <div role="tabpanel" id="panel-mentors" aria-labelledby="tab-mentors" hidden={tab !== 'mentors'} className="cx-mentors-panel">
+      <div className="section-head">
+        <h2>{s.mentorsTitle}</h2>
+      </div>
+      <p className="cx-lead">{s.mentorsLead}</p>
+      <AvailableMentors slug={competition.slug} />
+    </div>
 
     {related.length > 0 && <section className="related-section" aria-labelledby="related-title">
       <div className="section-head">

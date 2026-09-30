@@ -13,6 +13,8 @@ export function AdminLayout() {
   const { user, loading, unreachable } = useAuth();
   const allowed = isReviewer(user);
   const { data } = useApi<Overview>(allowed ? '/admin/overview' : null);
+  const { data: requests } = useApi<{ items: { status: string }[] }>(allowed ? '/admin/competition-requests' : null);
+  const pendingRequests = requests?.items.filter((item) => item.status === 'pending').length ?? 0;
 
   const lastPath = useRef(pathname);
   useEffect(() => {
@@ -44,6 +46,10 @@ export function AdminLayout() {
           <NavLink to="/admin/mentors">
             เมนเทอร์{data && data.waiting.mentors > 0 && <span className="admin-badge">{data.waiting.mentors}</span>}
           </NavLink>
+          <NavLink to="/admin/requests">
+            คำขอเพิ่มเวที{pendingRequests > 0 && <span className="admin-badge">{pendingRequests}</span>}
+          </NavLink>
+          <NavLink to="/admin/reviews">รีวิว</NavLink>
         </nav>}
         <Link className="admin-exit" to="/">กลับไปหน้าบ้าน</Link>
       </div>

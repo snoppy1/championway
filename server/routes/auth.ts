@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
-import { and, eq, isNull } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { users } from '../db/schema.js';
+import { emailVerifications, users } from '../db/schema.js';
 import { env, googleConfigured } from '../lib/env.js';
+import { notify } from '../lib/email.js';
 import { authorizeUrl, exchangeCode, fetchProfile, newPkcePair } from '../lib/google.js';
 import type { AppEnv } from '../lib/guards.js';
 import { requireUser } from '../lib/guards.js';
@@ -59,12 +61,59 @@ function publicUser(row: typeof users.$inferSelect) {
     educationLevel: row.educationLevel,
     hasPassword: Boolean(row.passwordHash),
     googleLinked: Boolean(row.googleId),
+    emailVerified: Boolean(row.emailVerifiedAt),
   };
 }
 
 auth.get('/providers', (c) => c.json({ google: googleConfigured }));
 
 auth.get('/me', (c) => c.json({ user: c.get('user') }));
+
+/* ---------- ยืนยันอีเมล ----------
+   บัญชี Google ยืนยันแล้วตั้งแต่เข้าสู่ระบบ บัญชีรหัสผ่านต้องกดลิงก์ในอีเมล
+   ต้องยืนยันก่อนจึงเห็นช่องทางติดต่อเมนเทอร์และรีวิวได้ กันการสมัครบัญชีปลอมมาปั๊มคะแนน
+   token เก็บแค่ค่า hash ใช้ได้ครั้งเดียว อายุ 24 ชั่วโมง และผูกกับอีเมล ณ ตอนส่ง */
+
+const VERIFY_TTL_MS = 24 * 3600_000;
+const VERIFY_COOLDOWN_MS = 60_000;
+const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
+
+auth.post('/email/verify/send', requireUser, async (c) => {
+  const user = c.get('user')!;
+  if (user.emailVerified) return c.json({ ok: true, alreadyVerified: true });
+  const [recent] = await db.select({ createdAt: emailVerifications.createdAt }).from(emailVerifications)
+    .where(eq(emailVerifications.userId, user.id)).orderBy(desc(emailVerifications.createdAt)).limit(1);
+  if (recent && Date.now() - recent.createdAt.getTime() < VERIFY_COOLDOWN_MS) {
+    throw new HTTPException(429, { message: 'เพิ่งส่งลิงก์ไปแล้ว รอสักครู่แล้วลองใหม่' });
+  }
+  const token = newToken();
+  await db.insert(emailVerifications).values({
+    tokenHash: tokenHash(token), userId: user.id, email: user.email, expiresAt: new Date(Date.now() + VERIFY_TTL_MS),
+  });
+  const link = `${env.appOrigin}/verify-email?token=${token}`;
+  await notify(user.email, 'ยืนยันอีเมล ChampionWays / Verify your email',
+    `กดลิงก์นี้เพื่อยืนยันอีเมล ลิงก์ใช้ได้ 24 ชั่วโมง\nOpen this link to verify your email. It works for 24 hours.\n\n${link}`);
+  return c.json({ ok: true, alreadyVerified: false });
+});
+
+auth.post('/email/verify', async (c) => {
+  const parsed = z.object({ token: z.string().min(20).max(200) }).safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: 'ลิงก์ยืนยันไม่ถูกต้อง' });
+  const hash = tokenHash(parsed.data.token);
+  const verified = await db.transaction(async (tx) => {
+    // ใช้ token ได้ครั้งเดียว: เงื่อนไข used_at is null ในคำสั่งเดียวกัน กันกดสองแท็บพร้อมกัน
+    const [row] = await tx.update(emailVerifications).set({ usedAt: new Date() })
+      .where(and(eq(emailVerifications.tokenHash, hash), isNull(emailVerifications.usedAt), gt(emailVerifications.expiresAt, new Date())))
+      .returning();
+    if (!row) return false;
+    // อีเมลของบัญชีต้องยังตรงกับตอนส่งลิงก์ ถ้าเปลี่ยนไปแล้ว ลิงก์เก่ายืนยันอีเมลใหม่ไม่ได้
+    const [updated] = await tx.update(users).set({ emailVerifiedAt: new Date() })
+      .where(and(eq(users.id, row.userId), eq(users.email, row.email))).returning({ id: users.id });
+    return Boolean(updated);
+  });
+  if (!verified) throw new HTTPException(400, { message: 'ลิงก์ยืนยันหมดอายุหรือใช้ไปแล้ว ขอลิงก์ใหม่จากหน้าโปรไฟล์' });
+  return c.json({ ok: true });
+});
 
 auth.post('/signup', async (c) => {
   const parsed = signupBody.safeParse(await c.req.json().catch(() => ({})));

@@ -50,7 +50,7 @@ test('the list shows what needs checking and both pages pass axe', async ({ page
   let results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(results.violations, 'หน้ารายการ').toEqual([]);
 
-  await page.getByRole('link', { name: 'เพิ่มเวที' }).click();
+  await page.getByRole('link', { name: 'เพิ่มเวที', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('เพิ่มเวทีใหม่');
   results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(results.violations, 'หน้าฟอร์ม').toEqual([]);

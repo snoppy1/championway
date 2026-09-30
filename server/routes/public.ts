@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
@@ -292,6 +292,16 @@ const mentorSubmissionBody = z.object({
   // หน้าเว็บบังคับเลือกความถนัดสองข้อพอดี ฝั่งเซิร์ฟเวอร์ต้องบังคับซ้ำ
   topics: z.array(z.string().trim().min(1).max(80)).length(2, 'เลือกความถนัดสองข้อ'),
   price: z.number().int().min(0).max(100000).nullish(),
+  /** ราคาคิดต่อกี่นาที อัตราเล็กอย่าง 10 บาท / 1 นาที ก็ได้ */
+  minutes: z.number().int().min(1).max(600).nullish(),
+  /* ช่องทางติดต่อที่นักเรียนเห็นหลังกด Contact Mentor ต้องมีอย่างน้อยหนึ่งช่อง (ตรวจใน refine ด้านล่าง) */
+  contactEmail: z.string().trim().max(200).refine((v) => !v || z.string().email().safeParse(v).success, 'อีเมลติดต่อไม่ถูกต้อง').default(''),
+  contactLine: z.string().trim().max(100).default(''),
+  contactPhone: z.string().trim().max(40).default(''),
+  contactInstagram: z.string().trim().max(100).default(''),
+  contactLink: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://').default(''),
+  /** slug ของงานแข่งที่ติ๊กไว้ว่าจะรับปรึกษา ไม่ติ๊กเลยก็ได้ */
+  competitions: z.array(z.string().trim().max(200)).max(50).default([]),
   paidSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
   freeSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
   awards: z.array(z.object({
@@ -302,7 +312,8 @@ const mentorSubmissionBody = z.object({
   })).max(2).default([]),
   /** id ของไฟล์หลักฐานที่อัปโหลดไว้ก่อนหน้า */
   fileIds: z.array(z.string().max(60)).max(4).default([]),
-});
+}).refine((v) => [v.contactEmail, v.contactLine, v.contactPhone, v.contactInstagram, v.contactLink].some(Boolean),
+  { message: 'ใส่ช่องทางติดต่ออย่างน้อยหนึ่งช่อง', path: ['contactEmail'] });
 
 publicApi.post('/submissions/mentor', requireUser, async (c) => {
   const parsed = mentorSubmissionBody.safeParse(await c.req.json().catch(() => ({})));
@@ -310,6 +321,10 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
   const body = parsed.data;
   const user = c.get('user')!;
   const id = newId('ms');
+  // เก็บเฉพาะงานที่มีอยู่จริง slug ที่ไม่รู้จักถูกทิ้งเงียบ ๆ
+  const picked = body.competitions.length
+    ? await db.select({ id: competitionsTable.id }).from(competitionsTable).where(inArray(competitionsTable.slug, body.competitions))
+    : [];
 
   await db.transaction(async (tx) => {
     await tx.insert(mentorSubmissions).values({
@@ -329,6 +344,13 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
       cannot: body.cannot,
       topics: body.topics,
       price: body.price,
+      minutes: body.minutes,
+      contactEmail: body.contactEmail,
+      contactLine: body.contactLine,
+      contactPhone: body.contactPhone,
+      contactInstagram: body.contactInstagram,
+      contactLink: body.contactLink,
+      competitionIds: picked.map((row) => row.id),
       paidSlot: body.paidSlot ? new Date(body.paidSlot) : null,
       freeSlot: body.freeSlot ? new Date(body.freeSlot) : null,
     });

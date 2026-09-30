@@ -187,7 +187,7 @@ main:focus { outline: none; }
 .main-nav a:hover { color: var(--ink); background: #f6efe9; }
 .main-nav a.active { color: var(--ink); background: #f6efe9; font-weight: 600; }
 
-.nav-soon { padding: 8px 12px; color: #6b6377; font-size: 14.5px; cursor: default; }
+.nav-soon { white-space: nowrap; padding: 8px 12px; color: #6b6377; font-size: 14.5px; cursor: default; }
 .nav-soon small { margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--gold-tint); color: #7c5c16; font-size: 11px; font-weight: 600; }
 .footer-links .nav-soon { padding: 0; font-size: 14px; }
 
@@ -1178,3 +1178,18 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 /* English keeps the tight heading tracking above. Thai must never be letter-spaced:
    it collapses tone marks and vowels above/below the line. Body stays >= 1.6 line-height. */
 :lang(th) :is(h1, h2, h3, .brand-name, .eyebrow, .footer-links strong, .kind-chip) { letter-spacing: 0; }
+
+/* ---------- แถบบนบนจอกลาง ---------- */
+
+/* เมนูหลักมี Hall of Fame กับ Mentor zone / Consulting เพิ่มแล้ว ที่ 1101–1280px ต้องลดช่องไฟลง
+   จึงยังอยู่บรรทัดเดียวโดยไม่ต้องขยับจุดที่เปลี่ยนเป็นเมนูพับ */
+@media (min-width: 1101px) and (max-width: 1280px) {
+  .header-inner { gap: var(--space-2); }
+  .main-nav { gap: 0; }
+  .main-nav a, .nav-soon { padding-inline: var(--space-2); }
+  .header-actions { gap: var(--space-2); }
+  .header-actions .ghost-button { padding-inline: var(--space-3); }
+  .account-name { max-width: 110px; }
+  .main-nav a, .nav-soon { font-size: var(--text-base); }
+  .nav-soon small { margin-left: var(--space-1); }
+}

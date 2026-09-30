@@ -267,3 +267,25 @@
 .demo-panel h2 .status-pill { margin-left: 6px; }
 .demo-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .demo-actions button { min-height: 44px; }
+
+/* ---------- คำขอเพิ่มเวทีและรีวิวเมนเทอร์ ---------- */
+
+.request-row { align-items: flex-start; }
+.request-details { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-base); }
+.request-decision { display: grid; gap: var(--space-5); flex: 1 1 22em; min-width: 0; }
+.request-decision form { display: grid; gap: var(--space-2); justify-items: start; }
+.request-decision label { font-weight: 600; font-size: var(--text-base); }
+.request-decision input, .request-decision textarea {
+  width: 100%; min-height: 44px; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-input); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--ink); font: inherit;
+}
+.request-decision textarea { resize: vertical; }
+.request-decision input:hover, .request-decision textarea:hover { border-color: var(--purple-soft); }
+.request-decision input:disabled, .request-decision textarea:disabled { background: var(--paper); color: var(--muted); cursor: not-allowed; }
+.request-decision button { min-height: 44px; }
+.request-decision p.admin-message:empty { display: none; }
+.queue-main h2 a svg { margin-left: var(--space-1); vertical-align: -0.1em; }
+.admin .queue-row > .ghost-button, .admin .queue-row > .danger-button { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; }
+/* ลิงก์ในประโยคต้องมีเส้นใต้ แยกจากข้อความรอบข้างได้โดยไม่พึ่งสี */
+.admin .admin-muted a, .admin .request-details a { text-decoration: underline; text-underline-offset: 3px; }

@@ -8,9 +8,9 @@ import { demoTotals, insertDemoData, presentDemo, removeDemoData } from '../db/d
 import { demoToolsEnabled } from '../lib/env.js';
 import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
-  competitionSubmissions, competitions, levelEnum, mentorAwards, mentorSubmissions, mentors,
-  opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum, submissionCategories,
-  submissionLevels, submissionRewards,
+  competitionRequests, competitionSubmissions, competitions, levelEnum, mentorAwards, mentorCompetitionChoices,
+  mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
+  submissionCategories, submissionLevels, submissionRewards, users,
 } from '../db/schema.js';
 import type { AppEnv } from '../lib/guards.js';
 import { requireReviewer } from '../lib/guards.js';
@@ -357,10 +357,25 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
         category: primary?.competition_categories.category ?? null,
         topics: [],
         price: submission.price,
+        minutes: submission.minutes,
+        contactEmail: submission.contactEmail,
+        contactLine: submission.contactLine,
+        contactPhone: submission.contactPhone,
+        contactInstagram: submission.contactInstagram,
+        contactLink: submission.contactLink,
         best: submission.best,
         cannot: submission.cannot,
         verified: Boolean(verifiedAward),
       });
+      // งานที่ติ๊กไว้ตอนสมัครกลายเป็นงานที่รับปรึกษา ใช้ราคาจากใบสมัคร แก้ทีหลังได้ใน Mentor zone
+      const stillThere = submission.competitionIds.length
+        ? await tx.select({ id: competitions.id }).from(competitions).where(inArray(competitions.id, submission.competitionIds))
+        : [];
+      if (stillThere.length) {
+        await tx.insert(mentorCompetitionChoices).values(stillThere.map((row) => ({
+          mentorId: mentorId!, competitionId: row.id, choice: 'help', price: submission.price, minutes: submission.minutes,
+        })));
+      }
       await tx.update(mentorSubmissions)
         .set({ status: 'published', publishedMentorId: mentorId })
         .where(eq(mentorSubmissions.id, id));
@@ -623,4 +638,88 @@ admin.post('/demo/clear', async (c) => {
   guardDemo(c);
   await db.transaction((tx) => removeDemoData(tx));
   return c.json(await demoStatus());
+});
+
+/* ---------- คำขอเพิ่มงานแข่งจากเมนเทอร์ ----------
+   ทีมงานสร้างเวทีเองจากหน้า "เพิ่มเวที" (ต้องตรวจประกาศต้นทางเหมือนเวทีอื่น) แล้วกลับมาผูกคำขอกับเวทีนั้น
+   ตอนอนุมัติ เมนเทอร์ที่ขอจะถูกใส่เป็นผู้รับปรึกษางานนั้นพร้อมราคาที่ขอไว้ */
+
+admin.get('/competition-requests', async (c) => {
+  const rows = await db.select({ request: competitionRequests, mentorName: mentors.name, slug: competitions.slug })
+    .from(competitionRequests)
+    .innerJoin(mentors, eq(mentors.id, competitionRequests.mentorId))
+    .leftJoin(competitions, eq(competitions.id, competitionRequests.competitionId))
+    .orderBy(asc(competitionRequests.status), desc(competitionRequests.createdAt));
+  return c.json({ items: rows.map((r) => ({ ...r.request, mentorName: r.mentorName, competitionSlug: r.slug })) });
+});
+
+const requestDecision = z.discriminatedUnion('decision', [
+  z.object({ decision: z.literal('approve'), competitionSlug: z.string().trim().min(1, 'เลือกเวทีที่จะผูกกับคำขอ') }),
+  z.object({ decision: z.literal('reject'), reason: z.string().trim().min(1, 'กรอกเหตุผลที่ปฏิเสธ').max(1000) }),
+]);
+
+admin.post('/competition-requests/:id/decision', async (c) => {
+  const parsed = requestDecision.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const body = parsed.data;
+  const reviewer = c.get('user')!;
+  const id = c.req.param('id');
+  let competitionId: string | null = null;
+  if (body.decision === 'approve') {
+    const [event] = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.slug, body.competitionSlug)).limit(1);
+    if (!event) throw new HTTPException(404, { message: 'ไม่พบเวทีนี้ สร้างเวทีจากหน้าเพิ่มเวทีก่อน' });
+    competitionId = event.id;
+  }
+  const decided = await db.transaction(async (tx) => {
+    // ตัดสินได้ครั้งเดียว: เงื่อนไข status = pending ในคำสั่งเดียวกัน
+    const [row] = await tx.update(competitionRequests).set({
+      status: body.decision === 'approve' ? 'approved' : 'rejected',
+      reason: body.decision === 'reject' ? body.reason : '',
+      competitionId, decidedBy: reviewer.id, decidedAt: new Date(),
+    }).where(and(eq(competitionRequests.id, id), eq(competitionRequests.status, 'pending'))).returning();
+    if (!row) return null;
+    if (competitionId) {
+      await tx.insert(mentorCompetitionChoices)
+        .values({ mentorId: row.mentorId, competitionId, choice: 'help', price: row.price, minutes: row.minutes })
+        .onConflictDoUpdate({
+          target: [mentorCompetitionChoices.mentorId, mentorCompetitionChoices.competitionId],
+          set: { choice: 'help', price: row.price, minutes: row.minutes, updatedAt: new Date() },
+        });
+    }
+    return row;
+  });
+  if (!decided) throw new HTTPException(409, { message: 'คำขอนี้ถูกตัดสินไปแล้ว' });
+  const [owner] = await db.select({ email: users.email }).from(users).where(eq(users.id, decided.userId));
+  if (owner) {
+    await notify(owner.email,
+      decided.status === 'approved' ? 'งานแข่งที่ขอเพิ่มขึ้นเว็บแล้ว / Your requested competition is live' : 'คำขอเพิ่มงานแข่งยังไม่ผ่าน / Competition request declined',
+      decided.status === 'approved'
+        ? `${decided.name} ขึ้นเว็บแล้ว และคุณอยู่ในรายชื่อเมนเทอร์ของงานนี้\n${decided.name} is live and you are listed as a mentor for it.`
+        : `${decided.name}: ${decided.reason}`);
+  }
+  return c.json({ ok: true, status: decided.status });
+});
+
+/* ---------- รีวิวเมนเทอร์ ----------
+   ทีมงานซ่อนรีวิวที่น่าสงสัยได้ รีวิวที่ซ่อนไม่นับคะแนน Rising Star และไม่ขึ้นหน้าเว็บ
+   ไม่ลบจริง เผื่อต้องย้อนดูภายหลัง */
+
+admin.get('/reviews', async (c) => {
+  const rows = await db.select({ review: mentorReviews, mentorName: mentors.name, reviewer: users.name, reviewerEmail: users.email })
+    .from(mentorReviews)
+    .innerJoin(mentors, eq(mentors.id, mentorReviews.mentorId))
+    .innerJoin(users, eq(users.id, mentorReviews.userId))
+    .orderBy(desc(mentorReviews.createdAt)).limit(200);
+  return c.json({ items: rows.map((r) => ({ ...r.review, mentorName: r.mentorName, reviewer: r.reviewer, reviewerEmail: r.reviewerEmail })) });
+});
+
+admin.post('/reviews/:id/visibility', async (c) => {
+  const parsed = z.object({ hidden: z.boolean() }).safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: 'ข้อมูลไม่ถูกต้อง' });
+  const reviewer = c.get('user')!;
+  const [row] = await db.update(mentorReviews)
+    .set(parsed.data.hidden ? { hiddenAt: new Date(), hiddenBy: reviewer.id } : { hiddenAt: null, hiddenBy: null })
+    .where(eq(mentorReviews.id, c.req.param('id'))).returning({ id: mentorReviews.id });
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบรีวิวนี้' });
+  return c.json({ ok: true });
 });

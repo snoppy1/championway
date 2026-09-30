@@ -1,18 +1,20 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { useApi } from '../lib/useApi';
 import { useI18n } from '../i18n';
 import type { Lang } from '../i18n';
+import type { ListedMentor, RankedMentor, Rating as RatingValue } from '../data/consult';
+import { Avatar, OtherRow, RankedRow, Rating, RisingStarPill } from '../components/mentors';
 
-/* หน้าเมนเทอร์ที่จัดอันดับตามจำนวนการปรึกษา: Hall of Fame สามเดือน รายชื่อสมาชิก Rising Star
+/* หน้าเมนเทอร์ที่จัดอันดับตามคะแนนรีวิวเฉลี่ยของเดือน: Hall of Fame สามเดือน รายชื่อสมาชิก Rising Star
    ที่มีเลขอันดับ แล้วเมนเทอร์คนอื่นที่ไม่มีอันดับ
-   ข้อมูลทั้งหมดมาจาก GET /api/rising-star ตัวเลขทุกตัวนับที่เซิร์ฟเวอร์ ฝั่งนี้แค่แสดงผล */
+   ข้อมูลทั้งหมดมาจาก GET /api/rising-star ค่าเฉลี่ยและอันดับคำนวณที่เซิร์ฟเวอร์ ฝั่งนี้แค่แสดงผล */
 
-type Mentor = { id: string; name: string; initial: string; specialty: string; price: number; count: number };
-type Ranked = Mentor & { rank: number };
+type Mentor = ListedMentor;
+type Ranked = RankedMentor;
 type HallMonth = { month: string; closesAt: string | null; top: Ranked[] };
-type Viewer = { mentorId: string; active: boolean; activeUntil: string | null; count: number; projectedRank: number };
+type Viewer = { mentorId: string; active: boolean; activeUntil: string | null; rating: RatingValue; projectedRank: number };
 type Payload = { hall: HallMonth[]; ranked: Ranked[]; others: Mentor[]; viewer: Viewer | null; demo: boolean };
 
 const locales: Record<Lang, string> = { en: 'en-US', th: 'th-TH' };
@@ -35,19 +37,6 @@ function closingLabel(closesAt: string, lang: Lang, s: { closesTonight: string; 
   const day = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(date);
   if (day(lastMinute) === day(new Date())) return s.closesTonight;
   return s.closesOn(new Intl.DateTimeFormat(locales[lang], { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' }).format(lastMinute));
-}
-
-function StarIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z" /></svg>;
-}
-
-function RisingStarPill() {
-  const { t } = useI18n();
-  return <span className="rs-pill"><StarIcon />{t.risingStar.pill}</span>;
-}
-
-function Avatar({ initial, plain = false }: { initial: string; plain?: boolean }) {
-  return <span className={plain ? 'rs-avatar rs-avatar--plain' : 'rs-avatar'} aria-hidden="true">{initial}</span>;
 }
 
 function Medal({ rank, small = false }: { rank: number; small?: boolean }) {
@@ -90,14 +79,14 @@ function MonthPanel({ data, kind }: { data: HallMonth; kind: Kind }) {
           <p className="rs-winner__name"><Link className="rs-namelink" to={`/mentors/${winner.id}`}>{winner.name}</Link></p>
           <p className="rs-winner__spec" title={winner.specialty}>{winner.specialty}</p>
         </div>
-        <p className="rs-winner__count"><b>{winner.count}</b><span>{isNow ? s.consultationsLong(winner.count) : s.consultations(winner.count)}</span></p>
+        <p className="rs-winner__count"><b>{winner.rating.average?.toFixed(1)}</b><span>{s.averageOf(winner.rating.reviews)}</span></p>
       </div>
       {rest.length > 0 && <ol className={isNow ? 'rs-rank-list' : 'rs-rank-list rs-fold__body'} id={restId} hidden={!isNow && !open}>
         {rest.map((mentor) => <li className="rs-rank-row" key={mentor.id}>
           <Medal rank={mentor.rank} small />
           <Avatar initial={mentor.initial} />
           <span className="rs-rank-row__name"><Link className="rs-namelink" to={`/mentors/${mentor.id}`}>{mentor.name}</Link></span>
-          <span className="rs-rank-row__count"><b>{mentor.count}</b>{'\u00A0'}{s.consultations(mentor.count)}</span>
+          <span className="rs-rank-row__count"><Rating rating={mentor.rating} /></span>
         </li>)}
       </ol>}
     </>}
@@ -105,35 +94,6 @@ function MonthPanel({ data, kind }: { data: HallMonth; kind: Kind }) {
 }
 
 /* ---------- lists ---------- */
-
-function RankedRow({ mentor }: { mentor: Ranked }) {
-  const { t } = useI18n();
-  const s = t.risingStar;
-  return <li className="rs-row">
-    <span className="rs-row__rank"><span aria-hidden="true">{mentor.rank}</span><span className="sr-only">{s.rank(mentor.rank)}</span></span>
-    <Avatar initial={mentor.initial} />
-    <div>
-      <p className="rs-row__name">{mentor.name}<RisingStarPill /></p>
-      <p className="rs-row__spec">{mentor.specialty}</p>
-      <p className="rs-row__meta">{s.thisMonthCount(mentor.count)} · {s.perSession(mentor.price)}</p>
-    </div>
-    <Link className="ghost-button rs-row__action" to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}><span className="rs-row__action-label">{s.viewProfile}</span><ChevronRight className="rs-row__action-icon" aria-hidden="true" /></Link>
-  </li>;
-}
-
-function OtherRow({ mentor }: { mentor: Mentor }) {
-  const { t } = useI18n();
-  const s = t.risingStar;
-  return <li className="rs-row">
-    <Avatar initial={mentor.initial} plain />
-    <div>
-      <p className="rs-row__name">{mentor.name}</p>
-      <p className="rs-row__spec">{mentor.specialty}</p>
-      <p className="rs-row__meta">{mentor.count > 0 && `${s.thisMonthCount(mentor.count)} · `}{s.perSession(mentor.price)}</p>
-    </div>
-    <Link className="ghost-button rs-row__action" to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}><span className="rs-row__action-label">{s.viewProfile}</span><ChevronRight className="rs-row__action-icon" aria-hidden="true" /></Link>
-  </li>;
-}
 
 /* ---------- upsell ---------- */
 
@@ -148,13 +108,15 @@ function Upsell({ viewer }: { viewer: Viewer | null }) {
       <RisingStarPill />
       <h2 id={`${uid}-title`}>{s.memberTitle}</h2>
       {viewer.activeUntil && <p>{s.memberUntil(bangkokDate(viewer.activeUntil, lang))}</p>}
-      <p>{s.memberProgress(viewer.count, viewer.projectedRank)}</p>
+      <p>{viewer.rating.average !== null
+        ? s.memberProgress(viewer.rating.average.toFixed(1), viewer.rating.reviews, viewer.projectedRank)
+        : s.memberNoReviews}</p>
     </aside>;
   }
 
   const isMentor = viewer !== null;
   const text = isMentor
-    ? (viewer.count > 0 ? s.upsellProgress(viewer.count, viewer.projectedRank) : s.upsellNoSessions)
+    ? (viewer.rating.average !== null ? s.upsellProgress(viewer.rating.average.toFixed(1), viewer.rating.reviews, viewer.projectedRank) : s.upsellNoReviews)
     : s.upsellGuestText;
   return <aside className="rs-upsell" aria-labelledby={`${uid}-title`}>
     <div className="rs-upsell__head">
@@ -207,6 +169,9 @@ export function RisingStar() {
   const s = t.risingStar;
   const { data, error, loading, reload } = useApi<Payload>('/rising-star');
   const [now, last, older] = data?.hall ?? [];
+
+  // ไม่ตั้งชื่อแท็บเอง จะค้างเป็นชื่อเริ่มต้นของ index.html ซึ่งเป็นภาษาไทยเสมอ
+  useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
 
   return <main id="main" tabIndex={-1}>
     <section className="rs-hall" aria-labelledby="rs-title">

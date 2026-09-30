@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 /* หน้า /mentors (Rising Star) ใช้ข้อมูลตัวอย่างที่ seed ใส่ให้ตามแผนใน server/db/demo-data.ts
-   เดือนนี้ mind นำ (14) เดือนที่แล้ว jay นำ (17) สองเดือนก่อน pim นำ (12)
+   อันดับมาจากค่าเฉลี่ยดาวของรีวิวที่เขียนในเดือนนั้น
+   เดือนนี้ mind นำ (4.8) เดือนที่แล้ว jay นำ (4.8) สองเดือนก่อน pim นำ (5.0)
    สมาชิกตอนนี้เรียง mind, jay, nut, tae ส่วน pim (หมดสมาชิก) กับ aom (ไม่เคยสมัคร) ไม่มีอันดับ */
 
 const emptyHall = [
@@ -22,12 +23,14 @@ test('the Hall of Fame shows three months with this month first in the page', as
   await expect(months.nth(0)).toHaveClass(/rs-month--now/);
   await expect(months.nth(0)).toContainText('เดือนนี้');
   await expect(months.nth(0).locator('.rs-winner__name')).toContainText('พี่มายด์');
-  await expect(months.nth(0).locator('.rs-winner__count b')).toHaveText('14');
+  await expect(months.nth(0).locator('.rs-winner__count b')).toHaveText('4.8');
   await expect(months.nth(0)).toContainText('ปิดอันดับ');
   await expect(months.nth(1).locator('.rs-winner__name')).toContainText('พี่เจ');
-  await expect(months.nth(1).locator('.rs-winner__count b')).toHaveText('17');
+  await expect(months.nth(1).locator('.rs-winner__count b')).toHaveText('4.8');
+  await expect(months.nth(0).locator('.rs-winner__count')).toContainText(/4\s*รีวิว/);
+  await expect(months.nth(1).locator('.rs-rank-row').first()).toContainText(/4\.3/);
   await expect(months.nth(2).locator('.rs-winner__name')).toContainText('พี่พิม');
-  await expect(months.nth(2).locator('.rs-winner__count b')).toHaveText('12');
+  await expect(months.nth(2).locator('.rs-winner__count b')).toHaveText('5.0');
 
   // อันดับ 2 และ 3 ของเดือนนี้ต้องบอกอันดับเป็นข้อความ ไม่ใช่แค่สี
   await expect(months.nth(0).getByRole('img', { name: 'อันดับ 2' })).toBeVisible();
@@ -48,6 +51,10 @@ test('the ranked list is numbered, and non-members come after it with no rank', 
   await page.goto('/mentors');
   const ranked = page.getByRole('region', { name: 'Rising Star เดือนนี้' }).locator('.rs-row');
   await expect(ranked).toHaveCount(4);
+  // ทุกแถวบอกคะแนนเฉลี่ยกับจำนวนรีวิว ไม่ใช่จำนวนครั้งที่ปรึกษา
+  const meta = (await ranked.locator('.rs-row__meta').allTextContents()).map((text) => text.replace(/\s+/g, ' '));
+  expect(meta[0]).toContain('4.8 · 4 รีวิว');
+  expect(meta[3]).toContain('3.5 · 2 รีวิว');
   const names = await ranked.locator('.rs-row__name').allTextContents();
   expect(names[0]).toContain('พี่มายด์');
   expect(names[1]).toContain('พี่เจ');
@@ -104,19 +111,20 @@ test('empty data shows the empty states', async ({ page }) => {
 
 test('a mentor sees their own numbers, and a member sees a note instead of the upsell', async ({ page }) => {
   await page.route('**/api/rising-star', (route) => route.fulfill({
-    json: payload({ mentorId: 'x', active: false, activeUntil: null, count: 7, projectedRank: 2 }),
+    json: payload({ mentorId: 'x', active: false, activeUntil: null, rating: { average: 4.3, reviews: 7 }, projectedRank: 2 }),
   }));
   await page.goto('/mentors');
-  await expect(page.getByText('ให้คำปรึกษาไปแล้ว 7 ครั้ง')).toBeVisible();
+  await expect(page.getByText(/คะแนนรีวิวเฉลี่ย 4\.3 จาก 7\s*รีวิว/)).toBeVisible();
   await expect(page.getByText('คุณจะอยู่อันดับ 2')).toBeVisible();
   await expect(page.getByRole('link', { name: 'สมัคร Rising Star' })).toHaveAttribute('href', '/profile');
 
   await page.unroute('**/api/rising-star');
   await page.route('**/api/rising-star', (route) => route.fulfill({
-    json: payload({ mentorId: 'x', active: true, activeUntil: '2026-10-31T17:00:00.000Z', count: 3, projectedRank: 1 }),
+    json: payload({ mentorId: 'x', active: true, activeUntil: '2026-10-31T17:00:00.000Z', rating: { average: null, reviews: 0 }, projectedRank: 1 }),
   }));
   await page.reload();
   await expect(page.getByRole('heading', { name: 'คุณเป็น Rising Star' })).toBeVisible();
+  await expect(page.getByText(/ยังไม่มีรีวิว อันดับของคุณขึ้นอยู่กับรีวิว/)).toBeVisible();
   await expect(page.getByRole('link', { name: 'สมัคร Rising Star' })).toHaveCount(0);
 });
 

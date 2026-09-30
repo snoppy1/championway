@@ -36,6 +36,13 @@
       "when": 1790742629187,
       "tag": "0004_zippy_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790785659384,
+      "tag": "0005_gifted_spot",
+      "breakpoints": true
     }
   ]
 }

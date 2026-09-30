@@ -25,13 +25,17 @@ import { Profile } from './pages/Profile';
 import { ProfileEdit } from './pages/ProfileEdit';
 import { Detail, NotFound } from './pages/Detail';
 import { SignIn } from './pages/SignIn';
-import { Chats } from './pages/Chats';
+import { Consulting } from './pages/Consulting';
+import { MentorZone } from './pages/MentorZone';
+import { VerifyEmail } from './pages/VerifyEmail';
 import { Organisers } from './pages/Organisers';
 import { OrganiserSubmit } from './pages/OrganiserSubmit';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminOverview } from './pages/admin/AdminOverview';
 import { AdminCompetitionQueue, AdminCompetitionReview } from './pages/admin/AdminCompetitions';
 import { AdminMentorQueue, AdminMentorReview } from './pages/admin/AdminMentors';
+import { AdminRequestQueue } from './pages/admin/AdminRequests';
+import { AdminReviewList } from './pages/admin/AdminReviews';
 import { AdminListingForm, AdminListingList } from './pages/admin/AdminListings';
 import './styles.css';
 
@@ -53,8 +57,12 @@ const router = createBrowserRouter([{
     { path: '/organizers', element: <Organisers /> },
     { path: '/organizers/submit', element: <OrganiserSubmit /> },
     { path: '/signin', element: <SignIn mode="signin" /> },
-    { path: '/chats', element: <Chats /> },
-    { path: '/chats/:id', element: <Chats /> },
+    { path: '/consulting', element: <Consulting /> },
+    { path: '/mentor-zone', element: <MentorZone /> },
+    { path: '/verify-email', element: <VerifyEmail /> },
+    // แชตในเว็บปิดถาวรแล้ว ลิงก์เก่าพาไปหน้า Consulting ซึ่งเป็นที่รวมการปรึกษาของนักเรียน
+    { path: '/chats', element: <Navigate to="/consulting" replace /> },
+    { path: '/chats/:id', element: <Navigate to="/consulting" replace /> },
     { path: '/signup', element: <SignIn mode="signup" /> },
     { path: '*', element: <NotFound /> },
   ],
@@ -70,6 +78,8 @@ const router = createBrowserRouter([{
     { path: 'listings/:id', element: <AdminListingForm /> },
     { path: 'mentors', element: <AdminMentorQueue /> },
     { path: 'mentors/:id', element: <AdminMentorReview /> },
+    { path: 'requests', element: <AdminRequestQueue /> },
+    { path: 'reviews', element: <AdminReviewList /> },
   ],
 }], { basename });
 

@@ -17,6 +17,8 @@ export type Account = {
   /** ตั้งรหัสผ่านไว้หรือยัง คนที่สมัครด้วย Google ยังไม่มี จึงเป็นการ "ตั้ง" ไม่ใช่ "เปลี่ยน" */
   hasPassword: boolean;
   googleLinked: boolean;
+  /** บัญชี Google ยืนยันแล้วตั้งแต่สมัคร บัญชีรหัสผ่านต้องกดลิงก์ในอีเมล ต้องยืนยันก่อนจึงเห็นช่องทางติดต่อเมนเทอร์และรีวิวได้ */
+  emailVerified: boolean;
 };
 
 type AuthState = {
@@ -31,6 +33,8 @@ type AuthState = {
   signOut: () => Promise<void>;
   /** ใช้หลังบันทึกโปรไฟล์ เพื่อให้ชื่อบนหัวเว็บเปลี่ยนตามทันทีโดยไม่ต้องรีโหลดหน้า */
   applyUser: (account: Account) => void;
+  /** อ่านสถานะบัญชีจากเซิร์ฟเวอร์ใหม่ เช่นหลังกดลิงก์ยืนยันอีเมลในอีกแท็บ */
+  refresh: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -82,9 +86,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applyUser = useCallback((account: Account) => setUser(account), []);
 
+  const refresh = useCallback(async () => {
+    try {
+      const me = await api<{ user: Account | null }>('/auth/me');
+      setUser(me.user);
+    } catch { /* ติดต่อไม่ได้ก็ใช้สถานะเดิมต่อ ไม่ทำให้หน้าพัง */ }
+  }, []);
+
+  /* ลิงก์ยืนยันอีเมลมักเปิดในอีกแท็บ กลับมาที่แท็บนี้แล้วต้องเห็นสถานะใหม่โดยไม่ต้องรีโหลดเอง
+     ตรวจเฉพาะตอนที่ยังไม่ยืนยัน จึงไม่มีคำขอเพิ่มสำหรับคนที่ยืนยันแล้ว */
+  const waitingForVerification = Boolean(user && !user.emailVerified);
+  useEffect(() => {
+    if (!waitingForVerification) return;
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [waitingForVerification, refresh]);
+
   const value = useMemo<AuthState>(
-    () => ({ user, loading, unreachable, googleEnabled, signIn, signUp, signOut, applyUser }),
-    [user, loading, unreachable, googleEnabled, signIn, signUp, signOut, applyUser],
+    () => ({ user, loading, unreachable, googleEnabled, signIn, signUp, signOut, applyUser, refresh }),
+    [user, loading, unreachable, googleEnabled, signIn, signUp, signOut, applyUser, refresh],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

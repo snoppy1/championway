@@ -83,10 +83,16 @@ type MentorSubmission = {
   best: string;
   cannot: string;
   topics: string[];
-  price: number;
-  // ฟอร์มสมัครปัจจุบันไม่ถามวันนัด ใบสมัครจริงจึงไม่มีสองช่องนี้ได้
-  paidSlot: string | null;
-  freeSlot: string | null;
+  /* ราคาเป็นบาทต่อจำนวนนาที ใบเก่าที่ยังไม่มีระบบนาทีเป็น null ได้ทั้งสองช่อง
+     ช่องทางติดต่อ (นักเรียนเห็นหลังกด Contact mentor) กับเวทีที่ติ๊กไว้มากับใบสมัครใหม่ */
+  price: number | null;
+  minutes: number | null;
+  contactEmail: string;
+  contactLine: string;
+  contactPhone: string;
+  contactInstagram: string;
+  contactLink: string;
+  competitionIds: string[];
   awards: Award[];
   files: AttachedFile[];
   events: ReviewEvent[];
@@ -179,9 +185,16 @@ export function AdminMentorReview() {
             <Field label="ช่วยได้">{submission.best}</Field>
             <Field label="ช่วยไม่ได้">{submission.cannot}</Field>
             <Field label="ความถนัด">{submission.topics.join(' · ')}</Field>
-            <Field label="ราคา">{baht.format(submission.price)} บาทต่อทีม ต่อการปรึกษา 60 นาที</Field>
-            <Field label="คิวปรึกษา">{submission.paidSlot ? formatDate(submission.paidSlot.slice(0, 10)) : 'ไม่ได้ระบุ'}</Field>
-            <Field label="คุยฟรี 20 นาที">{submission.freeSlot ? formatDate(submission.freeSlot.slice(0, 10)) : 'ไม่ได้ระบุ'}</Field>
+            <Field label="ราคา">{submission.price === null || submission.minutes === null
+              ? 'ไม่ได้ระบุ'
+              : `${baht.format(submission.price)} บาท / ${submission.minutes} นาที`}</Field>
+            <Field label="เวทีที่ติ๊กไว้">{submission.competitionIds?.length ? `${submission.competitionIds.length} เวที` : 'ไม่ได้ติ๊กเวทีใด'}</Field>
+            {/* นักเรียนที่ยืนยันอีเมลแล้วเห็นช่องทางเหล่านี้หลังกดติดต่อ ผู้ตรวจจึงควรเห็นก่อนเผยแพร่ */}
+            <Field label="ติดต่อ: อีเมล">{submission.contactEmail || 'ไม่ได้ระบุ'}</Field>
+            <Field label="ติดต่อ: LINE ID">{submission.contactLine || 'ไม่ได้ระบุ'}</Field>
+            <Field label="ติดต่อ: เบอร์โทร">{submission.contactPhone || 'ไม่ได้ระบุ'}</Field>
+            <Field label="ติดต่อ: Instagram">{submission.contactInstagram || 'ไม่ได้ระบุ'}</Field>
+            <Field label="ติดต่อ: ลิงก์อื่น">{submission.contactLink ? <ExternalLink href={submission.contactLink} /> : 'ไม่ได้ระบุ'}</Field>
             <Field label="ผลงาน"><ExternalLink href={submission.portfolio || null} /></Field>
           </dl>
         </section>

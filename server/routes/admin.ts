@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
+import { demoTotals, insertDemoData, presentDemo, removeDemoData } from '../db/demo-data.js';
+import { demoToolsEnabled } from '../lib/env.js';
 import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
   competitionSubmissions, competitions, levelEnum, mentorAwards, mentorSubmissions, mentors,
@@ -579,4 +582,44 @@ admin.post('/listings/:id/verify', async (c) => {
     .where(eq(competitions.id, id)).returning();
   if (!row) throw new HTTPException(404, { message: 'ไม่พบเวทีนี้' });
   return c.json({ lastVerifiedAt: row.lastVerifiedAt });
+});
+
+/* ---------- ข้อมูลตัวอย่าง (เฉพาะ dev) ---------- */
+
+/* ทุกคนในทีมตรวจเห็นสถานะได้ แต่ใส่หรือลบได้เฉพาะ admin
+   บน Production ตอบว่าปิดอยู่ และปฏิเสธการใส่/ลบเสมอ ดู demoToolsEnabled ใน env.ts */
+async function demoStatus() {
+  const present = await presentDemo();
+  return {
+    enabled: demoToolsEnabled(),
+    present: {
+      competitions: present.competitionIds.length,
+      mentors: present.mentors.size,
+      competitionSubmissions: present.competitionSubmissions.size,
+      mentorSubmissions: present.mentorSubmissions.size,
+    },
+    totals: demoTotals,
+  };
+}
+
+admin.get('/demo', async (c) => {
+  if (!demoToolsEnabled()) return c.json({ enabled: false });
+  return c.json(await demoStatus());
+});
+
+function guardDemo(c: Context<AppEnv>) {
+  if (!demoToolsEnabled()) throw new HTTPException(404, { message: 'ปุ่มข้อมูลตัวอย่างใช้ได้เฉพาะเว็บ dev' });
+  if (c.get('user')!.role !== 'admin') throw new HTTPException(403, { message: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+}
+
+admin.post('/demo/load', async (c) => {
+  guardDemo(c);
+  await db.transaction((tx) => insertDemoData(tx));
+  return c.json(await demoStatus());
+});
+
+admin.post('/demo/clear', async (c) => {
+  guardDemo(c);
+  await db.transaction((tx) => removeDemoData(tx));
+  return c.json(await demoStatus());
 });

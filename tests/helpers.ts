@@ -13,7 +13,7 @@ import { newId } from '../server/lib/id';
 export type TestAccount = { id: string; email: string; password: string };
 
 /** บัญชีชั่วคราวต่อการทดสอบหนึ่งครั้ง รหัสผ่านสุ่มใหม่ทุกครั้ง ไม่มีรหัสตั้งต้นในโค้ด */
-export async function createAccount(role: 'member' | 'reviewer'): Promise<TestAccount> {
+export async function createAccount(role: 'member' | 'reviewer' | 'admin'): Promise<TestAccount> {
   const id = newId('usr');
   const email = `test-${randomBytes(5).toString('hex')}@championways.test`;
   const password = randomBytes(24).toString('base64url');

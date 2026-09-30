@@ -68,3 +68,9 @@ export const blobConfigured = Boolean(env.blobToken);
 export const uploadsUsable = blobConfigured || !process.env.VERCEL;
 
 export const googleConfigured = Boolean(env.googleClientId && env.googleClientSecret);
+
+/* ปุ่มเปิด/ลบข้อมูลตัวอย่างในหน้าจัดการ ใช้ได้เฉพาะในเครื่องกับ Preview (branch dev) เท่านั้น
+   ดูจาก VERCEL_ENV ไม่ใช่ NODE_ENV เพราะ Vercel ตั้ง NODE_ENV=production ให้ Preview ด้วย
+   โค้ดขึ้น main ไปด้วยตามปกติ (main ต้อง fast-forward จาก dev ได้) แต่บน Production
+   ปุ่มจะไม่โผล่และ API ปฏิเสธเอง จึงเติมข้อมูลปลอมลงฐานจริงไม่ได้ไม่ว่าจะกดทางไหน */
+export const demoToolsEnabled = () => process.env.VERCEL_ENV !== 'production';

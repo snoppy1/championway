@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Archive, CalendarClock, CircleAlert, ClipboardList } from 'lucide-react';
+import { ArrowRight, Archive, CalendarClock, CircleAlert, ClipboardList, FlaskConical } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { formatDate } from '../../data/competitions';
 import { useApi } from '../../lib/useApi';
+import { ApiError, post } from '../../lib/api';
+import { useAuth } from '../../data/auth';
 
 const REVIEW_TARGET_DAYS = 2;
 const STALE_AFTER_DAYS = 30;
@@ -34,6 +37,64 @@ function Listings({ items, label, empty }: { items: Listing[]; label: (item: Lis
       <span className="admin-muted">{label(item)}</span>
     </li>)}
   </ul>;
+}
+
+type DemoStatus = {
+  enabled: boolean;
+  present?: { competitions: number; mentors: number; competitionSubmissions: number; mentorSubmissions: number };
+  totals?: { competitions: number; mentors: number; competitionSubmissions: number; mentorSubmissions: number };
+};
+
+/* ปุ่มเปิด/ลบข้อมูลตัวอย่าง ขึ้นเฉพาะบนเว็บ dev (ในเครื่องและ Preview)
+   บน Production เซิร์ฟเวอร์ตอบ enabled: false ส่วนนี้จึงไม่แสดงเลย และ API ปฏิเสธเองอีกชั้น
+   ใส่ซ้ำได้ไม่สร้างรายการซ้ำ ลบแล้วเหลือเฉพาะข้อมูลที่ทีมกรอกเอง */
+function DemoPanel() {
+  const { user } = useAuth();
+  const { data, reload } = useApi<DemoStatus>('/admin/demo');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  if (!data?.enabled || !data.present || !data.totals) return null;
+
+  const { present, totals } = data;
+  const isAdmin = user?.role === 'admin';
+  const loaded = present.competitions + present.mentors + present.competitionSubmissions + present.mentorSubmissions;
+  const all = totals.competitions + totals.mentors + totals.competitionSubmissions + totals.mentorSubmissions;
+
+  async function run(action: 'load' | 'clear') {
+    if (action === 'clear' && !window.confirm('ลบข้อมูลตัวอย่างทั้งหมด รวมการจองที่ทำไว้บนเวทีหรือเมนเทอร์ตัวอย่าง? ข้อมูลที่ทีมกรอกเองไม่ถูกลบ')) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      await post(`/admin/demo/${action}`, {});
+      setMessage(action === 'load' ? 'ใส่ข้อมูลตัวอย่างแล้ว' : 'ลบข้อมูลตัวอย่างแล้ว');
+      reload();
+    } catch (failure) {
+      setMessage(failure instanceof ApiError ? failure.message : 'ทำไม่สำเร็จ ลองใหม่อีกครั้ง');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <section className="admin-block demo-panel" aria-labelledby="demo-title">
+    <h2 id="demo-title"><FlaskConical size={16} aria-hidden="true" />ข้อมูลตัวอย่าง <span className="status-pill is-info">เฉพาะเว็บ dev</span></h2>
+    <p className="admin-muted">
+      เวที เมนเทอร์ และใบสมัครสมมติ ไว้ลองใช้งานและถ่ายภาพหน้าจอ ส่วนนี้ไม่มีบนเว็บจริง
+    </p>
+    <p>
+      มีอยู่ตอนนี้ {loaded} จาก {all} รายการ · เวที {present.competitions}/{totals.competitions} ·
+      เมนเทอร์ {present.mentors}/{totals.mentors} · ใบลงงาน {present.competitionSubmissions}/{totals.competitionSubmissions} ·
+      ใบสมัครเมนเทอร์ {present.mentorSubmissions}/{totals.mentorSubmissions}
+    </p>
+    {isAdmin ? <p className="demo-actions">
+      <button type="button" className="ghost-button" disabled={busy || loaded === all} onClick={() => run('load')}>
+        {busy ? 'กำลังทำ…' : 'เปิดข้อมูลตัวอย่าง'}
+      </button>
+      <button type="button" className="danger-button" disabled={busy || loaded === 0} onClick={() => run('clear')}>
+        ลบข้อมูลตัวอย่าง
+      </button>
+    </p> : <p className="admin-muted">เฉพาะผู้ดูแล (admin) เท่านั้นที่เปิดหรือลบได้</p>}
+    <p className="admin-message" role="status">{message}</p>
+  </section>;
 }
 
 export function AdminOverview() {
@@ -105,5 +166,7 @@ export function AdminOverview() {
         <p className="stat-note">ควรย้ายออกจากรายการหลัก แต่ยังเปิดหน้ารายละเอียดได้เพื่อไม่ให้ลิงก์เสีย</p>
       </Stat>
     </div>
+
+    <DemoPanel />
   </>;
 }

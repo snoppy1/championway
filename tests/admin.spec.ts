@@ -196,3 +196,22 @@ test('admin visual QA and accessibility', async ({ page }, testInfo) => {
 
   expect(errors).toEqual([]);
 });
+
+test('the demo data panel shows on the dev site, with buttons only for an admin', async ({ page }) => {
+  await signIn(page, reviewer, '/admin');
+  const panel = page.getByRole('region', { name: /ข้อมูลตัวอย่าง/ });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText('เฉพาะผู้ดูแล (admin) เท่านั้นที่เปิดหรือลบได้')).toBeVisible();
+  await expect(panel.getByRole('button')).toHaveCount(0);
+
+  const admin = await createAccount('admin');
+  try {
+    await page.context().clearCookies();
+    await signIn(page, admin, '/admin');
+    // ข้อมูลตัวอย่างถูกใส่ครบตอนเริ่มเทสแล้ว ปุ่มเปิดจึงกดไม่ได้ ส่วนปุ่มลบกดได้
+    await expect(panel.getByRole('button', { name: 'เปิดข้อมูลตัวอย่าง' })).toBeDisabled();
+    await expect(panel.getByRole('button', { name: 'ลบข้อมูลตัวอย่าง' })).toBeEnabled();
+  } finally {
+    await removeAccount(admin);
+  }
+});

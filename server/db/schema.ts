@@ -362,6 +362,23 @@ export const bookingEvents = pgTable('booking_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ---------- Rising Star ---------- */
+
+/* หนึ่งแถวคือหนึ่งช่วงที่เมนเทอร์เป็นสมาชิก Rising Star เก็บเป็นช่วงแทนธงเปิด/ปิด เพราะ
+   - Hall of Fame ของเดือนก่อน ๆ ต้องนับเฉพาะคนที่เป็นสมาชิก "ในเดือนนั้น" ไม่ใช่ตอนนี้
+   - หนึ่งช่วงตรงกับหนึ่งรอบบิลของ Stripe พอต่อระบบจ่ายเงินแล้วแค่เพิ่มแถวจาก webhook
+   source บอกที่มาของช่วง: stripe (จ่ายจริง), manual (ทีมงานให้เอง), demo (ข้อมูลตัวอย่าง) */
+export const risingStarPeriods = pgTable('rising_star_periods', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  source: text('source').notNull(),
+  /** id ของ subscription หรือ invoice ใน Stripe ว่างได้จนกว่าจะต่อระบบจ่ายเงิน */
+  externalId: text('external_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('rising_star_periods_mentor_idx').on(t.mentorId, t.endsAt)]);
+
 export const mentorMatchAudit = pgTable('mentor_match_audit', {
   mentorId: text('mentor_id').primaryKey().references(() => mentors.id, { onDelete: 'cascade' }),
   version: text('version').notNull(),

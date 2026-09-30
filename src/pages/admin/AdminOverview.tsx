@@ -41,8 +41,8 @@ function Listings({ items, label, empty }: { items: Listing[]; label: (item: Lis
 
 type DemoStatus = {
   enabled: boolean;
-  present?: { competitions: number; mentors: number; competitionSubmissions: number; mentorSubmissions: number };
-  totals?: { competitions: number; mentors: number; competitionSubmissions: number; mentorSubmissions: number };
+  present?: { risingStar: number; competitions: number; mentors: number; competitionSubmissions: number; mentorSubmissions: number };
+  totals?: { risingStar: number; competitions: number; mentors: number; competitionSubmissions: number; mentorSubmissions: number };
 };
 
 /* ปุ่มเปิด/ลบข้อมูลตัวอย่าง ขึ้นเฉพาะบนเว็บ dev (ในเครื่องและ Preview)
@@ -57,8 +57,8 @@ function DemoPanel() {
 
   const { present, totals } = data;
   const isAdmin = user?.role === 'admin';
-  const loaded = present.competitions + present.mentors + present.competitionSubmissions + present.mentorSubmissions;
-  const all = totals.competitions + totals.mentors + totals.competitionSubmissions + totals.mentorSubmissions;
+  const loaded = present.risingStar + present.competitions + present.mentors + present.competitionSubmissions + present.mentorSubmissions;
+  const all = totals.risingStar + totals.competitions + totals.mentors + totals.competitionSubmissions + totals.mentorSubmissions;
 
   async function run(action: 'load' | 'clear') {
     if (action === 'clear' && !window.confirm('ลบข้อมูลตัวอย่างทั้งหมด รวมการจองที่ทำไว้บนเวทีหรือเมนเทอร์ตัวอย่าง? ข้อมูลที่ทีมกรอกเองไม่ถูกลบ')) return;
@@ -83,7 +83,8 @@ function DemoPanel() {
     <p>
       มีอยู่ตอนนี้ {loaded} จาก {all} รายการ · เวที {present.competitions}/{totals.competitions} ·
       เมนเทอร์ {present.mentors}/{totals.mentors} · ใบลงงาน {present.competitionSubmissions}/{totals.competitionSubmissions} ·
-      ใบสมัครเมนเทอร์ {present.mentorSubmissions}/{totals.mentorSubmissions}
+      ใบสมัครเมนเทอร์ {present.mentorSubmissions}/{totals.mentorSubmissions} ·
+      อันดับ Rising Star {present.risingStar ? 'มีแล้ว' : 'ยังไม่มี'}
     </p>
     {isAdmin ? <p className="demo-actions">
       <button type="button" className="ghost-button" disabled={busy || loaded === all} onClick={() => run('load')}>

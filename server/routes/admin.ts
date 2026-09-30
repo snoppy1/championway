@@ -593,6 +593,7 @@ async function demoStatus() {
   return {
     enabled: demoToolsEnabled(),
     present: {
+      risingStar: present.risingStar ? 1 : 0,
       competitions: present.competitionIds.length,
       mentors: present.mentors.size,
       competitionSubmissions: present.competitionSubmissions.size,

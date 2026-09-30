@@ -1,6 +1,6 @@
 import { client, db } from './client.js';
 import {
-  competitionCategories, competitionLevels, competitionRewards, competitions, mentorAwards,
+  bookingEvents, bookings, competitionCategories, competitionLevels, competitionRewards, competitions, mentorAwards,
   mentorSubmissions, mentors, reviewEvents, submissionCategories, submissionLevels,
   submissionRewards, competitionSubmissions,
 } from './schema.js';
@@ -15,6 +15,9 @@ import { testDatabase } from '../lib/database-safety.js';
 export async function seed() {
   testDatabase(process.env);
   await db.transaction(async (tx) => {
+    // การจองอ้างถึงเวทีและเมนเทอร์แบบไม่ลบตาม ต้องลบก่อน ข้อมูล Rising Star ตัวอย่างก็เป็นการจอง
+    await tx.delete(bookingEvents);
+    await tx.delete(bookings);
     await tx.delete(reviewEvents);
     await tx.delete(mentorAwards);
     await tx.delete(mentorSubmissions);

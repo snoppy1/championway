@@ -191,9 +191,10 @@ test('the old mentor link redirects to the competition, where its mentors now li
   await expect(page).toHaveURL(/\/competitions\/poster-unbound/);
   await expect(page.getByRole('heading', { name: 'เมนเทอร์สำหรับงานนี้' })).toBeVisible();
 
+  // ลิงก์เปล่าตอนนี้เป็นหน้า Rising Star แล้ว ไม่พาไปหน้าแรกอีก
   await page.goto('/mentors');
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('button', { name: 'Hackathon', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/mentors$/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Rising Star');
 });
 
 test('keyboard reaches the search box and the skip link', async ({ page }) => {

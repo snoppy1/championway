@@ -162,8 +162,9 @@ main:focus { outline: none; }
 .header-inner {
   display: flex;
   align-items: center;
-  gap: 28px;
-  flex-wrap: wrap;
+  gap: 20px;
+  /* แถบบนต้องอยู่บรรทัดเดียว ถ้าที่ไม่พอให้เปลี่ยนเป็นเมนูพับ (ดู @media ด้านล่าง) ไม่ใช่ปล่อยให้ปุ่มตกบรรทัด */
+  flex-wrap: nowrap;
   padding-block: 14px;
 }
 
@@ -172,7 +173,7 @@ main:focus { outline: none; }
 .brand-name { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.2px; }
 
 .header-menu { display: contents; }
-.main-nav { order: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-right: auto; }
+.main-nav { order: 1; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; margin-right: auto; }
 .header-saved { order: 2; }
 .icon-button.menu-toggle { display: none; }
 .main-nav a {
@@ -190,7 +191,7 @@ main:focus { outline: none; }
 .nav-soon small { margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--gold-tint); color: #7c5c16; font-size: 11px; font-weight: 600; }
 .footer-links .nav-soon { padding: 0; font-size: 14px; }
 
-.header-actions { order: 3; display: flex; align-items: center; gap: 14px; }
+.header-actions { order: 3; display: flex; align-items: center; gap: 10px; }
 
 .header-note {
   flex-basis: 100%;
@@ -1064,7 +1065,7 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 
 /* ---------- mobile ---------- */
 
-@media (max-width: 860px) {
+@media (max-width: 1100px) {
   .header-inner { flex-wrap: wrap; gap: 10px; padding-block: 10px; }
   .brand-link { margin-right: auto; }
   .icon-button.menu-toggle { display: grid; order: 3; }
@@ -1166,7 +1167,7 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 .lang-toggle button[aria-pressed="true"]:is(:hover, .is-hover) { background: var(--purple-deep); }
 .lang-toggle button[aria-pressed="true"]:is(:active, .is-active) { background: var(--plum); }
 
-@media (max-width: 860px) {
+@media (max-width: 1100px) {
   /* inside the collapsed menu the toggle takes the full actions row */
   .header-actions .lang-toggle { grid-column: 1 / -1; min-height: 46px; }
   .header-menu > .lang-toggle { align-self: stretch; }

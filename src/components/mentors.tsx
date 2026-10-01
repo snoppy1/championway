@@ -33,16 +33,16 @@ function Meta({ mentor }: { mentor: ListedMentor }) {
 }
 
 /** ปุ่มดูโปรไฟล์ พกบริบทเวทีไปด้วยเมื่อมี เพื่อให้หน้าโปรไฟล์เลือกเวทีตอนกดติดต่อให้ */
-function ProfileLink({ mentor, competition }: { mentor: ListedMentor; competition?: string }) {
+function ProfileLink({ mentor, competition, hire }: { mentor: ListedMentor; competition?: string; hire?: boolean }) {
   const { t } = useI18n();
   const s = t.risingStar;
   const to = `/mentors/${mentor.id}${competition ? `?competition=${encodeURIComponent(competition)}` : ''}`;
-  return <Link className="ghost-button rs-row__action" to={to} aria-label={s.viewProfileOf(mentor.name)}>
-    <span className="rs-row__action-label">{s.viewProfile}</span><ChevronRight className="rs-row__action-icon" aria-hidden="true" />
+  return <Link className="ghost-button rs-row__action" to={to} aria-label={hire ? s.hireAria(mentor.name) : s.viewProfileOf(mentor.name)}>
+    <span className="rs-row__action-label">{hire ? s.hire : s.viewProfile}</span><ChevronRight className="rs-row__action-icon" aria-hidden="true" />
   </Link>;
 }
 
-export function RankedRow({ mentor, competition }: { mentor: RankedMentor; competition?: string }) {
+export function RankedRow({ mentor, competition, hire }: { mentor: RankedMentor; competition?: string; hire?: boolean }) {
   const { t } = useI18n();
   const s = t.risingStar;
   return <li className="rs-row">
@@ -53,11 +53,11 @@ export function RankedRow({ mentor, competition }: { mentor: RankedMentor; compe
       <p className="rs-row__spec">{mentor.specialty}</p>
       <Meta mentor={mentor} />
     </div>
-    <ProfileLink mentor={mentor} competition={competition} />
+    <ProfileLink mentor={mentor} competition={competition} hire={hire} />
   </li>;
 }
 
-export function OtherRow({ mentor, competition }: { mentor: ListedMentor; competition?: string }) {
+export function OtherRow({ mentor, competition, hire }: { mentor: ListedMentor; competition?: string; hire?: boolean }) {
   return <li className="rs-row">
     <Avatar initial={mentor.initial} plain />
     <div>
@@ -65,6 +65,6 @@ export function OtherRow({ mentor, competition }: { mentor: ListedMentor; compet
       <p className="rs-row__spec">{mentor.specialty}</p>
       <Meta mentor={mentor} />
     </div>
-    <ProfileLink mentor={mentor} competition={competition} />
+    <ProfileLink mentor={mentor} competition={competition} hire={hire} />
   </li>;
 }

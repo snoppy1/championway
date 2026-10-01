@@ -9,12 +9,43 @@ export type MentorCard = { id: string; name: string; initial: string; specialty:
 export type ListedMentor = MentorCard & { price: number | null; minutes: number | null; rating: Rating };
 export type RankedMentor = ListedMentor & { rank: number };
 
-export type ConsultStatus = 'active' | 'claimed' | 'confirmed' | 'cancelled';
-export type Contacts = { email: string; line: string; phone: string; instagram: string; link: string };
-export type ContactKey = keyof Contacts;
-export const contactKeys: ContactKey[] = ['email', 'line', 'phone', 'instagram', 'link'];
+/* การจ้างเมนเทอร์ผ่านเว็บ (1 ต.ค. 2569) สถานะเดินตามลำดับ
+   requested → accepted → completed (นักเรียนกดเสร็จงาน) แล้วรีวิวได้ หรือจบที่ declined / cancelled */
+export type HireStatus = 'requested' | 'accepted' | 'declined' | 'cancelled' | 'completed';
+export type HireBase = {
+  id: string; status: HireStatus; createdAt: string; acceptedAt: string | null; completedAt: string | null;
+  minutes: number; price: number; preferredAt: string | null; note: string; reason: string;
+  roomId: string | null; unread: number; competition: { slug: string; name: string } | null;
+};
+/** ฝั่งนักเรียน: GET /consult/mine */
+export type MemberHire = HireBase & { mentor: MentorCard; review: { stars: number } | null };
+/** ฝั่งเมนเทอร์: GET /consult/zone (ชื่อนักเรียนเป็นชื่อแรกเท่านั้น) */
+export type MentorHire = HireBase & { student: string };
 
-/** ช่องทางติดต่อต้องมีอย่างน้อยหนึ่งช่อง และลิงก์ต้องขึ้นต้นด้วย http(s):// เหมือนที่เซิร์ฟเวอร์ตรวจ */
+/** ราคารวมของการจ้าง = ราคาต่องาน × เวลาที่จ้าง ÷ นาทีของราคานั้น ปัดขึ้น ตรงกับที่เซิร์ฟเวอร์คิดตอนส่งคำขอ
+    หน้าเว็บคำนวณไว้แค่แสดงให้เห็นสด เซิร์ฟเวอร์คิดเองใหม่เสมอ */
+export function hireTotal(price: number, minutes: number, hours: number) {
+  return Math.ceil((price * hours * 60) / minutes);
+}
+
+/** ขั้นปัจจุบันของงานจ้างในบรรทัดขั้นตอน (ดัชนีใน t.consult.steps) ยังไม่เคยจ้างหรือจบแบบไม่สำเร็จคือขั้นแรก
+    ถ้าจะเพิ่มขั้นจ่ายเงินหรือห้องวิดีโอ เพิ่มรายการใน steps แล้วปรับตารางนี้ที่เดียว */
+export function hireStep(status: HireStatus | null): number {
+  switch (status) {
+    case 'requested': return 1;
+    case 'accepted': return 2;
+    case 'completed': return 4;
+    default: return 0;
+  }
+}
+
+/** ห้องแชต (GET /chats/:id/messages) */
+export type ChatMessage = {
+  id: string; senderId: string; name: string; body: string; fileName: string | null; fileMime: string | null;
+  createdAt: string; mine: boolean;
+};
+
+/** ลิงก์ต้องขึ้นต้นด้วย http(s):// เหมือนที่เซิร์ฟเวอร์ตรวจ */
 export const isWebLink = (value: string) => /^https?:\/\//i.test(value.trim());
 /** ราคาบาท 0–100,000 และนาที 1–600 เป็นจำนวนเต็ม ตรงกับ priceBody ของเซิร์ฟเวอร์ */
 export function parsePrice(price: string, minutes: string) {
@@ -26,40 +57,16 @@ export function parsePrice(price: string, minutes: string) {
 
 /** เซิร์ฟเวอร์ตอบ error เป็นภาษาไทยเสมอ (ยังไม่แปลตาม x-lang) หน้าชุดนี้จึงเลือกข้อความจากรหัสสถานะแทน
     เพื่อให้ผู้ใช้ภาษาอังกฤษไม่เจอภาษาไทย ส่วน 403 ของ Mentor zone แปลว่าไม่ใช่เมนเทอร์ ไม่ใช่ยังไม่ยืนยันอีเมล */
-export function consultError(failure: unknown, t: Messages, scope: 'student' | 'mentor' = 'student') {
+export function consultError(failure: unknown, t: Messages, scope: 'student' | 'mentor' | 'hire' = 'student') {
   if (!(failure instanceof ApiError)) return t.errors.unreachable;
   const e = t.consult.errors;
   switch (failure.status) {
     case 401: return e.signIn;
-    case 403: return scope === 'student' ? e.verify : e.generic;
+    case 403: return scope === 'mentor' ? e.generic : e.verify;
     case 404: return e.notFound;
-    case 409: return e.changed;
+    case 409: return scope === 'hire' ? e.hireConflict : e.changed;
     case 429: return e.wait;
-    case 400: return e.invalid;
+    case 400: return scope === 'hire' ? e.hireInvalid : e.invalid;
     default: return e.generic;
-  }
-}
-
-/** ลิงก์กดได้ของช่องทางติดต่อ สร้างจากค่าที่เมนเทอร์พิมพ์เอง จึงประกอบให้ปลอดภัยทุกแบบ
-    อีเมล → mailto: เบอร์ → tel: (เหลือเฉพาะตัวเลขกับ +) LINE และ Instagram → ลิงก์โปรไฟล์ที่ encode แล้ว
-    ลิงก์อื่น → เฉพาะ http(s):// ที่อ่านเป็น URL ได้ ไม่เข้าเงื่อนไขก็คืน null แล้วแสดงเป็นข้อความเฉย ๆ */
-export function contactHref(key: ContactKey, raw: string): string | null {
-  const value = raw.trim();
-  if (!value) return null;
-  switch (key) {
-    case 'email': return /^[^\s@]+@[^\s@]+$/.test(value) ? `mailto:${value}` : null;
-    case 'phone': {
-      const digits = value.replace(/[^\d+]/g, '');
-      return digits.replace(/\D/g, '').length >= 5 ? `tel:${digits}` : null;
-    }
-    case 'line': return `https://line.me/ti/p/~${encodeURIComponent(value)}`;
-    case 'instagram': {
-      const handle = value.replace(/^@+/, '');
-      return handle ? `https://www.instagram.com/${encodeURIComponent(handle)}/` : null;
-    }
-    case 'link': {
-      if (!isWebLink(value)) return null;
-      try { return new URL(value).href; } catch { return null; }
-    }
   }
 }

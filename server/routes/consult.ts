@@ -4,25 +4,29 @@ import { and, desc, eq, inArray, isNull, lte, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
-  competitionRequests, competitions, consultations, mentorCompetitionChoices, mentorReviews, mentors,
-  mentorSubmissions, risingStarPeriods, users,
+  chatMembers, chatRooms, competitionRequests, competitions, consultations, mentorCompetitionChoices, mentorReviews,
+  mentors, mentorSubmissions, risingStarPeriods, users,
 } from '../db/schema.js';
 import { requireUser, type AppEnv } from '../lib/guards.js';
+import { unreadByRoom } from './chat.js';
 import { newId } from '../lib/id.js';
 import { env } from '../lib/env.js';
 import { notify } from '../lib/email.js';
 import { bangkokMonth, byRating, ratingJson, ratingsBetween } from '../lib/ratings.js';
 
-/* ติดต่อเมนเทอร์ ยืนยัน และรีวิว (แทนระบบจองกับแชตในเว็บ ผู้ใช้ตัดสิน 30 ก.ย. 2569)
+/* จ้างเมนเทอร์ผ่านเว็บ (ผู้ใช้ตัดสิน 1 ต.ค. 2569 แทนการติดต่อนอกเว็บ)
 
-   นักเรียน: กด Contact Mentor → เห็นช่องทางติดต่อ → คุยกันนอกเว็บ → กด "I received guidance"
-             → ระบบส่งอีเมลหาเมนเทอร์ → เมนเทอร์กด Confirm → นักเรียนรีวิวได้หนึ่งครั้ง
-   เมนเทอร์: Mentor zone เลือกงานแข่งที่รับปรึกษาพร้อมราคา ขอเพิ่มงานแข่ง ยืนยันการปรึกษา
+   นักเรียน: ส่งคำขอจ้าง (งานแข่ง จำนวนชั่วโมง เวลาที่อยากนัด สิ่งที่อยากให้ช่วย) → รอเมนเทอร์รับ
+             → คุยในแชต (routes/chat.ts) → กดเสร็จงาน → รีวิวได้หนึ่งครั้ง
+   เมนเทอร์: Mentor zone รับหรือปฏิเสธคำขอ เลือกงานแข่งที่รับปรึกษาพร้อมราคา ขอเพิ่มงานแข่ง
+   รอบถัดไป: จ่ายเงินผ่าน Stripe ระหว่าง "รับ" กับ "เปิดแชต" และห้องวิดีโอตามชั่วโมงที่จ้าง
+
+   ช่องทางติดต่อนอกเว็บ (LINE, IG, เบอร์โทร) ไม่ส่งออกจาก API อีกแล้ว คอลัมน์ยังเก็บไว้ในฐานข้อมูล
 
    กันปั๊มคะแนน
-   - เห็นช่องทางติดต่อและรีวิวได้เฉพาะบัญชีที่ยืนยันอีเมลแล้ว
-   - รีวิวผูกกับการปรึกษาที่เมนเทอร์ยืนยันแล้ว หนึ่งการปรึกษาหนึ่งรีวิว (unique index ในฐานข้อมูล)
-   - เมนเทอร์ติดต่อหรือรีวิวตัวเองไม่ได้
+   - จ้างและรีวิวได้เฉพาะบัญชีที่ยืนยันอีเมลแล้ว
+   - รีวิวผูกกับงานที่นักเรียนกดเสร็จแล้ว หนึ่งงานหนึ่งรีวิว (unique index ในฐานข้อมูล)
+   - เมนเทอร์จ้างหรือรีวิวตัวเองไม่ได้
    - เปลี่ยนสถานะด้วย update แบบมีเงื่อนไขสถานะเดิม กดซ้ำหรือกดพร้อมกันจึงไม่เกิดผลสองครั้ง */
 
 export const consult = new Hono<AppEnv>();
@@ -46,14 +50,6 @@ const priceBody = z.object({
   price: z.number().int().min(0, 'ราคาต้องไม่ติดลบ').max(100000),
   minutes: z.number().int().min(1, 'ความยาวอย่างน้อย 1 นาที').max(600),
 });
-export const contactBody = z.object({
-  contactEmail: z.string().trim().max(200).refine((v) => !v || z.string().email().safeParse(v).success, 'อีเมลติดต่อไม่ถูกต้อง').default(''),
-  contactLine: z.string().trim().max(100).default(''),
-  contactPhone: z.string().trim().max(40).default(''),
-  contactInstagram: z.string().trim().max(100).default(''),
-  contactLink: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://').default(''),
-}).refine((v) => Object.values(v).some(Boolean), 'ใส่ช่องทางติดต่ออย่างน้อยหนึ่งช่อง');
-
 /** เมนเทอร์ที่ผ่านอนุมัติและผูกกับบัญชีแล้ว พร้อม user id ของเจ้าของ */
 async function approvedMentors(ids?: string[]) {
   return db.select({ mentor: mentors, userId: mentorSubmissions.userId, experience: mentorSubmissions.experience })
@@ -72,9 +68,6 @@ async function activeMemberIds(now = new Date()) {
     .where(and(lte(risingStarPeriods.startsAt, now), gt(risingStarPeriods.endsAt, now)));
   return new Set(rows.map((row) => row.mentorId));
 }
-const contactsOf = (m: typeof mentors.$inferSelect) => ({
-  email: m.contactEmail, line: m.contactLine, phone: m.contactPhone, instagram: m.contactInstagram, link: m.contactLink,
-});
 const card = (m: typeof mentors.$inferSelect) => ({
   id: m.id, name: m.name, initial: m.avatar.replace(/^[เแโใไ]+/, '').slice(0, 1) || m.avatar.slice(0, 1),
   specialty: m.weeklyFocus ?? m.bio, verified: m.verified,
@@ -141,18 +134,15 @@ consult.get('/mentors/:id', async (c) => {
   ]);
 
   const viewer = c.get('user');
-  let consultation: { id: string; status: string; reviewed: boolean } | null = null;
-  let contacts = null;
+  let hire: { id: string; status: string; reviewed: boolean; roomId: string | null } | null = null;
   if (viewer) {
-    const [latest] = await db.select({ id: consultations.id, status: consultations.status }).from(consultations)
+    const [latest] = await db.select({ id: consultations.id, status: consultations.status, roomId: consultations.roomId }).from(consultations)
       .where(and(eq(consultations.userId, viewer.id), eq(consultations.mentorId, m.id)))
       .orderBy(desc(consultations.createdAt)).limit(1);
     if (latest) {
       const [review] = await db.select({ id: mentorReviews.id }).from(mentorReviews).where(eq(mentorReviews.consultationId, latest.id));
-      consultation = { ...latest, reviewed: Boolean(review) };
+      hire = { ...latest, reviewed: Boolean(review) };
     }
-    // ช่องทางติดต่อเปิดให้เฉพาะคนที่ยืนยันอีเมลแล้วและเคยกด Contact Mentor กับเมนเทอร์คนนี้
-    if (viewer.emailVerified && latest && latest.status !== 'cancelled') contacts = contactsOf(m);
   }
 
   return c.json({
@@ -164,31 +154,8 @@ consult.get('/mentors/:id', async (c) => {
     competitions: offered,
     reviews: reviews.map((r) => ({ stars: r.stars, comment: r.comment, createdAt: r.createdAt, name: r.name.split(/\s+/)[0] })),
     viewer: viewer ? { signedIn: true, emailVerified: viewer.emailVerified, isSelf: row.userId === viewer.id } : null,
-    consultation,
-    contacts,
+    hire,
   });
-});
-
-consult.post('/mentors/:id/contact', requireUser, async (c) => {
-  const user = c.get('user')!;
-  if (!user.emailVerified) return fail('ยืนยันอีเมลก่อนจึงจะเห็นช่องทางติดต่อ', 403);
-  const [row] = await approvedMentors([c.req.param('id')]);
-  if (!row) return fail('ไม่พบเมนเทอร์', 404);
-  if (row.userId === user.id) return fail('ติดต่อตัวเองไม่ได้');
-  const body = await parse(c, z.object({ competition: z.string().max(200).nullish() }).nullable()) ?? {};
-  let competitionId: string | null = null;
-  if (body.competition) {
-    const [event] = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.slug, body.competition)).limit(1);
-    competitionId = event?.id ?? null;
-  }
-  // เปิดค้างได้รายการเดียวต่อคู่ (unique index) กดซ้ำได้รายการเดิมกลับมา
-  const [created] = await db.insert(consultations)
-    .values({ id: newId('cns'), userId: user.id, mentorId: row.mentor.id, competitionId })
-    .onConflictDoNothing().returning({ id: consultations.id, status: consultations.status });
-  const open = created ?? (await db.select({ id: consultations.id, status: consultations.status }).from(consultations)
-    .where(and(eq(consultations.userId, user.id), eq(consultations.mentorId, row.mentor.id), inArray(consultations.status, ['active', 'claimed'])))
-    .limit(1))[0];
-  return c.json({ consultation: open, contacts: contactsOf(row.mentor) }, created ? 201 : 200);
 });
 
 /* ---------- แถบ Consulting ของนักเรียน ---------- */
@@ -202,43 +169,20 @@ consult.get('/mine', requireUser, async (c) => {
     .leftJoin(mentorReviews, eq(mentorReviews.consultationId, consultations.id))
     .where(eq(consultations.userId, user.id))
     .orderBy(desc(consultations.createdAt));
+  // ห้องแชตที่ยังไม่ได้อ่าน ให้แถบ Consulting ขึ้นจุดแจ้งเตือน
+  const unread = await unreadByRoom(user.id);
   return c.json({
     emailVerified: user.emailVerified,
     items: rows.map((r) => ({
       id: r.consultation.id, status: r.consultation.status, createdAt: r.consultation.createdAt,
-      claimedAt: r.consultation.claimedAt, confirmedAt: r.consultation.confirmedAt,
+      acceptedAt: r.consultation.acceptedAt, completedAt: r.consultation.completedAt,
+      minutes: r.consultation.minutes, price: r.consultation.price, preferredAt: r.consultation.preferredAt,
+      note: r.consultation.note, reason: r.consultation.reason,
+      roomId: r.consultation.roomId, unread: r.consultation.roomId ? unread.get(r.consultation.roomId) ?? 0 : 0,
       mentor: card(r.mentor), competition: r.competitionSlug ? { slug: r.competitionSlug, name: r.competitionName } : null,
       review: r.reviewId ? { stars: r.stars } : null,
     })),
   });
-});
-
-/** เปลี่ยนสถานะเฉพาะเมื่อสถานะเดิมตรง กดซ้ำหรือพร้อมกันได้ผลครั้งเดียว */
-async function transition(id: string, where: ReturnType<typeof and>, set: Partial<typeof consultations.$inferInsert>) {
-  const [row] = await db.update(consultations).set(set).where(and(eq(consultations.id, id), where)).returning();
-  return row ?? null;
-}
-
-consult.post('/:id/claim', requireUser, async (c) => {
-  const user = c.get('user')!;
-  const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), eq(consultations.status, 'active')), { status: 'claimed', claimedAt: new Date() });
-  if (!row) return fail('รายการนี้ส่งไปแล้วหรือปิดไปแล้ว', 409);
-  const [owner] = await db.select({ email: users.email, name: mentors.name }).from(mentors)
-    .innerJoin(mentorSubmissions, and(eq(mentorSubmissions.publishedMentorId, mentors.id), eq(mentorSubmissions.status, 'published')))
-    .innerJoin(users, eq(users.id, mentorSubmissions.userId))
-    .where(eq(mentors.id, row.mentorId)).limit(1);
-  if (owner) {
-    await notify(owner.email, `${user.name} ขอให้ยืนยันการปรึกษา / Please confirm a consultation`,
-      `${user.name} บอกว่าได้รับคำแนะนำจากคุณแล้ว กดยืนยันได้ที่ Mentor zone\n${user.name} says you gave them guidance. Confirm it in your Mentor zone:\n\n${env.appOrigin}/mentor-zone#confirm-${row.id}`);
-  }
-  return c.json({ ok: true, status: row.status });
-});
-
-consult.post('/:id/cancel', requireUser, async (c) => {
-  const user = c.get('user')!;
-  const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), inArray(consultations.status, ['active', 'claimed'])), { status: 'cancelled', cancelledAt: new Date() });
-  if (!row) return fail('ยกเลิกไม่ได้ เมนเทอร์ยืนยันแล้วหรือรายการปิดไปแล้ว', 409);
-  return c.json({ ok: true, status: row.status });
 });
 
 consult.post('/:id/review', requireUser, async (c) => {
@@ -251,13 +195,13 @@ consult.post('/:id/review', requireUser, async (c) => {
   const [row] = await db.select().from(consultations)
     .where(and(eq(consultations.id, c.req.param('id')), eq(consultations.userId, user.id))).limit(1);
   if (!row) return fail('ไม่พบรายการนี้', 404);
-  if (row.status !== 'confirmed') return fail('รีวิวได้หลังเมนเทอร์ยืนยันการปรึกษาแล้ว', 409);
+  if (row.status !== 'completed') return fail('รีวิวได้หลังกดเสร็จงานแล้ว', 409);
   const owner = await ownMentor(user.id);
   if (owner?.id === row.mentorId) return fail('รีวิวตัวเองไม่ได้', 403);
   const [created] = await db.insert(mentorReviews)
     .values({ id: newId('rvw'), consultationId: row.id, userId: user.id, mentorId: row.mentorId, stars: body.stars, comment: body.comment })
     .onConflictDoNothing().returning({ id: mentorReviews.id });
-  if (!created) return fail('รีวิวการปรึกษานี้ไปแล้ว', 409);
+  if (!created) return fail('รีวิวงานนี้ไปแล้ว', 409);
   return c.json({ ok: true }, 201);
 });
 
@@ -277,32 +221,33 @@ consult.get('/zone', requireUser, async (c) => {
     db.select({ slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt, description: competitions.description, sourceUrl: competitions.sourceUrl })
       .from(competitions).where(sql`${competitions.closesAt} >= (now() at time zone 'Asia/Bangkok')::date`).orderBy(competitions.closesAt),
     db.select().from(competitionRequests).where(eq(competitionRequests.mentorId, mentor.id)).orderBy(desc(competitionRequests.createdAt)),
-    db.select({ id: consultations.id, status: consultations.status, claimedAt: consultations.claimedAt, createdAt: consultations.createdAt, student: users.name })
+    db.select({ hire: consultations, student: users.name, competitionName: competitions.name, competitionSlug: competitions.slug })
       .from(consultations).innerJoin(users, eq(users.id, consultations.userId))
-      .where(and(eq(consultations.mentorId, mentor.id), inArray(consultations.status, ['active', 'claimed'])))
-      .orderBy(desc(consultations.createdAt)),
+      .leftJoin(competitions, eq(competitions.id, consultations.competitionId))
+      .where(eq(consultations.mentorId, mentor.id))
+      .orderBy(desc(consultations.createdAt)).limit(100),
     ratingsBetween(month.start, month.end),
     activeMemberIds(now),
   ]);
+  const unread = await unreadByRoom(user.id);
   return c.json({
-    mentor: { ...card(mentor), risingStar: members.has(mentor.id), rating: ratingJson(monthly.get(mentor.id)), contacts: contactsOf(mentor), price: mentor.price, minutes: mentor.minutes },
+    mentor: { ...card(mentor), risingStar: members.has(mentor.id), rating: ratingJson(monthly.get(mentor.id)), price: mentor.price, minutes: mentor.minutes },
     competitions: chosen,
     available: open,
     requests: requests.map((r) => ({ id: r.id, name: r.name, url: r.url, details: r.details, price: r.price, minutes: r.minutes, status: r.status, reason: r.reason, createdAt: r.createdAt })),
-    consultations: pending.map((p) => ({ ...p, student: p.student.split(/\s+/)[0] })),
+    hires: pending.map(({ hire, student, competitionName, competitionSlug }) => ({
+      id: hire.id, status: hire.status, createdAt: hire.createdAt, acceptedAt: hire.acceptedAt, completedAt: hire.completedAt,
+      minutes: hire.minutes, price: hire.price, preferredAt: hire.preferredAt, note: hire.note, reason: hire.reason,
+      roomId: hire.roomId, unread: hire.roomId ? unread.get(hire.roomId) ?? 0 : 0,
+      student: student.split(/\s+/)[0],
+      competition: competitionSlug ? { slug: competitionSlug, name: competitionName } : null,
+    })),
   });
 });
 
 async function requireOwnMentor(userId: string) {
   return await ownMentor(userId) ?? fail('ต้องเป็นเมนเทอร์ที่ผ่านอนุมัติ', 403);
 }
-
-consult.patch('/zone/contacts', requireUser, async (c) => {
-  const mentor = await requireOwnMentor(c.get('user')!.id);
-  const body = await parse(c, contactBody);
-  await db.update(mentors).set(body).where(eq(mentors.id, mentor.id));
-  return c.json({ ok: true });
-});
 
 consult.put('/zone/competitions/:slug', requireUser, async (c) => {
   const mentor = await requireOwnMentor(c.get('user')!.id);
@@ -339,9 +284,119 @@ consult.post('/zone/requests', requireUser, async (c) => {
   return c.json({ id }, 201);
 });
 
-consult.post('/:id/confirm', requireUser, async (c) => {
+/* ---------- จ้างเมนเทอร์ ---------- */
+
+const hireBody = z.object({
+  competition: z.string().trim().min(1, 'เลือกงานแข่ง').max(200),
+  hours: z.number().int().min(1, 'จ้างอย่างน้อย 1 ชั่วโมง').max(10, 'จ้างได้ไม่เกิน 10 ชั่วโมงต่อครั้ง'),
+  preferredAt: z.string().datetime({ offset: true }).nullish(),
+  note: z.string().trim().min(1, 'บอกเมนเทอร์สั้น ๆ ว่าอยากให้ช่วยเรื่องอะไร').max(1500),
+});
+
+/** อีเมลถึงอีกฝั่ง ล้มเหลวได้โดยไม่ทำให้คำขอพัง (notify จัดการเอง) */
+async function mentorEmail(mentorId: string) {
+  const [row] = await db.select({ email: users.email, userId: users.id }).from(mentorSubmissions)
+    .innerJoin(users, eq(users.id, mentorSubmissions.userId))
+    .where(and(eq(mentorSubmissions.publishedMentorId, mentorId), eq(mentorSubmissions.status, 'published'))).limit(1);
+  return row ?? null;
+}
+
+consult.post('/mentors/:id/hire', requireUser, async (c) => {
+  const user = c.get('user')!;
+  // ยืนยันอีเมลก่อนจ้าง กันบัญชีปลอมยิงคำขอใส่เมนเทอร์ และใช้อีเมลนี้แจ้งผลการจ้าง
+  if (!user.emailVerified) return fail('ยืนยันอีเมลก่อนจึงจะจ้างเมนเทอร์ได้', 403);
+  const [row] = await approvedMentors([c.req.param('id')]);
+  if (!row) return fail('ไม่พบเมนเทอร์', 404);
+  if (row.userId === user.id) return fail('จ้างตัวเองไม่ได้');
+  const body = await parse(c, hireBody);
+  if (body.preferredAt && new Date(body.preferredAt) <= new Date()) return fail('เลือกเวลาในอนาคต');
+  // ราคามาจากงานที่เมนเทอร์เปิดรับเท่านั้น ราคาที่หน้าเว็บส่งมาไม่นับ
+  const [offer] = await db.select({ competitionId: competitions.id, name: competitions.name, price: mentorCompetitionChoices.price, minutes: mentorCompetitionChoices.minutes })
+    .from(mentorCompetitionChoices).innerJoin(competitions, eq(competitions.id, mentorCompetitionChoices.competitionId))
+    .where(and(eq(mentorCompetitionChoices.mentorId, row.mentor.id), eq(mentorCompetitionChoices.choice, 'help'), eq(competitions.slug, body.competition)))
+    .limit(1);
+  if (!offer || offer.price == null || !offer.minutes) return fail('เมนเทอร์ไม่ได้รับปรึกษางานนี้', 409);
+  const minutes = body.hours * 60;
+  const price = Math.ceil(offer.price * minutes / offer.minutes);
+  // ค้างได้ทีละหนึ่งงานต่อคู่ (unique index) ส่งซ้ำได้งานเดิมกลับมา
+  const [created] = await db.insert(consultations).values({
+    id: newId('hire'), userId: user.id, mentorId: row.mentor.id, competitionId: offer.competitionId,
+    minutes, price, preferredAt: body.preferredAt ? new Date(body.preferredAt) : null, note: body.note,
+  }).onConflictDoNothing().returning({ id: consultations.id, status: consultations.status });
+  if (!created) return fail('มีงานที่ยังไม่เสร็จกับเมนเทอร์คนนี้อยู่แล้ว ดูได้ที่แถบการปรึกษา', 409);
+  const owner = await mentorEmail(row.mentor.id);
+  if (owner) {
+    await notify(owner.email, `คำขอจ้างใหม่จาก ${user.name} / New hire request`,
+      `${user.name} ขอจ้างคุณ ${body.hours} ชั่วโมง สำหรับ ${offer.name} รวม ${price.toLocaleString('th-TH')} บาท\n`
+      + `${user.name} wants to hire you for ${body.hours} hour(s) on ${offer.name}, ${price} THB in total.\n\n${env.appOrigin}/mentor-zone#hire-${created.id}`);
+  }
+  return c.json({ hire: created }, 201);
+});
+
+/** เปลี่ยนสถานะเฉพาะเมื่อสถานะเดิมตรง กดซ้ำหรือกดพร้อมกันได้ผลครั้งเดียว */
+async function transition(id: string, where: ReturnType<typeof and>, set: Partial<typeof consultations.$inferInsert>) {
+  const [row] = await db.update(consultations).set(set).where(and(eq(consultations.id, id), where)).returning();
+  return row ?? null;
+}
+async function emailMember(userId: string, subject: string, body: string) {
+  const [member] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId));
+  if (member) await notify(member.email, subject, body);
+}
+
+consult.post('/:id/accept', requireUser, async (c) => {
+  const user = c.get('user')!;
+  const mentor = await requireOwnMentor(user.id);
+  const roomId = await db.transaction(async (tx) => {
+    const [hire] = await tx.select().from(consultations)
+      .where(and(eq(consultations.id, c.req.param('id')), eq(consultations.mentorId, mentor.id))).for('update');
+    if (!hire) return fail('ไม่พบคำขอนี้', 404);
+    if (hire.status !== 'requested') return fail('คำขอนี้ถูกตอบไปแล้วหรือถูกยกเลิก', 409);
+    /* ห้องแชตหนึ่งห้องต่อคู่นักเรียนกับเมนเทอร์ จ้างครั้งต่อไปใช้ห้องเดิม ประวัติจะได้อยู่ที่เดียว
+       ล็อกแถวเมนเทอร์ก่อนหา/สร้างห้อง กันกดรับสองงานของคู่เดียวกันพร้อมกันแล้วได้สองห้อง */
+    await tx.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentor.id)).for('update');
+    const [existing] = await tx.select({ id: chatRooms.id }).from(chatRooms)
+      .where(and(eq(chatRooms.ownerId, hire.userId), eq(chatRooms.mentorId, mentor.id))).orderBy(desc(chatRooms.createdAt)).limit(1);
+    const room = existing?.id ?? newId('room');
+    if (!existing) {
+      await tx.insert(chatRooms).values({
+        id: room, ownerId: hire.userId, mentorUserId: user.id, mentorId: mentor.id, competitionId: hire.competitionId,
+        title: mentor.name, context: hire.note, status: 'active',
+      });
+    } else {
+      await tx.update(chatRooms).set({ status: 'active' }).where(eq(chatRooms.id, room));
+    }
+    await tx.insert(chatMembers).values([{ roomId: room, userId: hire.userId }, { roomId: room, userId: user.id }]).onConflictDoNothing();
+    await tx.update(consultations).set({ status: 'accepted', acceptedAt: new Date(), roomId: room }).where(eq(consultations.id, hire.id));
+    return { room, userId: hire.userId };
+  });
+  await emailMember(roomId.userId, `${mentor.name} รับงานของคุณแล้ว / Your mentor accepted`,
+    `${mentor.name} รับงานแล้ว คุยกันต่อได้ในแชต\n${mentor.name} accepted your request. Continue in the chat:\n\n${env.appOrigin}/consulting#room-${roomId.room}`);
+  return c.json({ ok: true, roomId: roomId.room });
+});
+
+consult.post('/:id/decline', requireUser, async (c) => {
   const mentor = await requireOwnMentor(c.get('user')!.id);
-  const row = await transition(c.req.param('id'), and(eq(consultations.mentorId, mentor.id), eq(consultations.status, 'claimed')), { status: 'confirmed', confirmedAt: new Date() });
-  if (!row) return fail('ยืนยันไม่ได้ นักเรียนยังไม่ได้กดว่าได้รับคำแนะนำ หรือรายการปิดไปแล้ว', 409);
+  const body = await parse(c, z.object({ reason: z.string().trim().min(1, 'บอกเหตุผลสั้น ๆ ให้นักเรียนทราบ').max(1000) }));
+  const row = await transition(c.req.param('id'), and(eq(consultations.mentorId, mentor.id), eq(consultations.status, 'requested')),
+    { status: 'declined', reason: body.reason, cancelledAt: new Date() });
+  if (!row) return fail('คำขอนี้ถูกตอบไปแล้วหรือถูกยกเลิก', 409);
+  await emailMember(row.userId, `${mentor.name} ไม่สะดวกรับงานนี้ / Your mentor declined`, `${body.reason}\n\n${env.appOrigin}/consulting`);
+  return c.json({ ok: true, status: row.status });
+});
+
+consult.post('/:id/cancel', requireUser, async (c) => {
+  const user = c.get('user')!;
+  const body = await parse(c, z.object({ reason: z.string().trim().max(1000).default('') }).nullable()) ?? { reason: '' };
+  const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), inArray(consultations.status, ['requested', 'accepted'])),
+    { status: 'cancelled', reason: body.reason, cancelledAt: new Date() });
+  if (!row) return fail('ยกเลิกไม่ได้ งานนี้เสร็จแล้วหรือปิดไปแล้ว', 409);
+  return c.json({ ok: true, status: row.status });
+});
+
+consult.post('/:id/complete', requireUser, async (c) => {
+  const user = c.get('user')!;
+  const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), eq(consultations.status, 'accepted')),
+    { status: 'completed', completedAt: new Date() });
+  if (!row) return fail('กดเสร็จงานได้หลังเมนเทอร์รับงานแล้วเท่านั้น', 409);
   return c.json({ ok: true, status: row.status });
 });

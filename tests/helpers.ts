@@ -1,11 +1,12 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { Page } from '@playwright/test';
 import { like } from 'drizzle-orm';
 import { db, client } from '../server/db/client';
 import {
   competitionCategories, competitionLevels, competitionRewards, competitionRequests, competitions,
-  emailVerifications, mentorCompetitionChoices, mentorSubmissions, mentors, reviewEvents, sessions, users,
+  chatMembers, chatMessages, chatRooms, consultations, emailVerifications, mentorCompetitionChoices, mentorSubmissions,
+  mentors, reviewEvents, sessions, users,
 } from '../server/db/schema';
 import { hashPassword } from '../server/lib/password';
 import { newId } from '../server/lib/id';
@@ -143,4 +144,38 @@ export async function removeListings(namePrefix: string) {
 
 export async function closeDb() {
   await client.end();
+}
+
+/** งานจ้างที่สร้างตรงในฐานข้อมูล (ข้ามหน้าเว็บ) ใช้เตรียมสถานะต่าง ๆ ให้เทสที่ไม่ได้ทดสอบขั้นส่งคำขอหรือรับงานเอง
+    accepted และ completed มีห้องแชตพร้อมสมาชิกสองฝั่ง เหมือนที่ปุ่ม "รับงาน" สร้างให้ */
+export async function createHire(
+  fixture: MentorFixture,
+  student: TestAccount,
+  status: 'requested' | 'accepted' | 'declined' | 'cancelled' | 'completed' = 'requested',
+  options: { hours?: number; note?: string; reason?: string } = {},
+) {
+  const hours = options.hours ?? 2;
+  const id = `hire-${randomUUID().slice(0, 8)}`;
+  let roomId: string | null = null;
+  if (status === 'accepted' || status === 'completed') {
+    roomId = `room-${randomUUID().slice(0, 8)}`;
+    await db.insert(chatRooms).values({
+      id: roomId, ownerId: student.id, mentorUserId: fixture.owner.id, mentorId: fixture.mentorId, competitionId: fixture.competition.id,
+      title: fixture.name, context: options.note ?? 'Help with my pitch', status: 'active',
+    });
+    await db.insert(chatMembers).values([{ roomId, userId: student.id }, { roomId, userId: fixture.owner.id }]);
+  }
+  await db.insert(consultations).values({
+    id, userId: student.id, mentorId: fixture.mentorId, competitionId: fixture.competition.id, status,
+    minutes: hours * 60, price: 500 * hours, note: options.note ?? 'Help with my pitch', reason: options.reason ?? '', roomId,
+    acceptedAt: roomId ? new Date() : null, completedAt: status === 'completed' ? new Date() : null,
+  });
+  return { id, roomId };
+}
+
+/** ข้อความในห้องแชต ใส่ตรงในฐานข้อมูล เวลาหน่วงเล็กน้อยให้เรียงถูกลำดับ */
+export async function addMessage(roomId: string, senderId: string, body: string) {
+  const id = `msg-${randomUUID().slice(0, 8)}`;
+  await db.insert(chatMessages).values({ id, roomId, senderId, clientId: randomUUID(), body });
+  return id;
 }

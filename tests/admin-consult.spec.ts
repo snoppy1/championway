@@ -84,7 +84,7 @@ test('a competition request needs a slug to approve and a reason to reject', asy
 test('a reviewer hides a suspicious review, it stops counting, and it can be shown again', async ({ page }) => {
   const consultationId = newId('cns');
   await db.insert(consultations).values({
-    id: consultationId, userId: reviewer.id, mentorId: fixture.mentorId, status: 'confirmed', confirmedAt: new Date(),
+    id: consultationId, userId: reviewer.id, mentorId: fixture.mentorId, status: 'completed', completedAt: new Date(),
   });
   const comment = `Suspicious review ${fixture.mentorId}`;
   await db.insert(mentorReviews).values({ id: newId('rvw'), consultationId, userId: reviewer.id, mentorId: fixture.mentorId, stars: 5, comment });

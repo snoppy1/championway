@@ -137,8 +137,9 @@ async function insertRisingStarDemo(tx: Tx) {
         const at = new Date(start.getTime() + step * (n + 1));
         const consultationId = newId('cns');
         consultationRows.push({
-          id: consultationId, userId: DEMO_STUDENT, mentorId, competitionId: events[0].id, status: 'confirmed',
-          createdAt: new Date(at.getTime() - 2000), claimedAt: new Date(at.getTime() - 1000), confirmedAt: at,
+          id: consultationId, userId: DEMO_STUDENT, mentorId, competitionId: events[0].id, status: 'completed',
+          minutes: 60, price: 500, note: 'งานตัวอย่าง',
+          createdAt: new Date(at.getTime() - 2000), acceptedAt: new Date(at.getTime() - 1000), completedAt: at,
         });
         reviewRows.push({ id: newId('rvw'), consultationId, userId: DEMO_STUDENT, mentorId, stars: value, comment: 'รีวิวตัวอย่าง', createdAt: at });
       }

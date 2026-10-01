@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, ExternalLink } from 'lucide-react';
+import { ArrowLeft, BadgeCheck } from 'lucide-react';
 import { post } from '../lib/api';
 import { useApi } from '../lib/useApi';
-import { consultError, contactHref, contactKeys } from '../data/consult';
-import type { ConsultStatus, Contacts, MentorCard, Rating as RatingValue } from '../data/consult';
-import { ConsultFlow } from '../components/ConsultFlow';
+import { consultError, hireTotal } from '../data/consult';
+import type { HireStatus, MentorCard, Rating as RatingValue } from '../data/consult';
+import { HireSteps } from '../components/hire';
 import { Avatar, Rating, RisingStarPill, StarIcon } from '../components/mentors';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useAuth } from '../data/auth';
@@ -14,22 +14,23 @@ import { useI18n } from '../i18n';
 import { formatDate, formatInputDate } from '../i18n/format';
 import '../consult.css';
 
-/* โปรไฟล์เมนเทอร์สาธารณะ กับทางติดต่อที่เกิดขึ้นนอกเว็บ
-   นักเรียนกด Contact mentor → เห็นช่องทางติดต่อ → คุยกันที่อื่น → กลับมากด I received guidance
-   เมนเทอร์ยืนยัน → นักเรียนรีวิวได้หนึ่งครั้ง ทั้งหมดอ่านจาก GET /api/consult/mentors/:id คำขอเดียว
-   ช่องทางติดต่อเซิร์ฟเวอร์ส่งมาเฉพาะคนที่ยืนยันอีเมลแล้วและเคยกด Contact mentor หน้านี้ไม่ได้เดาเอง */
+/* โปรไฟล์เมนเทอร์สาธารณะ กับฟอร์มจ้าง (1 ต.ค. 2569: จ้างผ่านเว็บและคุยในแชตของเว็บ)
+   นักเรียนเลือกเวทีที่เมนเทอร์เปิดรับ ใส่จำนวนชั่วโมง เวลาที่อยากนัด และสิ่งที่อยากให้ช่วย → เห็นราคารวมสด → ส่งคำขอ
+   เมนเทอร์รับ → ห้องแชตเปิด (อยู่ในหน้า Consulting) หน้านี้ไม่มีแชต แค่บอกว่างานอยู่ขั้นไหนและพาไปต่อ
+   ราคารวมที่แสดงเป็นแค่ตัวช่วยดู เซิร์ฟเวอร์คิดจากราคาที่เมนเทอร์ตั้งไว้เองเสมอ
+   ขั้นชำระเงินและปุ่มเข้าห้องวิดีโอจะมาเติมในบรรทัดขั้นตอนและแถวปุ่มของการ์ดงานโดยไม่ต้องจัดหน้าใหม่ */
 
+type Offer = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null };
 type Payload = {
   mentor: MentorCard & {
     bio: string; experience: string; best: string; cannot: string;
     risingStar: boolean; rating: RatingValue; allTime: RatingValue;
     price: number | null; minutes: number | null;
   };
-  competitions: { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null }[];
+  competitions: Offer[];
   reviews: { stars: number; comment: string; createdAt: string; name: string }[];
   viewer: null | { signedIn: boolean; emailVerified: boolean; isSelf: boolean };
-  consultation: null | { id: string; status: ConsultStatus; reviewed: boolean };
-  contacts: Contacts | null;
+  hire: null | { id: string; status: HireStatus; reviewed: boolean; roomId: string | null };
 };
 
 function StarsRow({ stars }: { stars: number }) {
@@ -40,108 +41,107 @@ function StarsRow({ stars }: { stars: number }) {
   </span>;
 }
 
-/* ขั้นปัจจุบันของนักเรียนกับเมนเทอร์คนนี้ ไม่เคยติดต่อหรือยกเลิกแล้วคือขั้น 1
-   กดติดต่อแล้วและรอเมนเทอร์ยืนยันคือขั้น 2 เมนเทอร์ยืนยันแล้ว (รวมรีวิวแล้ว) คือขั้น 3 */
-function currentStep(consultation: Payload['consultation']) {
-  if (!consultation || consultation.status === 'cancelled') return 0;
-  return consultation.status === 'confirmed' ? 2 : 1;
-}
+/** เวลาที่อยากนัดเป็นเวลาไทยเสมอ ไม่ใช้เขตเวลาของเครื่อง (ช่อง datetime-local ไม่มีเขตเวลา) */
+const toIso = (local: string) => new Date(`${local}+07:00`).toISOString();
 
-/** บรรทัดขั้นตอนธรรมดา ขั้นปัจจุบันตัวหนา ไม่ใช้ชิปตัวเลข */
-function Steps({ current }: { current: number }) {
-  const { t } = useI18n();
-  return <p className="cx-steps" aria-label={t.consult.stepsLabel}>
-    {t.consult.steps.map((step, index) => <span key={step}>
-      {index > 0 && <span aria-hidden="true"> · </span>}
-      {index === current ? <strong aria-current="step">{step}</strong> : step}
-    </span>)}
-  </p>;
-}
-
-function ContactList({ contacts }: { contacts: Contacts }) {
+function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; offers: Offer[]; initial: string; onDone: () => Promise<void> }) {
   const { t } = useI18n();
   const s = t.mentorProfile;
-  return <section aria-labelledby="channels-title">
-    <h3 id="channels-title" tabIndex={-1}>{s.channelsTitle}</h3>
-    <dl className="cx-contacts">
-      {contactKeys.map((key) => {
-        const value = contacts[key].trim();
-        const href = contactHref(key, value);
-        // ช่องที่ว่างแสดงเป็น "-" ตามที่ผู้ใช้สั่ง แถวบีบให้เตี้ยเพื่อไม่กินที่ ค่าที่กรอกแล้วกดได้ทุกช่อง
-        let content;
-        if (!value) content = <><span aria-hidden="true">-</span><span className="sr-only">{s.notProvided}</span></>;
-        else if (!href) content = value;
-        else if (key === 'link') content = <a href={href} target="_blank" rel="noopener noreferrer">{value}<ExternalLink size={14} aria-hidden="true" /></a>;
-        else if (key === 'email' || key === 'phone') content = <a href={href}>{value}</a>;
-        else content = <a href={href} target="_blank" rel="noopener noreferrer">{value}</a>;
-        return <div key={key}><dt>{s.channels[key]}</dt><dd>{content}</dd></div>;
-      })}
-    </dl>
-  </section>;
-}
-
-function ContactForm({ mentorId, competitions, initial, again, onDone }: {
-  mentorId: string;
-  competitions: Payload['competitions'];
-  initial: string;
-  again: boolean;
-  onDone: () => Promise<void>;
-}) {
-  const { t } = useI18n();
-  const s = t.mentorProfile;
-  const [about, setAbout] = useState(initial);
+  const [slug, setSlug] = useState(offers.some((offer) => offer.slug === initial) ? initial : offers[0].slug);
+  const [hours, setHours] = useState('1');
+  const [when, setWhen] = useState('');
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const hoursRef = useRef<HTMLInputElement>(null);
+  const whenRef = useRef<HTMLInputElement>(null);
+  const uid = useId();
+
+  const offer = offers.find((item) => item.slug === slug)!;
+  const count = Number(hours);
+  const validHours = hours.trim() !== '' && Number.isInteger(count) && count >= 1 && count <= 10;
+  const total = useMemo(
+    () => (validHours && offer.price !== null && offer.minutes ? hireTotal(offer.price, offer.minutes, count) : null),
+    [validHours, offer, count],
+  );
+  const rate = t.price.line(offer.price, offer.minutes);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    const fail = (text: string, focus?: HTMLElement | null) => { setMessage(text); focus?.focus(); };
+    if (!validHours) return fail(s.badHours, hoursRef.current);
+    if (when && new Date(`${when}+07:00`).getTime() <= Date.now()) return fail(s.pastTime, whenRef.current);
+    if (!note.trim()) return fail(s.needNote, noteRef.current);
     setBusy(true);
     setMessage('');
     try {
-      await post(`/consult/mentors/${encodeURIComponent(mentorId)}/contact`, about ? { competition: about } : {});
+      await post(`/consult/mentors/${encodeURIComponent(mentorId)}/hire`, {
+        competition: slug, hours: count, note: note.trim(), ...(when ? { preferredAt: toIso(when) } : {}),
+      });
       await onDone();
     } catch (failure) {
-      setMessage(consultError(failure, t));
-    } finally {
+      setMessage(consultError(failure, t, 'hire'));
       setBusy(false);
     }
   }
 
-  return <form className="cx-contact-form" onSubmit={(event) => { void submit(event); }}>
-    {competitions.length > 0 && <div className="cx-field">
-      <label htmlFor="contact-about">{s.aboutLabel}</label>
-      <select id="contact-about" value={about} disabled={busy} onChange={(event) => setAbout(event.target.value)}>
-        <option value="">{s.aboutNone}</option>
-        {competitions.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}
+  return <form className="cx-form cx-hire-form" onSubmit={(event) => { void submit(event); }} noValidate>
+    <div className="cx-field">
+      <label htmlFor={`${uid}-competition`}>{s.competitionLabel}</label>
+      <select id={`${uid}-competition`} value={slug} disabled={busy} onChange={(event) => setSlug(event.target.value)}>
+        {offers.map((item) => <option key={item.slug} value={item.slug}>{s.competitionOption(item.name, t.price.line(item.price, item.minutes))}</option>)}
       </select>
-    </div>}
+    </div>
+    <div className="cx-grid-2">
+      <div className="cx-field">
+        <label htmlFor={`${uid}-hours`}>{s.hoursLabel}</label>
+        <input id={`${uid}-hours`} ref={hoursRef} type="number" inputMode="numeric" min={1} max={10} step={1} value={hours}
+          disabled={busy} aria-describedby={`${uid}-hours-hint`} onChange={(event) => { setHours(event.target.value); setMessage(''); }} />
+        <p className="cx-hint" id={`${uid}-hours-hint`}>{s.hoursHint}</p>
+      </div>
+      <div className="cx-field">
+        <label htmlFor={`${uid}-when`}>{s.whenLabel}</label>
+        <input id={`${uid}-when`} ref={whenRef} type="datetime-local" value={when} disabled={busy} aria-describedby={`${uid}-when-hint`}
+          onChange={(event) => { setWhen(event.target.value); setMessage(''); }} />
+        <p className="cx-hint" id={`${uid}-when-hint`}>{s.whenHint}</p>
+      </div>
+    </div>
+    <div className="cx-field">
+      <label htmlFor={`${uid}-note`}>{s.noteLabel}</label>
+      <textarea id={`${uid}-note`} ref={noteRef} rows={4} maxLength={1500} value={note} disabled={busy} aria-describedby={`${uid}-note-hint`}
+        onChange={(event) => { setNote(event.target.value); setMessage(''); }} />
+      <p className="cx-hint" id={`${uid}-note-hint`}>{s.noteHint}</p>
+    </div>
+
+    {/* ราคารวมสด: ที่ว่างข้างล่างนี้คือจุดที่ขั้นชำระเงินจะมาต่อ */}
+    <div className="cx-total" aria-live="polite">
+      <span className="cx-total__label">{s.totalLabel}</span>
+      <strong className="cx-total__value">{total === null ? '-' : t.price.total(total)}</strong>
+      {total !== null && <span className="cx-hint">{s.totalDetail(count, rate)}</span>}
+    </div>
+    <p className="cx-hint">{s.totalNote}</p>
+
     <p className="cx-message cx-message--error" role="alert">{message}</p>
-    <button className="primary-button cx-button" disabled={busy}>
-      {busy ? s.contacting : again ? t.consult.contactAgain : s.contactCta}
-    </button>
+    <button className="primary-button cx-button" disabled={busy}>{busy ? s.sending : s.submit}</button>
   </form>;
 }
 
-function ContactPanel({ data, competition, reload }: { data: Payload; competition: string; reload: () => Promise<void> }) {
+function HirePanel({ data, competition, reload }: { data: Payload; competition: string; reload: () => Promise<void> }) {
   const { t } = useI18n();
   const s = t.mentorProfile;
-  const { viewer, consultation, contacts, mentor } = data;
-  const signInHref = `/signin?next=${encodeURIComponent(`/mentors/${mentor.id}${competition ? `?competition=${competition}` : ''}`)}`;
-  const initial = data.competitions.some((item) => item.slug === competition) ? competition : '';
-  const finished = consultation?.status === 'cancelled' || (consultation?.status === 'confirmed' && consultation.reviewed);
-
-  // กดติดต่อแล้วปุ่มหายไป โฟกัสต้องไปอยู่ที่ช่องทางติดต่อที่เพิ่งขึ้นมา ไม่ใช่หลุดไปที่หน้าเปล่า
-  const lastStatus = useRef(consultation?.status);
-  useEffect(() => {
-    if (consultation?.status === 'active' && lastStatus.current !== 'active') document.getElementById('channels-title')?.focus();
-    lastStatus.current = consultation?.status;
-  }, [consultation?.status]);
+  const c = t.consult;
+  const { viewer, hire, mentor } = data;
+  const next = `/mentors/${mentor.id}${competition ? `?competition=${encodeURIComponent(competition)}` : ''}`;
+  const offers = data.competitions.filter((item) => item.price !== null && item.minutes);
+  // งานที่ยังดำเนินอยู่ หรือเสร็จแล้วแต่ยังไม่รีวิว: ไม่ให้ส่งคำขอซ้อน พาไปทำต่อที่ Consulting
+  const open = hire && (hire.status === 'requested' || hire.status === 'accepted' || (hire.status === 'completed' && !hire.reviewed));
 
   let body;
   if (!viewer) {
     body = <>
       <p>{s.signInText}</p>
-      <p><Link className="primary-button cx-button" to={signInHref}>{s.signIn}</Link></p>
+      <p><Link className="primary-button cx-button" to={`/signin?next=${encodeURIComponent(next)}`}>{s.signIn}</Link></p>
     </>;
   } else if (viewer.isSelf) {
     body = <>
@@ -150,20 +150,27 @@ function ContactPanel({ data, competition, reload }: { data: Payload; competitio
     </>;
   } else if (!viewer.emailVerified) {
     body = <VerifyEmailNotice />;
+  } else if (open && hire) {
+    const link = hire.roomId ? `/consulting#room-${hire.roomId}` : `/consulting#hire-${hire.id}`;
+    body = <>
+      <h3>{s.openHireTitle}</h3>
+      <HireSteps status={hire.status} />
+      <p className="cx-flow-note">{hire.status === 'requested' ? c.requestedNote : hire.status === 'accepted' ? c.acceptedNote : c.completedNote}</p>
+      <p><Link className={hire.status === 'accepted' || hire.status === 'completed' ? 'primary-button cx-button' : 'ghost-button cx-button'} to={link}>
+        {hire.status === 'accepted' ? c.openChat : hire.status === 'completed' ? c.writeReview : c.openInConsulting}</Link></p>
+    </>;
+  } else if (offers.length === 0) {
+    body = <p>{s.noOffers}</p>;
   } else {
     body = <>
-      <Steps current={currentStep(consultation)} />
-      {contacts && <ContactList contacts={contacts} />}
-      {consultation && <ConsultFlow consultation={consultation} onChange={reload} />}
-      {(!consultation || finished) && <ContactForm
-        mentorId={mentor.id} competitions={data.competitions} initial={initial} again={Boolean(consultation)} onDone={reload}
-      />}
+      <HireSteps status={null} />
+      <HireForm mentorId={mentor.id} offers={offers} initial={competition} onDone={reload} />
     </>;
   }
 
-  return <section className="panel cx-contact" aria-labelledby="contact-title">
-    <h2 id="contact-title">{s.contactTitle}</h2>
-    {!consultation && <p className="cx-lead">{s.contactIntro}</p>}
+  return <section className="panel cx-contact" aria-labelledby="hire-title">
+    <h2 id="hire-title">{s.hireTitle}</h2>
+    {!open && viewer && !viewer.isSelf && viewer.emailVerified && <p className="cx-lead">{s.hireIntro}</p>}
     {body}
   </section>;
 }
@@ -228,7 +235,7 @@ export function MentorProfile() {
     </header>
 
     <div className="cx-layout">
-      <ContactPanel data={data} competition={competition} reload={reloadAsync} />
+      <HirePanel data={data} competition={competition} reload={reloadAsync} />
 
       <div className="cx-main">
         <section className="panel" aria-labelledby="about-title">

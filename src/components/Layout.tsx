@@ -4,7 +4,10 @@ import { BookmarkSimple } from './icons';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { isReviewer, useAuth } from '../data/auth';
 import { useSavedSlugs } from '../data/saved';
+import { api } from '../lib/api';
 import { useApi } from '../lib/useApi';
+import { CHAT_CHANGED } from './ChatPanel';
+import { UnreadBadge } from './hire';
 import trophy from '../assets/trophy.png';
 import { useI18n } from '../i18n';
 
@@ -32,6 +35,30 @@ function Header() {
   /* เมนเทอร์ที่ผ่านอนุมัติเห็น Mentor zone คนอื่นที่เข้าสู่ระบบเห็น Consulting
      ระหว่างรอคำตอบยังไม่แสดงทั้งสองอย่าง จะได้ไม่เห็นป้ายเปลี่ยนกลางทาง */
   const { data: consultMe } = useApi<{ mentorId: string | null }>(user ? '/consult/me' : null);
+  /* ข้อความแชตที่ยังไม่อ่านรวมทุกห้อง ขึ้นเป็นจุดบนแท็บ Consulting / Mentor zone
+     ถามทุก 20 วินาทีตอนแท็บมองเห็น และถามใหม่ทันทีที่แชตอ่านหรือส่งข้อความ (CHAT_CHANGED) */
+  const [unread, setUnread] = useState(0);
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) { setUnread(0); return; }
+    let alive = true;
+    const load = () => {
+      if (document.hidden) return;
+      api<{ rooms: { unread: number }[] }>('/chats')
+        .then((result) => { if (alive) setUnread(result.rooms.reduce((sum, room) => sum + room.unread, 0)); })
+        .catch(() => { /* ถามไม่ได้ก็ใช้ตัวเลขเดิม */ });
+    };
+    load();
+    const timer = setInterval(load, 20_000);
+    window.addEventListener(CHAT_CHANGED, load);
+    document.addEventListener('visibilitychange', load);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      window.removeEventListener(CHAT_CHANGED, load);
+      document.removeEventListener('visibilitychange', load);
+    };
+  }, [userId]);
   // เมนูบนมือถือปิดเองเมื่อเปลี่ยนหน้า ไม่อย่างนั้นจะค้างบังเนื้อหาหน้าใหม่
   useEffect(() => { setMenuOpen(false); }, [pathname, search]);
   useEffect(() => {
@@ -56,8 +83,8 @@ function Header() {
           {/* ชื่อผู้ใช้ทางขวาเป็นทางเข้าโปรไฟล์อยู่แล้ว จึงไม่ซ้ำเป็นเมนูอีกอัน แถบบนจะได้ยังอยู่บรรทัดเดียวที่ 1101px */}
           <NavLink to="/mentors" end>{t.nav.hallOfFame}</NavLink>
           {user && consultMe && (consultMe.mentorId
-            ? <NavLink to="/mentor-zone">{t.nav.mentorZone}</NavLink>
-            : <NavLink to="/consulting">{t.nav.consulting}</NavLink>)}
+            ? <NavLink to="/mentor-zone">{t.nav.mentorZone}<UnreadBadge count={unread} /></NavLink>
+            : <NavLink to="/consulting">{t.nav.consulting}<UnreadBadge count={unread} /></NavLink>)}
           <span className="nav-soon" title={t.common.comingSoon}>{t.nav.library} <small>{t.common.soonTag}</small></span>
         </nav>
         <div className="header-actions">

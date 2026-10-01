@@ -1,10 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { eq } from 'drizzle-orm';
-import { db } from '../server/db/client';
-import { consultations } from '../server/db/schema';
 import { competitions as demoCompetitions } from '../src/data/competitions';
-import { createAccount, createMentorFixture, removeAccount, verifyEmail } from './helpers';
+import { createAccount, createHire, createMentorFixture, removeAccount, verifyEmail } from './helpers';
 import type { TestAccount } from './helpers';
 
 /* ภาษาตั้งต้นคืออังกฤษ ผู้ใช้สลับเป็นไทยได้ และเว็บจำตัวเลือกไว้
@@ -193,7 +190,7 @@ test('the signed-in pages have no Thai in English', async ({ page }) => {
 
     await page.goto('/consulting');
     await expect(page.getByRole('heading', { level: 1, name: 'Consulting' })).toBeVisible();
-    await expect(page.getByText('No consultations yet')).toBeVisible();
+    await expect(page.getByText('No hires yet')).toBeVisible();
     await expectNoThai(page);
 
     // ยังไม่ยืนยันอีเมล: กล่องชวนยืนยัน และสถานะบนหน้าโปรไฟล์ ต้องเป็นอังกฤษทั้งหมด
@@ -220,15 +217,17 @@ test('a mentor profile that cannot be found has no Thai in English', async ({ pa
 
 /* หน้าใหม่ของการติดต่อเมนเทอร์ทุกสถานะ ใช้เมนเทอร์และเวทีทดสอบที่เป็นอังกฤษทั้งหมด (createMentorFixture)
    ภาษาไทยที่เหลือบนหน้าจึงมาจากข้อความของหน้าเว็บเท่านั้น ส่วนรายชื่อเมนเทอร์ตัวอย่างและเวทีจริงเป็นเนื้อหา ตัดออกก่อนตรวจ */
-test('the contact flow, consulting, mentor zone and verify pages have no Thai in English', async ({ page }) => {
+test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai in English', async ({ page }) => {
   const fixture = await createMentorFixture();
   const learner = await createAccount('member', { verified: false });
+  const ploy = await createAccount('member', { verified: true, name: 'Ploy Student' });
+  const { id: waitingId } = await createHire(fixture, ploy, 'requested', { note: 'Please review my business plan.' });
   try {
     // ยังไม่เข้าสู่ระบบ
     await page.goto(`/mentors/${fixture.mentorId}?competition=${fixture.competition.slug}`);
     await expect(page.getByRole('heading', { level: 1, name: fixture.name })).toBeVisible();
-    await expect(page.getByText('Sign in to see how to contact this mentor.')).toBeVisible();
-    await expect(page.getByText('No reviews yet. Reviews appear after a mentor confirms a consultation.')).toBeVisible();
+    await expect(page.getByText('Sign in to hire this mentor.')).toBeVisible();
+    await expect(page.getByText('No reviews yet. Reviews appear after a student marks a hire as done and writes one.')).toBeVisible();
     await expectNoThai(page);
 
     // เข้าสู่ระบบแล้วแต่ยังไม่ยืนยันอีเมล
@@ -240,57 +239,81 @@ test('the contact flow, consulting, mentor zone and verify pages have no Thai in
     await expect(page.getByRole('alert').filter({ hasText: 'We just sent one.' })).toBeVisible();
     await expectNoThai(page);
 
-    // ยืนยันแล้ว: ก่อนติดต่อ → ช่องทางติดต่อ → ถามก่อนยกเลิก → รอเมนเทอร์ → รีวิว → รีวิวแล้ว
+    // ยืนยันแล้ว: ฟอร์มจ้าง ข้อความตรวจฟอร์ม และสถานะหลังส่ง
     await verifyEmail(learner);
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Contact mentor' })).toBeVisible();
+    const hire = page.getByRole('region', { name: 'Hire this mentor' });
+    await expect(hire.getByRole('button', { name: 'Send request' })).toBeVisible();
+    await expect(hire.getByText('Total', { exact: true })).toBeVisible();
     await expectNoThai(page);
-    await page.getByRole('button', { name: 'Contact mentor' }).click();
-    await expect(page.getByRole('heading', { name: 'How to reach this mentor' })).toBeVisible();
-    await expect(page.getByText('Not provided').first()).toBeAttached();
+    await hire.getByLabel('Hours').fill('0');
+    await hire.getByRole('button', { name: 'Send request' }).click();
+    await expect(hire.getByText('Choose a whole number of hours from 1 to 10.')).toBeVisible();
+    await hire.getByLabel('Hours').fill('2');
+    await hire.getByRole('button', { name: 'Send request' }).click();
+    await expect(hire.getByText('Tell the mentor what you need help with.')).toBeVisible();
     await expectNoThai(page);
-    await page.getByRole('button', { name: 'Cancel consultation' }).click();
-    await expect(page.getByText('Cancel this consultation?')).toBeVisible();
+    await hire.getByLabel('What do you need help with?').fill('Help me rehearse my pitch.');
+    await hire.getByRole('button', { name: 'Send request' }).click();
+    await expect(hire.getByText('Waiting for the mentor to accept.')).toBeVisible();
+    await expect(hire.locator('.cx-steps')).toContainText('1 Request · 2 Mentor accepts · 3 Chat · 4 Mark as done · 5 Review');
+    await expectNoThai(page);
+
+    // Consulting: รายการ รายละเอียด ถามก่อนยกเลิก ยังไม่มีแชต
+    await page.goto('/consulting');
+    await expect(page.getByRole('heading', { level: 1, name: 'Consulting' })).toBeVisible();
+    await page.locator('.hw__row').first().click();
+    await expect(page.getByRole('heading', { level: 2, name: fixture.name })).toBeVisible();
+    await expect(page.getByText('The chat opens when the mentor accepts.')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel hire' }).click();
+    await expect(page.getByText('Cancel this hire?')).toBeVisible();
     await expectNoThai(page);
     await page.getByRole('button', { name: 'Keep it' }).click();
-    await page.getByRole('button', { name: 'I received guidance' }).click();
-    await expect(page.getByText('We emailed the mentor to confirm.')).toBeVisible();
-    await expectNoThai(page);
 
-    await page.goto('/consulting');
-    await expect(page.getByRole('heading', { level: 2, name: fixture.name })).toBeVisible();
-    await expect(page.getByText('Waiting for the mentor').first()).toBeVisible();
-    await expectNoThai(page);
+    // เมนเทอร์: คำขอที่รอ (ฟอร์มปฏิเสธ) รับงานแล้วแชตเปิด
+    await page.context().clearCookies();
+    await signInEnglish(page, fixture.owner, `/mentor-zone#hire-${waitingId}`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Mentor zone' })).toBeVisible();
+    const zoneContent = await contentFrom(page, '/api/consult/zone');
+    await expect(page.getByRole('heading', { name: 'Hire requests (2)' })).toBeVisible();
+    await expectNoThai(page, zoneContent);
+    const card = page.locator(`#hire-${waitingId}`);
+    await card.getByRole('button', { name: 'Decline the hire request from Ploy' }).click();
+    await card.getByRole('button', { name: 'Send decline' }).click();
+    await expect(card.getByText('Write a short reason so the student knows why.')).toBeVisible();
+    await expectNoThai(page, zoneContent);
+    await card.getByRole('button', { name: 'Back' }).click();
+    await card.getByRole('button', { name: 'Accept the hire request from Ploy' }).click();
+    await expect(page.getByText('Accepted. The chat is open.')).toBeVisible();
+    const rows = page.getByRole('region', { name: 'Hires and chats' }).locator('.hw__row');
+    if (await rows.first().isVisible()) await rows.first().click();
+    const chat = page.getByRole('region', { name: /^Chat with/ });
+    await expect(chat.getByText('No messages yet. Say hello and share what you want to work on.')).toBeVisible();
+    await chat.getByRole('textbox', { name: 'Message' }).fill('Hello, send me the plan.');
+    await chat.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(chat.getByText('Hello, send me the plan.')).toBeVisible();
+    await expectNoThai(page, zoneContent);
 
-    await db.update(consultations).set({ status: 'confirmed', confirmedAt: new Date() }).where(eq(consultations.mentorId, fixture.mentorId));
-    await page.goto(`/mentors/${fixture.mentorId}`);
-    await expect(page.getByRole('heading', { name: 'Review this mentor' })).toBeVisible();
+    // นักเรียนที่จบงานแล้ว: เสร็จงาน → รีวิว → รีวิวแล้ว (ใช้บัญชีที่ยืนยันแล้วกับห้องที่เตรียมไว้)
+    const finisher = await createAccount('member', { verified: true });
+    const done = await createHire(fixture, finisher, 'accepted', { note: 'Last check of my slides.' });
+    await page.context().clearCookies();
+    await signInEnglish(page, finisher, `/consulting#hire-${done.id}`);
+    await expect(page.getByRole('button', { name: 'Mark as done' })).toBeVisible();
+    await page.getByRole('button', { name: 'Mark as done' }).click();
+    await expect(page.getByText(/^Mark this hire as done\?/)).toBeVisible();
+    await expectNoThai(page);
+    await page.getByRole('button', { name: 'Yes, mark as done' }).click();
+    await page.getByRole('button', { name: 'Write a review' }).click();
     await page.getByRole('button', { name: 'Submit review' }).click();
     await expect(page.getByText('Choose 1 to 5 stars before you submit.')).toBeVisible();
     await expectNoThai(page);
     await page.locator('.cx-star').nth(4).click();
     await page.getByLabel('Comment (optional)').fill('Very clear advice.');
     await page.getByRole('button', { name: 'Submit review' }).click();
-    await expect(page.getByText('You reviewed this consultation. Thank you.')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Contact again' })).toBeVisible();
+    await expect(page.getByText('You reviewed this hire. Thank you.')).toBeVisible();
     await expectNoThai(page);
-
-    // ฝั่งเมนเทอร์
-    await page.context().clearCookies();
-    await signInEnglish(page, fixture.owner, '/mentor-zone');
-    await expect(page.getByRole('heading', { level: 1, name: 'Mentor zone' })).toBeVisible();
-    const zoneContent = await contentFrom(page, '/api/consult/zone');
-    await expectNoThai(page, zoneContent);
-    const contacts = page.getByRole('region', { name: 'How students reach you' });
-    await contacts.getByLabel('LINE ID').fill('');
-    await contacts.getByLabel('Instagram').fill('');
-    await contacts.getByRole('button', { name: 'Save' }).click();
-    await expect(contacts.getByText('Add at least one way to reach you.')).toBeVisible();
-    await page.getByRole('button', { name: 'Not in the list? Request a competition' }).click();
-    const request = page.getByRole('region', { name: 'Do not see your competition?' });
-    await request.getByRole('button', { name: 'Send request' }).click();
-    await expect(request.getByText('Enter the competition name.')).toBeVisible();
-    await expectNoThai(page, zoneContent);
+    await removeAccount(finisher);
 
     // หน้าเวทีและแท็บเมนเทอร์ที่พร้อมให้ปรึกษา (ชื่อเมนเทอร์ตัวอย่างและเวทีเป็นเนื้อหา)
     const demoSlug = demoCompetitions[0].slug;
@@ -299,6 +322,7 @@ test('the contact flow, consulting, mentor zone and verify pages have no Thai in
     await expect(page.getByRole('tab', { name: 'Available mentors' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('heading', { level: 3, name: 'Rising Star mentors' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 3, name: 'Other mentors' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Hire / }).first()).toBeVisible();
     await expect(page.locator('.rs-row__meta').first()).toContainText('reviews');
     await expectNoThai(page, tabContent);
     // เวทีสุดท้ายของข้อมูลตัวอย่างไม่มีเมนเทอร์คนไหนเลือก
@@ -310,6 +334,7 @@ test('the contact flow, consulting, mentor zone and verify pages have no Thai in
   } finally {
     await page.close();
     await removeAccount(learner);
+    await removeAccount(ploy);
     await fixture.cleanup();
   }
 });

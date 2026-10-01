@@ -1,34 +1,34 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../data/auth';
 import { useApi } from '../lib/useApi';
-import type { ConsultStatus } from '../data/consult';
-import { ConsultFlow, StatusPill } from '../components/ConsultFlow';
-import { Avatar } from '../components/mentors';
+import type { MemberHire } from '../data/consult';
+import { MemberHireActions } from '../components/ConsultFlow';
+import { CHAT_CHANGED } from '../components/ChatPanel';
+import { HireWorkspace } from '../components/HireWorkspace';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useI18n } from '../i18n';
-import { formatDate } from '../i18n/format';
 import '../consult.css';
 
-/* หน้า Consulting ของนักเรียน: เมนเทอร์ทุกคนที่เคยกดติดต่อ กับสถานะของแต่ละครั้ง
-   ทำได้ทุกอย่างที่หน้าโปรไฟล์เมนเทอร์ทำได้ยกเว้นดูช่องทางติดต่อ ซึ่งอยู่ที่หน้าโปรไฟล์ของเมนเทอร์คนนั้น */
+/* Consulting ของนักเรียน: งานที่จ้างทั้งหมด กับแชตของแต่ละงาน (ห้องเดียวต่อเมนเทอร์หนึ่งคน ใช้ซ้ำทุกงานของคู่นั้น)
+   ลิงก์ลึก /consulting#room-<id ห้อง> หรือ #hire-<id งาน> เลือกงานนั้นให้เอง
+   จำนวนข้อความที่ยังไม่อ่านมากับรายการ และอ่านใหม่ทุกครั้งที่แชตอ่านหรือส่งข้อความ */
 
-type Item = {
-  id: string; status: ConsultStatus; createdAt: string; claimedAt: string | null; confirmedAt: string | null;
-  mentor: { id: string; name: string; initial: string; specialty: string; verified: boolean };
-  competition: { slug: string; name: string } | null;
-  review: { stars: number } | null;
-};
-type Payload = { emailVerified: boolean; items: Item[] };
+type Payload = { emailVerified: boolean; items: MemberHire[] };
 
 export function Consulting() {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const s = t.consulting;
   const { user, loading: authLoading } = useAuth();
   const { data, error, loading, reload } = useApi<Payload>(user ? '/consult/mine' : null);
 
   useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
-  // ยืนยันอีเมลแล้วในอีกแท็บ ต้องอ่านรายการใหม่ ไม่อย่างนั้นช่องรีวิวยังค้างสถานะเดิม
+  // อ่านแล้วหรือส่งข้อความแล้ว จำนวนที่ยังไม่อ่านบนรายการต้องเปลี่ยนตาม
+  useEffect(() => {
+    window.addEventListener(CHAT_CHANGED, reload);
+    return () => window.removeEventListener(CHAT_CHANGED, reload);
+  }, [reload]);
+  // ยืนยันอีเมลแล้วในอีกแท็บ ต้องอ่านรายการใหม่ ไม่อย่างนั้นปุ่มรีวิวยังค้างสถานะเดิม
   const verified = user?.emailVerified;
   const lastVerified = useRef(verified);
   useEffect(() => {
@@ -37,12 +37,23 @@ export function Consulting() {
     reload();
   }, [verified, reload]);
 
+  const reloadAsync = useCallback(async () => { reload(); }, [reload]);
+
   if (authLoading) return <main id="main" tabIndex={-1} className="shell page cx-page"><p className="side-note" role="status">{s.loading}</p></main>;
   if (!user) return <Navigate to="/signin?next=/consulting" replace />;
 
-  const reloadAsync = async () => { reload(); };
+  const noteFor = (hire: MemberHire) => {
+    const c = t.consult;
+    switch (hire.status) {
+      case 'requested': return c.requestedNote;
+      case 'accepted': return c.acceptedNote;
+      case 'declined': return c.declinedNote;
+      case 'cancelled': return c.cancelledNote;
+      default: return hire.review ? null : c.completedNote;
+    }
+  };
 
-  return <main id="main" tabIndex={-1} className="shell page cx-page">
+  return <main id="main" tabIndex={-1} className="shell page cx-page cx-page--wide">
     <header className="cx-page-head">
       <h1>{s.pageTitle}</h1>
       <p className="cx-lead">{s.lead}</p>
@@ -63,27 +74,17 @@ export function Consulting() {
       <Link className="primary-button cx-button" to="/explore">{s.emptyCta}</Link>
     </div>}
 
-    {data && data.items.length > 0 && <ul className="cx-consults" aria-label={s.listLabel}>
-      {data.items.map((item) => {
-        const to = `/mentors/${item.mentor.id}${item.competition ? `?competition=${encodeURIComponent(item.competition.slug)}` : ''}`;
-        return <li className="panel cx-consult" key={item.id}>
-          <Avatar initial={item.mentor.initial} plain />
-          <div className="cx-consult__body">
-            <div className="cx-consult__title">
-              <h2><Link to={to} aria-label={s.viewMentorOf(item.mentor.name)}>{item.mentor.name}</Link></h2>
-              <StatusPill status={item.status} reviewed={Boolean(item.review)} />
-            </div>
-            <p className="cx-hint">{item.competition ? `${s.about(item.competition.name)} · ` : ''}{s.startedOn(formatDate(item.createdAt, lang))}</p>
-            {item.status === 'claimed' && item.claimedAt && <p className="cx-hint">{s.claimedOn(formatDate(item.claimedAt, lang))}</p>}
-            {item.status === 'confirmed' && item.confirmedAt && <p className="cx-hint">{s.confirmedOn(formatDate(item.confirmedAt, lang))}</p>}
-            <ConsultFlow
-              consultation={{ id: item.id, status: item.status, reviewed: Boolean(item.review), stars: item.review?.stars }}
-              onChange={reloadAsync} collapseReview
-              viewLink={item.status === 'cancelled' ? undefined : <Link className="ghost-button cx-button" to={to}>{s.viewMentor}</Link>}
-            />
-          </div>
-        </li>;
-      })}
-    </ul>}
+    {data && data.items.length > 0 && <HireWorkspace
+      items={data.items}
+      nameOf={(hire) => hire.mentor.name}
+      initialOf={(hire) => hire.mentor.initial}
+      reviewedOf={(hire) => Boolean(hire.review)}
+      noteFor={noteFor}
+      renderActions={(hire) => <MemberHireActions key={`${hire.id}-${hire.status}`} hire={hire} onChange={reloadAsync}
+        extra={<Link className="ghost-button cx-button" to={`/mentors/${hire.mentor.id}${hire.competition ? `?competition=${encodeURIComponent(hire.competition.slug)}` : ''}`}
+          aria-label={s.viewMentorOf(hire.mentor.name)}>{s.viewMentor}</Link>} />}
+      labels={{ list: s.listLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: s.noChatYet }}
+      closedNote={s.chatClosedNote}
+    />}
   </main>;
 }

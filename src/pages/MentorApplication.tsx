@@ -8,7 +8,7 @@ import { occupationLabel } from '../data/profile';
 import { useAuth } from '../data/auth';
 import { ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
-import { isWebLink, parsePrice } from '../data/consult';
+import { parsePrice } from '../data/consult';
 import { useI18n } from '../i18n';
 import { formatInputDate } from '../i18n/format';
 import '../form.css';
@@ -18,11 +18,11 @@ const applicantStatuses: OccupationId[] = ['university', 'working', 'other'];
 /* ช่องทางติดต่อ ราคา (บาทต่อกี่นาที) และเวทีที่ติ๊กไว้อยู่ในใบสมัครตั้งแต่ต้น
    ติดต่อกันนอกเว็บ เว็บไม่เก็บเงิน แก้ทั้งหมดได้ภายหลังใน Mentor zone */
 type Field = 'first' | 'last' | 'nickname' | 'email' | 'occupation' | 'organization' | 'role' | 'experience' | 'portfolio' | 'best' | 'cannot'
-  | 'contactEmail' | 'contactLine' | 'contactPhone' | 'contactInstagram' | 'contactLink' | 'price' | 'minutes';
+  | 'price' | 'minutes';
 type OpenCompetition = { slug: string; name: string; org: string; closesAt: string };
 const COMPETITION_PAGE = 10;
 interface Award { id: number; title: string; prize: string; year: string; url: string; file?: File }
-const empty: Record<Field, string> = { first: '', last: '', nickname: '', email: '', occupation: '', organization: '', role: '', experience: '', portfolio: '', best: '', cannot: '', contactEmail: '', contactLine: '', contactPhone: '', contactInstagram: '', contactLink: '', price: '', minutes: '' };
+const empty: Record<Field, string> = { first: '', last: '', nickname: '', email: '', occupation: '', organization: '', role: '', experience: '', portfolio: '', best: '', cannot: '', price: '', minutes: '' };
 
 type ConsentKey = 'accuracy' | 'guidanceOnly' | 'replies' | 'noJudging' | 'payment';
 /** Every box starts unticked and all of them are required before the sample submit. */
@@ -94,10 +94,7 @@ export function MentorApplication() {
       }
     }
     if (stage === 2) {
-      const contactFilled = [values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].some((value) => value.trim());
       if (selectedTopics.length !== 2) error = s.errors.pickTwo;
-      else if (!contactFilled) error = s.errors.needContact;
-      else if (values.contactLink.trim() && !isWebLink(values.contactLink)) error = s.errors.badLink;
       else if (!parsePrice(values.price, values.minutes)) error = s.errors.badPrice;
     }
     if (stage === 3) {
@@ -118,8 +115,6 @@ export function MentorApplication() {
         email: values.email, occupation: values.occupation, organization: values.organization,
         role: values.role, experience: values.experience, portfolio: values.portfolio,
         best: values.best, cannot: values.cannot,
-        contactEmail: values.contactEmail, contactLine: values.contactLine, contactPhone: values.contactPhone,
-        contactInstagram: values.contactInstagram, contactLink: values.contactLink,
         ...parsePrice(values.price, values.minutes),
         competitions: selectedCompetitions,
         // ฐานข้อมูลเก็บความถนัดเป็นข้อความไทยตามเดิม ไม่ว่าผู้ใช้เลือกภาษาไหน
@@ -214,13 +209,6 @@ export function MentorApplication() {
             {group(s.strengthsGroup, <div className="topics" role="group" aria-labelledby="topic-label">
               {topicIds.map((topic) => <label className="check topic" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={(event) => { if (event.target.checked && selectedTopics.length === 2) { setMessage(s.errors.maxTopics); return; } reviewAgain(); setSelectedTopics(event.target.checked ? [...selectedTopics, topic] : selectedTopics.filter((item) => item !== topic)); setMessage(''); }} /><span>{t.taxonomy.topics[topic]}</span></label>)}
             </div>, s.strengthsHint, <span className="count" id="topic-label" aria-live="polite">{s.strengthsCount(selectedTopics.length)}</span>)}
-            {group(s.contactsGroup, <div className="grid">
-              {field('contactEmail', s.contactEmail, { type: 'email', maxLength: 200, autoComplete: 'off' })}
-              {field('contactLine', s.contactLine, { maxLength: 100, autoComplete: 'off' })}
-              {field('contactPhone', s.contactPhone, { type: 'tel', maxLength: 40, autoComplete: 'off' })}
-              {field('contactInstagram', s.contactInstagram, { maxLength: 100, autoComplete: 'off' })}
-              {field('contactLink', s.contactLink, { type: 'url', maxLength: 500, placeholder: 'https://', autoComplete: 'off' }, s.contactLinkHint)}
-            </div>, s.contactsHint)}
             {group(s.priceGroup, <div className="grid">
               {field('price', s.price, { type: 'number', inputMode: 'numeric', step: 1, autoComplete: 'off' })}
               {field('minutes', s.minutes, { type: 'number', inputMode: 'numeric', step: 1, autoComplete: 'off' })}
@@ -268,7 +256,6 @@ export function MentorApplication() {
             </>)}
             {reviewGroup(s.strengthsGroup, 2, <>
               <div className="review"><small>{s.reviewStrengths}</small>{selectedTopics.map((topic) => t.taxonomy.topics[topic]).join(' · ')}</div>
-              <div className="review"><small>{s.reviewContacts}</small>{[values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].filter((value) => value.trim()).join(' · ')}</div>
               <div className="review"><small>{s.reviewPrice}</small>{t.price.line(Number(values.price), Number(values.minutes))}</div>
               <div className="review"><small>{s.reviewCompetitions}</small>{selectedCompetitions.length
                 ? selectedCompetitions.map((slug) => openList.data?.items.find((item) => item.slug === slug)?.name ?? slug).join(' · ')

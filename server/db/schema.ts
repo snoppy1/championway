@@ -401,34 +401,48 @@ export const risingStarPeriods = pgTable('rising_star_periods', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [index('rising_star_periods_mentor_idx').on(t.mentorId, t.endsAt)]);
 
-/* ---------- ติดต่อเมนเทอร์ ยืนยัน และรีวิว ----------
+/* ---------- จ้างเมนเทอร์ ----------
 
-   ขั้นตอน (ผู้ใช้ตัดสิน 30 ก.ย. 2569 แทนระบบจองกับแชตในเว็บ)
-   กด Contact Mentor → เห็นช่องทางติดต่อ → คุยกันนอกเว็บ → นักเรียนกด "I received guidance"
-   → อีเมลถึงเมนเทอร์ → เมนเทอร์กด Confirm → นักเรียนรีวิวได้หนึ่งครั้ง
-   การยืนยันจากเมนเทอร์คือสิ่งที่กันการปั๊มคะแนน รีวิวต้องผูกกับการปรึกษาที่เมนเทอร์ยืนยันแล้วเท่านั้น
+   ขั้นตอน (ผู้ใช้ตัดสิน 1 ต.ค. 2569 แทนการติดต่อนอกเว็บ)
+   นักเรียนส่งคำขอจ้าง (งานแข่ง จำนวนชั่วโมง เวลาที่อยากนัด สิ่งที่อยากให้ช่วย)
+   → เมนเทอร์กดรับหรือปฏิเสธ → รับแล้วห้องแชตเปิด (ส่งไฟล์ได้)
+   → นักเรียนกดเสร็จงาน → รีวิวได้หนึ่งครั้ง
+   รอบถัดไปจะเพิ่มการจ่ายเงินผ่าน Stripe ระหว่าง "รับ" กับ "เปิดแชต" และห้องวิดีโอตามชั่วโมงที่จ้าง
 
-   status: active (กดติดต่อแล้ว) → claimed (นักเรียนบอกว่าได้คำแนะนำแล้ว) → confirmed (เมนเทอร์ยืนยัน)
-           หรือ cancelled (นักเรียนยกเลิกก่อนเมนเทอร์ยืนยัน) */
+   ชื่อตารางยังเป็น consultations เพราะรีวิวอ้างถึงตารางนี้อยู่แล้ว หนึ่งแถวคือการจ้างหนึ่งครั้ง
+   status: requested → accepted → completed
+           requested → declined (เมนเทอร์ปฏิเสธ)
+           requested / accepted → cancelled (นักเรียนยกเลิกก่อนเสร็จงาน) */
 export const consultations = pgTable('consultations', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
   competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
-  status: text('status').$type<'active' | 'claimed' | 'confirmed' | 'cancelled'>().notNull().default('active'),
+  status: text('status').$type<'requested' | 'accepted' | 'declined' | 'cancelled' | 'completed'>().notNull().default('requested'),
+  /** เวลาที่จ้างเป็นนาที และราคารวมเป็นบาท คิดจากราคาต่องานของเมนเทอร์ตอนส่งคำขอ ไม่เปลี่ยนตามราคาใหม่ */
+  minutes: integer('minutes').notNull().default(60),
+  price: integer('price').notNull().default(0),
+  preferredAt: timestamp('preferred_at', { withTimezone: true }),
+  note: text('note').notNull().default(''),
+  /** เหตุผลตอนปฏิเสธหรือยกเลิก */
+  reason: text('reason').notNull().default(''),
+  roomId: text('room_id').references(() => chatRooms.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  /** จากรุ่นติดต่อนอกเว็บ (30 ก.ย. 2569) เก็บไว้เป็นประวัติ ไม่ใช้แล้ว */
   claimedAt: timestamp('claimed_at', { withTimezone: true }),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
-  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
 }, t => [
   index('consultations_user_idx').on(t.userId, t.createdAt),
   index('consultations_mentor_idx').on(t.mentorId, t.status),
-  // เปิดค้างได้ทีละหนึ่งรายการต่อคู่นักเรียนกับเมนเทอร์ กดติดต่อซ้ำไม่สร้างแถวใหม่
-  uniqueIndex('consultations_open_key').on(t.userId, t.mentorId).where(sql`status in ('active', 'claimed')`),
-  check('consultations_status_check', sql`status in ('active', 'claimed', 'confirmed', 'cancelled')`),
+  // ค้างได้ทีละหนึ่งงานต่อคู่นักเรียนกับเมนเทอร์ กดจ้างซ้ำไม่สร้างแถวใหม่
+  uniqueIndex('consultations_open_key').on(t.userId, t.mentorId).where(sql`status in ('requested', 'accepted')`),
+  check('consultations_status_check', sql`status in ('requested', 'accepted', 'declined', 'cancelled', 'completed')`),
 ]);
 
-/** รีวิวหนึ่งอันต่อการปรึกษาที่ยืนยันแล้วหนึ่งครั้ง Rising Star ใช้ค่าเฉลี่ยดาวของรีวิวที่เขียนในเดือนนั้น
+/** รีวิวหนึ่งอันต่อการจ้างที่เสร็จแล้วหนึ่งครั้ง Rising Star ใช้ค่าเฉลี่ยดาวของรีวิวที่เขียนในเดือนนั้น
     แอดมินซ่อนรีวิวที่น่าสงสัยได้ รีวิวที่ซ่อนไม่นับคะแนน */
 export const mentorReviews = pgTable('mentor_reviews', {
   id: text('id').primaryKey(),

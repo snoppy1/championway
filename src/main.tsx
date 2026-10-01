@@ -28,6 +28,7 @@ import { SignIn } from './pages/SignIn';
 import { Consulting } from './pages/Consulting';
 import { MentorZone } from './pages/MentorZone';
 import { VerifyEmail } from './pages/VerifyEmail';
+import { ChatsRedirect } from './pages/ChatsRedirect';
 import { Organisers } from './pages/Organisers';
 import { OrganiserSubmit } from './pages/OrganiserSubmit';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -60,9 +61,9 @@ const router = createBrowserRouter([{
     { path: '/consulting', element: <Consulting /> },
     { path: '/mentor-zone', element: <MentorZone /> },
     { path: '/verify-email', element: <VerifyEmail /> },
-    // แชตในเว็บปิดถาวรแล้ว ลิงก์เก่าพาไปหน้า Consulting ซึ่งเป็นที่รวมการปรึกษาของนักเรียน
-    { path: '/chats', element: <Navigate to="/consulting" replace /> },
-    { path: '/chats/:id', element: <Navigate to="/consulting" replace /> },
+    // แชตอยู่ในหน้า Consulting (นักเรียน) และ Mentor zone (เมนเทอร์) ลิงก์ /chats เก่าพาไปที่ถูกฝั่ง
+    { path: '/chats', element: <ChatsRedirect /> },
+    { path: '/chats/:id', element: <ChatsRedirect /> },
     { path: '/signup', element: <SignIn mode="signup" /> },
     { path: '*', element: <NotFound /> },
   ],

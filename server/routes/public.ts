@@ -294,7 +294,7 @@ const mentorSubmissionBody = z.object({
   price: z.number().int().min(0).max(100000).nullish(),
   /** ราคาคิดต่อกี่นาที อัตราเล็กอย่าง 10 บาท / 1 นาที ก็ได้ */
   minutes: z.number().int().min(1).max(600).nullish(),
-  /* ช่องทางติดต่อที่นักเรียนเห็นหลังกด Contact Mentor ต้องมีอย่างน้อยหนึ่งช่อง (ตรวจใน refine ด้านล่าง) */
+  /* ช่องทางติดต่อนอกเว็บ เลิกใช้แล้ว (1 ต.ค. 2569 คุยกันในแชตของเว็บแทน) รับไว้เผื่อหน้าเว็บรุ่นเก่ายังส่งมา */
   contactEmail: z.string().trim().max(200).refine((v) => !v || z.string().email().safeParse(v).success, 'อีเมลติดต่อไม่ถูกต้อง').default(''),
   contactLine: z.string().trim().max(100).default(''),
   contactPhone: z.string().trim().max(40).default(''),
@@ -312,8 +312,7 @@ const mentorSubmissionBody = z.object({
   })).max(2).default([]),
   /** id ของไฟล์หลักฐานที่อัปโหลดไว้ก่อนหน้า */
   fileIds: z.array(z.string().max(60)).max(4).default([]),
-}).refine((v) => [v.contactEmail, v.contactLine, v.contactPhone, v.contactInstagram, v.contactLink].some(Boolean),
-  { message: 'ใส่ช่องทางติดต่ออย่างน้อยหนึ่งช่อง', path: ['contactEmail'] });
+});
 
 publicApi.post('/submissions/mentor', requireUser, async (c) => {
   const parsed = mentorSubmissionBody.safeParse(await c.req.json().catch(() => ({})));

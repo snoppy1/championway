@@ -54,12 +54,12 @@ function AvailableMentors({ slug }: { slug: string }) {
       <p className="rs-section-sub">{s.risingSub(month)}</p>
       {data.risingStar.length === 0
         ? <div className="rs-empty"><p>{s.risingEmpty}</p></div>
-        : <ol className="rs-list">{data.risingStar.map((mentor) => <RankedRow key={mentor.id} mentor={mentor} competition={slug} />)}</ol>}
+        : <ol className="rs-list">{data.risingStar.map((mentor) => <RankedRow key={mentor.id} mentor={mentor} competition={slug} hire />)}</ol>}
     </section>
     {data.others.length > 0 && <section className="rs-section" aria-labelledby="others-title">
       <div className="rs-section-head"><h3 id="others-title">{s.othersTitle}</h3></div>
       <p className="rs-section-sub">{s.othersSub}</p>
-      <ul className="rs-list rs-list--plain">{data.others.map((mentor) => <OtherRow key={mentor.id} mentor={mentor} competition={slug} />)}</ul>
+      <ul className="rs-list rs-list--plain">{data.others.map((mentor) => <OtherRow key={mentor.id} mentor={mentor} competition={slug} hire />)}</ul>
     </section>}
   </>;
 }

@@ -29,9 +29,9 @@ async function reachService(page: Page) {
 const consentNames = [
   /ยืนยันว่าข้อมูลและหลักฐาน/,
   /ไม่ทำงานหรือจัดทำผลงานส่งแข่งขันแทนทีม/,
-  /ตอบนักเรียนที่ติดต่อมา/,
+  /ตอบคำขอจ้างโดยเร็ว/,
   /กรรมการตัดสิน/,
-  /ไม่รับชำระเงิน/,
+  /การชำระเงินบน ChampionWays ยังไม่เปิด/,
 ];
 async function acceptAll(page: Page) {
   for (const name of consentNames) await page.getByRole('checkbox', { name }).check();
@@ -42,8 +42,7 @@ async function fillService(page: Page) {
   await page.locator('#apply-cannot').fill('ไม่รับทำงานส่งแทน');
   await page.getByRole('checkbox', { name: 'ตีโจทย์และหาไอเดีย', exact: true }).check();
   await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
-  // ช่องทางติดต่อ (อย่างน้อยหนึ่งช่อง) และราคาเป็นบาทต่อกี่นาที บังคับตั้งแต่สมัคร
-  await page.getByLabel('LINE ID', { exact: true }).fill('mentor.line');
+  // ราคาเป็นบาทต่อกี่นาที บังคับตั้งแต่สมัคร (ช่องทางติดต่อนอกเว็บเลิกใช้แล้ว นักเรียนจ้างและแชตบนเว็บ)
   await page.locator('#apply-price').fill('500');
   await page.locator('#apply-minutes').fill('60');
 }
@@ -72,7 +71,7 @@ test('all four steps, private preview, no upload, back navigation and completion
   await expect(profile).not.toContainText('นามสกุลทดสอบ');
   await expect(profile).not.toContainText('mentor@example.com');
   // ตัวอย่างโปรไฟล์บอกว่าติดต่อกันนอกเว็บ และเว็บไม่เก็บเงิน
-  await expect(profile).toContainText('เว็บนี้ไม่เก็บเงิน');
+  await expect(profile).toContainText('ยังไม่เก็บเงิน');
   await page.getByRole('button', { name: 'ย้อนกลับ', exact: true }).click();
   await expect(page.locator('#apply-best')).toHaveValue('ช่วยฝึกนำเสนอไอเดีย');
   await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(2);
@@ -113,7 +112,7 @@ test('required identity, evidence and exactly two topics', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'ตรวจทานก่อนส่งใบสมัคร' })).toBeVisible();
 });
 
-test('contact channels, price with minutes and optional competitions are checked and sent', async ({ page }) => {
+test('price with minutes and optional competitions are checked and sent, with no contact fields', async ({ page }) => {
   await signIn(page, applicant, '/mentors/apply');
   await reachService(page);
   await page.locator('#apply-best').fill('ช่วยฝึกนำเสนอไอเดีย');
@@ -121,13 +120,8 @@ test('contact channels, price with minutes and optional competitions are checked
   await page.getByRole('checkbox', { name: 'ตีโจทย์และหาไอเดีย', exact: true }).check();
   await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
 
-  await next(page);
-  await expect(page.getByRole('alert')).toHaveText('ใส่ช่องทางที่นักเรียนติดต่อคุณได้อย่างน้อยหนึ่งช่อง');
-  await page.getByLabel('Instagram', { exact: true }).fill('mentor.ig');
-  await page.getByLabel('ลิงก์อื่น', { exact: false }).fill('javascript:alert(1)');
-  await next(page);
-  await expect(page.getByRole('alert')).toHaveText('ลิงก์อื่นต้องขึ้นต้นด้วย https:// หรือ http://');
-  await page.getByLabel('ลิงก์อื่น', { exact: false }).fill('');
+  // ไม่มีช่องทางติดต่อนอกเว็บในฟอร์มแล้ว
+  for (const gone of ['LINE ID', 'Instagram', 'เบอร์โทร']) await expect(page.getByLabel(gone, { exact: true })).toHaveCount(0);
   await next(page);
   await expect(page.getByRole('alert')).toHaveText('ใส่ราคา 0 ถึง 100,000 บาท และความยาว 1 ถึง 600 นาที');
   await page.locator('#apply-price').fill('10');
@@ -144,14 +138,13 @@ test('contact channels, price with minutes and optional competitions are checked
   await expect(page.locator('#competition-count')).toContainText('เลือกแล้ว 1 เวที');
 
   await next(page);
-  const preview = page.locator('#cw-apply .review-group').filter({ hasText: 'ช่องทางที่นักเรียนติดต่อคุณ' });
-  await expect(preview).toContainText('mentor.ig');
-  await expect(preview).toContainText('10 บาท / 1 นาที');
+  await expect(page.locator('#cw-apply .review').filter({ hasText: '10 บาท / 1 นาที' })).toBeVisible();
   await acceptAll(page);
   const sent = page.waitForRequest((request) => request.url().endsWith('/api/submissions/mentor'));
   await page.getByRole('button', { name: 'ส่งใบสมัคร', exact: true }).click();
   const body = (await sent).postDataJSON();
-  expect(body).toMatchObject({ contactInstagram: 'mentor.ig', contactLine: '', price: 10, minutes: 1 });
+  expect(body).toMatchObject({ price: 10, minutes: 1 });
+  expect(Object.keys(body).filter((key) => key.startsWith('contact'))).toEqual([]);
   expect(body.competitions).toHaveLength(1);
   await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
 });

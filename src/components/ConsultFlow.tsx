@@ -1,52 +1,42 @@
 import { useId, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../data/auth';
 import { post } from '../lib/api';
 import { consultError } from '../data/consult';
-import type { ConsultStatus } from '../data/consult';
+import type { MemberHire } from '../data/consult';
 import { useI18n } from '../i18n';
 import { StarIcon } from './mentors';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
 import '../consult.css';
 
-/* ขั้นตอนหลังกด Contact Mentor ของนักเรียน ใช้ทั้งในหน้าโปรไฟล์เมนเทอร์และหน้า Consulting
-   active  → คุยกับเมนเทอร์นอกเว็บ แล้วกด "I received guidance" (ยกเลิกได้)
-   claimed → เราส่งอีเมลให้เมนเทอร์ยืนยันแล้ว รอ (ยกเลิกได้)
-   confirmed → เมนเทอร์ยืนยันแล้ว รีวิวได้หนึ่งครั้ง
-   cancelled → จบ ติดต่อใหม่ได้ที่หน้าโปรไฟล์เมนเทอร์
-   ปุ่มที่กดแล้วหายไป (เช่น I received guidance) ทำให้โฟกัสหลุด จึงย้ายโฟกัสกลับมาที่กล่องนี้หลังสถานะเปลี่ยน */
+/* ปุ่มของนักเรียนบนงานจ้าง ใช้ใน Consulting
+   requested → ยกเลิกได้ | accepted → กดเสร็จงาน (ถามก่อน) หรือยกเลิก | completed → เขียนรีวิวได้ครั้งเดียว
+   declined / cancelled → จ้างอีกครั้งที่หน้าเมนเทอร์
+   ปุ่มที่กดแล้วหายไป ทำให้โฟกัสหลุด จึงย้ายโฟกัสกลับมาที่กล่องนี้หลังสถานะเปลี่ยน */
 
-export type FlowConsultation = { id: string; status: ConsultStatus; reviewed: boolean; stars?: number | null };
-
-export function StatusPill({ status, reviewed }: { status: ConsultStatus; reviewed: boolean }) {
-  const { t } = useI18n();
-  return <span className={`cx-pill cx-pill--${status}`}>
-    {status === 'confirmed' && reviewed ? t.consult.reviewedPill : t.consult.status[status]}
-  </span>;
-}
-
-function CancelControl({ busy, onCancel }: { busy: boolean; onCancel: () => Promise<void> }) {
-  const { t } = useI18n();
-  const s = t.consult;
+/** ปุ่มที่ต้องถามก่อนทำ ถามในที่ ไม่เด้ง dialog ปุ่มเริ่มต้นที่โฟกัสคือ "ไม่" เพราะทำพลาดแล้วย้อนไม่ได้ */
+function ConfirmAction({ trigger, question, yes, no, busyLabel, busy, danger = false, quiet = false, onConfirm }: {
+  trigger: string; question: string; yes: string; no: string; busyLabel: string; busy: boolean;
+  danger?: boolean; quiet?: boolean; onConfirm: () => Promise<void>;
+}) {
   const [asking, setAsking] = useState(false);
-  const askRef = useRef<HTMLButtonElement>(null);
+  const noRef = useRef<HTMLButtonElement>(null);
   const openRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
 
   if (!asking) {
-    return <button type="button" ref={openRef} className="link-button cx-link cx-link--quiet" disabled={busy}
-      onClick={() => { setAsking(true); requestAnimationFrame(() => askRef.current?.focus()); }}>{s.cancel}</button>;
+    return <button type="button" ref={openRef}
+      className={quiet ? 'link-button cx-link cx-link--quiet' : 'ghost-button cx-button'} disabled={busy}
+      onClick={() => { setAsking(true); requestAnimationFrame(() => noRef.current?.focus()); }}>{trigger}</button>;
   }
-  // ยืนยันในที่ ไม่เด้ง dialog: ถามหนึ่งครั้งพอ เพราะกดผิดก็แค่ติดต่อเมนเทอร์ใหม่ได้
   return <div className="cx-confirm" role="group" aria-labelledby={titleId}>
-    <p id={titleId}>{s.cancelAsk}</p>
+    <p id={titleId}>{question}</p>
     <div className="cx-row">
-      <button type="button" className="ghost-button cx-button cx-button--danger" disabled={busy} onClick={() => { void onCancel(); }}>
-        {busy ? s.cancelling : s.cancelYes}
-      </button>
-      <button type="button" ref={askRef} className="ghost-button cx-button" disabled={busy}
-        onClick={() => { setAsking(false); requestAnimationFrame(() => openRef.current?.focus()); }}>{s.cancelNo}</button>
+      <button type="button" className={danger ? 'ghost-button cx-button cx-button--danger' : 'primary-button cx-button'} disabled={busy}
+        onClick={() => { void onConfirm(); }}>{busy ? busyLabel : yes}</button>
+      <button type="button" ref={noRef} className="ghost-button cx-button" disabled={busy}
+        onClick={() => { setAsking(false); requestAnimationFrame(() => openRef.current?.focus()); }}>{no}</button>
     </div>
   </div>;
 }
@@ -104,24 +94,22 @@ function ReviewForm({ id, verified, onDone }: { id: string; verified: boolean; o
   </form>;
 }
 
-/* viewLink: ลิงก์ "ดูเมนเทอร์และช่องทางติดต่อ" ของหน้า Consulting ใส่ในแถวปุ่มเดียวกัน ลำดับคือปุ่มหลัก → ปุ่มขอบ → ข้อความเงียบ
-   collapseReview: หน้า Consulting ซ่อนฟอร์มรีวิวไว้หลังปุ่ม "เขียนรีวิว" (ปุ่มม่วงปุ่มเดียวของการ์ด) หน้าโปรไฟล์เมนเทอร์แสดงฟอร์มเลย */
-export function ConsultFlow({ consultation, onChange, viewLink, collapseReview = false }: {
-  consultation: FlowConsultation; onChange: () => Promise<void> | void; viewLink?: ReactNode; collapseReview?: boolean;
+export function MemberHireActions({ hire, onChange, extra }: {
+  hire: MemberHire; onChange: () => Promise<void> | void; extra?: ReactNode;
 }) {
   const { t } = useI18n();
   const s = t.consult;
   const { user } = useAuth();
-  const [busy, setBusy] = useState<'claim' | 'cancel' | null>(null);
+  const [busy, setBusy] = useState<'cancel' | 'complete' | null>(null);
   const [message, setMessage] = useState('');
-  const [reviewOpen, setReviewOpen] = useState(!collapseReview);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  async function run(kind: 'claim' | 'cancel') {
+  async function run(kind: 'cancel' | 'complete') {
     setBusy(kind);
     setMessage('');
     try {
-      await post(`/consult/${consultation.id}/${kind}`, {});
+      await post(`/consult/${hire.id}/${kind}`, {});
       await onChange();
       rootRef.current?.focus({ preventScroll: true });
     } catch (failure) {
@@ -131,36 +119,35 @@ export function ConsultFlow({ consultation, onChange, viewLink, collapseReview =
     }
   }
 
-  const { status } = consultation;
-  const cancel = <CancelControl busy={busy === 'cancel'} onCancel={() => run('cancel')} />;
-  return <div className="cx-flow" ref={rootRef} tabIndex={-1}>
-    {status === 'active' && <>
-      <p>{s.claimHelp}</p>
-      <div className="cx-row">
-        <button type="button" className="primary-button cx-button" disabled={busy !== null} onClick={() => { void run('claim'); }}>
-          {busy === 'claim' ? s.claiming : s.claim}
-        </button>
-        {viewLink}{cancel}
-      </div>
-    </>}
-    {status === 'claimed' && <>
-      <p>{s.claimedNote}</p>
-      <div className="cx-row">{viewLink}{cancel}</div>
-    </>}
-    {status === 'confirmed' && (consultation.reviewed
+  const cancel = <ConfirmAction quiet trigger={s.cancel} question={s.cancelAsk} yes={s.cancelYes} no={s.cancelNo}
+    busyLabel={s.cancelling} busy={busy === 'cancel'} danger onConfirm={() => run('cancel')} />;
+  const { status } = hire;
+  return <div className="cx-actions" ref={rootRef} tabIndex={-1}>
+    {status === 'requested' && <div className="cx-row">{extra}{cancel}</div>}
+    {status === 'accepted' && <div className="cx-row">
+      <ConfirmAction trigger={s.markDone} question={s.markDoneAsk} yes={s.markDoneYes} no={s.markDoneNo}
+        busyLabel={s.markingDone} busy={busy === 'complete'} onConfirm={() => run('complete')} />
+      {extra}{cancel}
+    </div>}
+    {status === 'completed' && (hire.review
       ? <>
-        <p>{s.reviewedNote}{consultation.stars ? ` ${s.yourRating(consultation.stars)}.` : ''}</p>
-        {viewLink && <div className="cx-row">{viewLink}</div>}
+        <p>{s.reviewedNote} {s.yourRating(hire.review.stars)}.</p>
+        {extra && <div className="cx-row">{extra}</div>}
       </>
       : <>
-        <p>{s.confirmedNote}</p>
         {!reviewOpen && <div className="cx-row">
           <button type="button" className="primary-button cx-button" onClick={() => setReviewOpen(true)}>{s.writeReview}</button>
-          {viewLink}
+          {extra}
         </div>}
-        {reviewOpen && <ReviewForm id={consultation.id} verified={Boolean(user?.emailVerified)} onDone={async () => { await onChange(); rootRef.current?.focus({ preventScroll: true }); }} />}
+        {reviewOpen && <ReviewForm id={hire.id} verified={Boolean(user?.emailVerified)}
+          onDone={async () => { await onChange(); rootRef.current?.focus({ preventScroll: true }); }} />}
       </>)}
-    {status === 'cancelled' && <p>{s.cancelledNote}</p>}
+    {(status === 'declined' || status === 'cancelled') && <div className="cx-row">
+      <Link className="ghost-button cx-button" to={`/mentors/${hire.mentor.id}${hire.competition ? `?competition=${encodeURIComponent(hire.competition.slug)}` : ''}`}>{s.hireAgain}</Link>
+      {extra}
+    </div>}
     <p className="cx-message cx-message--error" role="alert">{message}</p>
   </div>;
 }
+
+export { ConfirmAction };

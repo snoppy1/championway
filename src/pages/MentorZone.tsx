@@ -5,16 +5,19 @@ import { ExternalLink } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { api, ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
-import { consultError, contactKeys, isWebLink, parsePrice } from '../data/consult';
-import type { ConsultStatus, Contacts, MentorCard, Rating as RatingValue } from '../data/consult';
+import { consultError, isWebLink, parsePrice } from '../data/consult';
+import type { MentorCard, MentorHire, Rating as RatingValue } from '../data/consult';
 import { Avatar, Rating, RisingStarPill } from '../components/mentors';
+import { CHAT_CHANGED } from '../components/ChatPanel';
+import { HireSummary, StatusPill } from '../components/hire';
+import { HireWorkspace } from '../components/HireWorkspace';
 import { useI18n } from '../i18n';
 import { formatDate, formatInputDate } from '../i18n/format';
 import '../consult.css';
 
 /* Mentor zone: ที่เดียวที่เมนเทอร์จัดการตัวเอง
-   ช่องทางติดต่อ เวทีที่รับปรึกษาพร้อมราคา ขอเพิ่มเวทีใหม่ และกดยืนยันการปรึกษา
-   ลิงก์ในอีเมลแจ้งเตือนมาที่ /mentor-zone#confirm-<id> หน้านี้เลื่อนไปที่รายการนั้นให้เอง
+   ตอบคำขอจ้าง (รับ/ปฏิเสธ) แชตกับนักเรียน เวทีที่รับปรึกษาพร้อมราคา และขอเพิ่มเวทีใหม่
+   ลิงก์ในอีเมลแจ้งเตือนมาที่ /mentor-zone#hire-<id> หน้านี้เลื่อนไปที่คำขอนั้นให้เอง (ส่วนแชตใช้ #room-<id>)
    สิทธิ์ทั้งหมดตัดสินที่เซิร์ฟเวอร์ หน้านี้แค่ซ่อนสิ่งที่คนที่ไม่ใช่เมนเทอร์ใช้ไม่ได้ */
 
 type Chosen = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null };
@@ -23,146 +26,140 @@ type Request = {
   id: string; name: string; url: string; details: string; price: number; minutes: number;
   status: 'pending' | 'approved' | 'rejected'; reason: string; createdAt: string;
 };
-type Waiting = { id: string; status: ConsultStatus; claimedAt: string | null; createdAt: string; student: string };
 type Zone = {
   mentor: null | (MentorCard & {
-    risingStar: boolean; rating: RatingValue; contacts: Contacts; price: number | null; minutes: number | null;
+    risingStar: boolean; rating: RatingValue; price: number | null; minutes: number | null;
   });
   competitions: Chosen[];
   available: Open[];
   requests: Request[];
-  consultations: Waiting[];
+  hires: MentorHire[];
 };
 
-const EMAIL = /^\S+@\S+\.\S+$/;
 const PAGE = 5;
 
 type Reload = () => void;
 
-/* ---------- การปรึกษาที่รอยืนยัน ---------- */
+/* ---------- คำขอจ้าง ---------- */
 
-/* เรื่องเดียวที่เมนเทอร์ต้องรีบทำ จึงอยู่บนสุดและเป็นสีทอง ไม่มีรายการรอก็ซ่อนทั้งส่วน
-   นับเฉพาะรายการที่นักเรียนกดว่าได้รับคำแนะนำแล้ว ส่วนคนที่เพิ่งเปิดดูช่องทางติดต่อยังไม่มีอะไรให้เมนเทอร์ทำ */
-function ConfirmSection({ items, reload }: { items: Waiting[]; reload: Reload }) {
+/* เรื่องเดียวที่เมนเทอร์ต้องรีบทำ จึงอยู่บนสุดและเป็นสีทอง ไม่มีคำขอที่รออยู่ก็ซ่อนทั้งส่วน
+   รับงานแล้วห้องแชตเปิดทันที ปฏิเสธต้องมีเหตุผล (นักเรียนได้อ่านทางอีเมล)
+   ที่ว่างข้างปุ่มรับงานไว้ให้ขั้นการชำระเงินแทรกระหว่าง "รับ" กับ "เปิดแชต" ได้ภายหลัง */
+function RequestCard({ hire, reload, onDone }: { hire: MentorHire; reload: Reload; onDone: (message: string) => void }) {
   const { t, lang } = useI18n();
   const s = t.mentorZone;
   const { hash } = useLocation();
-  const [busy, setBusy] = useState('');
+  const [busy, setBusy] = useState<'accept' | 'decline' | null>(null);
+  const [declining, setDeclining] = useState(false);
+  const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
-  const [failed, setFailed] = useState(false);
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  const claimed = items.filter((item) => item.status === 'claimed');
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const cardRef = useRef<HTMLLIElement>(null);
+  const reasonId = useId();
 
-  // มาจากลิงก์ในอีเมล: เลื่อนไปหารายการนั้นและย้ายโฟกัสไปที่มัน
+  // มาจากลิงก์ในอีเมล: เลื่อนมาที่คำขอนี้และย้ายโฟกัสมาให้
   useEffect(() => {
-    if (!hash.startsWith('#confirm-')) return;
-    const target = document.getElementById(hash.slice(1));
-    if (!target) return;
-    target.scrollIntoView({ block: 'center' });
-    target.focus({ preventScroll: true });
-  }, [hash, claimed.length]);
+    if (hash !== `#hire-${hire.id}`) return;
+    cardRef.current?.scrollIntoView({ block: 'center' });
+    cardRef.current?.focus({ preventScroll: true });
+  }, [hash, hire.id]);
 
-  async function confirm(id: string) {
-    setBusy(id);
+  async function accept() {
+    setBusy('accept');
     setMessage('');
-    setFailed(false);
     try {
-      await post(`/consult/${id}/confirm`, {});
-      setMessage(s.confirmedDone);
+      await post(`/consult/${hire.id}/accept`, {});
+      onDone(s.acceptedDone);
       reload();
-      titleRef.current?.focus();
     } catch (failure) {
-      setFailed(true);
       setMessage(consultError(failure, t, 'mentor'));
-    } finally {
-      setBusy('');
+      setBusy(null);
     }
   }
 
-  // ยืนยันครบแล้วยังต้องเห็นข้อความ "ยืนยันแล้ว" ส่วนนี้จึงหายเมื่อไม่มีทั้งรายการและข้อความ
-  if (claimed.length === 0 && !message) return null;
+  async function decline(event: FormEvent) {
+    event.preventDefault();
+    if (!reason.trim()) { setMessage(s.declineNeedReason); reasonRef.current?.focus(); return; }
+    setBusy('decline');
+    setMessage('');
+    try {
+      await post(`/consult/${hire.id}/decline`, { reason: reason.trim() });
+      onDone(s.declinedDone);
+      reload();
+    } catch (failure) {
+      setMessage(consultError(failure, t, 'mentor'));
+      setBusy(null);
+    }
+  }
 
-  return <section className="panel cx-section cx-section--urgent" aria-labelledby="confirm-title">
-    <h2 id="confirm-title" tabIndex={-1} ref={titleRef}>{s.confirmHeading(claimed.length)}</h2>
-    {claimed.length > 0 && <p className="cx-lead">{s.confirmLead}</p>}
-    <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
-    {claimed.length > 0 && <ul className="cx-list" aria-label={s.listLabel}>
-      {claimed.map((item) => <li key={item.id} id={`confirm-${item.id}`} tabIndex={-1}
-        className={hash === `#confirm-${item.id}` ? 'cx-waiting is-target' : 'cx-waiting'}>
-        <p>{s.claimedOn(item.student, formatDate(item.claimedAt ?? item.createdAt, lang))}</p>
-        <button type="button" className="primary-button cx-button" disabled={busy !== ''}
-          aria-label={s.confirmAria(item.student)} onClick={() => { void confirm(item.id); }}>
-          {busy === item.id ? s.confirming : s.confirm}
-        </button>
-      </li>)}
+  return <li id={`hire-${hire.id}`} ref={cardRef} tabIndex={-1} className={hash === `#hire-${hire.id}` ? 'cx-request-card is-target' : 'cx-request-card'}>
+    <div className="hw__head">
+      <h3>{s.hireFrom(hire.student)}</h3>
+      <StatusPill status={hire.status} />
+    </div>
+    <p className="cx-hint">{formatDate(hire.createdAt, lang)}</p>
+    <HireSummary hire={hire} />
+    {!declining
+      ? <div className="cx-row">
+        <button type="button" className="primary-button cx-button" disabled={busy !== null} aria-label={s.acceptAria(hire.student)}
+          onClick={() => { void accept(); }}>{busy === 'accept' ? s.accepting : s.accept}</button>
+        <button type="button" className="ghost-button cx-button" disabled={busy !== null} aria-label={s.declineAria(hire.student)}
+          onClick={() => { setDeclining(true); requestAnimationFrame(() => reasonRef.current?.focus()); }}>{s.decline}</button>
+      </div>
+      : <form className="cx-form" onSubmit={(event) => { void decline(event); }} noValidate>
+        <div className="cx-field">
+          <label htmlFor={reasonId}>{s.declineReasonLabel}</label>
+          <textarea id={reasonId} ref={reasonRef} rows={3} maxLength={1000} value={reason} disabled={busy !== null}
+            onChange={(event) => { setReason(event.target.value); setMessage(''); }} />
+          <p className="cx-hint">{s.declineReasonHint}</p>
+        </div>
+        <div className="cx-row">
+          <button className="ghost-button cx-button cx-button--danger" disabled={busy !== null}>{busy === 'decline' ? s.declining : s.declineSend}</button>
+          <button type="button" className="link-button cx-link cx-link--quiet" disabled={busy !== null} onClick={() => { setDeclining(false); setMessage(''); }}>{s.declineBack}</button>
+        </div>
+      </form>}
+    <p className="cx-message cx-message--error" role="alert">{message}</p>
+  </li>;
+}
+
+function RequestsSection({ items, reload }: { items: MentorHire[]; reload: Reload }) {
+  const { t } = useI18n();
+  const s = t.mentorZone;
+  const [message, setMessage] = useState('');
+  const titleRef = useRef<HTMLHeadingElement>(null);
+
+  const done = (note: string) => { setMessage(note); titleRef.current?.focus(); };
+  // ตอบครบแล้วยังต้องเห็นข้อความ "รับงานแล้ว" ส่วนนี้จึงหายเมื่อไม่มีทั้งคำขอและข้อความ
+  if (items.length === 0 && !message) return null;
+
+  return <section className="panel cx-section cx-section--urgent" aria-labelledby="hires-title">
+    <h2 id="hires-title" tabIndex={-1} ref={titleRef}>{s.hiresTitle(items.length)}</h2>
+    {items.length > 0 && <p className="cx-lead">{s.hiresLead}</p>}
+    <p className="cx-message cx-message--ok" role="status">{message}</p>
+    {items.length > 0 && <ul className="cx-list cx-list--stack" aria-label={s.hiresListLabel}>
+      {items.map((hire) => <RequestCard key={hire.id} hire={hire} reload={reload} onDone={done} />)}
     </ul>}
   </section>;
 }
 
-/* ---------- ช่องทางติดต่อ ---------- */
+/* ---------- งานและแชต ---------- */
 
-function ContactsSection({ contacts, reload }: { contacts: Contacts; reload: Reload }) {
+function ChatsSection({ items }: { items: MentorHire[] }) {
   const { t } = useI18n();
   const s = t.mentorZone;
-  const [values, setValues] = useState<Contacts>(contacts);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [failed, setFailed] = useState(false);
-  const firstRef = useRef<HTMLInputElement>(null);
-
-  const set = (key: keyof Contacts, value: string) => { setValues((current) => ({ ...current, [key]: value })); setMessage(''); };
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const trimmed = Object.fromEntries(contactKeys.map((key) => [key, values[key].trim()])) as Contacts;
-    let problem = '';
-    if (!contactKeys.some((key) => trimmed[key])) problem = s.contactsNeedOne;
-    else if (trimmed.email && !EMAIL.test(trimmed.email)) problem = s.contactsBadEmail;
-    else if (trimmed.link && !isWebLink(trimmed.link)) problem = s.contactsBadLink;
-    if (problem) {
-      setFailed(true);
-      setMessage(problem);
-      firstRef.current?.focus();
-      return;
-    }
-    setBusy(true);
-    setMessage('');
-    setFailed(false);
-    try {
-      await api('/consult/zone/contacts', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          contactEmail: trimmed.email, contactLine: trimmed.line, contactPhone: trimmed.phone,
-          contactInstagram: trimmed.instagram, contactLink: trimmed.link,
-        }),
-      });
-      setValues(trimmed);
-      setMessage(s.saved);
-      reload();
-    } catch (failure) {
-      setFailed(true);
-      setMessage(consultError(failure, t, 'mentor'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return <section className="panel cx-section" aria-labelledby="contacts-title">
-    <h2 id="contacts-title">{s.contactsTitle}</h2>
-    <p className="cx-lead">{s.contactsLead}</p>
-    <form className="cx-form" onSubmit={(event) => { void submit(event); }} noValidate>
-      <div className="cx-grid-2">
-        {contactKeys.map((key, index) => <div className="cx-field" key={key}>
-          <label htmlFor={`zone-contact-${key}`}>{s.fields[key]}</label>
-          <input id={`zone-contact-${key}`} ref={index === 0 ? firstRef : undefined}
-            type={key === 'email' ? 'email' : key === 'link' ? 'url' : key === 'phone' ? 'tel' : 'text'}
-            autoComplete="off" maxLength={key === 'link' ? 500 : key === 'email' ? 200 : 100}
-            value={values[key]} disabled={busy} onChange={(event) => set(key, event.target.value)} />
-        </div>)}
-      </div>
-      <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
-      <button className="primary-button cx-button" disabled={busy}>{busy ? s.saving : s.save}</button>
-    </form>
+  const c = t.consult;
+  const noteFor = (hire: MentorHire) => (hire.status === 'accepted' ? null : hire.status === 'completed' ? c.completedNote : null);
+  return <section className="panel cx-section" aria-labelledby="chats-title">
+    <h2 id="chats-title">{s.chatsTitle}</h2>
+    {items.length === 0 ? <p className="cx-empty">{s.chatsEmpty}</p> : <HireWorkspace
+      items={items}
+      nameOf={(hire) => hire.student}
+      initialOf={(hire) => hire.student.slice(0, 1).toUpperCase()}
+      noteFor={noteFor}
+      renderActions={() => null}
+      labels={{ list: s.chatsListLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: s.noChatYet }}
+      closedNote={t.consulting.chatClosedNote}
+    />}
   </section>;
 }
 
@@ -461,6 +458,11 @@ export function MentorZone() {
   const { user, loading: authLoading } = useAuth();
   const { hash } = useLocation();
   const { data, error, loading, reload } = useApi<Zone>(user ? '/consult/zone' : null);
+  // ข้อความใหม่ในแชตหรืออ่านแล้ว จำนวนที่ยังไม่อ่านบนรายการต้องเปลี่ยนตาม
+  useEffect(() => {
+    window.addEventListener(CHAT_CHANGED, reload);
+    return () => window.removeEventListener(CHAT_CHANGED, reload);
+  }, [reload]);
 
   useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
 
@@ -504,8 +506,8 @@ export function MentorZone() {
       </section>
 
       <div className="cx-stack">
-        <ConfirmSection items={data.consultations} reload={reload} />
-        <ContactsSection contacts={mentor.contacts} reload={reload} />
+        <RequestsSection items={data.hires.filter((hire) => hire.status === 'requested')} reload={reload} />
+        <ChatsSection items={data.hires.filter((hire) => hire.status !== 'requested')} />
         <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests}
           defaults={{ price: mentor.price, minutes: mentor.minutes }} reload={reload} />
       </div>

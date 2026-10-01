@@ -81,14 +81,18 @@ const tokenHash = (token: string) => createHash('sha256').update(token).digest('
 auth.post('/email/verify/send', requireUser, async (c) => {
   const user = c.get('user')!;
   if (user.emailVerified) return c.json({ ok: true, alreadyVerified: true });
-  const [recent] = await db.select({ createdAt: emailVerifications.createdAt }).from(emailVerifications)
-    .where(eq(emailVerifications.userId, user.id)).orderBy(desc(emailVerifications.createdAt)).limit(1);
-  if (recent && Date.now() - recent.createdAt.getTime() < VERIFY_COOLDOWN_MS) {
-    throw new HTTPException(429, { message: 'เพิ่งส่งลิงก์ไปแล้ว รอสักครู่แล้วลองใหม่' });
-  }
   const token = newToken();
-  await db.insert(emailVerifications).values({
-    tokenHash: tokenHash(token), userId: user.id, email: user.email, expiresAt: new Date(Date.now() + VERIFY_TTL_MS),
+  // ล็อกแถวผู้ใช้ก่อนเช็กช่วงพัก กดส่งพร้อมกันหลายครั้งจะผ่านได้ครั้งเดียว (Astra รีวิว 2 ต.ค. 2569)
+  await db.transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, user.id)).for('update');
+    const [recent] = await tx.select({ createdAt: emailVerifications.createdAt }).from(emailVerifications)
+      .where(eq(emailVerifications.userId, user.id)).orderBy(desc(emailVerifications.createdAt)).limit(1);
+    if (recent && Date.now() - recent.createdAt.getTime() < VERIFY_COOLDOWN_MS) {
+      throw new HTTPException(429, { message: 'เพิ่งส่งลิงก์ไปแล้ว รอสักครู่แล้วลองใหม่' });
+    }
+    await tx.insert(emailVerifications).values({
+      tokenHash: tokenHash(token), userId: user.id, email: user.email, expiresAt: new Date(Date.now() + VERIFY_TTL_MS),
+    });
   });
   const link = `${env.appOrigin}/verify-email?token=${token}`;
   await notify(user.email, 'ยืนยันอีเมล ChampionWays / Verify your email',

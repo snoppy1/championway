@@ -276,11 +276,15 @@ consult.post('/zone/requests', requireUser, async (c) => {
     url: z.string().trim().url('ลิงก์ไม่ถูกต้อง').max(500).refine((v) => /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://'),
     details: z.string().trim().max(2000).default(''),
   }));
-  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(competitionRequests)
-    .where(and(eq(competitionRequests.mentorId, mentor.id), eq(competitionRequests.status, 'pending')));
-  if (count >= 10) return fail('มีคำขอรอตรวจอยู่ 10 รายการแล้ว รอทีมงานตรวจก่อน', 409);
   const id = newId('creq');
-  await db.insert(competitionRequests).values({ id, mentorId: mentor.id, userId: user.id, ...body });
+  // ล็อกแถวเมนเทอร์ก่อนนับ ส่งพร้อมกันหลายคำขอจะไม่ทะลุเพดาน 10 รายการ (Astra รีวิว 2 ต.ค. 2569)
+  await db.transaction(async (tx) => {
+    await tx.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentor.id)).for('update');
+    const [{ count }] = await tx.select({ count: sql<number>`count(*)::int` }).from(competitionRequests)
+      .where(and(eq(competitionRequests.mentorId, mentor.id), eq(competitionRequests.status, 'pending')));
+    if (count >= 10) return fail('มีคำขอรอตรวจอยู่ 10 รายการแล้ว รอทีมงานตรวจก่อน', 409);
+    await tx.insert(competitionRequests).values({ id, mentorId: mentor.id, userId: user.id, ...body });
+  });
   return c.json({ id }, 201);
 });
 

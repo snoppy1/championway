@@ -205,6 +205,18 @@ test('hire a mentor, chat, finish and review', async (t) => {
       assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'DELETE')).status, 200);
     });
 
+    await t.test('parallel requests cannot slip past the cooldown or the request cap', async () => {
+      // Astra รีวิว 2 ต.ค. 2569: ยิงพร้อมกันเคยผ่านการเช็กได้หลายครั้ง ตอนนี้ล็อกแถวก่อนเช็ก
+      const fresh = await account();
+      const sends = await Promise.all(Array.from({ length: 6 }, () => call('/auth/email/verify/send', fresh.cookie, 'POST', {})));
+      assert.deepEqual(sends.map((r) => r.status).sort(), [200, 429, 429, 429, 429, 429]);
+      const made = await Promise.all(Array.from({ length: 14 }, (_, n) => call('/consult/zone/requests', mentorUser.cookie, 'POST',
+        { name: `งานพร้อมกัน ${n}`, url: 'https://example.test/parallel', price: 100, minutes: 30 })));
+      assert.equal(made.filter((r) => r.status === 201).length, 10);
+      assert.equal(made.filter((r) => r.status === 409).length, 4);
+      await db.delete(competitionRequests).where(eq(competitionRequests.mentorId, mentorId));
+    });
+
     await t.test('a competition request becomes a listing only after the team approves it', async () => {
       assert.equal((await call('/consult/zone/requests', mentorUser.cookie, 'POST', { name: 'งานใหม่', url: 'javascript:alert(1)', price: 300, minutes: 30 })).status, 400);
       const made = await call('/consult/zone/requests', mentorUser.cookie, 'POST', { name: 'งานใหม่', url: 'https://example.test/new', details: 'รายละเอียด', price: 300, minutes: 30 });

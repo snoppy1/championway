@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { formatDateTime } from '../i18n/format';
 import { hireStep } from '../data/consult';
@@ -15,17 +16,19 @@ export function StatusPill({ status, reviewed = false }: { status: HireStatus; r
   </span>;
 }
 
-/** บรรทัดขั้นตอนธรรมดา ขั้นปัจจุบันตัวหนา ไม่ใช้ชิปตัวเลข
-    ขั้นมาจาก t.consult.steps ทั้งหมด เพิ่มขั้นจ่ายเงินหรือขั้น "เข้าห้องวิดีโอ" ได้โดยเพิ่มรายการในพจนานุกรมกับ hireStep() */
+/** ตัวบอกขั้นตอน: จุดมีเลข ขั้นที่ผ่านแล้วเป็นเครื่องหมายถูก ขั้นปัจจุบันเติมสีม่วงและตัวหนา ชื่อขั้นไม่ตัดบรรทัดกลางคำ
+    ขั้นมาจาก t.consult.steps ทั้งหมด เพิ่มขั้น "ชำระเงิน" หรือ "เข้าห้องวิดีโอ" ได้โดยเพิ่มรายการในพจนานุกรมกับ hireStep()
+    ขั้นที่ผ่านแล้วบอกด้วยเครื่องหมายถูกและข้อความอ่านออกเสียง ไม่ใช้สีอย่างเดียว */
 export function HireSteps({ status }: { status: HireStatus | null }) {
   const { t } = useI18n();
   const current = hireStep(status);
-  return <p className="cx-steps" aria-label={t.consult.stepsLabel}>
-    {t.consult.steps.map((step, index) => <span key={step}>
-      {index > 0 && <span aria-hidden="true"> · </span>}
-      {index === current ? <strong aria-current="step">{step}</strong> : step}
-    </span>)}
-  </p>;
+  return <ol className="cx-stepper" aria-label={t.consult.stepsLabel}>
+    {t.consult.steps.map((step, index) => <li key={step} aria-current={index === current ? 'step' : undefined}
+      className={index < current ? 'is-done' : index === current ? 'is-current' : undefined}>
+      <span className="cx-stepper__dot" aria-hidden="true">{index < current ? <Check size={14} /> : index + 1}</span>
+      <span className="cx-stepper__label">{step}{index < current && <span className="sr-only"> ({t.consult.stepDone})</span>}</span>
+    </li>)}
+  </ol>;
 }
 
 /** ตัวเลขข้อความที่ยังไม่อ่าน ไม่ขึ้นถ้าเป็นศูนย์ ข้อความสำหรับโปรแกรมอ่านหน้าจออยู่ใน sr-only (ตัวเลขอย่างเดียวไม่มีความหมาย) */

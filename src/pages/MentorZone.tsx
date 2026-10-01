@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { ExternalLink, Search } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { api, ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
@@ -9,8 +9,9 @@ import { consultError, isWebLink, parsePrice } from '../data/consult';
 import type { MentorCard, MentorHire, Rating as RatingValue } from '../data/consult';
 import { Avatar, Rating, RisingStarPill } from '../components/mentors';
 import { CHAT_CHANGED } from '../components/ChatPanel';
-import { HireSummary, StatusPill } from '../components/hire';
+import { HireSummary, StatusPill, UnreadBadge } from '../components/hire';
 import { HireWorkspace } from '../components/HireWorkspace';
+import { Tabs, panelId, tabId } from '../components/Tabs';
 import { useI18n } from '../i18n';
 import { formatDate, formatInputDate } from '../i18n/format';
 import '../consult.css';
@@ -45,7 +46,7 @@ type Reload = () => void;
 /* เรื่องเดียวที่เมนเทอร์ต้องรีบทำ จึงอยู่บนสุดและเป็นสีทอง ไม่มีคำขอที่รออยู่ก็ซ่อนทั้งส่วน
    รับงานแล้วห้องแชตเปิดทันที ปฏิเสธต้องมีเหตุผล (นักเรียนได้อ่านทางอีเมล)
    ที่ว่างข้างปุ่มรับงานไว้ให้ขั้นการชำระเงินแทรกระหว่าง "รับ" กับ "เปิดแชต" ได้ภายหลัง */
-function RequestCard({ hire, reload, onDone }: { hire: MentorHire; reload: Reload; onDone: (message: string) => void }) {
+function RequestCard({ hire, reload, onDone, onAccepted }: { hire: MentorHire; reload: Reload; onDone: (message: string) => void; onAccepted: (id: string) => void }) {
   const { t, lang } = useI18n();
   const s = t.mentorZone;
   const { hash } = useLocation();
@@ -71,6 +72,7 @@ function RequestCard({ hire, reload, onDone }: { hire: MentorHire; reload: Reloa
       await post(`/consult/${hire.id}/accept`, {});
       onDone(s.acceptedDone);
       reload();
+      onAccepted(hire.id);
     } catch (failure) {
       setMessage(consultError(failure, t, 'mentor'));
       setBusy(null);
@@ -94,10 +96,12 @@ function RequestCard({ hire, reload, onDone }: { hire: MentorHire; reload: Reloa
 
   return <li id={`hire-${hire.id}`} ref={cardRef} tabIndex={-1} className={hash === `#hire-${hire.id}` ? 'cx-request-card is-target' : 'cx-request-card'}>
     <div className="hw__head">
-      <h3>{s.hireFrom(hire.student)}</h3>
+      <div>
+        <h3>{s.hireFrom(hire.student)}</h3>
+        <p className="cx-hint">{formatDate(hire.createdAt, lang)}</p>
+      </div>
       <StatusPill status={hire.status} />
     </div>
-    <p className="cx-hint">{formatDate(hire.createdAt, lang)}</p>
     <HireSummary hire={hire} />
     {!declining
       ? <div className="cx-row">
@@ -122,45 +126,45 @@ function RequestCard({ hire, reload, onDone }: { hire: MentorHire; reload: Reloa
   </li>;
 }
 
-function RequestsSection({ items, reload }: { items: MentorHire[]; reload: Reload }) {
+function RequestsPanel({ items, reload, onDone, onAccepted }: {
+  items: MentorHire[]; reload: Reload; onDone: (message: string) => void; onAccepted: (id: string) => void;
+}) {
   const { t } = useI18n();
   const s = t.mentorZone;
-  const [message, setMessage] = useState('');
-  const titleRef = useRef<HTMLHeadingElement>(null);
-
-  const done = (note: string) => { setMessage(note); titleRef.current?.focus(); };
-  // ตอบครบแล้วยังต้องเห็นข้อความ "รับงานแล้ว" ส่วนนี้จึงหายเมื่อไม่มีทั้งคำขอและข้อความ
-  if (items.length === 0 && !message) return null;
-
-  return <section className="panel cx-section cx-section--urgent" aria-labelledby="hires-title">
-    <h2 id="hires-title" tabIndex={-1} ref={titleRef}>{s.hiresTitle(items.length)}</h2>
-    {items.length > 0 && <p className="cx-lead">{s.hiresLead}</p>}
-    <p className="cx-message cx-message--ok" role="status">{message}</p>
-    {items.length > 0 && <ul className="cx-list cx-list--stack" aria-label={s.hiresListLabel}>
-      {items.map((hire) => <RequestCard key={hire.id} hire={hire} reload={reload} onDone={done} />)}
-    </ul>}
+  // มีคำขอรออยู่เป็นสีทอง (เรื่องเดียวที่ต้องรีบทำ) ไม่มีก็เป็นข้อความเรียบ ๆ
+  if (items.length === 0) return <p className="cx-empty">{s.hiresEmpty}</p>;
+  return <section className="cx-section cx-section--urgent cx-section--flat" aria-label={s.hiresListLabel}>
+    <p className="cx-lead">{s.hiresLead}</p>
+    <ul className="cx-list cx-list--stack">
+      {items.map((hire) => <RequestCard key={hire.id} hire={hire} reload={reload} onDone={onDone} onAccepted={onAccepted} />)}
+    </ul>
   </section>;
 }
 
 /* ---------- งานและแชต ---------- */
 
-function ChatsSection({ items }: { items: MentorHire[] }) {
+function ChatsPanel({ items }: { items: MentorHire[] }) {
   const { t } = useI18n();
   const s = t.mentorZone;
-  const c = t.consult;
-  const noteFor = (hire: MentorHire) => (hire.status === 'accepted' ? null : hire.status === 'completed' ? c.completedNote : null);
-  return <section className="panel cx-section" aria-labelledby="chats-title">
-    <h2 id="chats-title">{s.chatsTitle}</h2>
-    {items.length === 0 ? <p className="cx-empty">{s.chatsEmpty}</p> : <HireWorkspace
-      items={items}
-      nameOf={(hire) => hire.student}
-      initialOf={(hire) => hire.student.slice(0, 1).toUpperCase()}
-      noteFor={noteFor}
-      renderActions={() => null}
-      labels={{ list: s.chatsListLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: s.noChatYet }}
-      closedNote={t.consulting.chatClosedNote}
-    />}
-  </section>;
+  const noteFor = (hire: MentorHire) => {
+    switch (hire.status) {
+      case 'accepted': return s.noteAccepted;
+      case 'declined': return s.noteDeclined;
+      case 'cancelled': return s.noteCancelled;
+      case 'completed': return s.noteCompleted;
+      default: return null;
+    }
+  };
+  if (items.length === 0) return <p className="cx-empty">{s.chatsEmpty}</p>;
+  return <HireWorkspace
+    items={items}
+    nameOf={(hire) => hire.student}
+    initialOf={(hire) => hire.student.slice(0, 1).toUpperCase()}
+    noteFor={noteFor}
+    renderActions={() => null}
+    labels={{ list: s.chatsListLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: s.noChatYet }}
+    closedNote={t.consulting.chatClosedNote}
+  />;
 }
 
 /* ---------- ราคาต่อเวที ---------- */
@@ -285,9 +289,10 @@ function CompetitionsSection({ chosen, available, defaults, requests, reload }: 
     <section className="panel cx-section" aria-labelledby="add-competition-title">
       <h2 id="add-competition-title">{s.addTitle}</h2>
       {open.length === 0 ? <p className="cx-empty">{s.addEmpty}</p> : <>
-        <div className="cx-field cx-search">
-          <label htmlFor="zone-search">{s.search}</label>
-          <input id="zone-search" type="search" value={query} autoComplete="off"
+        <div className="search-field cx-search">
+          <Search size={18} aria-hidden="true" />
+          <label className="sr-only" htmlFor="zone-search">{s.search}</label>
+          <input id="zone-search" type="search" value={query} autoComplete="off" placeholder={s.searchPlaceholder}
             onChange={(event) => { setQuery(event.target.value); setLimit(PAGE); }} />
         </div>
         {matches.length === 0 ? <p className="cx-empty">{s.searchNone}</p> : <ul className="cx-list cx-list--stack">
@@ -452,12 +457,19 @@ function RequestList({ requests }: { requests: Request[] }) {
 
 /* ---------- หน้า ---------- */
 
+type ZoneTab = 'requests' | 'chats' | 'competitions';
+
 export function MentorZone() {
   const { t } = useI18n();
   const s = t.mentorZone;
   const { user, loading: authLoading } = useAuth();
   const { hash } = useLocation();
+  const navigate = useNavigate();
   const { data, error, loading, reload } = useApi<Zone>(user ? '/consult/zone' : null);
+  const [tab, setTab] = useState<ZoneTab | null>(null);
+  const [notice, setNotice] = useState('');
+  // เพิ่งกดรับงานที่ข้อมูลยังไม่โหลดใหม่ ให้ถือว่าอยู่ฝั่งแชตแล้ว ไม่งั้นลิงก์ลึกจะดึงกลับไปแท็บคำขอ
+  const accepted = useRef(new Set<string>());
   // ข้อความใหม่ในแชตหรืออ่านแล้ว จำนวนที่ยังไม่อ่านบนรายการต้องเปลี่ยนตาม
   useEffect(() => {
     window.addEventListener(CHAT_CHANGED, reload);
@@ -466,13 +478,32 @@ export function MentorZone() {
 
   useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
 
+  const hires = data?.hires;
+  const requested = (hires ?? []).filter((hire) => hire.status === 'requested');
+  const rest = (hires ?? []).filter((hire) => hire.status !== 'requested');
+
+  /* แท็บเริ่มต้น: มีคำขอรอก็เปิดคำขอ ไม่มีแต่มีงานก็เปิดงานและแชต นอกนั้นเปิดเวที
+     ลิงก์ลึกชนะค่าเริ่มต้น: #hire-<id> ไปแท็บคำขอถ้างานยังรออยู่ ไม่อย่างนั้นไปแท็บแชต #room-<id> ไปแท็บแชตเสมอ */
+  useEffect(() => {
+    if (!hires) return;
+    const match = /^#(room|hire)-(.+)$/.exec(hash);
+    if (match) {
+      const found = hires.find((hire) => (match[1] === 'room' ? hire.roomId : hire.id) === match[2]);
+      if (found) { setTab(found.status === 'requested' && !accepted.current.has(found.id) ? 'requests' as ZoneTab : 'chats'); return; }
+    }
+    setTab((current) => current ?? (requested.length ? 'requests' as ZoneTab : rest.length ? 'chats' : 'competitions'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash, hires === undefined]);
+
   if (authLoading) return <main id="main" tabIndex={-1} className="shell page cx-page"><p className="side-note" role="status">{s.loading}</p></main>;
-  // เก็บ #confirm-… ไว้ใน next ด้วย เข้าสู่ระบบเสร็จจะได้กลับมาที่รายการจากอีเมลได้
+  // เก็บ #hire-… ไว้ใน next ด้วย เข้าสู่ระบบเสร็จจะได้กลับมาที่คำขอจากอีเมลได้
   if (!user) return <Navigate to={`/signin?next=${encodeURIComponent(`/mentor-zone${hash}`)}`} replace />;
 
   const mentor = data?.mentor;
+  const current: ZoneTab = tab ?? 'chats';
+  const unreadChats = rest.reduce((sum, hire) => sum + hire.unread, 0);
 
-  return <main id="main" tabIndex={-1} className="shell page cx-page">
+  return <main id="main" tabIndex={-1} className="shell page cx-page cx-page--wide">
     <header className="cx-page-head">
       <h1>{s.pageTitle}</h1>
       <p className="cx-lead">{s.lead}</p>
@@ -505,11 +536,25 @@ export function MentorZone() {
         <Link className="ghost-button cx-button" to={`/mentors/${mentor.id}`}>{s.publicProfile}</Link>
       </section>
 
-      <div className="cx-stack">
-        <RequestsSection items={data.hires.filter((hire) => hire.status === 'requested')} reload={reload} />
-        <ChatsSection items={data.hires.filter((hire) => hire.status !== 'requested')} />
-        <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests}
-          defaults={{ price: mentor.price, minutes: mentor.minutes }} reload={reload} />
+      <Tabs prefix="zone" label={s.tabsLabel} value={current} onChange={(id) => setTab(id)} tabs={[
+        { id: 'requests' as ZoneTab, label: s.tabRequests(requested.length) },
+        { id: 'chats' as ZoneTab, label: <>{s.tabChats}{unreadChats > 0 && <UnreadBadge count={unreadChats} />}</> },
+        { id: 'competitions' as ZoneTab, label: s.tabCompetitions },
+      ]} />
+      <p className="cx-message cx-message--ok" role="status">{notice}</p>
+
+      <div role="tabpanel" id={panelId('zone', 'requests')} aria-labelledby={tabId('zone', 'requests')} hidden={current !== 'requests'} className="cx-zone-panel">
+        <RequestsPanel items={requested} reload={reload} onDone={setNotice}
+          onAccepted={(id) => { accepted.current.add(id); setTab('chats'); navigate({ hash: `#hire-${id}` }, { replace: true }); }} />
+      </div>
+      <div role="tabpanel" id={panelId('zone', 'chats')} aria-labelledby={tabId('zone', 'chats')} hidden={current !== 'chats'} className="cx-zone-panel">
+        <ChatsPanel items={rest} />
+      </div>
+      <div role="tabpanel" id={panelId('zone', 'competitions')} aria-labelledby={tabId('zone', 'competitions')} hidden={current !== 'competitions'} className="cx-zone-panel">
+        <div className="cx-stack">
+          <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests}
+            defaults={{ price: mentor.price, minutes: mentor.minutes }} reload={reload} />
+        </div>
       </div>
     </>}
   </main>;

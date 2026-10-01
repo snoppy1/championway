@@ -59,13 +59,16 @@ export function HireWorkspace<T extends HireBase>({ items, nameOf, initialOf, re
       {items.map((item) => <li key={item.id}>
         <button type="button" className="hw__row" aria-current={item.id === selected} onClick={() => choose(item.id)}>
           <Avatar initial={initialOf(item)} plain />
-          <span>
-            <span className="hw__name">{nameOf(item)}</span>
-            <span className="hw__meta">{item.competition ? `${item.competition.name} · ` : ''}{formatDate(item.createdAt, lang)}</span>
-          </span>
-          <span className="hw__side">
-            <StatusPill status={item.status} reviewed={reviewedOf?.(item) ?? false} />
-            <UnreadBadge count={item.unread} />
+          <span className="hw__body">
+            <span className="hw__line">
+              <span className="hw__title">
+                <span className="hw__name">{nameOf(item)}</span>
+                <StatusPill status={item.status} reviewed={reviewedOf?.(item) ?? false} />
+              </span>
+              <span className="hw__unread"><UnreadBadge count={item.unread} /></span>
+            </span>
+            {item.competition && <span className="hw__meta hw__meta--one">{item.competition.name}</span>}
+            <span className="hw__meta hw__meta--date">{formatDate(item.createdAt, lang)}</span>
           </span>
         </button>
       </li>)}
@@ -76,18 +79,18 @@ export function HireWorkspace<T extends HireBase>({ items, nameOf, initialOf, re
         <button type="button" className="link-button cx-link hw__back" onClick={() => setSelected(null)}>
           <ArrowLeft size={16} aria-hidden="true" />{labels.back}
         </button>
-        <section className="panel" aria-label={labels.detail(nameOf(current))}>
+        <section className="panel hw__summary" aria-label={labels.detail(nameOf(current))}>
+          {/* ประโยคบอกสถานะเป็นแถบสีบนสุดของการ์ด อ่านก่อนอย่างอื่น */}
+          {note && <p className={`cx-banner cx-banner--${current.status}`}>{note}</p>}
           <div className="hw__head">
             <h2>{nameOf(current)}</h2>
             <StatusPill status={current.status} reviewed={reviewedOf?.(current) ?? false} />
           </div>
           <HireSteps status={current.status === 'declined' || current.status === 'cancelled' ? null : current.status} />
           <HireSummary hire={current} />
-          {note && <p className="cx-flow-note">{note}</p>}
           <div className="cx-flow">{renderActions(current)}</div>
         </section>
-        <section className="panel hw__chat" aria-label={labels.chat}>
-          <h3>{labels.chat}</h3>
+        <section className="hw__chat" aria-label={labels.chat}>
           {current.roomId
             ? <>
               {(current.status === 'completed' || current.status === 'cancelled') && <p className="cx-hint">{closedNote}</p>}

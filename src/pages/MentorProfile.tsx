@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, RefObject } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, CalendarClock, X } from 'lucide-react';
 import { post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { consultError, hireTotal } from '../data/consult';
@@ -11,7 +11,7 @@ import { Avatar, Rating, RisingStarPill, StarIcon } from '../components/mentors'
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useAuth } from '../data/auth';
 import { useI18n } from '../i18n';
-import { formatDate, formatInputDate } from '../i18n/format';
+import { formatDate, formatDateTime, formatInputDate } from '../i18n/format';
 import '../consult.css';
 
 /* โปรไฟล์เมนเทอร์สาธารณะ กับฟอร์มจ้าง (1 ต.ค. 2569: จ้างผ่านเว็บและคุยในแชตของเว็บ)
@@ -44,6 +44,29 @@ function StarsRow({ stars }: { stars: number }) {
 /** เวลาที่อยากนัดเป็นเวลาไทยเสมอ ไม่ใช้เขตเวลาของเครื่อง (ช่อง datetime-local ไม่มีเขตเวลา) */
 const toIso = (local: string) => new Date(`${local}+07:00`).toISOString();
 
+/* ช่องวันเวลาที่ข้อความที่เห็นเป็นรูปแบบของภาษาที่เลือก (ไม่ใช่ mm/dd/yyyy ของเบราว์เซอร์)
+   ใต้ปุ่มมี <input type="datetime-local"> จริงซ่อนไว้ ปุ่มเปิดตัวเลือกวันเวลาของเบราว์เซอร์ด้วย showPicker()
+   ค่าเก็บเป็นเวลาไทย (YYYY-MM-DDTHH:mm) เหมือนช่องเดิม เบราว์เซอร์ที่ไม่มี showPicker ให้พิมพ์ในช่องจริงได้เอง */
+function DateTimeField({ id, value, onChange, disabled, label, hintId, inputRef }: {
+  id: string; value: string; onChange: (value: string) => void; disabled: boolean; label: string; hintId: string;
+  inputRef: RefObject<HTMLInputElement | null>;
+}) {
+  const { t, lang } = useI18n();
+  const s = t.mentorProfile;
+  const text = value ? formatDateTime(new Date(`${value}+07:00`).toISOString(), lang) : s.whenPlaceholder;
+  return <div className="cx-datetime">
+    <button type="button" id={id} className={value ? 'cx-datetime__button' : 'cx-datetime__button is-empty'} disabled={disabled}
+      aria-describedby={hintId} aria-label={`${label}: ${text}`}
+      onClick={() => { try { inputRef.current?.showPicker(); } catch { inputRef.current?.focus(); } }}>
+      <CalendarClock size={18} aria-hidden="true" /><span>{text}</span>
+    </button>
+    {value && <button type="button" className="cx-datetime__clear" disabled={disabled} aria-label={s.whenClear} onClick={() => onChange('')}>
+      <X size={16} aria-hidden="true" /></button>}
+    <input ref={inputRef} type="datetime-local" className="cx-datetime__native" tabIndex={-1} aria-hidden="true" value={value}
+      disabled={disabled} onChange={(event) => onChange(event.target.value)} />
+  </div>;
+}
+
 function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; offers: Offer[]; initial: string; onDone: () => Promise<void> }) {
   const { t } = useI18n();
   const s = t.mentorProfile;
@@ -55,7 +78,7 @@ function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; off
   const [message, setMessage] = useState('');
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const hoursRef = useRef<HTMLInputElement>(null);
-  const whenRef = useRef<HTMLInputElement>(null);
+  const whenRef = useRef<HTMLInputElement | null>(null);
   const uid = useId();
 
   const offer = offers.find((item) => item.slug === slug)!;
@@ -71,7 +94,7 @@ function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; off
     event.preventDefault();
     const fail = (text: string, focus?: HTMLElement | null) => { setMessage(text); focus?.focus(); };
     if (!validHours) return fail(s.badHours, hoursRef.current);
-    if (when && new Date(`${when}+07:00`).getTime() <= Date.now()) return fail(s.pastTime, whenRef.current);
+    if (when && new Date(`${when}+07:00`).getTime() <= Date.now()) return fail(s.pastTime, document.getElementById(`${uid}-when`));
     if (!note.trim()) return fail(s.needNote, noteRef.current);
     setBusy(true);
     setMessage('');
@@ -87,12 +110,14 @@ function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; off
   }
 
   return <form className="cx-form cx-hire-form" onSubmit={(event) => { void submit(event); }} noValidate>
-    <div className="cx-field">
-      <label htmlFor={`${uid}-competition`}>{s.competitionLabel}</label>
-      <select id={`${uid}-competition`} value={slug} disabled={busy} onChange={(event) => setSlug(event.target.value)}>
-        {offers.map((item) => <option key={item.slug} value={item.slug}>{s.competitionOption(item.name, t.price.line(item.price, item.minutes))}</option>)}
-      </select>
-    </div>
+    <fieldset className="cx-choices" disabled={busy}>
+      <legend>{s.competitionLabel}</legend>
+      {offers.map((item) => <label key={item.slug} className={item.slug === slug ? 'cx-choice is-on' : 'cx-choice'}>
+        <input type="radio" name={`${uid}-competition`} value={item.slug} checked={item.slug === slug} onChange={() => setSlug(item.slug)} />
+        <span className="cx-choice__name">{item.name}</span>
+        <span className="cx-choice__rate">{t.price.line(item.price, item.minutes)}</span>
+      </label>)}
+    </fieldset>
     <div className="cx-grid-2">
       <div className="cx-field">
         <label htmlFor={`${uid}-hours`}>{s.hoursLabel}</label>
@@ -102,8 +127,8 @@ function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; off
       </div>
       <div className="cx-field">
         <label htmlFor={`${uid}-when`}>{s.whenLabel}</label>
-        <input id={`${uid}-when`} ref={whenRef} type="datetime-local" value={when} disabled={busy} aria-describedby={`${uid}-when-hint`}
-          onChange={(event) => { setWhen(event.target.value); setMessage(''); }} />
+        <DateTimeField id={`${uid}-when`} value={when} disabled={busy} label={s.whenLabel} hintId={`${uid}-when-hint`} inputRef={whenRef}
+          onChange={(value) => { setWhen(value); setMessage(''); }} />
         <p className="cx-hint" id={`${uid}-when-hint`}>{s.whenHint}</p>
       </div>
     </div>
@@ -120,7 +145,7 @@ function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; off
       <strong className="cx-total__value">{total === null ? '-' : t.price.total(total)}</strong>
       {total !== null && <span className="cx-hint">{s.totalDetail(count, rate)}</span>}
     </div>
-    <p className="cx-hint">{s.totalNote}</p>
+    <p className="cx-note">{s.totalNote}</p>
 
     <p className="cx-message cx-message--error" role="alert">{message}</p>
     <button className="primary-button cx-button" disabled={busy}>{busy ? s.sending : s.submit}</button>
@@ -227,8 +252,12 @@ export function MentorProfile() {
         </p>
         <p className="cx-hero__spec">{mentor.specialty}</p>
         <dl className="cx-facts">
-          <div><dt>{s.ratingThisMonth}</dt><dd><Rating rating={mentor.rating} /></dd></div>
-          <div><dt>{s.ratingAllTime}</dt><dd><Rating rating={mentor.allTime} /></dd></div>
+          {mentor.rating.average === null && mentor.allTime.average === null
+            ? <div><dt>{t.rating.label}</dt><dd><Rating rating={mentor.rating} /></dd></div>
+            : <>
+              <div><dt>{s.ratingThisMonth}</dt><dd><Rating rating={mentor.rating} /></dd></div>
+              <div><dt>{s.ratingAllTime}</dt><dd><Rating rating={mentor.allTime} /></dd></div>
+            </>}
           <div><dt>{s.usually}</dt><dd>{t.price.line(mentor.price, mentor.minutes)}</dd></div>
         </dl>
       </div>

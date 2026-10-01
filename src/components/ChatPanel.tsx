@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Paperclip, Send } from 'lucide-react';
+import { Download, File as FileIcon, FileSpreadsheet, FileText, Image as ImageIcon, Paperclip, Presentation, Send } from 'lucide-react';
 import { ApiError, api, post } from '../lib/api';
 import type { ChatMessage } from '../data/consult';
 import { useI18n } from '../i18n';
-import { formatLocalDateTime } from '../i18n/format';
+import { formatTime, locales } from '../i18n/format';
 import '../chat.css';
 
 /* แชตของงานจ้าง (GET/POST /api/chats/:id/…) ห้องเดียวต่อคู่นักเรียนกับเมนเทอร์
@@ -26,6 +26,39 @@ const ACCEPT = [...FILE_TYPES, '.pptx', '.docx', '.xlsx'].join(',');
 type Detail = { room: { id: string; mentorId: string; role: 'member' | 'mentor' }; mentorName: string; memberName: string };
 type Outgoing = { clientId: string; text: string; file?: File; failed: boolean; at: number };
 type Page = { messages: ChatMessage[]; hasMore: boolean };
+
+const DAY = 'Asia/Bangkok';
+const dayKey = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: DAY }).format(new Date(iso));
+
+/** ชนิดไฟล์จาก mime ใช้เลือกไอคอนกับคำเรียกบนการ์ดไฟล์ */
+function kindOf(mime: string | null): 'pdf' | 'image' | 'slides' | 'document' | 'sheet' | 'file' {
+  if (!mime) return 'file';
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.includes('presentationml')) return 'slides';
+  if (mime.includes('wordprocessingml')) return 'document';
+  if (mime.includes('spreadsheetml')) return 'sheet';
+  return 'file';
+}
+const kindIcon = { pdf: FileText, image: ImageIcon, slides: Presentation, document: FileText, sheet: FileSpreadsheet, file: FileIcon };
+
+/** ข้อความที่ส่งต่อกันจากคนเดียวกันในวันเดียวกันรวมเป็นกลุ่มเดียว ชื่อผู้ส่งขึ้นที่หัวกลุ่ม (ของเราไม่มีป้ายชื่อ)
+    เวลาขึ้นใต้ฟองสุดท้ายของกลุ่ม และมีเส้นบอกวันหนึ่งครั้งต่อวัน */
+type Row =
+  | { type: 'day'; key: string; label: string }
+  | { type: 'group'; key: string; mine: boolean; name: string; items: ChatMessage[] };
+function rowsOf(messages: ChatMessage[], dayLabel: (iso: string) => string): Row[] {
+  const rows: Row[] = [];
+  let lastDay = '';
+  for (const message of messages) {
+    const day = dayKey(message.createdAt);
+    if (day !== lastDay) { rows.push({ type: 'day', key: `day-${day}`, label: dayLabel(message.createdAt) }); lastDay = day; }
+    const last = rows.at(-1);
+    if (last?.type === 'group' && last.mine === message.mine && last.name === message.name) last.items.push(message);
+    else rows.push({ type: 'group', key: message.id, mine: message.mine, name: message.name, items: [message] });
+  }
+  return rows;
+}
 
 /** ให้หัวเว็บกับรายการงานอ่านจำนวนที่ยังไม่อ่านใหม่ทันที ไม่ต้องรอรอบถามถัดไป */
 export const CHAT_CHANGED = 'cw-chat-changed';
@@ -53,6 +86,8 @@ export function ChatPanel({ roomId }: { roomId: string }) {
   const lastRead = useRef('');
   const live = useRef(true);
   const textId = useId();
+  const hintId = useId();
+  const field = useRef<HTMLTextAreaElement>(null);
 
   const merge = useCallback((incoming: ChatMessage[]) => {
     setMessages((old) => {
@@ -152,6 +187,7 @@ export function ChatPanel({ roomId }: { roomId: string }) {
     setFile(undefined);
     setFileError('');
     if (upload.current) upload.current.value = '';
+    if (field.current) field.current.style.height = '';
     void deliver(item);
   }
 
@@ -193,7 +229,17 @@ export function ChatPanel({ roomId }: { roomId: string }) {
   </div>;
 
   const counterpart = detail.room.role === 'member' ? detail.mentorName : detail.memberName;
-  const time = (iso: string) => formatLocalDateTime(iso, lang);
+  const today = dayKey(new Date().toISOString());
+  const year = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: DAY, year: 'numeric' }).format(new Date(iso));
+  const dayLabel = (iso: string) => dayKey(iso) === today ? s.today : new Intl.DateTimeFormat(locales[lang], {
+    day: 'numeric', month: 'short', year: year(iso) === year(new Date().toISOString()) ? undefined : 'numeric', timeZone: DAY,
+  }).format(new Date(iso));
+  const rows = rowsOf(messages, dayLabel);
+
+  function grow(el: HTMLTextAreaElement) {
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, parseFloat(getComputedStyle(el).lineHeight) * 5)}px`;
+  }
 
   return <section className="chat" aria-label={s.chatWith(counterpart)}>
     <div className="chat__log" ref={log} role="log" aria-label={s.log} aria-live="polite" tabIndex={0}
@@ -206,20 +252,30 @@ export function ChatPanel({ roomId }: { roomId: string }) {
         {olderBusy ? s.loadingOlder : s.loadOlder}
       </button>}
       {messages.length === 0 && outbox.length === 0 && <p className="chat__empty">{s.empty}</p>}
-      {messages.map((message) => <article key={message.id} className={message.mine ? 'chat__message is-mine' : 'chat__message'}>
-        <span className="chat__sender">{message.mine ? s.you : message.name}</span>
-        <div className="chat__bubble">
-          {message.body && <p>{message.body}</p>}
-          {message.fileName && <a className="chat__file" href={`/api/chats/${roomId}/files/${message.id}`} download={message.fileName}
-            aria-label={s.download(message.fileName)}><Paperclip size={14} aria-hidden="true" /><span>{message.fileName}</span></a>}
-        </div>
-        <small>{time(message.createdAt)}</small>
-      </article>)}
-      {outbox.map((item) => <article key={item.clientId} className="chat__message is-mine is-pending">
-        <span className="chat__sender">{s.you}</span>
+      {rows.map((row) => row.type === 'day'
+        ? <p key={row.key} className="chat__day"><span>{row.label}</span></p>
+        : <article key={row.key} className={row.mine ? 'chat__group is-mine' : 'chat__group'}>
+          {!row.mine && <span className="chat__sender">{row.name}</span>}
+          {row.items.map((message) => <div key={message.id} className="chat__bubble">
+            {message.body && <p>{message.body}</p>}
+            {message.fileName && (() => {
+              const kind = kindOf(message.fileMime);
+              const Icon = kindIcon[kind];
+              return <a className="chat__attachment" href={`/api/chats/${roomId}/files/${message.id}`} download={message.fileName}
+                aria-label={s.download(message.fileName)}>
+                <span className="chat__attachment-icon"><Icon size={20} aria-hidden="true" /></span>
+                <span className="chat__attachment-text"><span className="chat__attachment-name">{message.fileName}</span><span className="chat__attachment-kind">{s.fileKind[kind]}</span></span>
+                <span className="chat__attachment-get" aria-hidden="true"><Download size={16} />{s.downloadVerb}</span>
+              </a>;
+            })()}
+          </div>)}
+          <small>{formatTime(row.items.at(-1)!.createdAt, lang)}</small>
+        </article>)}
+      {outbox.map((item) => <article key={item.clientId} className="chat__group is-mine is-pending">
         <div className="chat__bubble">
           {item.text && <p>{item.text}</p>}
-          {item.file && <span className="chat__file"><Paperclip size={14} aria-hidden="true" /><span>{item.file.name}</span></span>}
+          {item.file && <span className="chat__attachment chat__attachment--pending"><span className="chat__attachment-icon"><Paperclip size={18} aria-hidden="true" /></span>
+            <span className="chat__attachment-text"><span className="chat__attachment-name">{item.file.name}</span></span></span>}
         </div>
         {item.failed
           ? <small className="chat__failed" role="alert">{s.notSent} · {s.sendFailed}{' '}
@@ -231,19 +287,18 @@ export function ChatPanel({ roomId }: { roomId: string }) {
 
     <form className="chat__composer" onSubmit={send}>
       <label htmlFor={textId} className="sr-only">{s.messageLabel}</label>
-      <textarea id={textId} rows={2} maxLength={4000} value={text} placeholder={s.messagePlaceholder}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) event.currentTarget.form?.requestSubmit(); }} />
-      <div className="chat__tools">
-        <label className="ghost-button cx-button chat__attach">
-          <Paperclip size={16} aria-hidden="true" />{s.attach}
-          <input ref={upload} type="file" accept={ACCEPT} onChange={(event) => pick(event.target.files?.[0])} />
-        </label>
-        <button className="primary-button cx-button" disabled={!text.trim() && !file}><Send size={16} aria-hidden="true" />{s.send}</button>
+      <div className="chat__field">
+        <button type="button" className="chat__clip" title={s.attachHint} aria-label={s.attach} aria-describedby={hintId}
+          onClick={() => upload.current?.click()}><Paperclip size={20} aria-hidden="true" /></button>
+        <textarea id={textId} ref={field} rows={1} maxLength={4000} value={text} placeholder={s.messagePlaceholder}
+          onChange={(event) => { setText(event.target.value); grow(event.target); }}
+          onKeyDown={(event) => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) event.currentTarget.form?.requestSubmit(); }} />
+        <input ref={upload} type="file" className="chat__native" tabIndex={-1} aria-hidden="true" accept={ACCEPT} onChange={(event) => pick(event.target.files?.[0])} />
+        <button className="primary-button cx-button chat__send" disabled={!text.trim() && !file}><Send size={16} aria-hidden="true" />{s.send}</button>
       </div>
+      <span id={hintId} className="sr-only">{s.attachHint}</span>
       {file && <p className="chat__chosen"><Paperclip size={14} aria-hidden="true" /><span>{file.name}</span>
         <button type="button" className="link-button cx-link cx-link--quiet" onClick={() => { pick(undefined); if (upload.current) upload.current.value = ''; }}>{s.removeFile}</button></p>}
-      <p className="cx-hint">{s.fileNote}</p>
       <p className="cx-message cx-message--error" role="alert">{fileError}</p>
     </form>
   </section>;

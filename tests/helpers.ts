@@ -179,3 +179,13 @@ export async function addMessage(roomId: string, senderId: string, body: string)
   await db.insert(chatMessages).values({ id, roomId, senderId, clientId: randomUUID(), body });
   return id;
 }
+
+/** ข้อความที่แนบไฟล์ (ใส่ตรงในฐานข้อมูล) ใช้ให้ภาพหน้าจอเห็นการ์ดไฟล์ในแชต */
+export async function addFileMessage(roomId: string, senderId: string, fileName: string, body = '') {
+  const id = `msg-${randomUUID().slice(0, 8)}`;
+  await db.insert(chatMessages).values({
+    id, roomId, senderId, clientId: randomUUID(), body, fileName, fileMime: 'application/pdf',
+    fileData: Buffer.from('%PDF-1.4 sample').toString('base64'),
+  });
+  return id;
+}

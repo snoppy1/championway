@@ -1,69 +1,92 @@
-/* แชตของงานจ้างระหว่างนักเรียนกับเมนเทอร์ และพื้นที่ทำงาน (รายการงาน + รายละเอียด + แชต) ของ Consulting กับ Mentor zone
+/* แชตของงานจ้างระหว่างนักเรียนกับเมนเทอร์ และพื้นที่ทำงาน (รายการงาน + สรุปงาน + แชต) ของ Consulting กับ Mentor zone
    กติกาเดียวกับ consult.css: ไม่มี hex หรือ rgb() ใช้เฉพาะ var(--token) ขนาดโครงสร้างจริงเขียนตรง ๆ (พื้นที่กดขั้นต่ำ 44px ความสูงกล่องข้อความ)
-   ม่วง = กดได้และข้อความของเรา ขาวมีขอบ = ข้อความของอีกฝั่ง ทองใช้กับงานที่รอคำตอบเท่านั้น */
+   ม่วง = กดได้และข้อความของเรา ขาวมีขอบ = ข้อความของอีกฝั่ง ทองใช้กับงานที่รอคำตอบและจำนวนที่ยังไม่อ่าน */
 
 /* ---------- แชต ---------- */
 
 .chat { display: grid; gap: var(--space-3); min-width: 0; }
 .chat__log {
-  display: flex; flex-direction: column; gap: var(--space-4);
-  height: 26em; min-height: 18em; max-height: 60vh; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  height: 28em; min-height: 18em; max-height: 70vh; overflow-y: auto; overscroll-behavior: contain;
   padding: var(--space-4);
   border: 1px solid var(--line); border-radius: var(--radius-card);
   background: var(--purple-tint);
 }
 .chat__log:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.chat__empty { margin: auto; max-width: 22em; color: var(--muted); font-size: var(--text-md); line-height: var(--leading-body); text-align: center; }
+.chat__empty { margin: auto; max-width: 22em; color: var(--ink); font-size: var(--text-md); line-height: var(--leading-body); text-align: center; }
 .chat__older { align-self: center; flex: none; }
 
-.chat__message { display: grid; gap: var(--space-1); align-self: flex-start; max-width: 88%; min-width: 0; }
-.chat__message.is-mine { align-self: flex-end; justify-items: end; }
+/* เส้นบอกวัน หนึ่งครั้งต่อวัน */
+.chat__day { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2) 0; color: var(--ink); font-size: var(--text-sm); font-weight: 600; }
+.chat__day::before, .chat__day::after { content: ""; flex: 1; height: 1px; background: var(--line-purple); }
+
+/* ข้อความต่อกันจากคนเดียวกันรวมเป็นกลุ่ม ชื่อผู้ส่งที่หัวกลุ่ม เวลาใต้ฟองสุดท้าย ของเราไม่มีป้ายชื่อ */
+.chat__group { display: grid; gap: var(--space-1); align-self: flex-start; max-width: 88%; min-width: 0; margin-top: var(--space-2); }
+.chat__group.is-mine { align-self: flex-end; justify-items: end; }
 .chat__sender { color: var(--ink); font-size: var(--text-sm); font-weight: 600; }
 .chat__bubble {
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line); border-radius: var(--radius-card) var(--radius-card) var(--radius-card) var(--space-1);
+  display: grid; gap: var(--space-2); justify-items: start;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line); border-radius: var(--radius-card);
   background: var(--card); color: var(--ink);
-  overflow-wrap: anywhere; white-space: pre-wrap;
+  overflow-wrap: anywhere; white-space: pre-wrap; min-width: 0;
 }
 .chat__bubble p { margin: 0; font-size: var(--text-md); line-height: var(--leading-body); }
-.is-mine .chat__bubble {
-  border-color: var(--purple); border-radius: var(--radius-card) var(--radius-card) var(--space-1) var(--radius-card);
-  background: var(--purple); color: var(--on-purple);
-}
+.is-mine .chat__bubble { border-color: var(--purple); background: var(--purple); color: var(--on-purple); justify-items: end; }
 .is-pending .chat__bubble { opacity: 0.75; }
-.chat__message small { color: var(--ink); font-size: var(--text-xs); opacity: 0.8; }
-.chat__failed { opacity: 1; color: var(--danger); font-weight: 600; }
-.chat__file {
-  display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px;
-  color: inherit; font-size: var(--text-base); font-weight: 600; text-decoration: underline; text-underline-offset: 3px;
-}
-.chat__file svg { flex: none; }
-.chat__file:hover { text-decoration-thickness: 2px; }
-.chat__bubble > p + .chat__file { margin-top: var(--space-1); }
+.chat__group small { color: var(--ink); font-size: var(--text-sm); }
+.chat__failed { color: var(--danger); font-weight: 600; }
 
+/* ไฟล์แนบเป็นการ์ดในฟอง: ไอคอนตามชนิด ชื่อ ชนิด และปุ่มดาวน์โหลด กดได้ทั้งการ์ด */
+.chat__attachment {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3);
+  min-height: 44px; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-purple); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--ink); text-decoration: none; text-align: left; white-space: normal;
+}
+a.chat__attachment:hover { border-color: var(--purple); background: var(--purple-tint); }
+a.chat__attachment:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.chat__attachment--pending { opacity: 0.85; }
+.chat__attachment-icon { display: grid; place-items: center; width: var(--space-8); height: var(--space-8); border-radius: var(--radius-sm); background: var(--purple-tint); color: var(--purple-deep); }
+.chat__attachment-text { display: grid; min-width: 0; }
+.chat__attachment-name { font-weight: 600; font-size: var(--text-base); overflow-wrap: anywhere; }
+.chat__attachment-kind { color: var(--muted); font-size: var(--text-sm); }
+.chat__attachment-get { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--purple-deep); font-size: var(--text-base); font-weight: 600; white-space: nowrap; }
+
+/* กล่องพิมพ์แถวเดียว: ปุ่มคลิปหนีบ (แตะได้ 44px) ข้างซ้าย ช่องพิมพ์ที่ขยายตามบรรทัด และปุ่มส่งข้างขวา */
 .chat__composer { display: grid; gap: var(--space-2); }
-.chat__composer textarea {
-  width: 100%; min-height: 4.5em; padding: var(--space-3);
-  border: 1px solid var(--line-input); border-radius: var(--radius-sm);
-  background: var(--card); color: var(--ink);
-  font-size: var(--text-input); line-height: var(--leading-body); resize: vertical; letter-spacing: 0;
+.chat__field {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--line-input); border-radius: var(--radius-card); background: var(--card);
 }
-.chat__composer textarea::placeholder { color: var(--muted-soft); opacity: 1; }
-.chat__composer textarea:hover { border-color: var(--purple-soft); }
-.chat__composer textarea:focus-visible { border-color: var(--purple); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.chat__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.chat__attach { position: relative; cursor: pointer; }
-.chat__attach input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.chat__attach:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.chat__field:hover { border-color: var(--purple-soft); }
+.chat__field:focus-within { border-color: var(--purple); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.chat__field textarea {
+  width: 100%; min-height: 44px; max-height: 9em; padding: var(--space-3) var(--space-2);
+  border: 0; outline: 0; background: transparent; color: var(--ink);
+  font-size: var(--text-input); line-height: var(--leading-body); resize: none; letter-spacing: 0; overflow-y: auto;
+}
+.chat__field textarea::placeholder { color: var(--muted); opacity: 1; }
+.chat__clip {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--purple-deep);
+}
+.chat__clip:hover { background: var(--purple-tint); }
+.chat__clip:active { background: var(--line-purple); }
+.chat__native { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.chat__send { min-height: 44px; }
+/* ปุ่มส่งที่ยังส่งไม่ได้ต้องดูเป็นสีเทาชัด ไม่ใช่ม่วงจาง */
+.chat__send:disabled { background: var(--line); color: var(--muted); box-shadow: none; opacity: 1; }
 .chat__chosen { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); color: var(--ink); font-size: var(--text-base); overflow-wrap: anywhere; }
-.chat__chosen svg { flex: none; color: var(--purple); }
+.chat__chosen svg { flex: none; color: var(--purple-deep); }
 
-/* ---------- พื้นที่ทำงาน: รายการงาน + รายละเอียด + แชต ---------- */
+/* ---------- พื้นที่ทำงาน: รายการงาน + สรุป + แชต ---------- */
 
 .hw { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; min-width: 0; }
 .hw__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
 .hw__row {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3);
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-3);
   width: 100%; min-height: 44px; padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line); border-radius: var(--radius-card);
   background: var(--card); color: var(--ink); text-align: left;
@@ -73,26 +96,38 @@
 .hw__row:active { background: var(--line-purple); }
 .hw__row[aria-current="true"] { border-color: var(--purple); background: var(--purple-tint); box-shadow: inset 0 0 0 1px var(--purple); }
 .hw__row .rs-avatar { --avatar-size: 40px; }
-.hw__name { display: block; font: 600 var(--text-md)/1.4 var(--display); overflow-wrap: anywhere; }
-.hw__meta { display: block; color: var(--muted); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }
-.hw__side { display: grid; justify-items: end; gap: var(--space-1); }
+.hw__body { display: grid; gap: var(--space-1); min-width: 0; }
+/* บรรทัดแรก: ชื่อ ป้ายสถานะ และจุดข้อความที่ยังไม่อ่านชิดขวา */
+.hw__line { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+.hw__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
+.hw__name { font: 600 var(--text-md)/1.4 var(--display); overflow-wrap: anywhere; }
+.hw__unread { flex: none; }
+.hw__unread:empty { display: none; }
+.hw__meta { display: block; color: var(--ink); font-size: var(--text-sm); line-height: 1.5; }
+.hw__meta--one { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hw__meta--date { white-space: nowrap; }
 
 .hw__detail { display: grid; gap: var(--space-4); min-width: 0; }
+.hw__detail:focus { outline: none; }
 .hw__back { justify-self: start; }
-.hw__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-.hw__head h2 { font-size: var(--text-xl); font-weight: 600; line-height: var(--leading-heading); overflow-wrap: anywhere; }
-.hw__chat h3 { margin: 0 0 var(--space-2); font-size: var(--text-lg); }
-.hw__empty-chat { padding: var(--space-5); border: 1px dashed var(--line-purple); border-radius: var(--radius-card); color: var(--muted); text-align: center; }
+.hw__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); }
+.hw__head h2, .hw__head h3 { font-size: var(--text-xl); font-weight: 600; line-height: var(--leading-heading); overflow-wrap: anywhere; }
+.hw__summary { padding: var(--space-5); }
+.hw__chat { min-width: 0; }
+.hw__chat > .cx-hint { margin-bottom: var(--space-2); }
+.hw__empty-chat { padding: var(--space-5); border: 1px dashed var(--line-purple); border-radius: var(--radius-card); color: var(--ink); text-align: center; }
 
-/* จอแคบ: เลือกงานแล้วเห็นแต่รายละเอียด มีปุ่มกลับไปรายการ ไม่ต้องเลื่อนผ่านรายการยาวเพื่อถึงแชต */
+/* จอแคบ: เลือกงานแล้วเห็นแต่รายละเอียด มีปุ่มกลับไปรายการ แชตสูงเกือบเต็มจอ ช่องพิมพ์อยู่ล่างสุดของกล่อง */
 @media (max-width: 900px) {
   .hw.is-detail > .hw__list { display: none; }
   .hw:not(.is-detail) > .hw__detail { display: none; }
+  .chat__log { height: calc(100dvh - 16em); min-height: 20em; max-height: none; }
 }
 @media (min-width: 901px) {
-  .hw { grid-template-columns: minmax(16em, 22em) minmax(0, 1fr); gap: var(--space-5); }
+  .hw { grid-template-columns: minmax(15em, 19em) minmax(0, 1fr); gap: var(--space-5); }
+  .hw__back { display: none; }
   .hw .hw__back { display: none; }
-  .chat__log { height: 28em; }
+  .chat__log { height: 30em; }
 }
 
 /* จุดแจ้งข้อความที่ยังไม่อ่าน: ตัวเลขในวงกลมทอง มีข้อความอ่านออกเสียงกำกับ ไม่ใช้สีอย่างเดียว */

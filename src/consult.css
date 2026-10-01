@@ -10,7 +10,8 @@
 .cx-page-head { margin-bottom: var(--space-6); }
 .cx-page-head h1 { font-size: var(--text-2xl); font-weight: 700; line-height: var(--leading-heading); color: var(--ink-deep); }
 .cx-lead { margin-top: var(--space-2); max-width: 44em; color: var(--muted); font-size: var(--text-md); line-height: var(--leading-body); }
-.cx-hint { color: var(--muted); font-size: var(--text-sm); line-height: 1.6; }
+.cx-hint { color: var(--ink); font-size: var(--text-sm); line-height: 1.6; }
+.cx-note { color: var(--ink); font-size: var(--text-base); line-height: var(--leading-body); }
 .cx-prose { color: var(--ink); font-size: var(--text-md); line-height: var(--leading-body); white-space: pre-wrap; overflow-wrap: anywhere; }
 .cx-page h3 { font-size: var(--text-lg); font-weight: 600; line-height: var(--leading-heading); }
 .cx-page .panel h3 { margin-top: var(--space-5); margin-bottom: var(--space-1); }
@@ -42,7 +43,7 @@
 
 .cx-link { display: inline-flex; align-items: center; min-height: 44px; padding-inline: var(--space-2); font-weight: 600; }
 .cx-link:hover { color: var(--purple-deep); }
-.cx-link--quiet { color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.cx-link--quiet { color: var(--danger); white-space: nowrap; flex-shrink: 0; }
 .cx-link--quiet:hover { color: var(--danger); background: var(--danger-tint); }
 .cx-link:disabled { text-decoration: none; }
 
@@ -103,7 +104,7 @@
 .cx-field { display: grid; gap: var(--space-1); min-width: 0; }
 .cx-field label, .cx-stars legend { font-size: var(--text-base); font-weight: 600; }
 .cx-field input, .cx-field select, .cx-field textarea {
-  width: 100%; min-height: 44px; padding: var(--space-2) var(--space-3);
+  width: 100%; min-width: 0; max-width: 100%; min-height: 44px; padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line-input); border-radius: var(--radius-sm);
   background: var(--card); color: var(--ink);
   font-size: var(--text-input); letter-spacing: 0;
@@ -330,8 +331,6 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-confirm { flex: 1 1 100%; }
 
 /* ขั้นตอนเป็นข้อความธรรมดา ขั้นปัจจุบันตัวหนา */
-.cx-steps { margin-top: var(--space-3); color: var(--muted); font-size: var(--text-base); line-height: var(--leading-body); }
-.cx-steps strong { color: var(--ink); font-weight: 700; }
 
 /* ข้อความเล็กบนพื้นอ่อนเข้มขึ้นหนึ่งขั้นให้ผ่าน 4.5:1 */
 .cx-facts dt, .cx-hero .cx-hint, .cx-me .cx-hint, .cx-hero__spec { color: var(--ink); }
@@ -377,7 +376,7 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-flow .cx-actions:empty, .cx-flow:empty { display: none; }
 
 /* คำขอจ้างที่รอเมนเทอร์ตอบ: การ์ดในส่วนสีทอง */
-.cx-request-card {
+.cx-list > li.cx-request-card {
   display: grid; gap: var(--space-2);
   padding: var(--space-4); border: 1px solid var(--gold-line); border-radius: var(--radius-card); background: var(--card);
 }
@@ -385,3 +384,76 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-request-card:focus-visible, .cx-request-card.is-target { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .cx-request-card h3 { margin: 0; }
 .cx-section--urgent .cx-list--stack > li.cx-request-card { padding: var(--space-4); border-color: var(--gold-line); }
+
+/* ---------- รอบปรับหลังตรวจดีไซน์ครั้งที่สอง ---------- */
+
+/* ตัวบอกขั้นตอนของงานจ้าง: จุดมีเลข ผ่านแล้วเป็นเครื่องหมายถูก ปัจจุบันเติมม่วง ชื่อขั้นไม่ตัดกลางคำ */
+.cx-stepper { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.cx-stepper li { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--ink); font-size: var(--text-base); white-space: nowrap; }
+.cx-stepper__dot {
+  display: inline-grid; place-items: center; flex: none; width: var(--space-6); height: var(--space-6);
+  border: 1px solid var(--line-purple); border-radius: 50%; background: var(--card); color: var(--ink);
+  font-size: var(--text-xs); font-weight: 700; line-height: 1;
+}
+.cx-stepper .is-done .cx-stepper__dot { border-color: var(--purple); background: var(--purple-tint); color: var(--purple-deep); }
+.cx-stepper .is-current .cx-stepper__dot { border-color: var(--purple); background: var(--purple); color: var(--on-purple); }
+.cx-stepper .is-current { font-weight: 700; }
+
+/* แถบสถานะบนสุดของการ์ดงาน */
+.cx-banner { margin: 0 0 var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--line-purple); border-radius: var(--radius-sm); background: var(--purple-tint); color: var(--ink-deep); font-size: var(--text-md); line-height: var(--leading-body); }
+.cx-banner--requested { border-color: var(--gold-line); background: var(--gold-tint); color: var(--gold-ink); }
+.cx-banner--completed { border-color: var(--success-line); background: var(--success-tint); color: var(--success); }
+.cx-banner--declined, .cx-banner--cancelled { border-color: var(--danger-line); background: var(--danger-tint); color: var(--danger); }
+.cx-link--text { color: var(--purple-deep); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ฟอร์มจ้าง: ปุ่มส่งเต็มความกว้างการ์ดใต้ราคารวม เวทีเป็นการ์ดเลือก ช่องวันเวลาแสดงตามภาษา */
+.cx-hire-form .cx-grid-2 { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 701px) { .cx-hire-form .cx-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cx-hire-form > .cx-button { width: 100%; justify-self: stretch; }
+.cx-choices { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+.cx-choices legend { padding: 0; margin-bottom: var(--space-2); font-size: var(--text-base); font-weight: 600; }
+.cx-choice {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-3); row-gap: var(--space-1); align-items: center;
+  min-height: 44px; padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-input); border-radius: var(--radius-card); background: var(--card); cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.cx-choice:hover { border-color: var(--purple-soft); }
+.cx-choice.is-on { border-color: var(--purple); background: var(--purple-tint); box-shadow: inset 0 0 0 1px var(--purple); }
+.cx-choice:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cx-choice input { width: var(--space-5); height: var(--space-5); margin: 0; accent-color: var(--purple); grid-row: 1 / span 2; }
+.cx-choice__name { font-weight: 600; font-size: var(--text-md); line-height: 1.4; overflow-wrap: anywhere; }
+.cx-choice__rate { grid-column: 2; color: var(--ink); font-size: var(--text-base); white-space: nowrap; }
+.cx-choices:disabled .cx-choice { opacity: 0.6; cursor: not-allowed; }
+@media (min-width: 701px) {
+  .cx-choice { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .cx-choice input { grid-row: auto; }
+  .cx-choice__rate { grid-column: 3; }
+}
+
+.cx-datetime { position: relative; }
+.cx-datetime__button {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 44px; padding: var(--space-2) var(--space-3);
+  padding-right: calc(var(--space-3) + 44px);
+  border: 1px solid var(--line-input); border-radius: var(--radius-sm); background: var(--card); color: var(--ink);
+  font-size: var(--text-input); text-align: left;
+}
+.cx-datetime__button.is-empty { color: var(--muted); }
+.cx-datetime__button:hover { border-color: var(--purple-soft); }
+.cx-datetime__button:disabled { background: var(--paper); color: var(--muted); cursor: not-allowed; }
+.cx-datetime__button svg { flex: none; color: var(--purple-deep); }
+.cx-datetime__clear { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink); }
+.cx-datetime__clear:hover { background: var(--purple-tint); }
+.cx-datetime__native { position: absolute; left: 0; bottom: 0; width: 100%; height: 1px; opacity: 0; pointer-events: none; }
+
+/* Mentor zone: แท็บ (จอแคบเลื่อนแนวนอนได้) แผงเต็มความกว้าง ไม่ซ้อนการ์ดหลายชั้น */
+.cx-tabs--scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--space-1); margin-top: var(--space-4); }
+.cx-tabs--scroll .tab-button { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: var(--space-2); }
+.cx-zone-panel { margin-top: var(--space-4); min-width: 0; }
+.cx-section--flat { padding: var(--space-5); border-radius: var(--radius-card); }
+.cx-section--urgent.cx-section--flat { border: 1px solid var(--gold-line); }
+.cx-search.search-field { min-width: 0; max-width: 28em; margin-block: var(--space-4); }
+.cx-competition__top > .cx-button { margin-left: auto; flex: none; }
+.cx-competition__head { flex: 1 1 0; }
+.cx-details { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .cx-choice { transition: none; } }

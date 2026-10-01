@@ -256,7 +256,7 @@ test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai
     await hire.getByLabel('What do you need help with?').fill('Help me rehearse my pitch.');
     await hire.getByRole('button', { name: 'Send request' }).click();
     await expect(hire.getByText('Waiting for the mentor to accept.')).toBeVisible();
-    await expect(hire.locator('.cx-steps')).toContainText('1 Request · 2 Mentor accepts · 3 Chat · 4 Mark as done · 5 Review');
+    await expect(hire.locator('.cx-stepper li')).toHaveText(['Request (done)', '2Mentor accepts', '3Chat', '4Mark as done', '5Review']);
     await expectNoThai(page);
 
     // Consulting: รายการ รายละเอียด ถามก่อนยกเลิก ยังไม่มีแชต
@@ -275,7 +275,7 @@ test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai
     await signInEnglish(page, fixture.owner, `/mentor-zone#hire-${waitingId}`);
     await expect(page.getByRole('heading', { level: 1, name: 'Mentor zone' })).toBeVisible();
     const zoneContent = await contentFrom(page, '/api/consult/zone');
-    await expect(page.getByRole('heading', { name: 'Hire requests (2)' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Hire requests (2)' })).toBeVisible();
     await expectNoThai(page, zoneContent);
     const card = page.locator(`#hire-${waitingId}`);
     await card.getByRole('button', { name: 'Decline the hire request from Ploy' }).click();
@@ -285,7 +285,7 @@ test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai
     await card.getByRole('button', { name: 'Back' }).click();
     await card.getByRole('button', { name: 'Accept the hire request from Ploy' }).click();
     await expect(page.getByText('Accepted. The chat is open.')).toBeVisible();
-    const rows = page.getByRole('region', { name: 'Hires and chats' }).locator('.hw__row');
+    const rows = page.getByRole('tabpanel', { name: 'Hires and chats' }).locator('.hw__row');
     if (await rows.first().isVisible()) await rows.first().click();
     const chat = page.getByRole('region', { name: /^Chat with/ });
     await expect(chat.getByText('No messages yet. Say hello and share what you want to work on.')).toBeVisible();

@@ -7,7 +7,7 @@ import { db } from '../server/db/client';
 import { consultations, mentorCompetitionChoices, users } from '../server/db/schema';
 import { competitions as demoCompetitions } from '../src/data/competitions';
 import {
-  addMessage, createAccount, createHire, createMentorFixture, createVerifyToken, removeAccount, signIn, verifyEmail,
+  addFileMessage, addMessage, createAccount, createHire, createMentorFixture, createVerifyToken, removeAccount, signIn, verifyEmail,
 } from './helpers';
 import type { MentorFixture, TestAccount } from './helpers';
 
@@ -53,8 +53,10 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
 
   // ฟอร์มจ้าง: เวทีที่มากับลิงก์ถูกเลือกไว้ ราคารวมเปลี่ยนสดตามจำนวนชั่วโมง (500 บาท ต่อ 60 นาที)
   const hire = page.getByRole('region', { name: 'จ้างเมนเทอร์คนนี้' });
-  await expect(hire.getByLabel('เวที', { exact: true })).toHaveValue(fixture.competition.slug);
-  await expect(hire.locator('.cx-steps strong')).toHaveText('1 ส่งคำขอ');
+  // เวทีเป็นการ์ดเลือก (ชื่อบรรทัดแรก ราคาอีกบรรทัด) ตัวที่มากับลิงก์ถูกเลือกไว้
+  await expect(hire.getByRole('radio', { checked: true })).toHaveAttribute('value', fixture.competition.slug);
+  await expect(hire.locator('.cx-choice.is-on')).toContainText('500 บาท / 60 นาที');
+  await expect(hire.locator('.cx-stepper li[aria-current="step"] .cx-stepper__label')).toHaveText('ส่งคำขอ');
   await expect(hire.locator('.cx-total__value')).toHaveText('500 บาท');
   await hire.getByLabel('จำนวนชั่วโมง').fill('3');
   await expect(hire.locator('.cx-total__value')).toHaveText('1,500 บาท');
@@ -64,10 +66,16 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
   await hire.getByRole('button', { name: 'ส่งคำขอ' }).click();
   await expect(hire.getByRole('alert')).toContainText('เลือกจำนวนชั่วโมงเต็ม 1 ถึง 10');
   await hire.getByLabel('จำนวนชั่วโมง').fill('3');
-  await hire.getByLabel('วันและเวลาที่อยากนัด (ไม่บังคับ)').fill('2020-01-01T10:00');
+  // ข้อความที่เห็นเป็นรูปแบบของภาษา (ไม่ใช่ mm/dd/yyyy) ส่วนตัวเลือกวันเวลาจริงซ่อนอยู่ใต้ปุ่ม
+  await expect(hire.locator('.cx-datetime__button')).toContainText('เลือกวันและเวลา');
+  await hire.locator('input[type=datetime-local]').fill('2020-01-01T10:00');
   await hire.getByRole('button', { name: 'ส่งคำขอ' }).click();
   await expect(hire.getByRole('alert')).toContainText('เลือกเวลาในอนาคต');
-  await hire.getByLabel('วันและเวลาที่อยากนัด (ไม่บังคับ)').fill('');
+  await hire.getByRole('button', { name: 'ล้างวันและเวลา' }).click();
+  await expect(hire.locator('.cx-datetime__button')).toContainText('เลือกวันและเวลา');
+  await hire.locator('input[type=datetime-local]').fill('2035-03-05T19:00');
+  await expect(hire.locator('.cx-datetime__button')).toContainText('19:00');
+  await expect(hire.locator('.cx-datetime__button')).not.toContainText('mm');
   await hire.getByRole('button', { name: 'ส่งคำขอ' }).click();
   await expect(hire.getByRole('alert')).toContainText('บอกเมนเทอร์ว่าอยากให้ช่วยเรื่องอะไร');
   await hire.getByLabel('อยากให้ช่วยเรื่องอะไร').fill('ช่วยดูสไลด์พิตช์รอบชิงให้หน่อย');
@@ -75,8 +83,8 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
 
   // ส่งแล้ว: ฟอร์มหาย เหลือบรรทัดขั้นตอน (ตัวหนาที่ "เมนเทอร์รับงาน") กับทางไปต่อที่ Consulting
   await expect(hire.getByRole('heading', { name: 'งานของคุณกับเมนเทอร์คนนี้' })).toBeVisible();
-  await expect(hire.locator('.cx-steps')).toContainText('1 ส่งคำขอ · 2 เมนเทอร์รับงาน · 3 คุยในแชต · 4 กดเสร็จงาน · 5 รีวิว');
-  await expect(hire.locator('.cx-steps strong')).toHaveText('2 เมนเทอร์รับงาน');
+  await expect(hire.locator('.cx-stepper li')).toHaveText(['ส่งคำขอ (เสร็จแล้ว)', '2เมนเทอร์รับงาน', '3คุยในแชต', '4กดเสร็จงาน', '5รีวิว']);
+  await expect(hire.locator('.cx-stepper li[aria-current="step"] .cx-stepper__label')).toHaveText('เมนเทอร์รับงาน');
   await expect(hire.getByText('รอเมนเทอร์ตอบรับ')).toBeVisible();
   await expect(hire.getByLabel('อยากให้ช่วยเรื่องอะไร')).toHaveCount(0);
   const [row] = await db.select().from(consultations).where(eq(consultations.mentorId, fixture.mentorId));
@@ -87,7 +95,7 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
   const zone = await mentorContext.newPage();
   try {
     await signIn(zone, fixture.owner, `/mentor-zone#hire-${row.id}`);
-    await expect(zone.getByRole('heading', { name: 'คำขอจ้าง (1)' })).toBeVisible();
+    await expect(zone.getByRole('tab', { name: 'คำขอจ้าง (1)' })).toHaveAttribute('aria-selected', 'true');
     const card = zone.locator(`#hire-${row.id}`);
     await expect(card).toBeVisible();
     await expect(card).toHaveClass(/is-target/);
@@ -102,7 +110,7 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
     expect(accepted.roomId).toBeTruthy();
 
     // เมนเทอร์ส่งข้อความแรก ฝั่งนักเรียนยังไม่ได้เปิดห้อง จึงเห็นเป็นจุดแจ้งเตือนบนแท็บ
-    const chats = zone.getByRole('region', { name: 'งานและแชต' });
+    const chats = zone.getByRole('tabpanel', { name: 'งานและแชต' });
     // ลิงก์ในอีเมลเลือกงานนี้ให้แล้ว (จอแคบจึงเห็นรายละเอียดเลย) ถ้ายังเห็นรายการอยู่ก็กดเลือกเอง
     if (await chats.locator('.hw__row').first().isVisible()) await chats.locator('.hw__row').first().click();
     const mentorChat = chats.getByRole('region', { name: /^แชตกับ/ });
@@ -141,7 +149,7 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
     await expect(workspace.getByText('กดเสร็จงานหรือไม่')).toBeVisible();
     await workspace.getByRole('button', { name: 'ใช่ เสร็จงานแล้ว' }).click();
     await expect(workspace.locator('.hw__head').getByText('เสร็จงานแล้ว')).toBeVisible();
-    await expect(workspace.locator('.cx-steps strong')).toHaveText('5 รีวิว');
+    await expect(workspace.locator('.cx-stepper li[aria-current="step"] .cx-stepper__label')).toHaveText('รีวิว');
     await workspace.getByRole('button', { name: 'เขียนรีวิว' }).click();
     await workspace.getByRole('button', { name: 'ส่งรีวิว' }).click();
     await expect(workspace.getByRole('alert').filter({ hasText: 'เลือก 1 ถึง 5 ดาว' })).toBeVisible();
@@ -221,7 +229,7 @@ test('a mentor with no offered competition cannot be hired, and a competition th
   const learner = await student();
   await signIn(page, learner, `/mentors/${fixture.mentorId}`);
   const hire = page.getByRole('region', { name: 'จ้างเมนเทอร์คนนี้' });
-  await expect(hire.getByLabel('เวที', { exact: true })).toBeVisible();
+  await expect(hire.getByRole('radio', { checked: true })).toBeVisible();
   // ราคามาจากเมนเทอร์เสมอ เวทีที่เมนเทอร์ไม่ได้เปิดรับถูกปฏิเสธที่เซิร์ฟเวอร์
   const refused = await page.request.post(`/api/consult/mentors/${fixture.mentorId}/hire`, { data: { competition: fixture.spare.slug, hours: 1, note: 'x' } });
   expect(refused.status()).toBe(409);
@@ -390,8 +398,14 @@ test('the Mentor zone is for approved mentors, and a mentor can manage prices an
   await signIn(page, fixture.owner, '/mentor-zone');
   await expect(page.getByRole('heading', { level: 1, name: 'โซนเมนเทอร์' })).toBeVisible();
   // ไม่มีคำขอจ้างที่รอก็ไม่มีส่วนนี้เลย ไม่ใช่กล่องว่างที่แย่งที่
-  await expect(page.getByRole('heading', { name: /คำขอจ้าง/ })).toHaveCount(0);
+  // แท็บคำขอบอกจำนวน (0) และไม่มีส่วนสีทองให้เห็นเมื่อไม่มีอะไรรอ ค่าเริ่มต้นไปแท็บเวทีเพราะยังไม่มีงานจ้าง
+  await expect(page.getByRole('tab', { name: 'คำขอจ้าง (0)' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'เวทีที่รับปรึกษา' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'คำขอจ้าง (0)' }).click();
+  await expect(page.getByText('ตอนนี้ไม่มีคำขอจ้างที่รออยู่')).toBeVisible();
+  await page.getByRole('tab', { name: 'งานและแชต' }).click();
   await expect(page.getByText('เมื่อคุณรับคำขอจ้าง งานจะแสดงที่นี่')).toBeVisible();
+  await page.getByRole('tab', { name: 'เวทีที่รับปรึกษา' }).click();
 
   // เวทีที่รับปรึกษา: แก้ราคาเป็นอัตราเล็ก ๆ ได้ และหน้าเวทีเห็นราคาใหม่
   const mine = page.getByRole('region', { name: 'เวทีที่ฉันรับปรึกษา' });
@@ -590,6 +604,7 @@ test('the new pages pass axe, fit the viewport, and are captured with realistic 
   const second = await createAccount('member', { verified: true, name: 'ณัฐพล แก้วใส' });
   students.push(learner, second);
   const size = page.viewportSize() ?? undefined;
+  const narrow = (size?.width ?? 1440) <= 900;
   const capture = async (target: Page, name: string) => {
     if (info.project.name !== 'tablet') await target.screenshot({ path: `artifacts/${name}-${info.project.name}.png`, fullPage: true });
   };
@@ -606,37 +621,58 @@ test('the new pages pass axe, fit the viewport, and are captured with realistic 
     await audit(page, 'competition mentors tab');
     await capture(page, 'competition-mentors');
 
-    // โปรไฟล์เมนเทอร์กับฟอร์มจ้าง (กรอกครบ เห็นราคารวม)
+    // โปรไฟล์เมนเทอร์กับฟอร์มจ้าง: วันเวลาแสดงเป็นรูปแบบไทย เวทีเป็นการ์ดเลือก ปุ่มส่งเต็มการ์ดใต้ราคารวม
     await signIn(page, learner, `/mentors/${thai.mentorId}?competition=${thai.competition.slug}`);
     const hire = page.getByRole('region', { name: 'จ้างเมนเทอร์คนนี้' });
     await hire.getByLabel('จำนวนชั่วโมง').fill('2');
+    const when = new Date(Date.now() + 10 * 86_400_000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    await hire.locator('input[type=datetime-local]').fill(`${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T19:00`);
     await hire.getByLabel('อยากให้ช่วยเรื่องอะไร').fill('ทีมเราเข้ารอบสุดท้ายแล้ว อยากให้ช่วยซ้อมพิตช์ 7 นาทีและตอบคำถามกรรมการ');
     await expect(hire.locator('.cx-total__value')).toHaveText('1,000 บาท');
     await audit(page, 'mentor profile with the hire form');
     await capture(page, 'mentor-profile');
 
-    // จ้างจริง เมนเทอร์รับงาน แล้วคุยกันในแชต
+    // งานเก่าที่จบแล้ว (แชตมีข้อความที่ยังไม่อ่าน) กับงานใหม่ที่เมนเทอร์เพิ่งรับ (แชตมีไฟล์แนบ)
+    const finished = await createHire(thai, learner, 'completed', { hours: 1, note: 'ช่วยดูโครงเรื่องพิตช์รอบแรก' });
+    await addMessage(finished.roomId!, thai.owner.id, 'ขอให้โชคดีรอบชิงนะครับ ถ้ามีคำถามเพิ่มทักมาได้เลย');
+    await new Promise((resolve) => setTimeout(resolve, 50));
     await page.request.post(`/api/consult/mentors/${thai.mentorId}/hire`, { data: { competition: thai.competition.slug, hours: 2, note: 'ทีมเราเข้ารอบสุดท้ายแล้ว อยากให้ช่วยซ้อมพิตช์ 7 นาทีและตอบคำถามกรรมการ' } });
-    const [row] = await db.select().from(consultations).where(eq(consultations.userId, learner.id));
+    const [row] = (await db.select().from(consultations).where(eq(consultations.userId, learner.id))).filter((item) => item.status === 'requested');
     await signIn(zone, thai.owner, '/mentor-zone');
     await zone.request.post(`/api/consult/${row.id}/accept`, { data: {} });
     const [accepted] = await db.select().from(consultations).where(eq(consultations.id, row.id));
     await addMessage(accepted.roomId!, thai.owner.id, 'สวัสดีครับ ส่งสไลด์พิตช์ฉบับล่าสุดมาให้ดูก่อนได้เลย');
     await addMessage(accepted.roomId!, learner.id, 'ได้ค่ะ ส่งให้ตอนนี้เลยนะคะ');
-    await addMessage(accepted.roomId!, thai.owner.id, 'ขอบคุณครับ เดี๋ยวดูแล้วเรามานัดเวลาซ้อมกัน');
-    await page.goto(`/consulting#room-${accepted.roomId}`);
-    await expect(page.getByText('เดี๋ยวดูแล้วเรามานัดเวลาซ้อมกัน')).toBeVisible();
+    await addFileMessage(accepted.roomId!, thai.owner.id, 'ข้อเสนอแนะสไลด์พิตช์.pdf', 'ดูสไลด์แล้วครับ ใส่คอมเมนต์ไว้ในไฟล์นี้');
+    await addMessage(accepted.roomId!, thai.owner.id, 'เดี๋ยวเรามานัดเวลาซ้อมกัน');
+    await page.goto('/consulting');
+    if (narrow) {
+      await expect(page.locator('.hw__row .cx-unread').first()).toBeVisible();
+      await audit(page, 'consulting list');
+      await capture(page, 'consulting-list');
+      await page.locator('.hw__row').first().click();
+    }
+    await expect(page.getByText('เดี๋ยวเรามานัดเวลาซ้อมกัน')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'ดาวน์โหลด ข้อเสนอแนะสไลด์พิตช์.pdf' })).toBeVisible();
+    if (!narrow) await expect(page.locator('.hw__row .cx-unread').first()).toBeVisible();
     await audit(page, 'consulting with an open chat');
     await capture(page, 'consulting');
 
-    // คำขอใหม่ของอีกคนรออยู่ใน Mentor zone พร้อมแชตที่เปิดอยู่ (ส่วนคำขอเป็นสีทอง)
+    // Mentor zone: คำขอใหม่ของอีกคนรออยู่ เปิดช่องเหตุผลปฏิเสธไว้ แล้วแท็บงานและแชต
     await createHire(thai, second, 'requested', { hours: 3, note: 'อยากได้คำแนะนำเรื่องแผนธุรกิจและประมาณการรายได้ก่อนส่งรอบแรก' });
+    await addMessage(accepted.roomId!, learner.id, 'ขอบคุณมากค่ะ จะส่งฉบับแก้ไขให้ดูพรุ่งนี้นะคะ');
     await zone.goto('/mentor-zone');
-    await expect(zone.getByRole('heading', { name: 'คำขอจ้าง (1)' })).toBeVisible();
-    await zone.locator('.hw__row').first().click();
-    await expect(zone.getByText('เดี๋ยวดูแล้วเรามานัดเวลาซ้อมกัน')).toBeVisible();
-    await audit(zone, 'mentor zone with a request and a chat');
+    await expect(zone.getByRole('tab', { name: 'คำขอจ้าง (1)' })).toHaveAttribute('aria-selected', 'true');
+    await zone.getByRole('button', { name: 'ปฏิเสธคำขอของ ณัฐพล' }).click();
+    await zone.getByLabel('เหตุผลที่ปฏิเสธ').fill('ช่วงนี้คิวเต็มจนถึงสิ้นเดือน ลองส่งคำขอใหม่เดือนหน้านะครับ');
+    await audit(zone, 'mentor zone, hire requests with the decline field open');
     await capture(zone, 'mentor-zone');
+    await zone.getByRole('tab', { name: /งานและแชต/ }).click();
+    if (narrow) await zone.locator('.hw__row').first().click();
+    await expect(zone.getByText('ขอบคุณมากค่ะ จะส่งฉบับแก้ไขให้ดูพรุ่งนี้นะคะ')).toBeVisible();
+    await audit(zone, 'mentor zone, hires and chats');
+    await capture(zone, 'mentor-zone-chats');
   } finally {
     await zone.close();
     await mentorContext.close();
@@ -658,6 +694,7 @@ test('touch targets on the new pages are at least 44px tall on phones', async ({
   void id;
   await page.context().clearCookies();
   await signIn(page, fixture.owner, '/mentor-zone');
+  await page.getByRole('tab', { name: 'เวทีที่รับปรึกษา' }).click();
   await expect(page.getByRole('region', { name: 'เวทีที่ฉันรับปรึกษา' })).toBeVisible();
   for (const box of await page.locator('main button:not([disabled]), main a.cx-button, main summary').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
     expect(box).toBeGreaterThanOrEqual(44);

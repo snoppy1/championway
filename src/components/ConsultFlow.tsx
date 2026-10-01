@@ -16,9 +16,9 @@ import '../consult.css';
    ปุ่มที่กดแล้วหายไป ทำให้โฟกัสหลุด จึงย้ายโฟกัสกลับมาที่กล่องนี้หลังสถานะเปลี่ยน */
 
 /** ปุ่มที่ต้องถามก่อนทำ ถามในที่ ไม่เด้ง dialog ปุ่มเริ่มต้นที่โฟกัสคือ "ไม่" เพราะทำพลาดแล้วย้อนไม่ได้ */
-function ConfirmAction({ trigger, question, yes, no, busyLabel, busy, danger = false, quiet = false, onConfirm }: {
+function ConfirmAction({ trigger, question, yes, no, busyLabel, busy, danger = false, quiet = false, primary = false, onConfirm }: {
   trigger: string; question: string; yes: string; no: string; busyLabel: string; busy: boolean;
-  danger?: boolean; quiet?: boolean; onConfirm: () => Promise<void>;
+  danger?: boolean; quiet?: boolean; primary?: boolean; onConfirm: () => Promise<void>;
 }) {
   const [asking, setAsking] = useState(false);
   const noRef = useRef<HTMLButtonElement>(null);
@@ -27,7 +27,7 @@ function ConfirmAction({ trigger, question, yes, no, busyLabel, busy, danger = f
 
   if (!asking) {
     return <button type="button" ref={openRef}
-      className={quiet ? 'link-button cx-link cx-link--quiet' : 'ghost-button cx-button'} disabled={busy}
+      className={quiet ? 'link-button cx-link cx-link--quiet' : primary ? 'primary-button cx-button' : 'ghost-button cx-button'} disabled={busy}
       onClick={() => { setAsking(true); requestAnimationFrame(() => noRef.current?.focus()); }}>{trigger}</button>;
   }
   return <div className="cx-confirm" role="group" aria-labelledby={titleId}>
@@ -125,7 +125,7 @@ export function MemberHireActions({ hire, onChange, extra }: {
   return <div className="cx-actions" ref={rootRef} tabIndex={-1}>
     {status === 'requested' && <div className="cx-row">{extra}{cancel}</div>}
     {status === 'accepted' && <div className="cx-row">
-      <ConfirmAction trigger={s.markDone} question={s.markDoneAsk} yes={s.markDoneYes} no={s.markDoneNo}
+      <ConfirmAction primary trigger={s.markDone} question={s.markDoneAsk} yes={s.markDoneYes} no={s.markDoneNo}
         busyLabel={s.markingDone} busy={busy === 'complete'} onConfirm={() => run('complete')} />
       {extra}{cancel}
     </div>}

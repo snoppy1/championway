@@ -6,6 +6,7 @@ import { consultError } from '../data/consult';
 import type { ContactStatus } from '../data/consult';
 import { useI18n } from '../i18n';
 import { ConfirmAction, ReviewForm } from './ConsultFlow';
+import { nb } from './nb';
 import '../consult.css';
 
 /* ขั้นตอนหลังกด Contact Mentor ของนักเรียน (โหมดตัวกลาง: คุยกับเมนเทอร์นอกเว็บ) ใช้ทั้งหน้าโปรไฟล์เมนเทอร์และหน้า Consulting
@@ -60,8 +61,8 @@ export function ContactFlow({ contact, onChange, viewLink, again, collapseReview
     busyLabel={s.cancelling} busy={busy === 'cancel'} danger onConfirm={() => run('cancel')} />;
   return <div className="cx-flow" ref={rootRef} tabIndex={-1}>
     {status === 'contacted' && <>
-      <p>{s.contactedHelp}</p>
-      <div className="cx-row cx-row--split">
+      <p>{nb(s.contactedHelp)}</p>
+      <div className="cx-row cx-row--split cx-row--tight">
         <button type="button" className="primary-button cx-button" disabled={busy !== null} onClick={() => { void run('claim'); }}>
           {busy === 'claim' ? s.claiming : s.claim}
         </button>
@@ -69,8 +70,8 @@ export function ContactFlow({ contact, onChange, viewLink, again, collapseReview
       </div>
     </>}
     {status === 'claimed' && <>
-      <p>{s.claimedNote}</p>
-      <div className="cx-row cx-row--split">{viewLink}{cancel}</div>
+      <p>{nb(s.claimedNote)}</p>
+      <div className="cx-row cx-row--split cx-row--tight">{viewLink}{cancel}</div>
     </>}
     {status === 'completed' && (contact.reviewed
       ? <>
@@ -78,7 +79,7 @@ export function ContactFlow({ contact, onChange, viewLink, again, collapseReview
         {viewLink && <div className="cx-row">{viewLink}</div>}
       </>
       : <>
-        <p>{s.completedNote}</p>
+        <p>{nb(s.completedNote)}</p>
         {!reviewOpen && <div className="cx-row">
           <button type="button" className="primary-button cx-button" onClick={() => setReviewOpen(true)}>{s.writeReview}</button>
           {viewLink}
@@ -87,11 +88,11 @@ export function ContactFlow({ contact, onChange, viewLink, again, collapseReview
           onDone={async () => { await onChange(); rootRef.current?.focus({ preventScroll: true }); }} />}
       </>)}
     {status === 'denied' && <>
-      <p>{s.deniedNote}</p>
+      <p>{nb(s.deniedNote)}</p>
       {again && <div className="cx-row">{again}</div>}
     </>}
     {status === 'cancelled' && <>
-      <p>{s.cancelledNote}</p>
+      <p>{nb(s.cancelledNote)}</p>
       {again && <div className="cx-row">{again}</div>}
     </>}
     <p className="cx-message cx-message--error" role="alert">{message}</p>

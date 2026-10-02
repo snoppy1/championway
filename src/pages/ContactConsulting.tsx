@@ -8,6 +8,7 @@ import { ContactSteps } from '../components/hire';
 import { Avatar } from '../components/mentors';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useI18n } from '../i18n';
+import { nb } from '../components/nb';
 import { formatDate } from '../i18n/format';
 import '../consult.css';
 
@@ -16,7 +17,7 @@ import '../consult.css';
    ลิงก์ในอีเมลพามาที่ #hire-<id> เลื่อนไปที่รายการนั้นให้เอง */
 
 type Item = {
-  id: string; status: ContactStatus; createdAt: string;
+  id: string; status: ContactStatus; createdAt: string; claimedAt: string | null; completedAt: string | null;
   mentor: { id: string; name: string; initial: string; specialty: string; verified: boolean };
   competition: { slug: string; name: string } | null;
   review: { stars: number } | null;
@@ -56,7 +57,7 @@ export function ContactConsulting() {
   return <main id="main" tabIndex={-1} className="shell page cx-page">
     <header className="cx-page-head">
       <h1>{s.pageTitle}</h1>
-      <p className="cx-lead">{s.lead}</p>
+      <p className="cx-lead">{nb(s.lead)}</p>
     </header>
 
     <VerifyEmailNotice />
@@ -77,16 +78,22 @@ export function ContactConsulting() {
     {data && data.items.length > 0 && <ul className="cx-consults" aria-label={s.listLabel}>
       {data.items.map((item) => {
         const to = `/mentors/${item.mentor.id}${item.competition ? `?competition=${encodeURIComponent(item.competition.slug)}` : ''}`;
+        const stamp = item.status === 'contacted' ? s.stampContacted(formatDate(item.createdAt, lang))
+          : item.status === 'claimed' ? s.stampClaimed(formatDate(item.claimedAt ?? item.createdAt, lang))
+            : item.status === 'completed' ? s.stampCompleted(formatDate(item.completedAt ?? item.createdAt, lang)) : null;
         const link = <Link className="cx-link cx-link--text" to={to} aria-label={s.viewMentorOf(item.mentor.name)}>{s.viewMentor}</Link>;
         return <li className="panel cx-consult" key={item.id} id={`hire-${item.id}`}>
           <Avatar initial={item.mentor.initial} plain />
           <div className="cx-consult__body">
             <div className="cx-consult__title">
               <h2><Link to={to} aria-label={s.viewMentorOf(item.mentor.name)}>{item.mentor.name}</Link></h2>
-              <ContactStatusPill status={item.status} reviewed={Boolean(item.review)} />
+              {/* สัญญาณสถานะอันเดียว: จอแคบเป็นป้าย (กับแถบความคืบหน้า) จอกว้างมีบรรทัดขั้นตอนอยู่แล้ว ป้ายจึงเป็นเวลาที่เกิดขึ้น
+                  สถานะที่จบแบบไม่สำเร็จไม่มีบรรทัดขั้นตอน จึงใช้ป้ายทุกขนาดจอ */}
+              <span className={stamp ? 'cx-consult__pill' : undefined}><ContactStatusPill status={item.status} reviewed={Boolean(item.review)} /></span>
+              {stamp && <span className="cx-consult__stamp">{stamp}</span>}
             </div>
             <p className="cx-hint">{item.competition ? `${s.about(item.competition.name)} · ` : ''}{s.startedOn(formatDate(item.createdAt, lang))}</p>
-            <ContactSteps status={item.status === 'denied' || item.status === 'cancelled' ? null : item.status} reviewed={Boolean(item.review)} />
+            <ContactSteps barOnly status={item.status === 'denied' || item.status === 'cancelled' ? null : item.status} reviewed={Boolean(item.review)} />
             <ContactFlow
               contact={{ id: item.id, status: item.status, reviewed: Boolean(item.review), stars: item.review?.stars }}
               onChange={reloadAsync} collapseReview

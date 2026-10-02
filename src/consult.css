@@ -580,3 +580,49 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-confirm-page h1:focus { outline: none; }
 .cx-confirm-message { max-width: 34em; margin: 0 auto; text-align: center; }
 .cx-confirm-message:empty { display: none; }
+
+/* ---------- รอบปรับหลังตรวจดีไซน์ของโหมดตัวกลาง ---------- */
+
+/* หน้ายืนยันของเมนเทอร์: ใครขอ เรื่องอะไร เมื่อไร และผลของแต่ละคำตอบ */
+.cx-confirm-page h1 { text-wrap: balance; }
+.cx-confirm-rows { display: grid; gap: var(--space-2); margin: 0; }
+.cx-confirm-rows > div { display: grid; grid-template-columns: minmax(0, 7em) minmax(0, 1fr); gap: var(--space-3); align-items: baseline; padding-top: var(--space-2); border-top: 1px solid var(--line); }
+.cx-confirm-rows dt { font-size: var(--text-base); color: var(--ink); }
+.cx-confirm-rows dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.cx-confirm-page > .cx-confirm-page__lead { font-size: var(--text-md); line-height: var(--leading-body); }
+.cx-answers { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--text-base); line-height: var(--leading-body); text-wrap: pretty; }
+.cx-answers strong { color: var(--ink-deep); }
+.cx-confirm-page__foot { padding-top: var(--space-3); border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+
+/* ขั้นตอนแบบย่อ (ขั้นที่ 2 จาก 4 · … กับแถบ) ในแถบข้างที่แคบ ไม่ให้แถวขั้นตอนตกบรรทัด และแบบแถบเดียวบนจอแคบของหน้า Consulting */
+.cx-steps-box.is-compact .cx-stepper-compact { display: block; }
+.cx-steps-box.is-compact .cx-stepper { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 700px) { .cx-steps-box.is-bar-only .cx-stepper-compact p { display: none; } }
+
+/* แถวช่องทางติดต่อสูงเท่ากัน ป้ายกับค่าอยู่กลางแถว ไอคอนลิงก์ติดอยู่กับที่อยู่ลิงก์ ช่องที่ว่างเป็น "-" สีจาง (ยังอ่านออกเสียงว่า "ไม่ได้ระบุ") */
+.cx-contacts > div { min-height: var(--space-12); align-items: center; }
+.cx-contacts a.cx-contacts__ext { flex-wrap: nowrap; }
+.cx-contacts__ext span { min-width: 0; overflow-wrap: anywhere; }
+.cx-contacts__ext svg { flex: none; }
+.cx-contacts__empty { color: var(--muted); font-weight: 400; }
+
+/* ปุ่มยกเลิกการติดต่ออยู่ใต้ปุ่มหลักห่างพอดี (จอแคบ) ส่วนปุ่มคู่ "ยืนยัน / ไม่ใช่ฉัน" อยู่แถวเดียวกันทุกขนาดจอ */
+@media (max-width: 700px) { .cx-row--split.cx-row--tight > .cx-link--quiet { margin: 0; } }
+.cx-row--pair { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
+.cx-row--pair > .cx-confirm { flex: 1 1 100%; }
+
+/* หัวข้อของส่วนที่รอการตอบใช้สีหัวข้อมาตรฐาน กรอบทองยังบอกว่าต้องทำ (เหมือนคำขอจ้างเดิม) */
+.cx-section--ink h2 { color: var(--ink-deep); }
+.cx-section--ink .cx-lead { color: var(--ink); }
+.cx-hero .rating--none { color: var(--ink); }
+.cx-page-head .cx-lead { text-wrap: balance; }
+
+/* Consulting: สัญญาณสถานะอันเดียว จอแคบเป็นป้าย จอกว้างเป็นเวลาที่เกิดขึ้น (บรรทัดขั้นตอนบอกสถานะอยู่แล้ว) */
+.cx-consult__stamp { display: none; }
+@media (min-width: 701px) {
+  .cx-consult__pill { display: none; }
+  .cx-consult__stamp { display: inline; font-size: var(--text-base); color: var(--ink); }
+}
+
+/* วงโฟกัสเห็นชัดบนปุ่ม ลิงก์ข้อความ ลิงก์ช่องทางติดต่อ และแท็บ */
+.cx-page :is(a, button, [role="tab"], summary):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

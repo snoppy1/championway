@@ -5,6 +5,7 @@ import { CircleAlert, CircleCheck, Clock } from 'lucide-react';
 import { api, ApiError, post } from '../lib/api';
 import { useI18n } from '../i18n';
 import { formatDate } from '../i18n/format';
+import { keepEnd } from '../components/nb';
 import '../consult.css';
 
 /* หน้าที่ลิงก์ในอีเมลของเมนเทอร์เปิด: /confirm?token=… ไม่ต้องเข้าสู่ระบบ
@@ -12,7 +13,7 @@ import '../consult.css';
    สถานะ: ถามได้ (ยืนยัน / ไม่ใช่ พร้อมถามซ้ำ) · ตอบแล้วในหน้านี้ · มีคนตอบไปแล้ว · ลิงก์หมดอายุ · ลิงก์ไม่ถูกต้อง */
 
 type LinkInfo = {
-  usable: boolean; status: string; expired: boolean; student: string; mentorName: string; competitionName: string | null; claimedAt: string | null;
+  usable: boolean; maskedEmail: string; expiresAt: string; status: string; expired: boolean; student: string; mentorName: string; competitionName: string | null; claimedAt: string | null;
 };
 type View = { kind: 'loading' } | { kind: 'invalid' } | { kind: 'error' } | { kind: 'link'; link: LinkInfo };
 
@@ -84,17 +85,25 @@ export function ConfirmGuidance() {
     content = <Notice tone="ok" title={s.answeredTitle} text={s.answeredText} headingRef={headingRef} />;
   } else {
     const { link } = view;
-    const date = link.claimedAt ? formatDate(link.claimedAt, lang) : '';
     content = <div className="cx-confirm-page">
-      <h1 ref={headingRef} tabIndex={-1}>{s.usableTitle(link.student)}</h1>
-      <p className="cx-hint">{s.forMentor(link.mentorName)} · {s.noSignIn}</p>
-      <p className="cx-lead">{s.usableText(link.student, link.competitionName, date)}</p>
+      <h1 ref={headingRef} tabIndex={-1}>{keepEnd(s.usableTitle(link.student))}</h1>
+      {/* ใครขอ เรื่องอะไร เมื่อไร: เมนเทอร์ตัดสินใจได้จากหน้านี้โดยไม่ต้องเปิดที่อื่น */}
+      <dl className="cx-confirm-rows">
+        <div><dt>{s.rowFor}</dt><dd>{link.mentorName}</dd></div>
+        <div><dt>{s.rowCompetition}</dt><dd>{link.competitionName ?? s.rowNone}</dd></div>
+        <div><dt>{s.rowDate}</dt><dd>{link.claimedAt ? formatDate(link.claimedAt, lang) : s.rowNone}</dd></div>
+      </dl>
+      <p className="cx-confirm-page__lead">{s.rightAway}</p>
       {!asking && <div className="cx-row">
         <button type="button" className="primary-button cx-button" disabled={busy !== null} onClick={() => { void send('yes'); }}>
           {busy === 'yes' ? s.sending : s.yes}</button>
         <button type="button" className="ghost-button cx-button" disabled={busy !== null}
           onClick={() => { setAsking(true); setMessage(''); requestAnimationFrame(() => noRef.current?.focus()); }}>{s.no}</button>
       </div>}
+      {!asking && <ul className="cx-answers">
+        <li><strong>{s.yes}</strong> {s.yesHint(link.student)}</li>
+        <li><strong>{s.no}</strong> {s.noHint(link.student)}</li>
+      </ul>}
       {asking && <div className="cx-confirm" role="group" aria-labelledby="no-ask">
         <p id="no-ask">{s.noAsk}</p>
         <p className="cx-hint">{s.noAskText}</p>
@@ -104,6 +113,7 @@ export function ConfirmGuidance() {
           <button type="button" ref={noRef} className="ghost-button cx-button" disabled={busy !== null} onClick={() => setAsking(false)}>{s.noBack}</button>
         </div>
       </div>}
+      {link.maskedEmail && <p className="cx-hint cx-confirm-page__foot">{s.footnote(link.maskedEmail, formatDate(link.expiresAt, lang))}</p>}
     </div>;
   }
 

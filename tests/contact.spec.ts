@@ -98,7 +98,7 @@ test('a member contacts a mentor, tells us they got guidance, the mentor confirm
   }
   await expect(panel.locator('.cx-stepper li[aria-current="step"] .cx-stepper__label')).toHaveText('ได้รับคำแนะนำแล้ว');
   await expect(page.getByRole('heading', { name: 'ช่องทางติดต่อเมนเทอร์' })).toBeFocused();
-  await expect(panel.getByRole('button', { name: 'ยกเลิก' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'ยกเลิกการติดต่อ' })).toBeVisible();
   await audit(page, 'profile with contacts');
 
   // ฉันได้รับคำแนะนำแล้ว → ส่งอีเมลให้เมนเทอร์ รอเมนเทอร์ ยังรีวิวไม่ได้
@@ -114,8 +114,18 @@ test('a member contacts a mentor, tells us they got guidance, the mentor confirm
   const { context, page: mentorPage } = await anonymousPage(browser, baseURL!, page.viewportSize() ?? undefined);
   try {
     await mentorPage.goto(`/confirm?token=${token}`);
-    await expect(mentorPage.getByRole('heading', { level: 1, name: 'คุณให้คำแนะนำ ปรียา ใช่ไหม' })).toBeVisible();
-    await expect(mentorPage.getByText('ไม่ต้องเข้าสู่ระบบ')).toBeVisible();
+    await expect(mentorPage.getByRole('heading', { level: 1, name: 'คุณได้ให้คำแนะนำ ปรียา ใช่ไหม' })).toBeVisible();
+    await expect(mentorPage.getByText('ตอบได้ทันที ไม่ต้องเข้าสู่ระบบ')).toBeVisible();
+    // ใครขอ เรื่องอะไร เมื่อไร และผลของแต่ละคำตอบ อีเมลของเมนเทอร์ถูกปิดบังบางส่วน
+    const rows = mentorPage.locator('.cx-confirm-rows');
+    await expect(rows).toContainText(fixture.name);
+    await expect(rows).toContainText(fixture.competition.name);
+    await expect(rows.locator('div').filter({ hasText: 'วันที่ขอ' })).toBeVisible();
+    await expect(mentorPage.locator('.cx-answers')).toContainText('ปรียา จะเขียนรีวิวได้ และรีวิวจะแสดงในโปรไฟล์ของคุณ');
+    await expect(mentorPage.locator('.cx-answers')).toContainText('ปรียา จะเห็นว่าไม่ได้รับการยืนยัน และคำขอนี้จะไม่มีรีวิว');
+    const foot = await mentorPage.locator('.cx-confirm-page__foot').innerText();
+    expect(foot).toContain(`${fixture.owner.email.slice(0, 2)}•••@championways.test`);
+    expect(foot).not.toContain(fixture.owner.email);
     expect((await db.select().from(consultations).where(eq(consultations.id, row.id)))[0].status).toBe('claimed');
     await audit(mentorPage, 'confirm page');
     await mentorPage.getByRole('button', { name: 'ใช่ ยืนยัน' }).click();
@@ -132,7 +142,7 @@ test('a member contacts a mentor, tells us they got guidance, the mentor confirm
   // นักเรียนเห็นว่ายืนยันแล้ว และรีวิวได้ที่ Consulting
   await page.goto('/consulting');
   const card = page.locator(`#hire-${row.id}`);
-  await expect(card.getByText('ยืนยันแล้ว', { exact: true })).toBeVisible();
+  await expect(card.getByText(/^ยืนยันเมื่อ /)).toBeAttached();
   await expect(card.locator('.cx-stepper li[aria-current="step"] .cx-stepper__label')).toHaveText('รีวิว');
   await card.getByRole('button', { name: 'เขียนรีวิว' }).click();
   await card.getByRole('button', { name: 'ส่งรีวิว' }).click();
@@ -141,7 +151,6 @@ test('a member contacts a mentor, tells us they got guidance, the mentor confirm
   await card.getByLabel('ความเห็น (ไม่บังคับ)').fill('ช่วยตีโจทย์ได้ชัดมาก');
   await card.getByRole('button', { name: 'ส่งรีวิว' }).click();
   await expect(card.getByText('คุณรีวิวการปรึกษานี้แล้ว')).toBeVisible();
-  await expect(card.getByText('รีวิวแล้ว', { exact: true })).toBeVisible();
   await audit(page, 'consulting reviewed');
 
   // รีวิวขึ้นบนโปรไฟล์ของเมนเทอร์ และติดต่อใหม่ได้
@@ -347,10 +356,10 @@ test('cancelling a contact asks first, and the member can contact again', async 
   await signIn(page, learner, `/mentors/${fixture.mentorId}`);
   await page.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
   await expect(page.getByRole('heading', { name: 'ช่องทางติดต่อเมนเทอร์' })).toBeVisible();
-  await page.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
+  await page.getByRole('button', { name: 'ยกเลิกการติดต่อ' }).click();
   await expect(page.getByText('ยกเลิกการติดต่อนี้หรือไม่')).toBeVisible();
   await page.getByRole('button', { name: 'เก็บไว้' }).click();
-  await page.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
+  await page.getByRole('button', { name: 'ยกเลิกการติดต่อ' }).click();
   await page.getByRole('button', { name: 'ใช่ ยกเลิก' }).click();
   await expect(page.getByText('คุณยกเลิกการติดต่อนี้แล้ว')).toBeVisible();
   // ยกเลิกแล้วช่องทางติดต่อหายไปจนกว่าจะติดต่อใหม่
@@ -398,11 +407,16 @@ test('the contact pages are captured with realistic Thai data', async ({ page, b
     await audit(zone, 'mentor zone confirmations (thai)');
     await capture(zone, 'mentor-zone-confirm');
     const token = await tokenFor(thai.owner.email);
-    const link = await zoneContext.newPage();
+    // หน้ายืนยันถ่ายในเบราว์เซอร์ที่ไม่ได้เข้าสู่ระบบ เหมือนที่เมนเทอร์เปิดจากอีเมล
+    const signedOut = await browser.newContext({ storageState: THAI_ONLY(baseURL!), viewport: size });
+    const link = await signedOut.newPage();
     await link.goto(`/confirm?token=${token}`);
     await expect(link.getByRole('button', { name: 'ใช่ ยืนยัน' })).toBeVisible();
+    await expect(link.getByRole('link', { name: 'ออกจากระบบ' })).toHaveCount(0);
+    await audit(link, 'confirm page (thai)');
     await capture(link, 'confirm-page');
     await link.close();
+    await signedOut.close();
   } finally {
     await zone.close();
     await zoneContext.close();

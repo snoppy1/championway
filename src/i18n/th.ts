@@ -1154,7 +1154,7 @@ export const th: Messages = {
     claim: 'ฉันได้รับคำแนะนำแล้ว',
     claiming: 'กำลังส่ง…',
     claimedNote: 'เราส่งอีเมลให้เมนเทอร์ยืนยันแล้ว เมื่อเมนเทอร์ยืนยัน คุณจะรีวิวการปรึกษานี้ได้',
-    cancel: 'ยกเลิก',
+    cancel: 'ยกเลิกการติดต่อ',
     cancelling: 'กำลังยกเลิก…',
     cancelAsk: 'ยกเลิกการติดต่อนี้หรือไม่',
     cancelYes: 'ใช่ ยกเลิก',
@@ -1193,6 +1193,9 @@ export const th: Messages = {
       listLabel: 'การปรึกษาของคุณ',
       startedOn: (date) => `เริ่มเมื่อ ${date}`,
       about: (name) => `เรื่อง ${name}`,
+      stampContacted: (date) => `ติดต่อเมื่อ ${date}`,
+      stampClaimed: (date) => `ส่งอีเมลถึงเมนเทอร์เมื่อ ${date}`,
+      stampCompleted: (date) => `ยืนยันเมื่อ ${date}`,
       viewMentor: 'ดูเมนเทอร์และช่องทางติดต่อ',
       viewMentorOf: (name) => `ดู ${name} และช่องทางติดต่อ`,
     },
@@ -1206,7 +1209,8 @@ export const th: Messages = {
       confirmLead: 'หลังคุยกับคุณ นักเรียนจะกด “ฉันได้รับคำแนะนำแล้ว” กดยืนยันเพื่อให้นักเรียนรีวิวคุณได้ ถ้าไม่ใช่คุณ ให้บอกเราด้วย',
       confirmEmpty: 'ตอนนี้ไม่มีอะไรให้ยืนยัน เมื่อนักเรียนแจ้งว่าได้รับคำแนะนำจากคุณ จะแสดงที่นี่และส่งอีเมลถึงคุณ',
       listLabel: 'คำขอให้ยืนยัน',
-      claimedOn: (student, date) => `${student} แจ้งว่าได้รับคำแนะนำจากคุณ · ${date}`,
+      claimedBy: (student) => `${student} แจ้งว่าได้รับคำแนะนำจากคุณ`,
+      askedOn: (date) => `ขอเมื่อ ${date}`,
       about: (name) => `เรื่อง ${name}`,
       confirm: 'ยืนยัน',
       confirming: 'กำลังยืนยัน…',
@@ -1234,11 +1238,15 @@ export const th: Messages = {
     confirmPage: {
       pageTitle: 'ยืนยันคำแนะนำ',
       loading: 'กำลังเปิดคำขอของคุณ…',
-      noSignIn: 'ไม่ต้องเข้าสู่ระบบ',
-      usableTitle: (student) => `คุณให้คำแนะนำ ${student} ใช่ไหม`,
-      usableText: (student, competition, date) =>
-        `${student} แจ้งว่าได้รับคำแนะนำจากคุณ${competition ? `เรื่อง ${competition}` : ''} เมื่อ ${date} ถูกต้องไหม`,
-      forMentor: (name) => `ถึง ${name}`,
+      rightAway: 'ตอบได้ทันที ไม่ต้องเข้าสู่ระบบ',
+      usableTitle: (student) => `คุณได้ให้คำแนะนำ ${student} ใช่ไหม`,
+      rowFor: 'ถึง',
+      rowCompetition: 'เรื่อง',
+      rowDate: 'วันที่ขอ',
+      rowNone: '-',
+      yesHint: (student) => `${student} จะเขียนรีวิวได้ และรีวิวจะแสดงในโปรไฟล์ของคุณ`,
+      noHint: (student) => `${student} จะเห็นว่าไม่ได้รับการยืนยัน และคำขอนี้จะไม่มีรีวิว`,
+      footnote: (email, date) => `ลิงก์นี้ส่งถึง ${email} และใช้ได้ถึง ${date}`,
       yes: 'ใช่ ยืนยัน',
       no: 'ไม่ใช่ ฉันไม่ได้ให้คำแนะนำ',
       noAsk: 'แจ้งว่าไม่ใช่คุณใช่ไหม',
@@ -1271,3 +1279,6 @@ export const th: Messages = {
     bottomLine: 'ChampionWays · ค้นหาเวทีที่สนใจ และเตรียมพร้อมไปกับเมนเทอร์',
   },
 };
+
+/** คำที่ไม่ควรถูกตัดบรรทัดกลางคำ (ดู components/nb.tsx) */
+export const keepTogether = ['เมนเทอร์', 'คำแนะนำ'];

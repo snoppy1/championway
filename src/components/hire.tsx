@@ -29,18 +29,21 @@ export function HireSteps({ status }: { status: HireStatus | null }) {
 
 /** บรรทัดขั้นตอนของโหมดตัวกลาง (ติดต่อ → ได้รับคำแนะนำ → เมนเทอร์ยืนยัน → รีวิว) หน้าตาเดียวกับของงานจ้าง
     current = 4 คือครบทุกขั้นแล้ว (รีวิวแล้ว) */
-export function ContactSteps({ status, reviewed = false }: { status: ContactStatus | null; reviewed?: boolean }) {
+export function ContactSteps({ status, reviewed = false, compact = false, barOnly = false }: { status: ContactStatus | null; reviewed?: boolean; compact?: boolean; barOnly?: boolean }) {
   const { t } = useI18n();
   const s = t.contact;
-  return <Stepper steps={s.steps} current={contactStep(status, reviewed)} label={s.stepsLabel} done={s.stepDone} stepOf={s.stepOf} />;
+  return <Stepper steps={s.steps} current={contactStep(status, reviewed)} label={s.stepsLabel} done={s.stepDone} stepOf={s.stepOf} compact={compact} barOnly={barOnly} />;
 }
 
-function Stepper({ steps, current, label, done, stepOf }: {
+/* compact: แสดงเป็น "ขั้นที่ 2 จาก 4 · …" กับแถบความคืบหน้าเสมอ (ใช้ในแถบข้างที่แคบ ไม่ให้แถวขั้นตอนตกบรรทัด)
+   barOnly: จอแคบแสดงแค่แถบ ไม่มีข้อความขั้น (ข้อความบอกสถานะอยู่ในป้ายข้างบนแล้ว) */
+function Stepper({ steps, current, label, done, stepOf, compact = false, barOnly = false }: {
   steps: readonly string[]; current: number; label: string; done: string; stepOf: (step: number, total: number, name: string) => string;
+  compact?: boolean; barOnly?: boolean;
 }) {
   // ครบทุกขั้นแล้ว ข้อความบรรทัดย่อยังบอกขั้นสุดท้าย
   const shown = Math.min(current, steps.length - 1);
-  return <>
+  return <div className={`cx-steps-box${compact ? ' is-compact' : ''}${barOnly ? ' is-bar-only' : ''}`}>
     {/* จอแคบไม่มีที่พอให้ทุกขั้นเรียงกัน แสดงเป็น "ขั้นที่ 3 จาก 6 · ชำระเงิน" กับแถบความคืบหน้าบาง ๆ แทน
         รายการเต็มยังอยู่ใน DOM ให้โปรแกรมอ่านหน้าจอและจอกว้างใช้ */}
     <div className="cx-stepper-compact" aria-hidden="true">
@@ -54,7 +57,7 @@ function Stepper({ steps, current, label, done, stepOf }: {
         <span className="cx-stepper__label">{step}{index < current && <span className="sr-only"> ({done})</span>}</span>
       </li>)}
     </ol>
-  </>;
+  </div>;
 }
 
 /** ตัวเลขข้อความที่ยังไม่อ่าน ไม่ขึ้นถ้าเป็นศูนย์ ข้อความสำหรับโปรแกรมอ่านหน้าจออยู่ใน sr-only (ตัวเลขอย่างเดียวไม่มีความหมาย) */

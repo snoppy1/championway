@@ -441,7 +441,7 @@ test('the contact flow pages have no Thai in English: profile, Consulting, Mento
     await expect(page.locator('.cx-contacts dd span.sr-only').first()).toHaveText('Not provided');
     const profileContent = await contentFrom(page, `/api/consult/mentors/${fixture.mentorId}`);
     await expectNoThai(page, profileContent);
-    await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await panel.getByRole('button', { name: 'Cancel contact' }).click();
     await expect(panel.getByText('Cancel this contact?')).toBeVisible();
     // กล่องถามต้องอยู่ในจอ เคยล้นขอบขวาบนมือถือจนกดปุ่ม Keep it ไม่ได้
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
@@ -454,7 +454,7 @@ test('the contact flow pages have no Thai in English: profile, Consulting, Mento
     // Consulting
     await page.goto('/consulting');
     await expect(page.getByRole('heading', { level: 1, name: 'Consulting' })).toBeVisible();
-    await expect(page.locator('.cx-consult').getByText('Waiting for the mentor', { exact: true })).toBeVisible();
+    await expect(page.locator('.cx-consult').getByText(/^Emailed the mentor on /)).toBeAttached();
     await expectNoThai(page, await contentFrom(page, '/api/consult/mine'));
 
     // ลิงก์ยืนยันในอีเมลของเมนเทอร์ ไม่ต้องเข้าสู่ระบบ

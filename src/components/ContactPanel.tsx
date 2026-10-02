@@ -8,6 +8,7 @@ import type { ContactStatus, Contacts } from '../data/consult';
 import { useI18n } from '../i18n';
 import { ContactFlow } from './ContactFlow';
 import { ContactSteps } from './hire';
+import { nb } from './nb';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
 import '../consult.css';
 
@@ -35,9 +36,9 @@ function ContactList({ contacts }: { contacts: Contacts }) {
         const href = contactHref(key, value);
         // ช่องที่ว่างแสดงเป็น "-" ตามที่ผู้ใช้สั่ง ค่าที่กรอกแล้วกดได้ทุกช่อง (ประกอบลิงก์จากค่าที่พิมพ์เอง ผ่าน contactHref)
         let content;
-        if (!value) content = <><span aria-hidden="true">-</span><span className="sr-only">{s.notProvided}</span></>;
+        if (!value) content = <><span className="cx-contacts__empty" aria-hidden="true">-</span><span className="sr-only">{s.notProvided}</span></>;
         else if (!href) content = value;
-        else if (key === 'link') content = <a href={href} target="_blank" rel="noopener noreferrer">{value}<ExternalLink size={14} aria-hidden="true" /></a>;
+        else if (key === 'link') content = <a className="cx-contacts__ext" href={href} target="_blank" rel="noopener noreferrer"><span>{value}</span><ExternalLink size={14} aria-hidden="true" /></a>;
         else if (key === 'email' || key === 'phone') content = <a href={href}>{value}</a>;
         else content = <a href={href} target="_blank" rel="noopener noreferrer">{value}</a>;
         return <div key={key}><dt>{s.channels[key]}</dt><dd>{content}</dd></div>;
@@ -109,14 +110,14 @@ export function ContactPanel({ data, competition, reload }: { data: ContactPanel
     </>;
   } else if (viewer.isSelf) {
     body = <>
-      <p>{s.ownText}</p>
+      <p>{nb(s.ownText)}</p>
       <p><Link className="ghost-button cx-button" to="/mentor-zone">{s.ownLink}</Link></p>
     </>;
   } else if (!viewer.emailVerified) {
     body = <VerifyEmailNotice />;
   } else {
     body = <>
-      <ContactSteps status={status === 'denied' || status === 'cancelled' ? null : status} reviewed={Boolean(hire?.reviewed)} />
+      <ContactSteps compact status={status === 'denied' || status === 'cancelled' ? null : status} reviewed={Boolean(hire?.reviewed)} />
       {contacts && <ContactList contacts={contacts} />}
       {hire && status && <ContactFlow contact={{ id: hire.id, status, reviewed: hire.reviewed }} onChange={reload} />}
       {(!hire || canContactAgain) && <ContactForm mentorId={mentor.id} competitions={data.competitions} initial={initial} again={Boolean(hire)} onDone={reload} />}
@@ -125,7 +126,7 @@ export function ContactPanel({ data, competition, reload }: { data: ContactPanel
 
   return <section className="panel cx-contact" aria-labelledby="contact-title">
     <h2 id="contact-title">{s.title}</h2>
-    {!hire && <p className="cx-lead">{s.intro}</p>}
+    {!hire && <p className="cx-lead">{nb(s.intro)}</p>}
     {body}
   </section>;
 }

@@ -11,6 +11,7 @@ import { ConfirmAction } from '../components/ConsultFlow';
 import { Tabs, panelId, tabId } from '../components/Tabs';
 import { useI18n } from '../i18n';
 import { formatDate } from '../i18n/format';
+import { nb } from '../components/nb';
 import { CompetitionsSection } from './MentorZone';
 import type { Chosen, Open, Request } from './MentorZone';
 import '../consult.css';
@@ -71,23 +72,24 @@ function ConfirmPanel({ items, reload }: { items: Waiting[]; reload: () => void 
     }
   }
 
-  return <section className={items.length > 0 ? 'panel cx-section cx-section--urgent' : 'panel cx-section'} aria-labelledby="confirm-title">
+  return <section className={items.length > 0 ? 'panel cx-section cx-section--urgent cx-section--ink' : 'panel cx-section'} aria-labelledby="confirm-title">
     <h2 id="confirm-title" tabIndex={-1} ref={titleRef}>{s.confirmHeading(items.length)}</h2>
-    <p className="cx-lead">{items.length > 0 ? s.confirmLead : s.confirmEmpty}</p>
+    <p className="cx-lead">{nb(items.length > 0 ? s.confirmLead : s.confirmEmpty)}</p>
     <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
     {items.length > 0 && <ul className="cx-list cx-list--stack" aria-label={s.listLabel}>
       {items.map((item) => <li key={item.id} id={`confirm-${item.id}`} tabIndex={-1}
         className={hash === `#confirm-${item.id}` ? 'cx-waiting is-target' : 'cx-waiting'}>
         <div>
-          <p className="cx-waiting__who">{s.claimedOn(item.student, formatDate(item.claimedAt ?? new Date().toISOString(), lang))}</p>
-          {item.competitionName && <p className="cx-hint">{s.about(item.competitionName)}</p>}
+          <p className="cx-waiting__who">{s.claimedBy(item.student)}</p>
+          {/* วันที่อยู่บรรทัดเดียวกับเวที และไม่ตัดกลางวันที่ */}
+          <p className="cx-hint">{item.competitionName ? `${s.about(item.competitionName)} · ` : ''}<span className="cx-nowrap">{s.askedOn(formatDate(item.claimedAt ?? new Date().toISOString(), lang))}</span></p>
         </div>
-        <div className="cx-row cx-row--split">
+        <div className="cx-row cx-row--pair">
           <button type="button" className="primary-button cx-button" disabled={busy !== null}
             aria-label={s.confirmAria(item.student)} onClick={() => { void answer(item.id, 'confirm'); }}>
             {busy?.id === item.id && busy.answer === 'confirm' ? s.confirming : s.confirm}
           </button>
-          <ConfirmAction quiet danger trigger={s.notMe} question={s.notMeAsk(item.student)} yes={s.notMeYes} no={s.notMeNo}
+          <ConfirmAction danger trigger={s.notMe} question={s.notMeAsk(item.student)} yes={s.notMeYes} no={s.notMeNo}
             busyLabel={s.answering} busy={busy?.id === item.id && busy.answer === 'deny'} onConfirm={() => answer(item.id, 'deny')} />
         </div>
       </li>)}
@@ -189,7 +191,7 @@ export function ContactMentorZone() {
   return <main id="main" tabIndex={-1} className="shell page cx-page cx-page--wide">
     <header className="cx-page-head">
       <h1>{s.pageTitle}</h1>
-      <p className="cx-lead">{c.lead}</p>
+      <p className="cx-lead">{nb(c.lead)}</p>
     </header>
 
     {loading && !data && <>

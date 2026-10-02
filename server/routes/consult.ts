@@ -194,7 +194,7 @@ consult.get('/mine', requireUser, async (c) => {
     paymentsOpen: paymentProvider() !== null,
     items: rows.map((r) => ({
       id: r.consultation.id, status: r.consultation.status, createdAt: r.consultation.createdAt,
-      acceptedAt: r.consultation.acceptedAt, completedAt: r.consultation.completedAt,
+      acceptedAt: r.consultation.acceptedAt, completedAt: r.consultation.completedAt, claimedAt: r.consultation.claimedAt,
       minutes: r.consultation.minutes, price: r.consultation.price, preferredAt: r.consultation.preferredAt,
       note: r.consultation.note, reason: r.consultation.reason,
       roomId: r.consultation.roomId, unread: r.consultation.roomId ? unread.get(r.consultation.roomId) ?? 0 : 0,
@@ -341,6 +341,12 @@ const hireBody = z.object({
   preferredAt: z.string().datetime({ offset: true }).nullish(),
   note: z.string().trim().min(1, 'บอกเมนเทอร์สั้น ๆ ว่าอยากให้ช่วยเรื่องอะไร').max(1500),
 });
+
+/** th•••@gmail.com : 2 ตัวแรกของชื่อ + ••• + โดเมนเต็ม */
+function maskEmail(email: string) {
+  const [name, domain = ''] = email.split('@');
+  return `${name.slice(0, 2)}•••@${domain}`;
+}
 
 /** อีเมลถึงอีกฝั่ง ล้มเหลวได้โดยไม่ทำให้คำขอพัง (notify จัดการเอง) */
 async function mentorEmail(mentorId: string) {
@@ -620,8 +626,10 @@ consult.get('/confirm-link', async (c) => {
     .where(eq(consultationConfirmTokens.tokenHash, tokenHash(token))).limit(1);
   if (!row) return fail('ลิงก์ไม่ถูกต้อง', 404);
   const usable = !row.token.usedAt && row.token.expiresAt > new Date() && row.hire.status === 'claimed';
+  // บอกว่าลิงก์ส่งถึงอีเมลไหนโดยปิดบังไว้ (2 ตัวแรก + ••• + โดเมน) คนที่ได้ลิงก์ไปแต่ไม่ใช่เจ้าของอีเมลจะได้ไม่เห็นอีเมลเต็ม
+  const owner = await mentorEmail(row.hire.mentorId);
   return c.json({
-    usable, status: row.hire.status, expired: row.token.expiresAt <= new Date(),
+    usable, maskedEmail: owner ? maskEmail(owner.email) : '', expiresAt: row.token.expiresAt, status: row.hire.status, expired: row.token.expiresAt <= new Date(),
     student: row.student.split(/\s+/)[0], mentorName: row.mentorName, competitionName: row.competitionName, claimedAt: row.hire.claimedAt,
   });
 });

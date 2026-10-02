@@ -99,6 +99,10 @@ test('contact a mentor, confirm by email link or in the Mentor zone, then review
       const token = tokenFrom((await lastMail(mentorUser.email)).body);
       const page = await (await call(`/consult/confirm-link?token=${token}`)).json();
       assert.deepEqual([page.usable, page.student, page.status], [true, 'ผู้ใช้2', 'claimed']);
+      // อีเมลของเมนเทอร์ถูกปิดบัง ไม่มีอีเมลเต็มในคำตอบ และมีวันหมดอายุ
+      assert.equal(page.maskedEmail, `${mentorUser.email.slice(0, 2)}•••@championways.test`);
+      assert.ok(!JSON.stringify(page).includes(mentorUser.email));
+      assert.ok(new Date(page.expiresAt).getTime() > Date.now());
       assert.equal((await call('/consult/confirm-link?token=nope-nope-nope-nope-nope')).status, 404);
       // เมนเทอร์คนอื่นยืนยันแทนไม่ได้
       assert.equal((await call(`/consult/${first}/confirm`, otherMentorUser.cookie, 'POST', {})).status, 409);

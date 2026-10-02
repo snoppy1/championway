@@ -392,7 +392,7 @@ test('before paying, the hold promise sits under Pay, Cancel is set apart, and t
   await signIn(page, learner, `/consulting#hire-${id}`);
   const detail = page.locator('.hw__detail');
   const narrow = (page.viewportSize()?.width ?? 1440) <= 700;
-  const promise = detail.getByText('ChampionWays ถือเงินไว้และจ่ายให้เมนเทอร์เมื่อคุณกดเสร็จงาน หรือจ่ายให้อัตโนมัติหลังจบเซสชัน 3 วัน ถ้าคุณไม่แจ้งปัญหา');
+  const promise = detail.getByText('ChampionWays ถือเงินไว้และจ่ายให้เมนเทอร์เมื่อคุณกดเสร็จงาน หรือจ่ายให้อัตโนมัติเมื่อครบ 3 วันหลังเวลานัด ถ้าคุณไม่แจ้งปัญหา');
   await expect(promise).toBeVisible();
   const payBox = await detail.getByRole('button', { name: /^ชำระ / }).boundingBox();
   const promiseBox = await promise.boundingBox();

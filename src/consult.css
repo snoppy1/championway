@@ -487,10 +487,12 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 /* แถวปุ่มที่มีปุ่มยกเลิก: ยกเลิกอยู่ปลายแถวทางขวา จอแคบลงบรรทัดใหม่ห่างออก 24px */
 .cx-row--split { justify-content: space-between; }
 .cx-row--split > .cx-link--quiet { margin-left: auto; }
-.cx-row--split > .cx-confirm { flex: 1 1 100%; }
+.cx-row--split > .cx-confirm { flex: 1 1 100%; min-width: 0; }
 @media (max-width: 700px) {
   .cx-row--split { flex-direction: column; align-items: flex-start; }
   .cx-row--split > .cx-link--quiet { margin: var(--space-6) 0 0; }
+  /* กล่องถาม "ยกเลิกไหม" เต็มความกว้างการ์ด ไม่ล้นจอ (เคยล้นขอบขวาจนทั้งหน้าเลื่อนข้าง) */
+  .cx-row--split > .cx-confirm { align-self: stretch; width: 100%; flex-basis: auto; }
 }
 
 /* ป้ายหัวข้อในสรุปงานเข้มพอให้ผ่าน 4.5:1 ลำดับความสำคัญใช้ขนาดกับน้ำหนักตัวอักษรแทนสีจาง */
@@ -547,3 +549,34 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-section--small { padding: var(--space-5); }
 .cx-section--small h2 { font-size: var(--text-lg); }
 .cx-row--split > .cx-link--text { padding-left: 0; }
+
+/* ---------- โหมดตัวกลาง: ช่องทางติดต่อ รายการ Consulting และคำขอให้ยืนยัน ---------- */
+
+.cx-contacts { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; }
+.cx-contacts > div { display: grid; grid-template-columns: minmax(0, 6.5em) minmax(0, 1fr); align-items: center; gap: var(--space-3); padding-block: var(--space-1); border-top: 1px solid var(--line); }
+.cx-contacts dt { color: var(--ink); font-size: var(--text-base); }
+.cx-contacts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.cx-contacts a { display: inline-flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; min-height: 44px; }
+
+.cx-consults { display: grid; gap: var(--space-4); max-width: 46em; margin: 0; padding: 0; list-style: none; }
+.cx-consult { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-4); align-items: start; min-width: 0; scroll-margin-top: var(--space-8); }
+.cx-consult .rs-avatar { --avatar-size: 44px; }
+.cx-consult__body { min-width: 0; }
+.cx-consult__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.cx-consult__title h2 { font-size: var(--text-xl); font-weight: 600; line-height: var(--leading-heading); overflow-wrap: anywhere; }
+.cx-consult__title h2 a { color: var(--ink-deep); }
+.cx-consult__title h2 a:hover { color: var(--purple-deep); text-decoration: underline; text-underline-offset: 4px; }
+.cx-consult .cx-flow { margin-top: var(--space-3); }
+
+.cx-waiting { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--gold-line); border-radius: var(--radius-card); background: var(--card); scroll-margin-top: var(--space-8); }
+.cx-waiting:focus { outline: none; }
+.cx-waiting:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cx-waiting.is-target { background: var(--gold-tint); box-shadow: inset 0 0 0 2px var(--gold-star); }
+.cx-waiting__who { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.cx-waiting .cx-hint { margin: 0; }
+.cx-confirm-page { display: grid; gap: var(--space-4); max-width: 34em; margin: var(--space-8) auto; padding: var(--space-6); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--card); box-shadow: var(--shadow-card); }
+.cx-confirm-page h1 { font-size: var(--text-2xl); }
+.cx-confirm-page > p { margin: 0; }
+.cx-confirm-page h1:focus { outline: none; }
+.cx-confirm-message { max-width: 34em; margin: 0 auto; text-align: center; }
+.cx-confirm-message:empty { display: none; }

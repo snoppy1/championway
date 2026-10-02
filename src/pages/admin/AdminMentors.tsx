@@ -84,9 +84,14 @@ type MentorSubmission = {
   cannot: string;
   topics: string[];
   /* ราคาเป็นบาทต่อจำนวนนาที ใบเก่าที่ยังไม่มีระบบนาทีเป็น null ได้ทั้งสองช่อง
-     ช่องทางติดต่อนอกเว็บเลิกใช้แล้ว (นักเรียนจ้างและแชตกับเมนเทอร์บนเว็บ) จึงไม่แสดงในหน้าตรวจ */
+     ช่องทางติดต่อ (นักเรียนเห็นหลังกด Contact mentor ในโหมดตัวกลาง) กับเวทีที่ติ๊กไว้มากับใบสมัครใหม่ */
   price: number | null;
   minutes: number | null;
+  contactEmail: string;
+  contactLine: string;
+  contactPhone: string;
+  contactInstagram: string;
+  contactLink: string;
   competitionIds: string[];
   awards: Award[];
   files: AttachedFile[];
@@ -183,6 +188,12 @@ export function AdminMentorReview() {
             <Field label="ราคา">{submission.price === null || submission.minutes === null
               ? 'ไม่ได้ระบุ'
               : `${baht.format(submission.price)} บาท / ${submission.minutes} นาที`}</Field>
+            {/* นักเรียนที่ยืนยันอีเมลแล้วเห็นช่องทางเหล่านี้หลังกดติดต่อ ผู้ตรวจจึงควรเห็นก่อนเผยแพร่ */}
+            <Field label="ติดต่อ: อีเมล">{submission.contactEmail || 'ไม่ได้ระบุ'}</Field>
+            <Field label="ติดต่อ: LINE ID">{submission.contactLine || 'ไม่ได้ระบุ'}</Field>
+            <Field label="ติดต่อ: เบอร์โทร">{submission.contactPhone || 'ไม่ได้ระบุ'}</Field>
+            <Field label="ติดต่อ: Instagram">{submission.contactInstagram || 'ไม่ได้ระบุ'}</Field>
+            <Field label="ติดต่อ: ลิงก์อื่น">{submission.contactLink ? <ExternalLink href={submission.contactLink} /> : 'ไม่ได้ระบุ'}</Field>
             <Field label="เวทีที่ติ๊กไว้">{submission.competitionIds?.length ? `${submission.competitionIds.length} เวที` : 'ไม่ได้ติ๊กเวทีใด'}</Field>
             <Field label="ผลงาน"><ExternalLink href={submission.portfolio || null} /></Field>
           </dl>

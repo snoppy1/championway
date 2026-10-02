@@ -15,6 +15,10 @@ import type { MentorFixture, TestAccount } from './helpers';
    แต่ละเทสสร้างเมนเทอร์ เวที และบัญชีของตัวเอง (id สุ่ม) จึงรันขนานกันได้ทั้งสามขนาดจอ
    ส่วนอันดับในแท็บเมนเทอร์ที่พร้อมให้ปรึกษาใช้ข้อมูลตัวอย่างของ seed (server/db/demo-data.ts) */
 
+/* จ้างพักไว้ (ผู้ใช้ตัดสิน 2 ต.ค. 2569): เซิร์ฟเวอร์ของเทสรันโดยไม่ตั้ง HIRING_ENABLED เทสของการจ้าง แชต และจ่ายเงินจึงข้ามไว้ ไม่ได้ลบ
+   เปิดกลับด้วย HIRING_ENABLED=true ทั้งฝั่งเซิร์ฟเวอร์ที่รันเทสและตอนสั่ง npm test เส้นทางโหมดตัวกลางทดสอบใน tests/contact.spec.ts */
+const hiringOn = process.env.HIRING_ENABLED === 'true';
+
 const THAI_ONLY = (baseURL: string) => ({
   cookies: [], origins: [{ origin: baseURL, localStorage: [{ name: 'cw-lang', value: 'th' }] }],
 });
@@ -46,6 +50,7 @@ test.afterEach(async ({ page }) => {
 });
 
 test('a member hires a mentor, the mentor accepts, they chat with a file, the member marks it done and reviews', async ({ page, browser, baseURL }) => {
+  test.skip(!hiringOn, 'hiring paused');
   const learner = await student();
   await signIn(page, learner, `/mentors/${fixture.mentorId}?competition=${fixture.competition.slug}`);
   await expect(page.getByRole('heading', { level: 1, name: fixture.name })).toBeVisible();
@@ -207,6 +212,7 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
 });
 
 test('an account that has not verified its email is asked to, and can hire only after it does', async ({ page }) => {
+  test.skip(!hiringOn, 'hiring paused');
   const learner = await student({ verified: false });
   await signIn(page, learner, `/mentors/${fixture.mentorId}`);
   await expect(page.getByRole('heading', { level: 1, name: fixture.name })).toBeVisible();
@@ -232,6 +238,7 @@ test('an account that has not verified its email is asked to, and can hire only 
 });
 
 test('a signed-out visitor is sent to sign in and comes back to the same mentor', async ({ page }) => {
+  test.skip(!hiringOn, 'hiring paused');
   await page.goto(`/mentors/${fixture.mentorId}?competition=${fixture.competition.slug}`);
   const hire = page.getByRole('region', { name: 'จ้างเมนเทอร์คนนี้' });
   await expect(hire.getByText('เข้าสู่ระบบเพื่อจ้างเมนเทอร์คนนี้')).toBeVisible();
@@ -244,6 +251,7 @@ test('a signed-out visitor is sent to sign in and comes back to the same mentor'
 });
 
 test('the mentor sees their own profile without a hire form', async ({ page }) => {
+  test.skip(!hiringOn, 'hiring paused');
   await signIn(page, fixture.owner, `/mentors/${fixture.mentorId}`);
   const hire = page.getByRole('region', { name: 'จ้างเมนเทอร์คนนี้' });
   await expect(hire.getByText('นี่คือโปรไฟล์ของคุณเอง')).toBeVisible();
@@ -252,6 +260,7 @@ test('the mentor sees their own profile without a hire form', async ({ page }) =
 });
 
 test('a mentor with no offered competition cannot be hired, and a competition the mentor dropped is refused', async ({ page }) => {
+  test.skip(!hiringOn, 'hiring paused');
   const learner = await student();
   await signIn(page, learner, `/mentors/${fixture.mentorId}`);
   const hire = page.getByRole('region', { name: 'จ้างเมนเทอร์คนนี้' });
@@ -266,6 +275,7 @@ test('a mentor with no offered competition cannot be hired, and a competition th
 });
 
 test('a mentor declines with a reason, and the member sees the reason and can hire again', async ({ page, browser, baseURL }) => {
+  test.skip(!hiringOn, 'hiring paused');
   const learner = await student();
   const { id } = await createHire(fixture, learner, 'requested', { note: 'ช่วยดูแผนธุรกิจ' });
   const mentorContext = await browser.newContext({ storageState: THAI_ONLY(baseURL!), viewport: page.viewportSize() ?? undefined });
@@ -295,6 +305,7 @@ test('a mentor declines with a reason, and the member sees the reason and can hi
 });
 
 test('a member cancels a request, and an open request stops a second one', async ({ page }) => {
+  test.skip(!hiringOn, 'hiring paused');
   const learner = await student();
   await createHire(fixture, learner, 'requested');
   await signIn(page, learner, `/mentors/${fixture.mentorId}`);
@@ -324,6 +335,7 @@ test('a member cancels a request, and an open request stops a second one', async
 });
 
 test('the chat checks files before sending, keeps a failed message for retry, and shows unread counts', async ({ page }) => {
+  test.skip(!hiringOn, 'hiring paused');
   const learner = await student();
   const { id, roomId } = await createHire(fixture, learner, 'paid');
   await addMessage(roomId!, fixture.owner.id, 'พร้อมคุยแล้วครับ');
@@ -379,6 +391,7 @@ test('only the two people in a room can read it, and a stranger is redirected aw
 });
 
 test('the Consulting page starts empty, and signed-out visitors are sent to sign in first', async ({ page }) => {
+  test.skip(!hiringOn, 'hiring paused');
   const learner = await student();
   await signIn(page, learner, '/consulting');
   await expect(page.getByRole('heading', { level: 1, name: 'การปรึกษา' })).toBeVisible();
@@ -423,15 +436,23 @@ test('the Mentor zone is for approved mentors, and a mentor can manage prices an
 
   await signIn(page, fixture.owner, '/mentor-zone');
   await expect(page.getByRole('heading', { level: 1, name: 'โซนเมนเทอร์' })).toBeVisible();
-  // ไม่มีคำขอจ้างที่รอก็ไม่มีส่วนนี้เลย ไม่ใช่กล่องว่างที่แย่งที่
-  // แท็บคำขอบอกจำนวน (0) และไม่มีส่วนสีทองให้เห็นเมื่อไม่มีอะไรรอ ค่าเริ่มต้นไปแท็บเวทีเพราะยังไม่มีงานจ้าง
-  await expect(page.getByRole('tab', { name: 'คำขอจ้าง (0)' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'เวทีที่รับปรึกษา' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('tab', { name: 'คำขอจ้าง (0)' }).click();
-  await expect(page.getByText('ตอนนี้ไม่มีคำขอจ้างที่รออยู่')).toBeVisible();
-  await page.getByRole('tab', { name: 'งานและแชต' }).click();
-  await expect(page.getByText('เมื่อคุณรับคำขอจ้าง งานจะแสดงที่นี่')).toBeVisible();
-  await page.getByRole('tab', { name: 'เวทีที่รับปรึกษา' }).click();
+  // ไม่มีคำขอที่รออยู่ก็ไม่มีส่วนสีทองให้เห็น ค่าเริ่มต้นไปแท็บเวที (ยังไม่มีงานให้ทำ)
+  const competitionsTab = hiringOn ? 'เวทีที่รับปรึกษา' : 'เวทีของฉัน';
+  if (hiringOn) {
+    // แท็บคำขอบอกจำนวน (0)
+    await expect(page.getByRole('tab', { name: 'คำขอจ้าง (0)' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: competitionsTab })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'คำขอจ้าง (0)' }).click();
+    await expect(page.getByText('ตอนนี้ไม่มีคำขอจ้างที่รออยู่')).toBeVisible();
+    await page.getByRole('tab', { name: 'งานและแชต' }).click();
+    await expect(page.getByText('เมื่อคุณรับคำขอจ้าง งานจะแสดงที่นี่')).toBeVisible();
+  } else {
+    await expect(page.getByRole('tab', { name: 'คำขอให้ยืนยัน (0)' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: competitionsTab })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'คำขอให้ยืนยัน (0)' }).click();
+    await expect(page.getByText('ตอนนี้ไม่มีอะไรให้ยืนยัน')).toBeVisible();
+  }
+  await page.getByRole('tab', { name: competitionsTab }).click();
 
   // เวทีที่รับปรึกษา: แก้ราคาเป็นอัตราเล็ก ๆ ได้ และหน้าเวทีเห็นราคาใหม่
   const mine = page.getByRole('region', { name: 'เวทีที่ฉันรับปรึกษา' });
@@ -521,7 +542,7 @@ test('the profile shows the email status, sends the link, and no longer offers b
 
   await verifyEmail(learner);
   await page.reload();
-  await expect(page.getByText('ยืนยันแล้ว คุณจ้างเมนเทอร์และเขียนรีวิวได้')).toBeVisible();
+  await expect(page.getByText(hiringOn ? 'ยืนยันแล้ว คุณจ้างเมนเทอร์และเขียนรีวิวได้' : 'ยืนยันแล้ว คุณเห็นช่องทางติดต่อเมนเทอร์และเขียนรีวิวได้')).toBeVisible();
   await expect(page.getByRole('button', { name: 'ส่งอีเมลยืนยัน' })).toHaveCount(0);
 });
 
@@ -553,7 +574,7 @@ test('Available mentors ranks Rising Star members by this month’s average star
   for (const [index, row] of (await rising.all()).entries()) {
     await expect(row.locator('.rs-row__rank')).toContainText(`อันดับ ${index + 1}`);
     await expect(row.locator('.rs-row__meta')).toContainText('บาท');
-    await expect(row.getByRole('link', { name: /^จ้าง / })).toBeVisible();
+    await expect(row.getByRole('link', { name: hiringOn ? /^จ้าง / : /^ดูโปรไฟล์ของ / })).toBeVisible();
   }
 
   // ที่ไม่ใช่สมาชิกอยู่ต่อท้ายและไม่มีอันดับ แม้คนหนึ่งจะมีรีวิว 5 ดาวเดือนนี้
@@ -565,7 +586,7 @@ test('Available mentors ranks Rising Star members by this month’s average star
   expect(order).toEqual(['rising-title', 'others-title']);
 
   // ทุกคนลิงก์ไปโปรไฟล์ของตัวเอง พกเวทีไปด้วยเพื่อให้กดติดต่อเรื่องเวทีนี้ได้เลย
-  await rising.first().getByRole('link', { name: /^จ้าง / }).click();
+  await rising.first().getByRole('link', { name: hiringOn ? /^จ้าง / : /^ดูโปรไฟล์ของ / }).click();
   await expect(page).toHaveURL(new RegExp(`/mentors/mentor-mind\\?competition=${slug}$`));
 });
 
@@ -624,6 +645,7 @@ test('an unreachable mentor list shows an error with a retry that recovers', asy
 /* ---------- คุณภาพหน้า ---------- */
 
 test('the new pages pass axe, fit the viewport, and are captured with realistic Thai data', async ({ page, browser, baseURL }, info) => {
+  test.skip(!hiringOn, 'hiring paused');
   // ภาพหน้าจอใช้เมนเทอร์และนักเรียนชื่อไทย เวทีที่ปิดรับในอีกเดือนครึ่ง ไม่ใช่ข้อมูลทดสอบภาษาอังกฤษ
   const thai = await createMentorFixture({ thai: true });
   const learner = await createAccount('member', { verified: true, name: 'ปรียา วงศ์สวัสดิ์' });
@@ -742,18 +764,33 @@ test('the new pages pass axe, fit the viewport, and are captured with realistic 
 test('touch targets on the new pages are at least 44px tall on phones', async ({ page, viewport }) => {
   test.skip((viewport?.width ?? 0) > 700, 'phone layout only');
   const learner = await student();
-  const { id } = await createHire(fixture, learner, 'paid');
-  await signIn(page, learner, `/mentors/${fixture.mentorId}`);
-  await page.goto('/consulting');
-  await page.locator('.hw__row').first().click();
-  await expect(page.getByRole('region', { name: /^แชตกับ/ })).toBeVisible();
-  for (const box of await page.locator('main button:not([disabled]), main a.cx-button, main .cx-link, main .chat__file, main label.chat__attach').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
-    expect(box).toBeGreaterThanOrEqual(44);
+  if (hiringOn) {
+    const { id } = await createHire(fixture, learner, 'paid');
+    await signIn(page, learner, `/mentors/${fixture.mentorId}`);
+    await page.goto('/consulting');
+    await page.locator('.hw__row').first().click();
+    await expect(page.getByRole('region', { name: /^แชตกับ/ })).toBeVisible();
+    for (const box of await page.locator('main button:not([disabled]), main a.cx-button, main .cx-link, main .chat__file, main label.chat__attach').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
+      expect(box).toBeGreaterThanOrEqual(44);
+    }
+    void id;
+  } else {
+    // โหมดตัวกลาง: โปรไฟล์ที่กดติดต่อแล้ว และรายการ Consulting
+    await signIn(page, learner, `/mentors/${fixture.mentorId}`);
+    await page.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
+    await expect(page.getByRole('heading', { name: 'ช่องทางติดต่อเมนเทอร์' })).toBeVisible();
+    for (const box of await page.locator('main button:not([disabled]), main a.cx-button, .cx-contacts a').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
+      expect(box).toBeGreaterThanOrEqual(44);
+    }
+    await page.goto('/consulting');
+    await expect(page.locator('.cx-consult')).toBeVisible();
+    for (const box of await page.locator('main button:not([disabled]), main a.cx-button, main .cx-link').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
+      expect(box).toBeGreaterThanOrEqual(44);
+    }
   }
-  void id;
   await page.context().clearCookies();
   await signIn(page, fixture.owner, '/mentor-zone');
-  await page.getByRole('tab', { name: 'เวทีที่รับปรึกษา' }).click();
+  await page.getByRole('tab', { name: hiringOn ? 'เวทีที่รับปรึกษา' : 'เวทีของฉัน' }).click();
   await expect(page.getByRole('region', { name: 'เวทีที่ฉันรับปรึกษา' })).toBeVisible();
   for (const box of await page.locator('main button:not([disabled]), main a.cx-button, main summary').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
     expect(box).toBeGreaterThanOrEqual(44);

@@ -4,6 +4,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { createAccount, removeAccount, signIn } from './helpers';
 import type { TestAccount } from './helpers';
 
+/* จ้างพักไว้ (เซิร์ฟเวอร์ของเทสไม่ตั้ง HIRING_ENABLED) ถ้อยคำของช่องยอมรับสองข้อกับตัวอย่างโปรไฟล์จึงเป็นของโหมดตัวกลาง
+   เปิดจ้างกลับแล้วใช้ถ้อยคำเดิม ส่วนช่องทางติดต่ออย่างน้อยหนึ่งช่องบังคับทั้งสองโหมด */
+const hiringOn = process.env.HIRING_ENABLED === 'true';
+
 /* ใบสมัครถูกบันทึกลงฐานข้อมูลจริงแล้ว เทสจึงต้องมีบัญชีและเข้าสู่ระบบก่อน */
 let applicant: TestAccount;
 test.beforeAll(async () => { applicant = await createAccount('member'); });
@@ -29,9 +33,9 @@ async function reachService(page: Page) {
 const consentNames = [
   /ยืนยันว่าข้อมูลและหลักฐาน/,
   /ไม่ทำงานหรือจัดทำผลงานส่งแข่งขันแทนทีม/,
-  /ตอบคำขอจ้างโดยเร็ว/,
+  hiringOn ? /ตอบคำขอจ้างโดยเร็ว/ : /ตอบนักเรียนที่ติดต่อมา/,
   /กรรมการตัดสิน/,
-  /การชำระเงินบน ChampionWays ยังไม่เปิด/,
+  hiringOn ? /การชำระเงินบน ChampionWays ยังไม่เปิด/ : /ChampionWays ไม่รับชำระเงิน/,
 ];
 async function acceptAll(page: Page) {
   for (const name of consentNames) await page.getByRole('checkbox', { name }).check();
@@ -42,7 +46,8 @@ async function fillService(page: Page) {
   await page.locator('#apply-cannot').fill('ไม่รับทำงานส่งแทน');
   await page.getByRole('checkbox', { name: 'ตีโจทย์และหาไอเดีย', exact: true }).check();
   await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
-  // ราคาเป็นบาทต่อกี่นาที บังคับตั้งแต่สมัคร (ช่องทางติดต่อนอกเว็บเลิกใช้แล้ว นักเรียนจ้างและแชตบนเว็บ)
+  // ราคาเป็นบาทต่อกี่นาที กับช่องทางติดต่ออย่างน้อยหนึ่งช่อง บังคับตั้งแต่สมัคร
+  await page.locator('#apply-contactLine').fill('mentor.line');
   await page.locator('#apply-price').fill('500');
   await page.locator('#apply-minutes').fill('60');
 }
@@ -70,8 +75,8 @@ test('all four steps, private preview, no upload, back navigation and completion
   await expect(profile).toContainText('พี่มายด์ น.');
   await expect(profile).not.toContainText('นามสกุลทดสอบ');
   await expect(profile).not.toContainText('mentor@example.com');
-  // ตัวอย่างโปรไฟล์บอกว่าติดต่อกันนอกเว็บ และเว็บไม่เก็บเงิน
-  await expect(profile).toContainText('ยังไม่เก็บเงิน');
+  // ตัวอย่างโปรไฟล์บอกว่าเว็บไม่เก็บเงิน
+  await expect(profile).toContainText(/เก็บเงิน/);
   await page.getByRole('button', { name: 'ย้อนกลับ', exact: true }).click();
   await expect(page.locator('#apply-best')).toHaveValue('ช่วยฝึกนำเสนอไอเดีย');
   await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(2);
@@ -112,7 +117,7 @@ test('required identity, evidence and exactly two topics', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'ตรวจทานก่อนส่งใบสมัคร' })).toBeVisible();
 });
 
-test('price with minutes and optional competitions are checked and sent, with no contact fields', async ({ page }) => {
+test('price, contact channels and optional competitions are checked and sent', async ({ page }) => {
   await signIn(page, applicant, '/mentors/apply');
   await reachService(page);
   await page.locator('#apply-best').fill('ช่วยฝึกนำเสนอไอเดีย');
@@ -120,8 +125,8 @@ test('price with minutes and optional competitions are checked and sent, with no
   await page.getByRole('checkbox', { name: 'ตีโจทย์และหาไอเดีย', exact: true }).check();
   await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
 
-  // ไม่มีช่องทางติดต่อนอกเว็บในฟอร์มแล้ว
-  for (const gone of ['LINE ID', 'Instagram', 'เบอร์โทร']) await expect(page.getByLabel(gone, { exact: true })).toHaveCount(0);
+  // ช่องทางติดต่อมีครบห้าช่อง (นักเรียนเห็นหลังกดติดต่อเมนเทอร์)
+  for (const label of ['อีเมล', 'LINE ID', 'เบอร์โทร', 'Instagram', 'ลิงก์อื่น']) await expect(page.getByLabel(label, { exact: true })).toBeVisible();
   await next(page);
   await expect(page.getByRole('alert')).toHaveText('ใส่ราคา 0 ถึง 100,000 บาท และความยาว 1 ถึง 600 นาที');
   await page.locator('#apply-price').fill('10');
@@ -130,6 +135,14 @@ test('price with minutes and optional competitions are checked and sent, with no
   await expect(page.getByRole('alert')).toContainText('ความยาว 1 ถึง 600 นาที');
   // ราคาเล็ก ๆ อย่าง 10 บาทต่อ 1 นาทีต้องใช้ได้
   await page.locator('#apply-minutes').fill('1');
+  // ต้องมีช่องทางติดต่ออย่างน้อยหนึ่งช่อง และลิงก์ต้องเป็น http(s)
+  await next(page);
+  await expect(page.getByRole('alert')).toHaveText('ใส่ช่องทางที่นักเรียนติดต่อคุณได้อย่างน้อยหนึ่งช่อง');
+  await page.locator('#apply-contactLink').fill('ftp://nope');
+  await next(page);
+  await expect(page.getByRole('alert')).toHaveText('ลิงก์อื่นต้องขึ้นต้นด้วย https:// หรือ http://');
+  await page.locator('#apply-contactLink').fill('');
+  await page.locator('#apply-contactInstagram').fill('mentor.ig');
 
   // เวทีเป็นตัวเลือก ติ๊กได้ตามต้องการ และนับให้
   const boxes = page.locator('#competition-count').locator('xpath=ancestor::section').locator('.topics input[type=checkbox]');
@@ -144,7 +157,7 @@ test('price with minutes and optional competitions are checked and sent, with no
   await page.getByRole('button', { name: 'ส่งใบสมัคร', exact: true }).click();
   const body = (await sent).postDataJSON();
   expect(body).toMatchObject({ price: 10, minutes: 1 });
-  expect(Object.keys(body).filter((key) => key.startsWith('contact'))).toEqual([]);
+  expect(body).toMatchObject({ contactInstagram: 'mentor.ig', contactLine: '' });
   expect(body.competitions).toHaveLength(1);
   await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
 });

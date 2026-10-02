@@ -17,6 +17,10 @@
     {
       "path": "/api/cron/release-payments",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/remind-confirmations",
+      "schedule": "0 3 * * *"
     }
   ]
 }

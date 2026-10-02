@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { en } from './en';
 import { th } from './th';
 import type { Messages } from './en';
+import { enGoBetween, thGoBetween, withGoBetween } from './go-between';
+import { useHiring } from '../data/hiring';
 import { setRequestLanguage } from '../lib/api';
 import type { Lang } from './format';
 
@@ -13,6 +15,8 @@ import type { Lang } from './format';
 export type { Lang };
 export const langs: Lang[] = ['en', 'th'];
 const dictionaries: Record<Lang, Messages> = { en, th };
+// ตอนจ้างพักไว้ (ค่าตั้งต้น และตอนยังไม่รู้ค่าสวิตช์) ใช้ถ้อยคำของโหมดตัวกลางซ้อนทับ ดู go-between.ts
+const goBetween: Record<Lang, Messages> = { en: withGoBetween(en, enGoBetween), th: withGoBetween(th, thGoBetween) };
 const STORAGE_KEY = 'cw-lang';
 export const DEFAULT_LANG: Lang = 'en';
 
@@ -31,6 +35,7 @@ const I18nContext = createContext<I18nState | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(storedLang);
+  const hiring = useHiring();
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -39,7 +44,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [lang]);
 
   const setLang = useCallback((next: Lang) => setLangState(next), []);
-  const value = useMemo(() => ({ lang, t: dictionaries[lang], setLang }), [lang, setLang]);
+  const value = useMemo(() => ({ lang, t: hiring === true ? dictionaries[lang] : goBetween[lang], setLang }), [lang, hiring, setLang]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 

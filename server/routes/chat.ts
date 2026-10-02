@@ -8,6 +8,7 @@ import { chatMembers, chatMessages, chatRooms, competitions, consultations, ment
 import { requireUser, type AppEnv } from '../lib/guards.js';
 import { newId } from '../lib/id.js';
 import { env } from '../lib/env.js';
+import { hiringEnabled } from '../lib/flow.js';
 
 /* แชตระหว่างนักเรียนกับเมนเทอร์ (กลับมาใช้ 1 ต.ค. 2569 พร้อมการจ้างผ่านเว็บ)
 
@@ -21,6 +22,11 @@ const MAX_FILE = 4 * 1024 * 1024;
 
 export const chat = new Hono<AppEnv>();
 chat.use('*', async (c, next) => { c.header('Cache-Control', 'private, no-store'); await next(); });
+// แชตพักไว้พร้อมการจ้าง (lib/flow.ts) ปิดทั้งหมดจนกว่าจะเปิด HIRING_ENABLED
+chat.use('*', async (c, next) => {
+  if (!hiringEnabled()) return c.json({ error: 'ฟีเจอร์นี้ยังไม่เปิด' }, 404);
+  await next();
+});
 chat.use('*', requireUser);
 chat.use('*', bodyLimit({ maxSize: MAX_FILE + 300_000, onError: (c) => c.json({ error: 'ไฟล์ต้องไม่เกิน 4 MB' }, 413) }));
 chat.use('*', async (c, next) => {

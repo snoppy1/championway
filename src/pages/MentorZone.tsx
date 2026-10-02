@@ -22,9 +22,9 @@ import '../consult.css';
    ลิงก์ในอีเมลแจ้งเตือนมาที่ /mentor-zone#hire-<id> หน้านี้เลื่อนไปที่คำขอนั้นให้เอง (ส่วนแชตใช้ #room-<id>)
    สิทธิ์ทั้งหมดตัดสินที่เซิร์ฟเวอร์ หน้านี้แค่ซ่อนสิ่งที่คนที่ไม่ใช่เมนเทอร์ใช้ไม่ได้ */
 
-type Chosen = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null };
-type Open = { slug: string; name: string; org: string; closesAt: string; description: string; sourceUrl: string | null };
-type Request = {
+export type Chosen = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null };
+export type Open = { slug: string; name: string; org: string; closesAt: string; description: string; sourceUrl: string | null };
+export type Request = {
   id: string; name: string; url: string; details: string; price: number; minutes: number;
   status: 'pending' | 'approved' | 'rejected'; reason: string; createdAt: string;
 };
@@ -428,7 +428,7 @@ function ChosenRow({ item, onChanged }: { item: Chosen; onChanged: (message: str
   </li>;
 }
 
-function CompetitionsSection({ chosen, available, defaults, requests, reload }: {
+export function CompetitionsSection({ chosen, available, defaults, requests, reload }: {
   chosen: Chosen[]; available: Open[]; defaults: { price: number | null; minutes: number | null }; requests: Request[]; reload: Reload;
 }) {
   const { t, lang } = useI18n();
@@ -627,7 +627,7 @@ function RequestList({ requests }: { requests: Request[] }) {
 
 type ZoneTab = 'requests' | 'chats' | 'payouts' | 'competitions';
 
-export function MentorZone() {
+export function HireMentorZone() {
   const { t } = useI18n();
   const s = t.mentorZone;
   const { user, loading: authLoading } = useAuth();

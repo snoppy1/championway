@@ -8,6 +8,8 @@ import { CHAT_CHANGED } from '../components/ChatPanel';
 import { HireWorkspace } from '../components/HireWorkspace';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useI18n } from '../i18n';
+import { useHiring } from '../data/hiring';
+import { ContactConsulting } from './ContactConsulting';
 import '../consult.css';
 
 /* Consulting ของนักเรียน: งานที่จ้างทั้งหมด กับแชตของแต่ละงาน (ห้องเดียวต่อเมนเทอร์หนึ่งคน ใช้ซ้ำทุกงานของคู่นั้น)
@@ -16,7 +18,15 @@ import '../consult.css';
 
 type Payload = { emailVerified: boolean; paymentsOpen: boolean; items: MemberHire[] };
 
+/** จ้างพักไว้ = โหมดตัวกลาง (รายการคนที่ติดต่อ) เปิดจ้างเมื่อไรหน้านี้กลับเป็นพื้นที่ทำงานของงานจ้างตามเดิม */
 export function Consulting() {
+  const hiring = useHiring();
+  const { t } = useI18n();
+  if (hiring === null) return <main id="main" tabIndex={-1} className="shell page cx-page"><p className="side-note" role="status">{t.consulting.loading}</p></main>;
+  return hiring ? <HireConsulting /> : <ContactConsulting />;
+}
+
+function HireConsulting() {
   const { t } = useI18n();
   const s = t.consulting;
   const { user, loading: authLoading } = useAuth();

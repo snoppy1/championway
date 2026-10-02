@@ -41,7 +41,7 @@ function ConfirmAction({ trigger, question, yes, no, busyLabel, busy, danger = f
   </div>;
 }
 
-function ReviewForm({ id, verified, onDone }: { id: string; verified: boolean; onDone: () => Promise<void> }) {
+export function ReviewForm({ id, verified, onDone }: { id: string; verified: boolean; onDone: () => Promise<void> }) {
   const { t } = useI18n();
   const s = t.consult;
   const [stars, setStars] = useState(0);

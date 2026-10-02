@@ -32,6 +32,10 @@
 .cw-form .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .cw-form label{display:block;margin-bottom:18px;font-weight:500}
 .cw-form label small{font-weight:400;color:var(--muted-soft);display:block;margin-top:5px;font-size:12px}
+/* ช่องที่มีคำอธิบาย: คำอธิบายอยู่นอก label (ผูกด้วย aria-describedby) ระยะห่างเท่าเดิม */
+.cw-form .apply-field{margin-bottom:18px}
+.cw-form .apply-field label{margin-bottom:0}
+.cw-form .apply-field>small{font-weight:400;color:var(--muted-soft);display:block;margin-top:5px;font-size:12px}
 .cw-form input:not([type=checkbox]),.cw-form select,.cw-form textarea{display:block;width:100%;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:11px 12px;margin-top:7px;color:#2C2235;font-weight:400}
 .cw-form textarea{resize:vertical;min-height:80px}
 .cw-form input[type=file]{font-size:13px;padding:16px;background:#FBF9FD;border-style:dashed}

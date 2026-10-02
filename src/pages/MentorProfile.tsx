@@ -5,8 +5,10 @@ import { ArrowLeft, BadgeCheck, CalendarClock, X } from 'lucide-react';
 import { post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { consultError, hireTotal } from '../data/consult';
-import type { HireStatus, MentorCard, Rating as RatingValue } from '../data/consult';
+import type { Contacts, HireStatus, MentorCard, Rating as RatingValue } from '../data/consult';
+import { useHiring } from '../data/hiring';
 import { HireSteps } from '../components/hire';
+import { ContactPanel } from '../components/ContactPanel';
 import { Avatar, Rating, RisingStarPill, StarIcon } from '../components/mentors';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useAuth } from '../data/auth';
@@ -31,6 +33,8 @@ type Payload = {
   reviews: { stars: number; comment: string; createdAt: string; name: string }[];
   viewer: null | { signedIn: boolean; emailVerified: boolean; isSelf: boolean };
   hire: null | { id: string; status: HireStatus; reviewed: boolean; roomId: string | null };
+  /** ช่องทางติดต่อ: ส่งมาเฉพาะโหมดตัวกลางและเฉพาะคนที่ยืนยันอีเมลแล้วและเคยกดติดต่อ */
+  contacts: Contacts | null;
 };
 
 function StarsRow({ stars }: { stars: number }) {
@@ -207,6 +211,8 @@ export function MentorProfile() {
   const [params] = useSearchParams();
   const { user } = useAuth();
   const competition = params.get('competition') ?? '';
+  // จ้างพักไว้ (ตอนนี้) = โหมดตัวกลาง กล่องติดต่อเมนเทอร์แทนฟอร์มจ้าง
+  const hiring = useHiring();
 
   const { data, error, loading, reload } = useApi<Payload>(id ? `/consult/mentors/${encodeURIComponent(id)}` : null);
 
@@ -225,7 +231,7 @@ export function MentorProfile() {
     else if (!loading) document.title = `${s.notFoundTitle} — ChampionWays`;
   }, [mentor, loading, s.notFoundTitle]);
 
-  if (loading && !data) return <main id="main" tabIndex={-1} className="shell page cx-page"><p className="side-note" role="status">{s.loading}</p></main>;
+  if ((loading && !data) || hiring === null) return <main id="main" tabIndex={-1} className="shell page cx-page"><p className="side-note" role="status">{s.loading}</p></main>;
   if (!data || !mentor) return <main id="main" tabIndex={-1} className="shell page cx-page">
     <h1>{s.notFoundTitle}</h1>
     <p className="cx-lead">{error || s.notFoundText}</p>
@@ -264,7 +270,9 @@ export function MentorProfile() {
     </header>
 
     <div className="cx-layout">
-      <HirePanel data={data} competition={competition} reload={reloadAsync} />
+      {hiring
+        ? <HirePanel data={data} competition={competition} reload={reloadAsync} />
+        : <ContactPanel data={data} competition={competition} reload={reloadAsync} />}
 
       <div className="cx-main">
         <section className="panel" aria-labelledby="about-title">

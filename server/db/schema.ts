@@ -413,13 +413,17 @@ export const risingStarPeriods = pgTable('rising_star_periods', {
    status: requested → accepted (รอนักเรียนจ่ายเงิน) → paid (จ่ายแล้ว แชตเปิด) → completed
            requested → declined (เมนเทอร์ปฏิเสธ)
            requested / accepted → cancelled (นักเรียนยกเลิกก่อนจ่ายเงิน)
-           paid → cancelled ได้ทางเดียวคือทีมงานตัดสินคืนเงินหลังนักเรียนแจ้งปัญหา (disputedAt) */
+           paid → cancelled ได้ทางเดียวคือทีมงานตัดสินคืนเงินหลังนักเรียนแจ้งปัญหา (disputedAt)
+
+   โหมดติดต่อนอกเว็บ (ใช้อยู่ตอนนี้ ผู้ใช้ตัดสิน 2 ต.ค. 2569 พักการจ้างกับแชตไว้ก่อน ดู lib/flow.ts)
+   contacted (กด Contact Mentor) → claimed (กด I received guidance) → completed (เมนเทอร์ยืนยัน รีวิวได้)
+                                                             ↘ denied (เมนเทอร์บอกว่าไม่เคยคุยกัน ทีมงานดู) */
 export const consultations = pgTable('consultations', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
   competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
-  status: text('status').$type<'requested' | 'accepted' | 'paid' | 'declined' | 'cancelled' | 'completed'>().notNull().default('requested'),
+  status: text('status').$type<'contacted' | 'claimed' | 'denied' | 'requested' | 'accepted' | 'paid' | 'declined' | 'cancelled' | 'completed'>().notNull().default('requested'),
   /** เวลาที่จ้างเป็นนาที และราคารวมเป็นบาท คิดจากราคาต่องานของเมนเทอร์ตอนส่งคำขอ ไม่เปลี่ยนตามราคาใหม่ */
   minutes: integer('minutes').notNull().default(60),
   price: integer('price').notNull().default(0),
@@ -439,13 +443,25 @@ export const consultations = pgTable('consultations', {
   /** จากรุ่นติดต่อนอกเว็บ (30 ก.ย. 2569) เก็บไว้เป็นประวัติ ไม่ใช้แล้ว */
   claimedAt: timestamp('claimed_at', { withTimezone: true }),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  /** ส่งอีเมลเตือนเมนเทอร์ให้ยืนยันไปแล้วเมื่อไร (เตือนครั้งเดียวหลัง 3 วัน) */
+  remindedAt: timestamp('reminded_at', { withTimezone: true }),
 }, t => [
   index('consultations_user_idx').on(t.userId, t.createdAt),
   index('consultations_mentor_idx').on(t.mentorId, t.status),
   // ค้างได้ทีละหนึ่งงานต่อคู่นักเรียนกับเมนเทอร์ กดจ้างซ้ำไม่สร้างแถวใหม่
-  uniqueIndex('consultations_open_key').on(t.userId, t.mentorId).where(sql`status in ('requested', 'accepted', 'paid')`),
-  check('consultations_status_check', sql`status in ('requested', 'accepted', 'paid', 'declined', 'cancelled', 'completed')`),
+  uniqueIndex('consultations_open_key').on(t.userId, t.mentorId).where(sql`status in ('contacted', 'claimed', 'requested', 'accepted', 'paid')`),
+  check('consultations_status_check', sql`status in ('contacted', 'claimed', 'denied', 'requested', 'accepted', 'paid', 'declined', 'cancelled', 'completed')`),
 ]);
+
+/** ลิงก์ยืนยันในอีเมลถึงเมนเทอร์ ("ใช่ ยืนยัน" / "ไม่ใช่") กดได้โดยไม่ต้องล็อกอิน
+    เก็บแค่ hash ใช้ได้ครั้งเดียว มีวันหมดอายุ และผูกกับรายการเดียว (routes/consult.ts) */
+export const consultationConfirmTokens = pgTable('consultation_confirm_tokens', {
+  tokenHash: text('token_hash').primaryKey(),
+  consultationId: text('consultation_id').notNull().references(() => consultations.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('consultation_confirm_tokens_consultation_idx').on(t.consultationId)]);
 
 /* ---------- เงินของการจ้าง ----------
 

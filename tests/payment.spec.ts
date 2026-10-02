@@ -12,6 +12,9 @@ import type { MentorFixture, TestAccount } from './helpers';
    และหน้าจัดการโอนเงินกับเรื่องแจ้งปัญหา (เฉพาะ admin)
    ทุกเทสสร้างเมนเทอร์และบัญชีของตัวเอง รันขนานกันได้ */
 
+/* จ้างพักไว้: จ่ายเงิน แชต และการโอนเงินปิดอยู่ที่เซิร์ฟเวอร์ของเทส (ไม่ตั้ง HIRING_ENABLED) ข้ามทั้งไฟล์ ไม่ได้ลบ */
+test.skip(process.env.HIRING_ENABLED !== 'true', 'hiring paused');
+
 let fixture: MentorFixture;
 const extraCleanups: Array<() => Promise<void>> = [];
 const accounts: TestAccount[] = [];

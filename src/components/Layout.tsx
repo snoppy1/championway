@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { CHAT_CHANGED } from './ChatPanel';
 import { UnreadBadge } from './hire';
+import { useHiring } from '../data/hiring';
 import trophy from '../assets/trophy.png';
 import { useI18n } from '../i18n';
 
@@ -35,12 +36,14 @@ function Header() {
   /* เมนเทอร์ที่ผ่านอนุมัติเห็น Mentor zone คนอื่นที่เข้าสู่ระบบเห็น Consulting
      ระหว่างรอคำตอบยังไม่แสดงทั้งสองอย่าง จะได้ไม่เห็นป้ายเปลี่ยนกลางทาง */
   const { data: consultMe } = useApi<{ mentorId: string | null }>(user ? '/consult/me' : null);
+  // จ้างและแชตพักไว้: ไม่ถาม /api/chats (ตอบ 404) และไม่มีจุดแจ้งเตือนข้อความ
+  const hiring = useHiring();
   /* ข้อความแชตที่ยังไม่อ่านรวมทุกห้อง ขึ้นเป็นจุดบนแท็บ Consulting / Mentor zone
      ถามทุก 20 วินาทีตอนแท็บมองเห็น และถามใหม่ทันทีที่แชตอ่านหรือส่งข้อความ (CHAT_CHANGED) */
   const [unread, setUnread] = useState(0);
   const userId = user?.id;
   useEffect(() => {
-    if (!userId) { setUnread(0); return; }
+    if (!userId || hiring !== true) { setUnread(0); return; }
     let alive = true;
     const load = () => {
       if (document.hidden) return;
@@ -58,7 +61,7 @@ function Header() {
       window.removeEventListener(CHAT_CHANGED, load);
       document.removeEventListener('visibilitychange', load);
     };
-  }, [userId]);
+  }, [userId, hiring]);
   // เมนูบนมือถือปิดเองเมื่อเปลี่ยนหน้า ไม่อย่างนั้นจะค้างบังเนื้อหาหน้าใหม่
   useEffect(() => { setMenuOpen(false); }, [pathname, search]);
   useEffect(() => {

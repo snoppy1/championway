@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, inArray, isNull, lte, gt, sql } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+import { and, desc, eq, gte, inArray, isNull, lt, lte, gt, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
-  competitionRequests, competitions, consultations, hirePayments, mentorCompetitionChoices, mentorPayoutAccounts, mentorPayouts,
+  competitionRequests, competitions, consultationConfirmTokens, consultations, hirePayments, mentorCompetitionChoices, mentorPayoutAccounts, mentorPayouts,
   mentorReviews, mentors, mentorSubmissions, risingStarPeriods, users,
 } from '../db/schema.js';
 import { requireUser, type AppEnv } from '../lib/guards.js';
@@ -12,7 +13,8 @@ import { unreadByRoom } from './chat.js';
 import { completeByMember, dispute, markPaid } from '../lib/hire-money.js';
 import { paymentProvider } from '../lib/payments.js';
 import { seal, secretBoxReady } from '../lib/secret-box.js';
-import { newId } from '../lib/id.js';
+import { newId, newToken } from '../lib/id.js';
+import { hiringEnabled } from '../lib/flow.js';
 import { env } from '../lib/env.js';
 import { notify } from '../lib/email.js';
 import { bangkokMonth, byRating, ratingJson, ratingsBetween } from '../lib/ratings.js';
@@ -37,6 +39,14 @@ consult.use('*', async (c, next) => {
   c.header('Cache-Control', 'private, no-store');
   const origin = c.req.header('origin');
   if (c.req.method !== 'GET' && origin && origin !== env.appOrigin) return c.json({ error: 'คำขอต้องมาจากเว็บนี้' }, 403);
+  await next();
+});
+
+/* การจ้าง จ่ายเงิน และแจ้งปัญหา พักไว้ (lib/flow.ts) ปิดที่ชั้นนี้ทั้งหมด หน้าเว็บก็ซ่อนไว้ด้วย */
+const HIRE_ONLY = [/^\/mentors\/[^/]+\/hire$/, /^\/[^/]+\/(accept|decline|pay|dispute|complete)$/, /^\/payments\//, /^\/zone\/payout-account$/];
+consult.use('*', async (c, next) => {
+  const path = c.req.path.replace(/^\/api\/consult/, '');
+  if (!hiringEnabled() && HIRE_ONLY.some((re) => re.test(path))) return c.json({ error: 'ฟีเจอร์นี้ยังไม่เปิด' }, 404);
   await next();
 });
 
@@ -82,7 +92,7 @@ const card = (m: typeof mentors.$inferSelect) => ({
 consult.get('/me', async (c) => {
   const user = c.get('user');
   const mentor = user ? await ownMentor(user.id) : null;
-  return c.json({ mentorId: mentor?.id ?? null });
+  return c.json({ mentorId: mentor?.id ?? null, hiring: hiringEnabled() });
 });
 
 /** งานที่ยังเปิดรับสมัคร ใช้ในฟอร์มสมัครเมนเทอร์ให้ติ๊กเลือก ไม่มีข้อมูลส่วนตัว เปิดสาธารณะได้ */
@@ -138,6 +148,7 @@ consult.get('/mentors/:id', async (c) => {
 
   const viewer = c.get('user');
   let hire: { id: string; status: string; reviewed: boolean; roomId: string | null } | null = null;
+  let contacts: ReturnType<typeof contactsOf> | null = null;
   if (viewer) {
     const [latest] = await db.select({ id: consultations.id, status: consultations.status, roomId: consultations.roomId }).from(consultations)
       .where(and(eq(consultations.userId, viewer.id), eq(consultations.mentorId, m.id)))
@@ -146,6 +157,8 @@ consult.get('/mentors/:id', async (c) => {
       const [review] = await db.select({ id: mentorReviews.id }).from(mentorReviews).where(eq(mentorReviews.consultationId, latest.id));
       hire = { ...latest, reviewed: Boolean(review) };
     }
+    // ช่องทางติดต่อเปิดให้เฉพาะคนที่ยืนยันอีเมลแล้วและเคยกด Contact Mentor กับเมนเทอร์คนนี้ (โหมดติดต่อนอกเว็บ)
+    if (!hiringEnabled() && viewer.emailVerified && latest && !['cancelled', 'denied', 'declined'].includes(latest.status)) contacts = contactsOf(m);
   }
 
   return c.json({
@@ -158,6 +171,7 @@ consult.get('/mentors/:id', async (c) => {
     reviews: reviews.map((r) => ({ stars: r.stars, comment: r.comment, createdAt: r.createdAt, name: r.name.split(/\s+/)[0] })),
     viewer: viewer ? { signedIn: true, emailVerified: viewer.emailVerified, isSelf: row.userId === viewer.id } : null,
     hire,
+    contacts,
   });
 });
 
@@ -204,10 +218,22 @@ consult.post('/:id/review', requireUser, async (c) => {
   if (row.status !== 'completed') return fail('รีวิวได้หลังกดเสร็จงานแล้ว', 409);
   const owner = await ownMentor(user.id);
   if (owner?.id === row.mentorId) return fail('รีวิวตัวเองไม่ได้', 403);
-  const [created] = await db.insert(mentorReviews)
-    .values({ id: newId('rvw'), consultationId: row.id, userId: user.id, mentorId: row.mentorId, stars: body.stars, comment: body.comment })
-    .onConflictDoNothing().returning({ id: mentorReviews.id });
-  if (!created) return fail('รีวิวงานนี้ไปแล้ว', 409);
+  /* หนึ่งคนรีวิวเมนเทอร์คนเดียวกันได้เดือนละครั้ง (เดือนตามเวลาไทย) กันเมนเทอร์ใช้บัญชีที่สองปั๊มรีวิวตัวเองซ้ำ ๆ
+     (Astra รีวิว 2 ต.ค. 2569) ล็อกแถวผู้ใช้ก่อนเช็ก ส่งพร้อมกันหลายงานจึงผ่านได้อันเดียว */
+  const month = bangkokMonth(new Date(), 0);
+  const outcome = await db.transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, user.id)).for('update');
+    const [already] = await tx.select({ id: mentorReviews.id }).from(mentorReviews)
+      .where(and(eq(mentorReviews.userId, user.id), eq(mentorReviews.mentorId, row.mentorId), gte(mentorReviews.createdAt, month.start), lt(mentorReviews.createdAt, month.end)))
+      .limit(1);
+    if (already) return 'monthly' as const;
+    const [created] = await tx.insert(mentorReviews)
+      .values({ id: newId('rvw'), consultationId: row.id, userId: user.id, mentorId: row.mentorId, stars: body.stars, comment: body.comment })
+      .onConflictDoNothing().returning({ id: mentorReviews.id });
+    return created ? 'ok' as const : 'duplicate' as const;
+  });
+  if (outcome === 'duplicate') return fail('รีวิวงานนี้ไปแล้ว', 409);
+  if (outcome === 'monthly') return fail('คุณรีวิวเมนเทอร์คนนี้ไปแล้วในเดือนนี้ รีวิวได้อีกครั้งเดือนหน้า', 409);
   return c.json({ ok: true }, 201);
 });
 
@@ -243,6 +269,11 @@ consult.get('/zone', requireUser, async (c) => {
   return c.json({
     mentor: { ...card(mentor), risingStar: members.has(mentor.id), rating: ratingJson(monthly.get(mentor.id)), price: mentor.price, minutes: mentor.minutes },
     // เลขบัญชีเต็มไม่ส่งออก แม้แต่เจ้าของ เห็นแค่ 4 ตัวท้าย
+    contacts: contactsOf(mentor),
+    // รอเมนเทอร์ยืนยันว่าให้คำปรึกษาจริง (โหมดติดต่อนอกเว็บ)
+    confirmations: pending.filter(({ hire }) => hire.status === 'claimed').map(({ hire, student, competitionName }) => ({
+      id: hire.id, student: student.split(/\s+/)[0], competitionName, claimedAt: hire.claimedAt,
+    })),
     payoutAccount: account ? { accountName: account.accountName, bankCode: account.bankCode, last4: account.accountLast4, status: account.status } : null,
     competitions: chosen,
     available: open,
@@ -388,7 +419,7 @@ consult.post('/:id/decline', requireUser, async (c) => {
 consult.post('/:id/cancel', requireUser, async (c) => {
   const user = c.get('user')!;
   const body = await parse(c, z.object({ reason: z.string().trim().max(1000).default('') }).nullable()) ?? { reason: '' };
-  const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), inArray(consultations.status, ['requested', 'accepted'])),
+  const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), inArray(consultations.status, ['contacted', 'claimed', 'requested', 'accepted'])),
     { status: 'cancelled', reason: body.reason, cancelledAt: new Date() });
   if (!row) return fail('ยกเลิกไม่ได้ ถ้าจ่ายเงินแล้วให้กดแจ้งปัญหา', 409);
   return c.json({ ok: true, status: row.status });
@@ -476,3 +507,159 @@ consult.put('/zone/payout-account', requireUser, async (c) => {
     .onConflictDoUpdate({ target: mentorPayoutAccounts.mentorId, set: values });
   return c.json({ ok: true });
 });
+
+/* ---------- ติดต่อนอกเว็บ: Contact Mentor → I received guidance → เมนเทอร์ยืนยัน → รีวิว ---------- */
+
+export const contactBody = z.object({
+  contactEmail: z.string().trim().max(200).refine((v) => !v || z.string().email().safeParse(v).success, 'อีเมลติดต่อไม่ถูกต้อง').default(''),
+  contactLine: z.string().trim().max(100).default(''),
+  contactPhone: z.string().trim().max(40).default(''),
+  contactInstagram: z.string().trim().max(100).default(''),
+  contactLink: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://').default(''),
+}).refine((v) => Object.values(v).some(Boolean), 'ใส่ช่องทางติดต่ออย่างน้อยหนึ่งช่อง');
+
+const contactsOf = (m: typeof mentors.$inferSelect) => ({
+  email: m.contactEmail, line: m.contactLine, phone: m.contactPhone, instagram: m.contactInstagram, link: m.contactLink,
+});
+
+/** ลิงก์ยืนยันในอีเมล ใช้ได้ 14 วัน ครั้งเดียว */
+const CONFIRM_TTL_MS = 14 * 86400000;
+const REMIND_AFTER_MS = 3 * 86400000;
+const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
+
+async function confirmationEmail(hire: typeof consultations.$inferSelect, studentName: string, reminder: boolean) {
+  const owner = await mentorEmail(hire.mentorId);
+  if (!owner) return;
+  const token = newToken();
+  await db.insert(consultationConfirmTokens).values({ tokenHash: tokenHash(token), consultationId: hire.id, expiresAt: new Date(Date.now() + CONFIRM_TTL_MS) });
+  const first = studentName.split(/\s+/)[0];
+  const link = `${env.appOrigin}/confirm?token=${token}`;
+  await notify(owner.email,
+    `${reminder ? '(เตือน) ' : ''}${first} ขอให้ยืนยันว่าได้ปรึกษากับคุณ / ${reminder ? '(Reminder) ' : ''}Please confirm a consultation`,
+    `${first} บอกว่าได้รับคำแนะนำจากคุณแล้ว ใช่ไหม? กดลิงก์นี้เพื่อยืนยัน หรือบอกว่าไม่เคยคุยกัน (ไม่ต้องเข้าสู่ระบบ)\n`
+    + `${first} says you gave them guidance. Was it you? Open this link to confirm, or to say it wasn't (no sign-in needed):\n\n${link}\n\n`
+    + `ยืนยันได้ใน Mentor zone ด้วย / You can also confirm in your Mentor zone: ${env.appOrigin}/mentor-zone#confirm-${hire.id}`);
+}
+
+consult.post('/mentors/:id/contact', requireUser, async (c) => {
+  const user = c.get('user')!;
+  if (!user.emailVerified) return fail('ยืนยันอีเมลก่อนจึงจะเห็นช่องทางติดต่อ', 403);
+  const [row] = await approvedMentors([c.req.param('id')]);
+  if (!row) return fail('ไม่พบเมนเทอร์', 404);
+  if (row.userId === user.id) return fail('ติดต่อตัวเองไม่ได้');
+  const body = await parse(c, z.object({ competition: z.string().max(200).nullish() }).nullable()) ?? {};
+  let competitionId: string | null = null;
+  if (body.competition) {
+    const [event] = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.slug, body.competition)).limit(1);
+    competitionId = event?.id ?? null;
+  }
+  // เปิดค้างได้รายการเดียวต่อคู่ (unique index) กดซ้ำได้รายการเดิมกลับมา
+  const [created] = await db.insert(consultations)
+    .values({ id: newId('cns'), userId: user.id, mentorId: row.mentor.id, competitionId, status: 'contacted', minutes: 0 })
+    .onConflictDoNothing().returning({ id: consultations.id, status: consultations.status });
+  const open = created ?? (await db.select({ id: consultations.id, status: consultations.status }).from(consultations)
+    .where(and(eq(consultations.userId, user.id), eq(consultations.mentorId, row.mentor.id), inArray(consultations.status, ['contacted', 'claimed'])))
+    .limit(1))[0];
+  if (!open) return fail('มีงานจ้างที่ยังไม่จบกับเมนเทอร์คนนี้อยู่', 409);
+  return c.json({ consultation: open, contacts: contactsOf(row.mentor) }, created ? 201 : 200);
+});
+
+consult.post('/:id/claim', requireUser, async (c) => {
+  const user = c.get('user')!;
+  const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), eq(consultations.status, 'contacted')),
+    { status: 'claimed', claimedAt: new Date() });
+  if (!row) return fail('รายการนี้ส่งไปแล้วหรือปิดไปแล้ว', 409);
+  /* ส่งอีเมลถึงเมนเทอร์คนเดิมจากนักเรียนคนเดิมได้วันละฉบับ กันกดติดต่อ-แจ้ง-ยกเลิกวนส่งอีเมลรัว ๆ (Astra รีวิว 2 ต.ค. 2569)
+     ถึงไม่ส่งอีเมล เมนเทอร์ก็ยังเห็นและยืนยันได้ใน Mentor zone */
+  const [recent] = await db.select({ id: consultations.id }).from(consultations).where(and(
+    eq(consultations.userId, user.id), eq(consultations.mentorId, row.mentorId), ne(consultations.id, row.id),
+    gt(consultations.claimedAt, new Date(Date.now() - 86400000)),
+  )).limit(1);
+  if (!recent) await confirmationEmail(row, user.name, false);
+  return c.json({ ok: true, status: row.status });
+});
+
+/** ผลของเมนเทอร์: ยืนยัน → completed (นักเรียนรีวิวได้) · ไม่ใช่ → denied (ทีมงานดู) */
+async function answerClaim(hireId: string, mentorId: string, answer: 'yes' | 'no') {
+  const row = await transition(hireId, and(eq(consultations.mentorId, mentorId), eq(consultations.status, 'claimed')),
+    answer === 'yes'
+      ? { status: 'completed', confirmedAt: new Date(), completedAt: new Date() }
+      : { status: 'denied', cancelledAt: new Date(), reason: 'เมนเทอร์ตอบว่าไม่ได้ให้คำปรึกษา' });
+  if (row && answer === 'yes') {
+    await emailMember(row.userId, 'เมนเทอร์ยืนยันแล้ว เขียนรีวิวได้เลย / Your mentor confirmed — you can review',
+      `เขียนรีวิวได้ที่ / Write your review: ${env.appOrigin}/consulting#hire-${row.id}`);
+  }
+  return row;
+}
+
+consult.post('/:id/confirm', requireUser, async (c) => {
+  const mentor = await requireOwnMentor(c.get('user')!.id);
+  const row = await answerClaim(c.req.param('id'), mentor.id, 'yes');
+  if (!row) return fail('ยืนยันไม่ได้ นักเรียนยังไม่ได้กดว่าได้รับคำแนะนำ หรือรายการปิดไปแล้ว', 409);
+  return c.json({ ok: true, status: row.status });
+});
+
+consult.post('/:id/deny', requireUser, async (c) => {
+  const mentor = await requireOwnMentor(c.get('user')!.id);
+  const row = await answerClaim(c.req.param('id'), mentor.id, 'no');
+  if (!row) return fail('รายการนี้ตอบไปแล้วหรือปิดไปแล้ว', 409);
+  return c.json({ ok: true, status: row.status });
+});
+
+/** หน้าที่ลิงก์ในอีเมลเปิด: ดูได้ว่าใครขอยืนยันอะไร โดยไม่ต้องล็อกอิน (มี token เท่านั้น) ไม่เปลี่ยนอะไร
+    ปุ่มยืนยันอยู่ในหน้าเว็บ (POST) ไม่ใช่ลิงก์ GET ตรง ๆ ระบบสแกนลิงก์ของอีเมลจะได้ไม่กดแทนเมนเทอร์ */
+consult.get('/confirm-link', async (c) => {
+  const token = c.req.query('token') ?? '';
+  if (token.length < 20 || token.length > 200) return fail('ลิงก์ไม่ถูกต้อง', 404);
+  const [row] = await db.select({ token: consultationConfirmTokens, hire: consultations, student: users.name, mentorName: mentors.name, competitionName: competitions.name })
+    .from(consultationConfirmTokens)
+    .innerJoin(consultations, eq(consultations.id, consultationConfirmTokens.consultationId))
+    .innerJoin(users, eq(users.id, consultations.userId))
+    .innerJoin(mentors, eq(mentors.id, consultations.mentorId))
+    .leftJoin(competitions, eq(competitions.id, consultations.competitionId))
+    .where(eq(consultationConfirmTokens.tokenHash, tokenHash(token))).limit(1);
+  if (!row) return fail('ลิงก์ไม่ถูกต้อง', 404);
+  const usable = !row.token.usedAt && row.token.expiresAt > new Date() && row.hire.status === 'claimed';
+  return c.json({
+    usable, status: row.hire.status, expired: row.token.expiresAt <= new Date(),
+    student: row.student.split(/\s+/)[0], mentorName: row.mentorName, competitionName: row.competitionName, claimedAt: row.hire.claimedAt,
+  });
+});
+
+consult.post('/confirm-link', async (c) => {
+  const body = await parse(c, z.object({ token: z.string().min(20).max(200), answer: z.enum(['yes', 'no']) }));
+  // ใช้ token ได้ครั้งเดียว: เงื่อนไข used_at is null และยังไม่หมดอายุในคำสั่งเดียวกัน กดสองแท็บพร้อมกันได้ผลครั้งเดียว
+  const [token] = await db.update(consultationConfirmTokens).set({ usedAt: new Date() })
+    .where(and(eq(consultationConfirmTokens.tokenHash, tokenHash(body.token)), isNull(consultationConfirmTokens.usedAt), gt(consultationConfirmTokens.expiresAt, new Date())))
+    .returning();
+  if (!token) return fail('ลิงก์นี้ใช้ไปแล้วหรือหมดอายุแล้ว ยืนยันได้ที่ Mentor zone', 409);
+  const [hire] = await db.select({ mentorId: consultations.mentorId }).from(consultations).where(eq(consultations.id, token.consultationId));
+  const row = hire ? await answerClaim(token.consultationId, hire.mentorId, body.answer) : null;
+  if (!row) return fail('รายการนี้ตอบไปแล้วหรือปิดไปแล้ว', 409);
+  return c.json({ ok: true, status: row.status });
+});
+
+consult.patch('/zone/contacts', requireUser, async (c) => {
+  const mentor = await requireOwnMentor(c.get('user')!.id);
+  const body = await parse(c, contactBody);
+  await db.update(mentors).set(body).where(eq(mentors.id, mentor.id));
+  return c.json({ ok: true });
+});
+
+/** ส่งอีเมลเตือนเมนเทอร์ที่ยังไม่ยืนยันเกิน 3 วัน ครั้งเดียวต่อรายการ เรียกจาก cron วันละครั้ง */
+export async function remindUnconfirmed(now = new Date()) {
+  const rows = await db.select({ hire: consultations, student: users.name }).from(consultations)
+    .innerJoin(users, eq(users.id, consultations.userId))
+    .where(and(eq(consultations.status, 'claimed'), isNull(consultations.remindedAt), lt(consultations.claimedAt, new Date(now.getTime() - REMIND_AFTER_MS))));
+  let sent = 0;
+  for (const { hire, student } of rows) {
+    // จองสิทธิ์ส่งก่อน cron ซ้อนกันสองรอบจะได้ไม่ส่งซ้ำ
+    // ต้องยังรอยืนยันอยู่ตอนจอง ถ้าตอบหรือยกเลิกไปแล้วระหว่างนั้นจะไม่ส่ง (Astra รีวิว 2 ต.ค. 2569)
+    const [claimed] = await db.update(consultations).set({ remindedAt: now })
+      .where(and(eq(consultations.id, hire.id), eq(consultations.status, 'claimed'), isNull(consultations.remindedAt))).returning({ id: consultations.id });
+    if (!claimed) continue;
+    await confirmationEmail(hire, student, true);
+    sent += 1;
+  }
+  return sent;
+}

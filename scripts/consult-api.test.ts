@@ -16,6 +16,8 @@ import { createSession } from '../server/lib/session';
    เทสนี้สร้างเมนเทอร์ เวที และบัญชีของตัวเองทั้งหมด ไม่พึ่งข้อมูลตัวอย่างที่เทสอื่นล้างทิ้งได้ */
 
 testDatabase(process.env);
+// การจ้างกับแชตพักไว้ในเว็บจริง (lib/flow.ts) เทสชุดนี้เปิดไว้เพื่อคุมโค้ดส่วนนั้นให้ยังทำงานถูกเมื่อเปิดกลับ
+process.env.HIRING_ENABLED = 'true';
 
 const prefix = `consult-${randomUUID().slice(0, 8)}`;
 const userIds: string[] = [];
@@ -82,7 +84,8 @@ test('hire a mentor, chat, finish and review', async (t) => {
     await t.test('off-platform contacts are never sent', async () => {
       const page = await (await call(`/consult/mentors/${mentorId}`, student.cookie)).json();
       assert.ok(!JSON.stringify(page).includes('secret.line'));
-      assert.equal('contacts' in page, false);
+      // โหมดจ้างผ่านเว็บไม่เปิดช่องทางติดต่อนอกเว็บ
+      assert.equal(page.contacts, null);
     });
 
     await t.test('an unverified account must verify its email before hiring', async () => {

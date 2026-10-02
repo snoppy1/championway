@@ -1,8 +1,8 @@
 import { Check } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { formatDateTime } from '../i18n/format';
-import { hireStep } from '../data/consult';
-import type { HireBase, HireStatus } from '../data/consult';
+import { contactStep, hireStep } from '../data/consult';
+import type { ContactStatus, HireBase, HireStatus } from '../data/consult';
 import '../consult.css';
 import '../chat.css';
 
@@ -23,28 +23,38 @@ export function StatusPill({ status, reviewed = false, disputed = false }: { sta
     ขั้นที่ผ่านแล้วบอกด้วยเครื่องหมายถูกและข้อความอ่านออกเสียง ไม่ใช้สีอย่างเดียว */
 export function HireSteps({ status }: { status: HireStatus | null }) {
   const { t } = useI18n();
-  const current = hireStep(status);
-  const steps = t.consult.steps;
-  return <>
-    {/* จอแคบไม่มีที่พอให้ทั้ง 6 ขั้นเรียงกัน แสดงเป็น "ขั้นที่ 3 จาก 6 · ชำระเงิน" กับแถบความคืบหน้าบาง ๆ แทน
-        รายการเต็มยังอยู่ใน DOM ให้โปรแกรมอ่านหน้าจอและจอกว้างใช้ */}
-    <div className="cx-stepper-compact" aria-hidden="true">
-      <p>{t.consult.stepOf(current + 1, steps.length, steps[current])}</p>
-      <div className="cx-stepper-compact__bar"><span style={{ width: `${((current + 1) / steps.length) * 100}%` }} /></div>
-    </div>
-    <StepList current={current} />
-  </>;
+  const s = t.consult;
+  return <Stepper steps={s.steps} current={hireStep(status)} label={s.stepsLabel} done={s.stepDone} stepOf={s.stepOf} />;
 }
 
-function StepList({ current }: { current: number }) {
+/** บรรทัดขั้นตอนของโหมดตัวกลาง (ติดต่อ → ได้รับคำแนะนำ → เมนเทอร์ยืนยัน → รีวิว) หน้าตาเดียวกับของงานจ้าง
+    current = 4 คือครบทุกขั้นแล้ว (รีวิวแล้ว) */
+export function ContactSteps({ status, reviewed = false }: { status: ContactStatus | null; reviewed?: boolean }) {
   const { t } = useI18n();
-  return <ol className="cx-stepper" aria-label={t.consult.stepsLabel}>
-    {t.consult.steps.map((step, index) => <li key={step} aria-current={index === current ? 'step' : undefined}
-      className={index < current ? 'is-done' : index === current ? 'is-current' : undefined}>
-      <span className="cx-stepper__dot" aria-hidden="true">{index < current ? <Check size={14} /> : index + 1}</span>
-      <span className="cx-stepper__label">{step}{index < current && <span className="sr-only"> ({t.consult.stepDone})</span>}</span>
-    </li>)}
-  </ol>;
+  const s = t.contact;
+  return <Stepper steps={s.steps} current={contactStep(status, reviewed)} label={s.stepsLabel} done={s.stepDone} stepOf={s.stepOf} />;
+}
+
+function Stepper({ steps, current, label, done, stepOf }: {
+  steps: readonly string[]; current: number; label: string; done: string; stepOf: (step: number, total: number, name: string) => string;
+}) {
+  // ครบทุกขั้นแล้ว ข้อความบรรทัดย่อยังบอกขั้นสุดท้าย
+  const shown = Math.min(current, steps.length - 1);
+  return <>
+    {/* จอแคบไม่มีที่พอให้ทุกขั้นเรียงกัน แสดงเป็น "ขั้นที่ 3 จาก 6 · ชำระเงิน" กับแถบความคืบหน้าบาง ๆ แทน
+        รายการเต็มยังอยู่ใน DOM ให้โปรแกรมอ่านหน้าจอและจอกว้างใช้ */}
+    <div className="cx-stepper-compact" aria-hidden="true">
+      <p>{stepOf(shown + 1, steps.length, steps[shown])}</p>
+      <div className="cx-stepper-compact__bar"><span style={{ width: `${(Math.min(current + 1, steps.length) / steps.length) * 100}%` }} /></div>
+    </div>
+    <ol className="cx-stepper" aria-label={label}>
+      {steps.map((step, index) => <li key={step} aria-current={index === current ? 'step' : undefined}
+        className={index < current ? 'is-done' : index === current ? 'is-current' : undefined}>
+        <span className="cx-stepper__dot" aria-hidden="true">{index < current ? <Check size={14} /> : index + 1}</span>
+        <span className="cx-stepper__label">{step}{index < current && <span className="sr-only"> ({done})</span>}</span>
+      </li>)}
+    </ol>
+  </>;
 }
 
 /** ตัวเลขข้อความที่ยังไม่อ่าน ไม่ขึ้นถ้าเป็นศูนย์ ข้อความสำหรับโปรแกรมอ่านหน้าจออยู่ใน sr-only (ตัวเลขอย่างเดียวไม่มีความหมาย) */

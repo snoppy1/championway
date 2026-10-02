@@ -26,8 +26,9 @@ import { ProfileEdit } from './pages/ProfileEdit';
 import { Detail, NotFound } from './pages/Detail';
 import { SignIn } from './pages/SignIn';
 import { Consulting } from './pages/Consulting';
-import { MentorZone } from './pages/MentorZone';
+import { MentorZone } from './pages/MentorZoneRoute';
 import { VerifyEmail } from './pages/VerifyEmail';
+import { ConfirmGuidance } from './pages/ConfirmGuidance';
 import { ChatsRedirect } from './pages/ChatsRedirect';
 import { PayReturn, PaySimulated } from './pages/Pay';
 import { AdminPayouts } from './pages/admin/AdminPayouts';
@@ -64,6 +65,8 @@ const router = createBrowserRouter([{
     { path: '/consulting', element: <Consulting /> },
     { path: '/mentor-zone', element: <MentorZone /> },
     { path: '/verify-email', element: <VerifyEmail /> },
+    // ลิงก์ในอีเมลของเมนเทอร์ ไม่ต้องเข้าสู่ระบบ
+    { path: '/confirm', element: <ConfirmGuidance /> },
     { path: '/pay/simulated', element: <PaySimulated /> },
     { path: '/pay/return', element: <PayReturn /> },
     // แชตอยู่ในหน้า Consulting (นักเรียน) และ Mentor zone (เมนเทอร์) ลิงก์ /chats เก่าพาไปที่ถูกฝั่ง

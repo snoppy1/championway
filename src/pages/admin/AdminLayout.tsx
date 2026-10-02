@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-rou
 import { TriangleAlert } from 'lucide-react';
 import { BrandMark } from '../../components/Layout';
 import { isAdmin, isReviewer, useAuth } from '../../data/auth';
+import { useHiring } from '../../data/hiring';
 import { useApi } from '../../lib/useApi';
 import '../../admin.css';
 
@@ -12,6 +13,8 @@ export function AdminLayout() {
   const { pathname } = useLocation();
   const { user, loading, unreachable } = useAuth();
   const allowed = isReviewer(user);
+  // หน้าโอนเงินกับเรื่องแจ้งปัญหาเป็นของระบบจ้าง ซ่อนลิงก์ไว้ตอนที่จ้างพักอยู่
+  const hiring = useHiring();
   const { data } = useApi<Overview>(allowed ? '/admin/overview' : null);
   const { data: requests } = useApi<{ items: { status: string }[] }>(allowed ? '/admin/competition-requests' : null);
   const pendingRequests = requests?.items.filter((item) => item.status === 'pending').length ?? 0;
@@ -59,7 +62,7 @@ export function AdminLayout() {
             คำขอเพิ่มเวที{pendingRequests > 0 && <span className="admin-badge">{pendingRequests}</span>}
           </NavLink>
           <NavLink to="/admin/reviews">รีวิว</NavLink>
-          {isAdmin(user) && <>
+          {isAdmin(user) && hiring === true && <>
             <NavLink to="/admin/payouts">โอนเงินเมนเทอร์</NavLink>
             <NavLink to="/admin/disputes">เรื่องแจ้งปัญหา</NavLink>
           </>}

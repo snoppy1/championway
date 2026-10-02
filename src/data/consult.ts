@@ -48,6 +48,49 @@ export function hireStep(status: HireStatus | null): number {
   }
 }
 
+/* ---------- โหมดตัวกลาง (ตอนนี้ใช้อยู่): ติดต่อกันนอกเว็บ ---------- */
+
+/** สถานะฝั่งนักเรียนของการติดต่อ: contacted คุยกับเมนเทอร์ → claimed แจ้งว่าได้รับคำแนะนำแล้ว รอเมนเทอร์ยืนยัน
+    → completed เมนเทอร์ยืนยัน รีวิวได้ หรือ denied (เมนเทอร์ตอบว่าไม่ใช่) / cancelled (นักเรียนยกเลิก) */
+export type ContactStatus = 'contacted' | 'claimed' | 'completed' | 'denied' | 'cancelled';
+export type Contacts = { email: string; line: string; phone: string; instagram: string; link: string };
+export type ContactKey = keyof Contacts;
+export const contactKeys: ContactKey[] = ['email', 'line', 'phone', 'instagram', 'link'];
+
+/** ลิงก์กดได้ของช่องทางติดต่อ สร้างจากค่าที่เมนเทอร์พิมพ์เอง จึงประกอบให้ปลอดภัยทุกแบบ
+    อีเมล → mailto: เบอร์ → tel: (เหลือเฉพาะตัวเลขกับ +) LINE และ Instagram → ลิงก์โปรไฟล์ที่ encode แล้ว
+    ลิงก์อื่น → เฉพาะ http(s):// ที่อ่านเป็น URL ได้ ไม่เข้าเงื่อนไขก็คืน null แล้วแสดงเป็นข้อความเฉย ๆ */
+export function contactHref(key: ContactKey, raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+  switch (key) {
+    case 'email': return /^[^\s@]+@[^\s@]+$/.test(value) ? `mailto:${value}` : null;
+    case 'phone': {
+      const digits = value.replace(/[^\d+]/g, '');
+      return digits.replace(/\D/g, '').length >= 5 ? `tel:${digits}` : null;
+    }
+    case 'line': return `https://line.me/ti/p/~${encodeURIComponent(value)}`;
+    case 'instagram': {
+      const handle = value.replace(/^@+/, '');
+      return handle ? `https://www.instagram.com/${encodeURIComponent(handle)}/` : null;
+    }
+    case 'link': {
+      if (!isWebLink(value)) return null;
+      try { return new URL(value).href; } catch { return null; }
+    }
+  }
+}
+
+/** ขั้นปัจจุบันในบรรทัดขั้นตอนของโหมดตัวกลาง (ดัชนีใน t.contact.steps) ไม่เคยติดต่อ ยกเลิก หรือถูกปฏิเสธ = ขั้นแรก */
+export function contactStep(status: ContactStatus | null, reviewed = false): number {
+  switch (status) {
+    case 'contacted': return 1;
+    case 'claimed': return 2;
+    case 'completed': return reviewed ? 4 : 3;
+    default: return 0;
+  }
+}
+
 /** ห้องแชต (GET /chats/:id/messages) */
 export type ChatMessage = {
   id: string; senderId: string; name: string; body: string; fileName: string | null; fileMime: string | null;

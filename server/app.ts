@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { configProblems } from './lib/env.js';
+import { secretBoxStatus } from './lib/secret-box.js';
 import type { AppEnv } from './lib/guards.js';
 import { withUser } from './lib/guards.js';
 import { auth } from './routes/auth.js';
@@ -29,7 +30,8 @@ app.use('*', async (c, next) => {
 
 app.use('*', withUser);
 
-app.get('/health', (c) => c.json({ ok: true }));
+// payoutKey บอกสถานะคีย์เข้ารหัสบัญชีรับเงิน (ready/missing/invalid) โดยไม่เผยค่า
+app.get('/health', (c) => c.json({ ok: true, payoutKey: secretBoxStatus() }));
 
 app.route('/auth', auth);
 app.route('/admin', admin);

@@ -11,6 +11,13 @@ function key() {
   return buf;
 }
 
+/** สถานะคีย์สำหรับ /api/health บอกแค่ว่ามี/ไม่มี/ผิดรูปแบบ ไม่บอกค่า ใช้ไล่ปัญหาตอนตั้งค่าบน Vercel */
+export function secretBoxStatus(): 'ready' | 'missing' | 'invalid' {
+  const raw = process.env.PAYOUT_ENCRYPTION_KEY;
+  if (!raw) return 'missing';
+  return Buffer.from(raw, 'base64').length === 32 ? 'ready' : 'invalid';
+}
+
 export const secretBoxReady = () => {
   try { key(); return true; } catch { return false; }
 };

@@ -138,3 +138,6 @@ a.chat__attachment:focus-visible { outline: 2px solid var(--focus-ring); outline
 }
 
 @media (prefers-reduced-motion: reduce) { .hw__row { transition: none; } }
+.chat__locked { padding: var(--space-3) var(--space-4); border: 1px dashed var(--line-purple); border-radius: var(--radius-sm); }
+.chat__field:has(textarea:disabled) { background: var(--paper); }
+.chat__clip:disabled { color: var(--muted); cursor: not-allowed; background: transparent; }

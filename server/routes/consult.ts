@@ -4,11 +4,14 @@ import { and, desc, eq, inArray, isNull, lte, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
-  chatMembers, chatRooms, competitionRequests, competitions, consultations, mentorCompetitionChoices, mentorReviews,
-  mentors, mentorSubmissions, risingStarPeriods, users,
+  competitionRequests, competitions, consultations, hirePayments, mentorCompetitionChoices, mentorPayoutAccounts, mentorPayouts,
+  mentorReviews, mentors, mentorSubmissions, risingStarPeriods, users,
 } from '../db/schema.js';
 import { requireUser, type AppEnv } from '../lib/guards.js';
 import { unreadByRoom } from './chat.js';
+import { completeByMember, dispute, markPaid } from '../lib/hire-money.js';
+import { paymentProvider } from '../lib/payments.js';
+import { seal, secretBoxReady } from '../lib/secret-box.js';
 import { newId } from '../lib/id.js';
 import { env } from '../lib/env.js';
 import { notify } from '../lib/email.js';
@@ -173,12 +176,15 @@ consult.get('/mine', requireUser, async (c) => {
   const unread = await unreadByRoom(user.id);
   return c.json({
     emailVerified: user.emailVerified,
+    // หน้าเว็บใช้ตัดสินว่าจะโชว์ปุ่มจ่ายเงินหรือข้อความ "ยังไม่เปิดรับชำระเงิน"
+    paymentsOpen: paymentProvider() !== null,
     items: rows.map((r) => ({
       id: r.consultation.id, status: r.consultation.status, createdAt: r.consultation.createdAt,
       acceptedAt: r.consultation.acceptedAt, completedAt: r.consultation.completedAt,
       minutes: r.consultation.minutes, price: r.consultation.price, preferredAt: r.consultation.preferredAt,
       note: r.consultation.note, reason: r.consultation.reason,
       roomId: r.consultation.roomId, unread: r.consultation.roomId ? unread.get(r.consultation.roomId) ?? 0 : 0,
+      paidAt: r.consultation.paidAt, disputedAt: r.consultation.disputedAt,
       mentor: card(r.mentor), competition: r.competitionSlug ? { slug: r.competitionSlug, name: r.competitionName } : null,
       review: r.reviewId ? { stars: r.stars } : null,
     })),
@@ -230,8 +236,14 @@ consult.get('/zone', requireUser, async (c) => {
     activeMemberIds(now),
   ]);
   const unread = await unreadByRoom(user.id);
+  const [account] = await db.select().from(mentorPayoutAccounts).where(eq(mentorPayoutAccounts.mentorId, mentor.id));
+  const payouts = await db.select({ hireId: mentorPayouts.hireId, status: mentorPayouts.status, amount: mentorPayouts.amount, paidAt: mentorPayouts.paidAt })
+    .from(mentorPayouts).where(eq(mentorPayouts.mentorId, mentor.id));
+  const payoutOf = new Map(payouts.map((p) => [p.hireId, p]));
   return c.json({
     mentor: { ...card(mentor), risingStar: members.has(mentor.id), rating: ratingJson(monthly.get(mentor.id)), price: mentor.price, minutes: mentor.minutes },
+    // เลขบัญชีเต็มไม่ส่งออก แม้แต่เจ้าของ เห็นแค่ 4 ตัวท้าย
+    payoutAccount: account ? { accountName: account.accountName, bankCode: account.bankCode, last4: account.accountLast4, status: account.status } : null,
     competitions: chosen,
     available: open,
     requests: requests.map((r) => ({ id: r.id, name: r.name, url: r.url, details: r.details, price: r.price, minutes: r.minutes, status: r.status, reason: r.reason, createdAt: r.createdAt })),
@@ -239,6 +251,8 @@ consult.get('/zone', requireUser, async (c) => {
       id: hire.id, status: hire.status, createdAt: hire.createdAt, acceptedAt: hire.acceptedAt, completedAt: hire.completedAt,
       minutes: hire.minutes, price: hire.price, preferredAt: hire.preferredAt, note: hire.note, reason: hire.reason,
       roomId: hire.roomId, unread: hire.roomId ? unread.get(hire.roomId) ?? 0 : 0,
+      paidAt: hire.paidAt, disputedAt: hire.disputedAt,
+      payout: payoutOf.has(hire.id) ? { status: payoutOf.get(hire.id)!.status, amount: payoutOf.get(hire.id)!.amount, paidAt: payoutOf.get(hire.id)!.paidAt } : null,
       student: student.split(/\s+/)[0],
       competition: competitionSlug ? { slug: competitionSlug, name: competitionName } : null,
     })),
@@ -350,32 +364,14 @@ async function emailMember(userId: string, subject: string, body: string) {
 consult.post('/:id/accept', requireUser, async (c) => {
   const user = c.get('user')!;
   const mentor = await requireOwnMentor(user.id);
-  const roomId = await db.transaction(async (tx) => {
-    const [hire] = await tx.select().from(consultations)
-      .where(and(eq(consultations.id, c.req.param('id')), eq(consultations.mentorId, mentor.id))).for('update');
-    if (!hire) return fail('ไม่พบคำขอนี้', 404);
-    if (hire.status !== 'requested') return fail('คำขอนี้ถูกตอบไปแล้วหรือถูกยกเลิก', 409);
-    /* ห้องแชตหนึ่งห้องต่อคู่นักเรียนกับเมนเทอร์ จ้างครั้งต่อไปใช้ห้องเดิม ประวัติจะได้อยู่ที่เดียว
-       ล็อกแถวเมนเทอร์ก่อนหา/สร้างห้อง กันกดรับสองงานของคู่เดียวกันพร้อมกันแล้วได้สองห้อง */
-    await tx.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentor.id)).for('update');
-    const [existing] = await tx.select({ id: chatRooms.id }).from(chatRooms)
-      .where(and(eq(chatRooms.ownerId, hire.userId), eq(chatRooms.mentorId, mentor.id))).orderBy(desc(chatRooms.createdAt)).limit(1);
-    const room = existing?.id ?? newId('room');
-    if (!existing) {
-      await tx.insert(chatRooms).values({
-        id: room, ownerId: hire.userId, mentorUserId: user.id, mentorId: mentor.id, competitionId: hire.competitionId,
-        title: mentor.name, context: hire.note, status: 'active',
-      });
-    } else {
-      await tx.update(chatRooms).set({ status: 'active' }).where(eq(chatRooms.id, room));
-    }
-    await tx.insert(chatMembers).values([{ roomId: room, userId: hire.userId }, { roomId: room, userId: user.id }]).onConflictDoNothing();
-    await tx.update(consultations).set({ status: 'accepted', acceptedAt: new Date(), roomId: room }).where(eq(consultations.id, hire.id));
-    return { room, userId: hire.userId };
-  });
-  await emailMember(roomId.userId, `${mentor.name} รับงานของคุณแล้ว / Your mentor accepted`,
-    `${mentor.name} รับงานแล้ว คุยกันต่อได้ในแชต\n${mentor.name} accepted your request. Continue in the chat:\n\n${env.appOrigin}/consulting#room-${roomId.room}`);
-  return c.json({ ok: true, roomId: roomId.room });
+  // รับงานแล้วรอนักเรียนจ่ายเงิน แชตเปิดหลังจ่ายสำเร็จ (lib/hire-money.ts markPaid)
+  const row = await transition(c.req.param('id'), and(eq(consultations.mentorId, mentor.id), eq(consultations.status, 'requested')),
+    { status: 'accepted', acceptedAt: new Date() });
+  if (!row) return fail('คำขอนี้ถูกตอบไปแล้วหรือถูกยกเลิก', 409);
+  await emailMember(row.userId, `${mentor.name} รับงานของคุณแล้ว ชำระเงินเพื่อเริ่มงาน / Your mentor accepted — pay to start`,
+    `${mentor.name} รับงานแล้ว ชำระเงิน ${row.price.toLocaleString('th-TH')} บาท แล้วแชตจะเปิดให้คุยกัน\n`
+    + `${mentor.name} accepted. Pay ${row.price} THB to open the chat.\n\n${env.appOrigin}/consulting#hire-${row.id}`);
+  return c.json({ ok: true, status: row.status });
 });
 
 consult.post('/:id/decline', requireUser, async (c) => {
@@ -388,19 +384,95 @@ consult.post('/:id/decline', requireUser, async (c) => {
   return c.json({ ok: true, status: row.status });
 });
 
+/** ยกเลิกได้ก่อนจ่ายเงินเท่านั้น จ่ายแล้วต้องแจ้งปัญหาให้ทีมงานตัดสิน (เงินจะได้ไม่หายระหว่างทาง) */
 consult.post('/:id/cancel', requireUser, async (c) => {
   const user = c.get('user')!;
   const body = await parse(c, z.object({ reason: z.string().trim().max(1000).default('') }).nullable()) ?? { reason: '' };
   const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), inArray(consultations.status, ['requested', 'accepted'])),
     { status: 'cancelled', reason: body.reason, cancelledAt: new Date() });
-  if (!row) return fail('ยกเลิกไม่ได้ งานนี้เสร็จแล้วหรือปิดไปแล้ว', 409);
+  if (!row) return fail('ยกเลิกไม่ได้ ถ้าจ่ายเงินแล้วให้กดแจ้งปัญหา', 409);
   return c.json({ ok: true, status: row.status });
 });
 
 consult.post('/:id/complete', requireUser, async (c) => {
+  const hire = await completeByMember(c.req.param('id'), c.get('user')!.id);
+  if (!hire) return fail('กดเสร็จงานได้หลังจ่ายเงินแล้วเท่านั้น', 409);
+  return c.json({ ok: true, status: 'completed' });
+});
+
+consult.post('/:id/dispute', requireUser, async (c) => {
+  const body = await parse(c, z.object({ reason: z.string().trim().min(1, 'เล่าสั้น ๆ ว่าเกิดอะไรขึ้น').max(2000) }));
+  const row = await dispute(c.req.param('id'), c.get('user')!.id, body.reason);
+  if (!row) return fail('แจ้งปัญหาได้เฉพาะงานที่จ่ายแล้วและยังไม่เสร็จ และแจ้งได้ครั้งเดียว', 409);
+  return c.json({ ok: true });
+});
+
+/* ---------- จ่ายเงิน ---------- */
+
+consult.post('/:id/pay', requireUser, async (c) => {
   const user = c.get('user')!;
-  const row = await transition(c.req.param('id'), and(eq(consultations.userId, user.id), eq(consultations.status, 'accepted')),
-    { status: 'completed', completedAt: new Date() });
-  if (!row) return fail('กดเสร็จงานได้หลังเมนเทอร์รับงานแล้วเท่านั้น', 409);
-  return c.json({ ok: true, status: row.status });
+  const provider = paymentProvider();
+  if (!provider) return fail('ระบบชำระเงินยังไม่เปิด', 409);
+  const [hire] = await db.select().from(consultations)
+    .where(and(eq(consultations.id, c.req.param('id')), eq(consultations.userId, user.id))).limit(1);
+  if (!hire) return fail('ไม่พบงานนี้', 404);
+  if (hire.status !== 'accepted') return fail('จ่ายได้หลังเมนเทอร์รับงานแล้ว และจ่ายได้ครั้งเดียว', 409);
+  if (hire.price < 1) return fail('ยอดเงินไม่ถูกต้อง', 409);
+  // ยอดมาจากแถวการจ้างเสมอ (ราคาที่ล็อกไว้ตอนส่งคำขอ) ไม่รับยอดจากหน้าเว็บ
+  const paymentId = newId('pay');
+  await db.insert(hirePayments).values({ id: paymentId, hireId: hire.id, provider: provider.name, amount: hire.price });
+  const checkout = await provider.createCheckout({
+    paymentId, hireId: hire.id, amount: hire.price, email: user.email, description: `ChampionWays hire ${hire.id}`,
+  });
+  await db.update(hirePayments).set({ providerRef: checkout.providerRef }).where(eq(hirePayments.id, paymentId));
+  return c.json({ url: checkout.url, paymentId });
+});
+
+/** สถานะการจ่าย ให้หน้าที่ผู้ใช้กลับมาจากหน้าจ่ายเงินใช้ถาม เห็นได้เฉพาะเจ้าของงาน */
+consult.get('/payments/:id', requireUser, async (c) => {
+  const [row] = await db.select({ payment: hirePayments, hire: consultations }).from(hirePayments)
+    .innerJoin(consultations, eq(consultations.id, hirePayments.hireId))
+    .where(and(eq(hirePayments.id, c.req.param('id')), eq(consultations.userId, c.get('user')!.id))).limit(1);
+  if (!row) return fail('ไม่พบรายการนี้', 404);
+  return c.json({
+    status: row.payment.status, amount: row.payment.amount, provider: row.payment.provider,
+    hire: { id: row.hire.id, status: row.hire.status, roomId: row.hire.roomId },
+  });
+});
+
+/** ตัวจำลองการจ่ายเงิน ใช้ได้เฉพาะ dev/test ขณะยังไม่มีผู้ให้บริการจริง */
+consult.post('/payments/:id/simulate', requireUser, async (c) => {
+  const provider = paymentProvider();
+  if (provider?.name !== 'simulated') return fail('ไม่พบหน้านี้', 404);
+  const [row] = await db.select({ id: hirePayments.id, provider: hirePayments.provider }).from(hirePayments)
+    .innerJoin(consultations, eq(consultations.id, hirePayments.hireId))
+    .where(and(eq(hirePayments.id, c.req.param('id')), eq(consultations.userId, c.get('user')!.id))).limit(1);
+  if (!row || row.provider !== 'simulated') return fail('ไม่พบรายการนี้', 404);
+  const result = await markPaid(row.id);
+  if (!result) return fail('รายการนี้จ่ายไปแล้วหรือปิดไปแล้ว', 409);
+  return c.json({ ok: true, ...result });
+});
+
+/* ---------- บัญชีรับเงินของเมนเทอร์ ---------- */
+
+/** ธนาคารที่รองรับ (รหัสตามที่ผู้ให้บริการไทยใช้) */
+export const bankCodes = ['bbl', 'kbank', 'ktb', 'scb', 'bay', 'ttb', 'gsb', 'baac', 'uob', 'cimb', 'kk', 'tisco', 'lhb', 'ghb', 'icbc'] as const;
+
+consult.put('/zone/payout-account', requireUser, async (c) => {
+  const mentor = await requireOwnMentor(c.get('user')!.id);
+  if (!secretBoxReady()) return fail('ระบบเก็บบัญชีรับเงินยังไม่พร้อม แจ้งทีมงาน', 409);
+  const body = await parse(c, z.object({
+    accountName: z.string().trim().min(2, 'กรอกชื่อบัญชี').max(120),
+    bankCode: z.enum(bankCodes, { message: 'เลือกธนาคาร' }),
+    accountNumber: z.string().trim().transform((v) => v.replace(/[\s-]/g, '')).pipe(z.string().regex(/^\d{10,15}$/, 'เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก')),
+  }));
+  const values = {
+    accountName: body.accountName, bankCode: body.bankCode,
+    accountNumberEncrypted: seal(body.accountNumber), accountLast4: body.accountNumber.slice(-4),
+    // แก้บัญชีแล้วต้องตรวจใหม่ ผูกกับผู้ให้บริการใหม่
+    providerRecipientId: null, status: 'pending' as const, updatedAt: new Date(),
+  };
+  await db.insert(mentorPayoutAccounts).values({ mentorId: mentor.id, ...values })
+    .onConflictDoUpdate({ target: mentorPayoutAccounts.mentorId, set: values });
+  return c.json({ ok: true });
 });

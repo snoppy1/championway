@@ -2,7 +2,7 @@ import { useId, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../data/auth';
-import { post } from '../lib/api';
+import { ApiError, post } from '../lib/api';
 import { consultError } from '../data/consult';
 import type { MemberHire } from '../data/consult';
 import { useI18n } from '../i18n';
@@ -94,13 +94,55 @@ function ReviewForm({ id, verified, onDone }: { id: string; verified: boolean; o
   </form>;
 }
 
-export function MemberHireActions({ hire, onChange, extra }: {
-  hire: MemberHire; onChange: () => Promise<void> | void; extra?: ReactNode;
+/** แจ้งปัญหาหลังจ่ายเงิน: ต้องเล่าเหตุผลก่อนส่ง เงินถูกพักไว้จนกว่าทีมงานตัดสิน แจ้งได้ครั้งเดียว */
+function ReportProblem({ hireId, onDone }: { hireId: string; onDone: () => Promise<void> }) {
+  const { t } = useI18n();
+  const s = t.consult;
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const id = useId();
+
+  async function send(event: FormEvent) {
+    event.preventDefault();
+    if (!reason.trim()) { setMessage(s.reportNeed); areaRef.current?.focus(); return; }
+    setBusy(true);
+    setMessage('');
+    try {
+      await post(`/consult/${hireId}/dispute`, { reason: reason.trim() });
+      await onDone();
+    } catch (failure) {
+      setMessage(consultError(failure, t));
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return <button type="button" className="link-button cx-link cx-link--quiet"
+      onClick={() => { setOpen(true); requestAnimationFrame(() => areaRef.current?.focus()); }}>{s.reportProblem}</button>;
+  }
+  return <form className="cx-confirm cx-report" onSubmit={(event) => { void send(event); }} noValidate>
+    <label htmlFor={id}><strong>{s.reportAsk}</strong></label>
+    <p className="cx-hint">{s.reportHint}</p>
+    <textarea id={id} ref={areaRef} rows={3} maxLength={2000} value={reason} disabled={busy}
+      onChange={(event) => { setReason(event.target.value); setMessage(''); }} />
+    <p className="cx-message cx-message--error" role="alert">{message}</p>
+    <div className="cx-row">
+      <button className="ghost-button cx-button cx-button--danger" disabled={busy}>{busy ? s.reportSending : s.reportSend}</button>
+      <button type="button" className="link-button cx-link" disabled={busy} onClick={() => { setOpen(false); setMessage(''); }}>{s.reportBack}</button>
+    </div>
+  </form>;
+}
+
+export function MemberHireActions({ hire, onChange, extra, paymentsOpen }: {
+  hire: MemberHire; onChange: () => Promise<void> | void; extra?: ReactNode; paymentsOpen: boolean;
 }) {
   const { t } = useI18n();
   const s = t.consult;
   const { user } = useAuth();
-  const [busy, setBusy] = useState<'cancel' | 'complete' | null>(null);
+  const [busy, setBusy] = useState<'cancel' | 'complete' | 'pay' | null>(null);
   const [message, setMessage] = useState('');
   const [reviewOpen, setReviewOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -119,16 +161,42 @@ export function MemberHireActions({ hire, onChange, extra }: {
     }
   }
 
+  /* จ่ายเงิน: เซิร์ฟเวอร์สร้างรายการจ่ายจากยอดในแถวการจ้าง แล้วส่ง url ของหน้าจ่ายเงินมาให้เปิด
+     (ตอนนี้เป็นหน้าจำลองของเรา เมื่อต่อ Opn จะเป็นหน้าของ Opn และกลับมาที่ /pay/return) */
+  async function pay() {
+    setBusy('pay');
+    setMessage('');
+    try {
+      const result = await post<{ url: string }>(`/consult/${hire.id}/pay`, {});
+      window.location.assign(result.url);
+    } catch (failure) {
+      setMessage(failure instanceof ApiError && failure.status === 409 ? s.errors.changed : s.payFailed);
+      setBusy(null);
+    }
+  }
+
   const cancel = <ConfirmAction quiet trigger={s.cancel} question={s.cancelAsk} yes={s.cancelYes} no={s.cancelNo}
     busyLabel={s.cancelling} busy={busy === 'cancel'} danger onConfirm={() => run('cancel')} />;
   const { status } = hire;
+  const done = async () => { await onChange(); rootRef.current?.focus({ preventScroll: true }); };
   return <div className="cx-actions" ref={rootRef} tabIndex={-1}>
     {status === 'requested' && <div className="cx-row">{extra}{cancel}</div>}
-    {status === 'accepted' && <div className="cx-row">
-      <ConfirmAction primary trigger={s.markDone} question={s.markDoneAsk} yes={s.markDoneYes} no={s.markDoneNo}
-        busyLabel={s.markingDone} busy={busy === 'complete'} onConfirm={() => run('complete')} />
-      {extra}{cancel}
-    </div>}
+    {status === 'accepted' && <>
+      {!paymentsOpen && <p className="cx-note">{s.paymentsClosed}</p>}
+      <div className="cx-row">
+        {paymentsOpen && <button type="button" className="primary-button cx-button" disabled={busy !== null} onClick={() => { void pay(); }}>
+          {busy === 'pay' ? s.paying : s.pay(t.price.total(hire.price))}</button>}
+        {extra}{cancel}
+      </div>
+    </>}
+    {status === 'paid' && (hire.disputedAt
+      ? (extra && <div className="cx-row">{extra}</div>)
+      : <div className="cx-row">
+        <ConfirmAction primary trigger={s.markDone} question={s.markDoneAsk} yes={s.markDoneYes} no={s.markDoneNo}
+          busyLabel={s.markingDone} busy={busy === 'complete'} onConfirm={() => run('complete')} />
+        {extra}
+        <ReportProblem hireId={hire.id} onDone={done} />
+      </div>)}
     {status === 'completed' && (hire.review
       ? <>
         <p>{s.reviewedNote} {s.yourRating(hire.review.stars)}.</p>

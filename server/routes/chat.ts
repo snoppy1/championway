@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { bodyLimit } from 'hono/body-limit';
-import { and, asc, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import { chatMembers, chatMessages, chatRooms, competitions, consultations, mentors, users } from '../db/schema.js';
@@ -147,6 +147,10 @@ chat.post('/:id/read', async (c) => {
 chat.post('/:id/messages', async (c) => {
   const user = c.get('user')!;
   const room = await roomFor(c.req.param('id'), user.id);
+  // ส่งข้อความได้เมื่อมีงานในห้องที่จ่ายเงินแล้ว ห้องที่เคยคุยแต่งานถูกยกเลิก/คืนเงินหมดแล้ว อ่านย้อนหลังได้อย่างเดียว
+  const [open] = await db.select({ id: consultations.id }).from(consultations)
+    .where(and(eq(consultations.roomId, room.id), inArray(consultations.status, ['paid', 'completed']))).limit(1);
+  if (!open) return bad('แชตนี้อ่านได้อย่างเดียว งานในห้องนี้ยังไม่ได้ชำระเงินหรือถูกยกเลิกแล้ว', 409);
   const body = await c.req.parseBody();
   const text = typeof body.text === 'string' ? body.text.trim() : '';
   const clientId = z.string().uuid().safeParse(body.clientId);

@@ -151,13 +151,15 @@ export async function closeDb() {
 export async function createHire(
   fixture: MentorFixture,
   student: TestAccount,
-  status: 'requested' | 'accepted' | 'declined' | 'cancelled' | 'completed' = 'requested',
-  options: { hours?: number; note?: string; reason?: string } = {},
+  status: 'requested' | 'accepted' | 'paid' | 'declined' | 'cancelled' | 'completed' = 'requested',
+  // disputed: งานที่จ่ายแล้วและนักเรียนแจ้งปัญหา (ยังเป็น paid จนกว่าทีมงานตัดสิน)
+  options: { hours?: number; note?: string; reason?: string; disputed?: string } = {},
 ) {
   const hours = options.hours ?? 2;
   const id = `hire-${randomUUID().slice(0, 8)}`;
   let roomId: string | null = null;
-  if (status === 'accepted' || status === 'completed') {
+  // accepted คือรับงานแล้วแต่ยังไม่จ่าย ยังไม่มีห้องแชต ห้องเปิดตอนจ่ายเงินสำเร็จ (paid) เหมือนที่ markPaid ทำ
+  if (status === 'paid' || status === 'completed') {
     roomId = `room-${randomUUID().slice(0, 8)}`;
     await db.insert(chatRooms).values({
       id: roomId, ownerId: student.id, mentorUserId: fixture.owner.id, mentorId: fixture.mentorId, competitionId: fixture.competition.id,
@@ -168,7 +170,9 @@ export async function createHire(
   await db.insert(consultations).values({
     id, userId: student.id, mentorId: fixture.mentorId, competitionId: fixture.competition.id, status,
     minutes: hours * 60, price: 500 * hours, note: options.note ?? 'Help with my pitch', reason: options.reason ?? '', roomId,
-    acceptedAt: roomId ? new Date() : null, completedAt: status === 'completed' ? new Date() : null,
+    acceptedAt: ['accepted', 'paid', 'completed'].includes(status) ? new Date() : null,
+    paidAt: roomId ? new Date() : null, completedAt: status === 'completed' ? new Date() : null,
+    disputedAt: options.disputed ? new Date() : null, disputeReason: options.disputed ?? '',
   });
   return { id, roomId };
 }

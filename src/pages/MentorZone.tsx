@@ -6,7 +6,8 @@ import { useAuth } from '../data/auth';
 import { api, ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { consultError, isWebLink, parsePrice } from '../data/consult';
-import type { MentorCard, MentorHire, Rating as RatingValue } from '../data/consult';
+import { bankCodes } from '../data/consult';
+import type { MentorCard, MentorHire, PayoutAccount, Rating as RatingValue } from '../data/consult';
 import { Avatar, Rating, RisingStarPill } from '../components/mentors';
 import { CHAT_CHANGED } from '../components/ChatPanel';
 import { HireSummary, StatusPill, UnreadBadge } from '../components/hire';
@@ -31,6 +32,7 @@ type Zone = {
   mentor: null | (MentorCard & {
     risingStar: boolean; rating: RatingValue; price: number | null; minutes: number | null;
   });
+  payoutAccount: PayoutAccount | null;
   competitions: Chosen[];
   available: Open[];
   requests: Request[];
@@ -126,22 +128,44 @@ function RequestCard({ hire, reload, onDone, onAccepted }: { hire: MentorHire; r
   </li>;
 }
 
-function RequestsPanel({ items, reload, onDone, onAccepted }: {
+function RequestsPanel({ items, reload, onDone, onAccepted, noAccount, onAddAccount }: {
   items: MentorHire[]; reload: Reload; onDone: (message: string) => void; onAccepted: (id: string) => void;
+  noAccount: boolean; onAddAccount: () => void;
 }) {
   const { t } = useI18n();
   const s = t.mentorZone;
+  // ยังไม่มีบัญชีรับเงิน: เตือนตรงนี้เพราะรับงานแล้วนักเรียนจ่ายเงิน เราต้องมีที่โอนให้
+  const banner = noAccount && <p className="cx-banner cx-banner--requested">
+    {t.payout.banner}{' '}<button type="button" className="link-button cx-link cx-link--text" onClick={onAddAccount}>{t.payout.bannerLink}</button>
+  </p>;
   // มีคำขอรออยู่เป็นสีทอง (เรื่องเดียวที่ต้องรีบทำ) ไม่มีก็เป็นข้อความเรียบ ๆ
-  if (items.length === 0) return <p className="cx-empty">{s.hiresEmpty}</p>;
-  return <section className="cx-section cx-section--urgent cx-section--flat" aria-label={s.hiresListLabel}>
+  if (items.length === 0) return <>{banner}<p className="cx-empty">{s.hiresEmpty}</p></>;
+  return <>{banner}<section className="cx-section cx-section--urgent cx-section--flat" aria-label={s.hiresListLabel}>
     <p className="cx-lead">{s.hiresLead}</p>
     <ul className="cx-list cx-list--stack">
       {items.map((hire) => <RequestCard key={hire.id} hire={hire} reload={reload} onDone={onDone} onAccepted={onAccepted} />)}
     </ul>
-  </section>;
+  </section></>;
 }
 
 /* ---------- งานและแชต ---------- */
+
+/** สถานะเงินของงานนี้ฝั่งเมนเทอร์: รอจ่าย → ถือไว้ → ถึงกำหนดจ่าย → โอนแล้ว (หรือพักไว้เพราะแจ้งปัญหา / คืนเงิน) */
+function MoneyLine({ hire }: { hire: MentorHire }) {
+  const { t, lang } = useI18n();
+  const m = t.payout.money;
+  const amount = (value: number) => t.price.total(value);
+  let text: string | null = null;
+  if (hire.status === 'accepted') text = m.waiting;
+  else if (hire.status === 'paid') text = hire.disputedAt || hire.payout?.status === 'held' ? m.problem : m.held(amount(hire.payout?.amount ?? hire.price));
+  else if (hire.status === 'completed') {
+    const payout = hire.payout;
+    if (payout?.status === 'paid') text = m.sent(amount(payout.amount), payout.paidAt ? formatDate(payout.paidAt, lang) : '');
+    else if (payout?.status === 'cancelled') text = m.refunded;
+    else text = m.due(amount(payout?.amount ?? hire.price));
+  }
+  return text ? <p className="cx-money" data-money={hire.status}>{text}</p> : null;
+}
 
 function ChatsPanel({ items }: { items: MentorHire[] }) {
   const { t } = useI18n();
@@ -149,6 +173,7 @@ function ChatsPanel({ items }: { items: MentorHire[] }) {
   const noteFor = (hire: MentorHire) => {
     switch (hire.status) {
       case 'accepted': return s.noteAccepted;
+      case 'paid': return hire.disputedAt ? s.noteDisputed : s.notePaid;
       case 'declined': return s.noteDeclined;
       case 'cancelled': return s.noteCancelled;
       case 'completed': return s.noteCompleted;
@@ -161,10 +186,88 @@ function ChatsPanel({ items }: { items: MentorHire[] }) {
     nameOf={(hire) => hire.student}
     initialOf={(hire) => hire.student.slice(0, 1).toUpperCase()}
     noteFor={noteFor}
-    renderActions={() => null}
-    labels={{ list: s.chatsListLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: s.noChatYet }}
+    renderActions={(hire) => <MoneyLine hire={hire} />}
+    labels={{ list: s.chatsListLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: (status) => (status === 'accepted' ? s.noChatPay : s.noChatYet) }}
     closedNote={t.consulting.chatClosedNote}
   />;
+}
+
+/* ---------- บัญชีรับเงิน ---------- */
+
+/* เมนเทอร์กรอกชื่อบัญชี ธนาคาร และเลขบัญชี เซิร์ฟเวอร์เข้ารหัสเลขบัญชีและไม่ส่งกลับมาอีก (เห็นแค่ 4 ตัวท้าย)
+   แก้บัญชีแล้วต้องตรวจใหม่ ฟอร์มจึงเปิดเมื่อกด "เปลี่ยนบัญชี" ไม่แสดงเลขเดิมให้แก้ */
+function PayoutPanel({ account, reload }: { account: PayoutAccount | null; reload: Reload }) {
+  const { t } = useI18n();
+  const s = t.payout;
+  const [editing, setEditing] = useState(account === null);
+  const [name, setName] = useState('');
+  const [bank, setBank] = useState('');
+  const [number, setNumber] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [failed, setFailed] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const bankRef = useRef<HTMLSelectElement>(null);
+  const numberRef = useRef<HTMLInputElement>(null);
+
+  const fail = (note: string, focus?: HTMLElement | null) => { setFailed(true); setMessage(note); focus?.focus(); };
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (name.trim().length < 2) return fail(s.needName, nameRef.current);
+    if (!bank) return fail(s.needBank, bankRef.current);
+    if (!/^\d{10,15}$/.test(number.replace(/[\s-]/g, ''))) return fail(s.needNumber, numberRef.current);
+    setBusy(true);
+    setMessage('');
+    setFailed(false);
+    try {
+      await api('/consult/zone/payout-account', { method: 'PUT', body: JSON.stringify({ accountName: name.trim(), bankCode: bank, accountNumber: number }) });
+      setName(''); setBank(''); setNumber('');
+      setEditing(false);
+      setMessage(s.saved);
+      reload();
+    } catch (failure) {
+      fail(failure instanceof ApiError && failure.status === 409 ? s.unavailable : consultError(failure, t, 'mentor'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <section className="panel cx-section" aria-labelledby="payout-title">
+    <h2 id="payout-title">{s.title}</h2>
+    <p className="cx-lead">{s.lead}</p>
+    {account && <div className="cx-account">
+      <p className="cx-account__label">{s.current}</p>
+      <p className="cx-account__name">{account.accountName}</p>
+      <p>{s.masked(s.banks[account.bankCode] ?? account.bankCode, account.last4)}</p>
+      <p className={account.status === 'failed' ? 'cx-pill cx-pill--cancelled' : account.status === 'verified' ? 'cx-pill cx-pill--confirmed' : 'cx-pill cx-pill--requested'}>{s.status[account.status]}</p>
+    </div>}
+    <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
+    {account && !editing && <button type="button" className="ghost-button cx-button" onClick={() => { setEditing(true); setMessage(''); }}>{s.change}</button>}
+    {editing && <form className="cx-form" onSubmit={(event) => { void submit(event); }} noValidate>
+      <div className="cx-field">
+        <label htmlFor="payout-name">{s.accountName}</label>
+        <input id="payout-name" ref={nameRef} maxLength={120} autoComplete="off" value={name} disabled={busy} onChange={(event) => setName(event.target.value)} />
+      </div>
+      <div className="cx-field">
+        <label htmlFor="payout-bank">{s.bank}</label>
+        <select id="payout-bank" ref={bankRef} value={bank} disabled={busy} onChange={(event) => setBank(event.target.value)}>
+          <option value="">{s.bankPlaceholder}</option>
+          {bankCodes.map((code) => <option key={code} value={code}>{s.banks[code]}</option>)}
+        </select>
+      </div>
+      <div className="cx-field">
+        <label htmlFor="payout-number">{s.accountNumber}</label>
+        <input id="payout-number" ref={numberRef} inputMode="numeric" maxLength={20} autoComplete="off" value={number} disabled={busy}
+          aria-describedby="payout-number-hint" onChange={(event) => setNumber(event.target.value)} />
+        <p className="cx-hint" id="payout-number-hint">{s.accountNumberHint}</p>
+      </div>
+      <div className="cx-row">
+        <button className="primary-button cx-button" disabled={busy}>{busy ? s.saving : s.save}</button>
+        {account && <button type="button" className="link-button cx-link" disabled={busy} onClick={() => { setEditing(false); setMessage(''); }}>{s.cancelChange}</button>}
+      </div>
+    </form>}
+  </section>;
 }
 
 /* ---------- ราคาต่อเวที ---------- */
@@ -457,7 +560,7 @@ function RequestList({ requests }: { requests: Request[] }) {
 
 /* ---------- หน้า ---------- */
 
-type ZoneTab = 'requests' | 'chats' | 'competitions';
+type ZoneTab = 'requests' | 'chats' | 'payouts' | 'competitions';
 
 export function MentorZone() {
   const { t } = useI18n();
@@ -477,6 +580,11 @@ export function MentorZone() {
   }, [reload]);
 
   useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
+  // นักเรียนจ่ายเงินในอีกแท็บหรืออีกเครื่อง แชตเปิดเอง หน้านี้จึงอ่านใหม่เป็นระยะตอนแท็บมองเห็น
+  useEffect(() => {
+    const timer = setInterval(() => { if (!document.hidden) reload(); }, 20_000);
+    return () => clearInterval(timer);
+  }, [reload]);
 
   const hires = data?.hires;
   const requested = (hires ?? []).filter((hire) => hire.status === 'requested');
@@ -539,16 +647,20 @@ export function MentorZone() {
       <Tabs prefix="zone" label={s.tabsLabel} value={current} onChange={(id) => setTab(id)} tabs={[
         { id: 'requests' as ZoneTab, label: s.tabRequests(requested.length) },
         { id: 'chats' as ZoneTab, label: <>{s.tabChats}{unreadChats > 0 && <UnreadBadge count={unreadChats} />}</> },
+        { id: 'payouts' as ZoneTab, label: t.payout.tab },
         { id: 'competitions' as ZoneTab, label: s.tabCompetitions },
       ]} />
       <p className="cx-message cx-message--ok" role="status">{notice}</p>
 
       <div role="tabpanel" id={panelId('zone', 'requests')} aria-labelledby={tabId('zone', 'requests')} hidden={current !== 'requests'} className="cx-zone-panel">
-        <RequestsPanel items={requested} reload={reload} onDone={setNotice}
+        <RequestsPanel items={requested} reload={reload} onDone={setNotice} noAccount={data.payoutAccount === null} onAddAccount={() => setTab('payouts')}
           onAccepted={(id) => { accepted.current.add(id); setTab('chats'); navigate({ hash: `#hire-${id}` }, { replace: true }); }} />
       </div>
       <div role="tabpanel" id={panelId('zone', 'chats')} aria-labelledby={tabId('zone', 'chats')} hidden={current !== 'chats'} className="cx-zone-panel">
         <ChatsPanel items={rest} />
+      </div>
+      <div role="tabpanel" id={panelId('zone', 'payouts')} aria-labelledby={tabId('zone', 'payouts')} hidden={current !== 'payouts'} className="cx-zone-panel">
+        <PayoutPanel account={data.payoutAccount} reload={reload} />
       </div>
       <div role="tabpanel" id={panelId('zone', 'competitions')} aria-labelledby={tabId('zone', 'competitions')} hidden={current !== 'competitions'} className="cx-zone-panel">
         <div className="cx-stack">

@@ -83,7 +83,7 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
 
   // ส่งแล้ว: ฟอร์มหาย เหลือบรรทัดขั้นตอน (ตัวหนาที่ "เมนเทอร์รับงาน") กับทางไปต่อที่ Consulting
   await expect(hire.getByRole('heading', { name: 'งานของคุณกับเมนเทอร์คนนี้' })).toBeVisible();
-  await expect(hire.locator('.cx-stepper li')).toHaveText(['ส่งคำขอ (เสร็จแล้ว)', '2เมนเทอร์รับงาน', '3คุยในแชต', '4กดเสร็จงาน', '5รีวิว']);
+  await expect(hire.locator('.cx-stepper li')).toHaveText(['ส่งคำขอ (เสร็จแล้ว)', '2เมนเทอร์รับงาน', '3ชำระเงิน', '4คุยในแชต', '5กดเสร็จงาน', '6รีวิว']);
   await expect(hire.locator('.cx-stepper li[aria-current="step"] .cx-stepper__label')).toHaveText('เมนเทอร์รับงาน');
   await expect(hire.getByText('รอเมนเทอร์ตอบรับ')).toBeVisible();
   await expect(hire.getByLabel('อยากให้ช่วยเรื่องอะไร')).toHaveCount(0);
@@ -104,15 +104,41 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
     await expect(card).toContainText('1,500 บาท');
     await expect(card).toContainText('ช่วยดูสไลด์พิตช์รอบชิงให้หน่อย');
     await card.getByRole('button', { name: 'รับงานตามคำขอของ Test' }).click();
-    await expect(zone.getByText('รับงานแล้ว แชตเปิดแล้ว')).toBeVisible();
-    const [accepted] = await db.select().from(consultations).where(eq(consultations.id, row.id));
-    expect(accepted.status).toBe('accepted');
-    expect(accepted.roomId).toBeTruthy();
-
-    // เมนเทอร์ส่งข้อความแรก ฝั่งนักเรียนยังไม่ได้เปิดห้อง จึงเห็นเป็นจุดแจ้งเตือนบนแท็บ
+    await expect(zone.getByText('รับงานแล้ว นักเรียนชำระเงินได้แล้ว')).toBeVisible();
+    const [waiting] = await db.select().from(consultations).where(eq(consultations.id, row.id));
+    // รับงานแล้วยังไม่มีห้องแชต รอนักเรียนจ่ายเงินก่อน เมนเทอร์เห็นว่ากำลังรอเงิน
+    expect([waiting.status, waiting.roomId]).toEqual(['accepted', null]);
     const chats = zone.getByRole('tabpanel', { name: 'งานและแชต' });
-    // ลิงก์ในอีเมลเลือกงานนี้ให้แล้ว (จอแคบจึงเห็นรายละเอียดเลย) ถ้ายังเห็นรายการอยู่ก็กดเลือกเอง
     if (await chats.locator('.hw__row').first().isVisible()) await chats.locator('.hw__row').first().click();
+    await expect(chats.getByText('รอนักเรียนชำระเงิน', { exact: true })).toBeVisible();
+    await expect(chats.getByText('แชตจะเปิดเมื่อนักเรียนชำระเงิน')).toBeVisible();
+
+    // ฝั่งนักเรียน: แถบ "เมนเทอร์รับงานแล้ว ชำระ 1,500 บาท เพื่อเริ่มงาน" ปุ่มชำระเงินเป็นปุ่มหลัก ยังยกเลิกได้
+    await page.goto(`/consulting#hire-${row.id}`);
+    const detail = page.locator('.hw__detail');
+    await expect(detail.getByText('เมนเทอร์รับงานแล้ว ชำระ 1,500 บาท เพื่อเริ่มงาน')).toBeVisible();
+    await expect(detail.locator('.cx-stepper li[aria-current="step"] .cx-stepper__label')).toHaveText('ชำระเงิน');
+    await expect(detail.getByText('แชตจะเปิดทันทีที่คุณชำระเงิน')).toBeVisible();
+    await expect(detail.getByRole('button', { name: 'ยกเลิกงานนี้' })).toBeVisible();
+    // ยังไม่จ่ายเงิน ส่งข้อความไม่ได้ (เซิร์ฟเวอร์ปฏิเสธ ไม่ใช่แค่ซ่อนช่องพิมพ์)
+    await detail.getByRole('button', { name: 'ชำระ 1,500 บาท' }).click();
+    // หน้าจ่ายเงินจำลอง: บอกชัดว่าไม่ใช่เงินจริง แสดงยอดจากเซิร์ฟเวอร์
+    await expect(page).toHaveURL(/\/pay\/simulated\?payment=/);
+    await expect(page.getByText('ชำระเงินทดสอบ — ไม่มีการเก็บเงินจริง')).toBeVisible();
+    await expect(page.locator('.cx-pay__amount')).toHaveText('1,500 บาท');
+    await page.getByRole('button', { name: 'ชำระเงิน (ทดสอบ)' }).click();
+    await expect(page).toHaveURL(/\/consulting#room-/);
+    const [accepted] = await db.select().from(consultations).where(eq(consultations.id, row.id));
+    expect(accepted.status).toBe('paid');
+    expect(accepted.roomId).toBeTruthy();
+    await expect(page.locator('.hw__detail').getByText('ชำระเงินแล้ว แชตเปิดแล้ว')).toBeVisible();
+    await expect(page.locator('.hw__detail .cx-stepper li[aria-current="step"] .cx-stepper__label')).toHaveText('คุยในแชต');
+
+    // ฝั่งเมนเทอร์อ่านใหม่แล้วเห็นว่าจ่ายแล้ว (เงินถูกถือไว้) และแชตเปิด แล้วส่งข้อความแรก
+    await zone.reload();
+    await zone.getByRole('tab', { name: /งานและแชต/ }).click();
+    if (await chats.locator('.hw__row').first().isVisible()) await chats.locator('.hw__row').first().click();
+    await expect(chats.getByText(/ชำระแล้ว 1,500\s*บาท ถูกถือไว้/)).toBeVisible();
     const mentorChat = chats.getByRole('region', { name: /^แชตกับ/ });
     await mentorChat.getByRole('textbox', { name: 'ข้อความ' }).fill('สวัสดีครับ ส่งสไลด์มาให้ดูได้เลย');
     await mentorChat.getByRole('button', { name: 'ส่ง', exact: true }).click();
@@ -264,7 +290,7 @@ test('a mentor declines with a reason, and the member sees the reason and can hi
   const workspace = page.locator('.hw__detail');
   await expect(workspace.getByText('ปฏิเสธ').first()).toBeVisible();
   await expect(workspace.getByText('ช่วงนี้คิวเต็ม ลองใหม่เดือนหน้านะครับ')).toBeVisible();
-  await expect(workspace.getByText('แชตจะเปิดเมื่อเมนเทอร์รับงาน')).toBeVisible();
+  await expect(workspace.getByText('แชตจะเปิดหลังเมนเทอร์รับงานและคุณชำระเงินแล้ว')).toBeVisible();
   await expect(workspace.getByRole('link', { name: 'จ้างอีกครั้ง' })).toHaveAttribute('href', `/mentors/${fixture.mentorId}?competition=${fixture.competition.slug}`);
 });
 
@@ -299,7 +325,7 @@ test('a member cancels a request, and an open request stops a second one', async
 
 test('the chat checks files before sending, keeps a failed message for retry, and shows unread counts', async ({ page }) => {
   const learner = await student();
-  const { id, roomId } = await createHire(fixture, learner, 'accepted');
+  const { id, roomId } = await createHire(fixture, learner, 'paid');
   await addMessage(roomId!, fixture.owner.id, 'พร้อมคุยแล้วครับ');
   await addMessage(roomId!, fixture.owner.id, 'ส่งโจทย์มาได้เลย');
   await signIn(page, learner, '/');
@@ -342,7 +368,7 @@ test('the chat checks files before sending, keeps a failed message for retry, an
 test('only the two people in a room can read it, and a stranger is redirected away', async ({ page }) => {
   const learner = await student();
   const outsider = await student();
-  const { roomId } = await createHire(fixture, learner, 'accepted');
+  const { roomId } = await createHire(fixture, learner, 'paid');
   await addMessage(roomId!, learner.id, 'ข้อความส่วนตัว');
   await signIn(page, outsider, '/');
   expect((await page.request.get(`/api/chats/${roomId}`)).status()).toBe(404);
@@ -641,6 +667,18 @@ test('the new pages pass axe, fit the viewport, and are captured with realistic 
     const [row] = (await db.select().from(consultations).where(eq(consultations.userId, learner.id))).filter((item) => item.status === 'requested');
     await signIn(zone, thai.owner, '/mentor-zone');
     await zone.request.post(`/api/consult/${row.id}/accept`, { data: {} });
+
+    // รับงานแล้วรอจ่ายเงิน: แถบสถานะบนการ์ด ปุ่มชำระเงินเป็นปุ่มหลัก แล้วไปหน้าจ่ายเงินจำลอง
+    await page.goto(`/consulting#hire-${row.id}`);
+    await expect(page.getByText(/เมนเทอร์รับงานแล้ว ชำระ 1,000\s*บาท เพื่อเริ่มงาน/)).toBeVisible();
+    await audit(page, 'consulting waiting for payment');
+    await capture(page, 'consulting-pay');
+    await page.getByRole('button', { name: 'ชำระ 1,000 บาท' }).click();
+    await expect(page.getByRole('button', { name: 'ชำระเงิน (ทดสอบ)' })).toBeVisible();
+    await audit(page, 'simulated payment page');
+    await capture(page, 'pay-simulated');
+    await page.getByRole('button', { name: 'ชำระเงิน (ทดสอบ)' }).click();
+    await expect(page).toHaveURL(/\/consulting#room-/);
     const [accepted] = await db.select().from(consultations).where(eq(consultations.id, row.id));
     await addMessage(accepted.roomId!, thai.owner.id, 'สวัสดีครับ ส่งสไลด์พิตช์ฉบับล่าสุดมาให้ดูก่อนได้เลย');
     await addMessage(accepted.roomId!, learner.id, 'ได้ค่ะ ส่งให้ตอนนี้เลยนะคะ');
@@ -673,6 +711,16 @@ test('the new pages pass axe, fit the viewport, and are captured with realistic 
     await expect(zone.getByText('ขอบคุณมากค่ะ จะส่งฉบับแก้ไขให้ดูพรุ่งนี้นะคะ')).toBeVisible();
     await audit(zone, 'mentor zone, hires and chats');
     await capture(zone, 'mentor-zone-chats');
+
+    // บัญชีรับเงิน: กรอกแล้วบันทึก เห็นเลขแค่ 4 ตัวท้าย
+    await zone.getByRole('tab', { name: 'การรับเงิน' }).click();
+    await zone.getByLabel('ชื่อบัญชี').fill('ธนพล ศรีสุข');
+    await zone.getByLabel('ธนาคาร').selectOption('kbank');
+    await zone.getByLabel('เลขบัญชี').fill('123-4-56789-0');
+    await zone.getByRole('button', { name: 'บันทึกบัญชีรับเงิน' }).click();
+    await expect(zone.getByText('ธนาคารกสิกรไทย · ลงท้าย 7890')).toBeVisible();
+    await audit(zone, 'mentor zone payouts');
+    await capture(zone, 'mentor-zone-payouts');
   } finally {
     await zone.close();
     await mentorContext.close();
@@ -683,7 +731,7 @@ test('the new pages pass axe, fit the viewport, and are captured with realistic 
 test('touch targets on the new pages are at least 44px tall on phones', async ({ page, viewport }) => {
   test.skip((viewport?.width ?? 0) > 700, 'phone layout only');
   const learner = await student();
-  const { id } = await createHire(fixture, learner, 'accepted');
+  const { id } = await createHire(fixture, learner, 'paid');
   await signIn(page, learner, `/mentors/${fixture.mentorId}`);
   await page.goto('/consulting');
   await page.locator('.hw__row').first().click();

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -14,7 +15,7 @@ const commands = {
 if (!commands[task]) throw new Error('Unknown test environment command');
 const child = spawn(process.execPath, [...commands[task], ...args], {
   stdio: 'inherit',
-  env: { ...process.env, APP_ENV: 'test', RESEND_API_KEY: '', BLOB_READ_WRITE_TOKEN: '', TEST_WEB_PORT: webPort, TEST_API_PORT: apiPort, PORT: apiPort, APP_ORIGIN: `http://127.0.0.1:${webPort}`, GOOGLE_CLIENT_ID: task === 'auth' ? 'test-client.apps.googleusercontent.com' : '', GOOGLE_CLIENT_SECRET: task === 'auth' ? 'test-only-secret' : '' },
+  env: { ...process.env, PAYOUT_ENCRYPTION_KEY: randomBytes(32).toString('base64'), CRON_SECRET: 'test-cron-secret', APP_ENV: 'test', RESEND_API_KEY: '', BLOB_READ_WRITE_TOKEN: '', TEST_WEB_PORT: webPort, TEST_API_PORT: apiPort, PORT: apiPort, APP_ORIGIN: `http://127.0.0.1:${webPort}`, GOOGLE_CLIENT_ID: task === 'auth' ? 'test-client.apps.googleusercontent.com' : '', GOOGLE_CLIENT_SECRET: task === 'auth' ? 'test-only-secret' : '' },
 });
 child.on('exit', (code) => { process.exitCode = code ?? 1; });
 child.on('error', () => { console.error('Could not start test process'); process.exitCode = 1; });

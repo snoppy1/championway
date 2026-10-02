@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import type { HireBase } from '../data/consult';
+import type { HireBase, HireStatus } from '../data/consult';
 import { useI18n } from '../i18n';
 import { formatDate } from '../i18n/format';
 import { ChatPanel } from './ChatPanel';
@@ -15,7 +15,7 @@ import '../chat.css';
    ลิงก์ลึก: #room-<id ห้อง> หรือ #hire-<id งาน> เลือกงานนั้นให้เอง
    ที่ว่างใต้สรุปงานก่อนแชตไว้ให้ขั้นชำระเงินกับปุ่ม "เข้าห้องวิดีโอ" เติมทีหลังโดยไม่ต้องจัดหน้าใหม่ */
 
-export type Labels = { list: string; back: string; detail: (name: string) => string; chat: string; noChat: string };
+export type Labels = { list: string; back: string; detail: (name: string) => string; chat: string; noChat: (status: HireStatus) => string };
 
 export function HireWorkspace<T extends HireBase>({ items, nameOf, initialOf, reviewedOf, noteFor, renderActions, labels, closedNote }: {
   items: T[];
@@ -63,7 +63,7 @@ export function HireWorkspace<T extends HireBase>({ items, nameOf, initialOf, re
             <span className="hw__line">
               <span className="hw__title">
                 <span className="hw__name">{nameOf(item)}</span>
-                <StatusPill status={item.status} reviewed={reviewedOf?.(item) ?? false} />
+                <StatusPill status={item.status} reviewed={reviewedOf?.(item) ?? false} disputed={Boolean(item.disputedAt)} />
               </span>
               <span className="hw__unread"><UnreadBadge count={item.unread} /></span>
             </span>
@@ -81,10 +81,10 @@ export function HireWorkspace<T extends HireBase>({ items, nameOf, initialOf, re
         </button>
         <section className="panel hw__summary" aria-label={labels.detail(nameOf(current))}>
           {/* ประโยคบอกสถานะเป็นแถบสีบนสุดของการ์ด อ่านก่อนอย่างอื่น */}
-          {note && <p className={`cx-banner cx-banner--${current.status}`}>{note}</p>}
+          {note && <p className={`cx-banner cx-banner--${current.disputedAt && current.status === 'paid' ? 'disputed' : current.status}`}>{note}</p>}
           <div className="hw__head">
             <h2>{nameOf(current)}</h2>
-            <StatusPill status={current.status} reviewed={reviewedOf?.(current) ?? false} />
+            <StatusPill status={current.status} reviewed={reviewedOf?.(current) ?? false} disputed={Boolean(current.disputedAt)} />
           </div>
           <HireSteps status={current.status === 'declined' || current.status === 'cancelled' ? null : current.status} />
           <HireSummary hire={current} />
@@ -96,7 +96,7 @@ export function HireWorkspace<T extends HireBase>({ items, nameOf, initialOf, re
               {(current.status === 'completed' || current.status === 'cancelled') && <p className="cx-hint">{closedNote}</p>}
               <ChatPanel key={current.roomId} roomId={current.roomId} />
             </>
-            : <p className="hw__empty-chat">{labels.noChat}</p>}
+            : <p className="hw__empty-chat">{labels.noChat(current.status)}</p>}
         </section>
       </>}
     </div>

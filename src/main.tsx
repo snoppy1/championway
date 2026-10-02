@@ -29,6 +29,9 @@ import { Consulting } from './pages/Consulting';
 import { MentorZone } from './pages/MentorZone';
 import { VerifyEmail } from './pages/VerifyEmail';
 import { ChatsRedirect } from './pages/ChatsRedirect';
+import { PayReturn, PaySimulated } from './pages/Pay';
+import { AdminPayouts } from './pages/admin/AdminPayouts';
+import { AdminDisputes } from './pages/admin/AdminDisputes';
 import { Organisers } from './pages/Organisers';
 import { OrganiserSubmit } from './pages/OrganiserSubmit';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -61,6 +64,8 @@ const router = createBrowserRouter([{
     { path: '/consulting', element: <Consulting /> },
     { path: '/mentor-zone', element: <MentorZone /> },
     { path: '/verify-email', element: <VerifyEmail /> },
+    { path: '/pay/simulated', element: <PaySimulated /> },
+    { path: '/pay/return', element: <PayReturn /> },
     // แชตอยู่ในหน้า Consulting (นักเรียน) และ Mentor zone (เมนเทอร์) ลิงก์ /chats เก่าพาไปที่ถูกฝั่ง
     { path: '/chats', element: <ChatsRedirect /> },
     { path: '/chats/:id', element: <ChatsRedirect /> },
@@ -81,6 +86,8 @@ const router = createBrowserRouter([{
     { path: 'mentors/:id', element: <AdminMentorReview /> },
     { path: 'requests', element: <AdminRequestQueue /> },
     { path: 'reviews', element: <AdminReviewList /> },
+    { path: 'payouts', element: <AdminPayouts /> },
+    { path: 'disputes', element: <AdminDisputes /> },
   ],
 }], { basename });
 

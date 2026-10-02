@@ -8,6 +8,7 @@ import { admin } from './routes/admin.js';
 import { publicApi } from './routes/public.js';
 import { chat } from './routes/chat.js';
 import { consult } from './routes/consult.js';
+import { cron } from './routes/cron.js';
 import { journey } from './routes/journey.js';
 import { risingStar } from './routes/rising-star.js';
 
@@ -34,6 +35,7 @@ app.route('/auth', auth);
 app.route('/admin', admin);
 app.route('/chats', chat);
 app.route('/consult', consult);
+app.route('/cron', cron);
 app.route('/journey', journey);
 app.route('/rising-star', risingStar);
 app.route('/', publicApi);

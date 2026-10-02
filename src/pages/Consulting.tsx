@@ -14,7 +14,7 @@ import '../consult.css';
    ลิงก์ลึก /consulting#room-<id ห้อง> หรือ #hire-<id งาน> เลือกงานนั้นให้เอง
    จำนวนข้อความที่ยังไม่อ่านมากับรายการ และอ่านใหม่ทุกครั้งที่แชตอ่านหรือส่งข้อความ */
 
-type Payload = { emailVerified: boolean; items: MemberHire[] };
+type Payload = { emailVerified: boolean; paymentsOpen: boolean; items: MemberHire[] };
 
 export function Consulting() {
   const { t } = useI18n();
@@ -23,6 +23,11 @@ export function Consulting() {
   const { data, error, loading, reload } = useApi<Payload>(user ? '/consult/mine' : null);
 
   useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
+  // เมนเทอร์รับงานหรือสถานะอื่นเปลี่ยนในระหว่างที่หน้านี้เปิดอยู่ อ่านใหม่เป็นระยะตอนแท็บมองเห็น
+  useEffect(() => {
+    const timer = setInterval(() => { if (!document.hidden) reload(); }, 20_000);
+    return () => clearInterval(timer);
+  }, [reload]);
   // อ่านแล้วหรือส่งข้อความแล้ว จำนวนที่ยังไม่อ่านบนรายการต้องเปลี่ยนตาม
   useEffect(() => {
     window.addEventListener(CHAT_CHANGED, reload);
@@ -46,7 +51,8 @@ export function Consulting() {
     const c = t.consult;
     switch (hire.status) {
       case 'requested': return c.requestedNote;
-      case 'accepted': return c.acceptedNote;
+      case 'accepted': return c.acceptedNote(t.price.total(hire.price));
+      case 'paid': return hire.disputedAt ? c.disputedNote : c.paidNote;
       case 'declined': return c.declinedNote;
       case 'cancelled': return c.cancelledNote;
       default: return hire.review ? null : c.completedNote;
@@ -80,10 +86,10 @@ export function Consulting() {
       initialOf={(hire) => hire.mentor.initial}
       reviewedOf={(hire) => Boolean(hire.review)}
       noteFor={noteFor}
-      renderActions={(hire) => <MemberHireActions key={`${hire.id}-${hire.status}`} hire={hire} onChange={reloadAsync}
+      renderActions={(hire) => <MemberHireActions key={`${hire.id}-${hire.status}`} hire={hire} onChange={reloadAsync} paymentsOpen={data?.paymentsOpen ?? false}
         extra={<Link className="cx-link cx-link--text" to={`/mentors/${hire.mentor.id}${hire.competition ? `?competition=${encodeURIComponent(hire.competition.slug)}` : ''}`}
           aria-label={s.viewMentorOf(hire.mentor.name)}>{s.viewMentor}</Link>} />}
-      labels={{ list: s.listLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: s.noChatYet }}
+      labels={{ list: s.listLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: (status) => (status === 'accepted' ? s.noChatPay : s.noChatYet) }}
       closedNote={s.chatClosedNote}
     />}
   </main>;

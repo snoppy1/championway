@@ -123,3 +123,8 @@ export function useAuth() {
 export function isReviewer(user: Account | null) {
   return user?.role === 'reviewer' || user?.role === 'admin';
 }
+
+/** เฉพาะ admin (ไม่ใช่ reviewer): เห็นเลขบัญชีเต็มของเมนเทอร์ โอนเงิน และตัดสินเรื่องแจ้งปัญหา เซิร์ฟเวอร์ตรวจซ้ำเสมอ หน้าเว็บแค่ซ่อนเมนู */
+export function isAdmin(user: Account | null) {
+  return user?.role === 'admin';
+}

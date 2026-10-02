@@ -160,7 +160,7 @@ function HirePanel({ data, competition, reload }: { data: Payload; competition: 
   const next = `/mentors/${mentor.id}${competition ? `?competition=${encodeURIComponent(competition)}` : ''}`;
   const offers = data.competitions.filter((item) => item.price !== null && item.minutes);
   // งานที่ยังดำเนินอยู่ หรือเสร็จแล้วแต่ยังไม่รีวิว: ไม่ให้ส่งคำขอซ้อน พาไปทำต่อที่ Consulting
-  const open = hire && (hire.status === 'requested' || hire.status === 'accepted' || (hire.status === 'completed' && !hire.reviewed));
+  const open = hire && (hire.status === 'requested' || hire.status === 'accepted' || hire.status === 'paid' || (hire.status === 'completed' && !hire.reviewed));
 
   let body;
   if (!viewer) {
@@ -180,9 +180,9 @@ function HirePanel({ data, competition, reload }: { data: Payload; competition: 
     body = <>
       <h3>{s.openHireTitle}</h3>
       <HireSteps status={hire.status} />
-      <p className="cx-flow-note">{hire.status === 'requested' ? c.requestedNote : hire.status === 'accepted' ? c.acceptedNote : c.completedNote}</p>
-      <p><Link className={hire.status === 'accepted' || hire.status === 'completed' ? 'primary-button cx-button' : 'ghost-button cx-button'} to={link}>
-        {hire.status === 'accepted' ? c.openChat : hire.status === 'completed' ? c.writeReview : c.openInConsulting}</Link></p>
+      <p className="cx-flow-note">{hire.status === 'requested' ? c.requestedNote : hire.status === 'accepted' ? c.acceptedShort : hire.status === 'paid' ? c.paidNote : c.completedNote}</p>
+      <p><Link className={hire.status === 'accepted' || hire.status === 'paid' || hire.status === 'completed' ? 'primary-button cx-button' : 'ghost-button cx-button'} to={link}>
+        {hire.status === 'accepted' ? c.payShort : hire.status === 'paid' ? c.openChat : hire.status === 'completed' ? c.writeReview : c.openInConsulting}</Link></p>
     </>;
   } else if (offers.length === 0) {
     body = <p>{s.noOffers}</p>;

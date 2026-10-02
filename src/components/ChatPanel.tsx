@@ -23,7 +23,10 @@ const FILE_TYPES = [
 ];
 const ACCEPT = [...FILE_TYPES, '.pptx', '.docx', '.xlsx'].join(',');
 
-type Detail = { room: { id: string; mentorId: string; role: 'member' | 'mentor' }; mentorName: string; memberName: string };
+type Detail = {
+  room: { id: string; mentorId: string; role: 'member' | 'mentor' }; mentorName: string; memberName: string;
+  hires: { status: string }[];
+};
 type Outgoing = { clientId: string; text: string; file?: File; failed: boolean; at: number };
 type Page = { messages: ChatMessage[]; hasMore: boolean };
 
@@ -228,6 +231,8 @@ export function ChatPanel({ roomId }: { roomId: string }) {
     <button type="button" className="ghost-button cx-button" onClick={() => setTries((count) => count + 1)}>{s.retry}</button>
   </div>;
 
+  // เซิร์ฟเวอร์ปฏิเสธการส่ง (409) ถ้าไม่มีงานที่จ่ายเงินแล้วในห้อง จึงปิดช่องพิมพ์พร้อมบอกเหตุผล ไม่ปล่อยให้พิมพ์แล้วส่งไม่ได้
+  const canSend = detail.hires.some((hire) => hire.status === 'paid' || hire.status === 'completed');
   const counterpart = detail.room.role === 'member' ? detail.mentorName : detail.memberName;
   const today = dayKey(new Date().toISOString());
   const year = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: DAY, year: 'numeric' }).format(new Date(iso));
@@ -287,14 +292,15 @@ export function ChatPanel({ roomId }: { roomId: string }) {
 
     <form className="chat__composer" onSubmit={send}>
       <label htmlFor={textId} className="sr-only">{s.messageLabel}</label>
+      {!canSend && <p className="cx-note chat__locked" role="status">{s.locked}</p>}
       <div className="chat__field">
-        <button type="button" className="chat__clip" title={s.attachHint} aria-label={s.attach} aria-describedby={hintId}
+        <button type="button" className="chat__clip" title={s.attachHint} aria-label={s.attach} aria-describedby={hintId} disabled={!canSend}
           onClick={() => upload.current?.click()}><Paperclip size={20} aria-hidden="true" /></button>
-        <textarea id={textId} ref={field} rows={1} maxLength={4000} value={text} placeholder={s.messagePlaceholder}
+        <textarea id={textId} ref={field} rows={1} maxLength={4000} value={text} disabled={!canSend} placeholder={s.messagePlaceholder}
           onChange={(event) => { setText(event.target.value); grow(event.target); }}
           onKeyDown={(event) => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) event.currentTarget.form?.requestSubmit(); }} />
         <input ref={upload} type="file" className="chat__native" tabIndex={-1} aria-hidden="true" accept={ACCEPT} onChange={(event) => pick(event.target.files?.[0])} />
-        <button className="primary-button cx-button chat__send" disabled={!text.trim() && !file}><Send size={16} aria-hidden="true" />{s.send}</button>
+        <button className="primary-button cx-button chat__send" disabled={!canSend || (!text.trim() && !file)}><Send size={16} aria-hidden="true" />{s.send}</button>
       </div>
       <span id={hintId} className="sr-only">{s.attachHint}</span>
       {file && <p className="chat__chosen"><Paperclip size={14} aria-hidden="true" /><span>{file.name}</span>

@@ -9,8 +9,10 @@ import '../chat.css';
 /* ชิ้นส่วนร่วมของการจ้างเมนเทอร์: ป้ายสถานะ บรรทัดขั้นตอน สรุปงาน และจุดแจ้งเตือนข้อความที่ยังไม่อ่าน
    หน้าโปรไฟล์เมนเทอร์ Consulting และ Mentor zone ใช้ชุดเดียวกัน หน้าตาและคำจึงตรงกันทุกที่ */
 
-export function StatusPill({ status, reviewed = false }: { status: HireStatus; reviewed?: boolean }) {
+export function StatusPill({ status, reviewed = false, disputed = false }: { status: HireStatus; reviewed?: boolean; disputed?: boolean }) {
   const { t } = useI18n();
+  // งานที่แจ้งปัญหายังเป็น paid ในฐานข้อมูล แต่คนอ่านต้องเห็นว่ากำลังรอทีมงานตัดสิน
+  if (disputed && status === 'paid') return <span className="cx-pill cx-pill--disputed">{t.consult.disputedPill}</span>;
   return <span className={`cx-pill cx-pill--${status}`}>
     {status === 'completed' && reviewed ? t.consult.reviewedPill : t.consult.status[status]}
   </span>;

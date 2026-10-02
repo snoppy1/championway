@@ -94,7 +94,7 @@
 }
 .cx-pill--claimed, .cx-pill--requested, .cx-pill--req-pending { border-color: var(--gold-line); background: var(--gold-tint); color: var(--gold-ink); }
 .cx-pill--confirmed, .cx-pill--completed, .cx-pill--req-approved { border-color: var(--success-line); background: var(--success-tint); color: var(--success); }
-.cx-pill--cancelled, .cx-pill--declined, .cx-pill--req-rejected { border-color: var(--danger-line); background: var(--danger-tint); color: var(--danger); }
+.cx-pill--cancelled, .cx-pill--declined, .cx-pill--disputed, .cx-pill--req-rejected { border-color: var(--danger-line); background: var(--danger-tint); color: var(--danger); }
 
 /* ---------- ฟอร์ม ---------- */
 
@@ -401,9 +401,9 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 
 /* แถบสถานะบนสุดของการ์ดงาน */
 .cx-banner { margin: 0 0 var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--line-purple); border-radius: var(--radius-sm); background: var(--purple-tint); color: var(--ink-deep); font-size: var(--text-md); line-height: var(--leading-body); }
-.cx-banner--requested { border-color: var(--gold-line); background: var(--gold-tint); color: var(--gold-ink); }
+.cx-banner--requested, .cx-banner--accepted { border-color: var(--gold-line); background: var(--gold-tint); color: var(--gold-ink); }
 .cx-banner--completed { border-color: var(--success-line); background: var(--success-tint); color: var(--success); }
-.cx-banner--declined, .cx-banner--cancelled { border-color: var(--danger-line); background: var(--danger-tint); color: var(--danger); }
+.cx-banner--declined, .cx-banner--cancelled, .cx-banner--disputed { border-color: var(--danger-line); background: var(--danger-tint); color: var(--danger); }
 .cx-link--text { color: var(--purple-deep); text-decoration: underline; text-underline-offset: 3px; }
 
 /* ฟอร์มจ้าง: ปุ่มส่งเต็มความกว้างการ์ดใต้ราคารวม เวทีเป็นการ์ดเลือก ช่องวันเวลาแสดงตามภาษา */
@@ -457,3 +457,18 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-competition__head { flex: 1 1 0; }
 .cx-details { margin-top: 0; }
 @media (prefers-reduced-motion: reduce) { .cx-choice { transition: none; } }
+
+/* ---------- การชำระเงินและการรับเงิน ---------- */
+
+.cx-money { margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-purple); border-radius: var(--radius-sm); background: var(--purple-tint); color: var(--ink-deep); font-size: var(--text-md); line-height: var(--leading-body); }
+.cx-money[data-money="completed"] { border-color: var(--success-line); background: var(--success-tint); }
+.cx-account { display: grid; gap: var(--space-1); margin-top: var(--space-4); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--paper); }
+.cx-account p { margin: 0; }
+.cx-account__label { color: var(--ink); font-size: var(--text-sm); }
+.cx-account__name { font: 600 var(--text-lg)/1.4 var(--display); }
+.cx-account .cx-pill { justify-self: start; margin-top: var(--space-1); }
+.cx-report textarea { width: 100%; padding: var(--space-3); border: 1px solid var(--line-input); border-radius: var(--radius-sm); background: var(--card); color: var(--ink); font-size: var(--text-input); line-height: var(--leading-body); }
+.cx-report textarea:focus-visible { border-color: var(--purple); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.cx-pay { display: grid; gap: var(--space-4); max-width: 34em; margin: var(--space-8) auto; text-align: left; }
+.cx-pay__amount { font: 700 var(--text-display)/1.1 var(--display); color: var(--ink-deep); }
+.cx-test-banner { margin: 0; padding: var(--space-3) var(--space-4); border: 2px dashed var(--gold-ink); border-radius: var(--radius-sm); background: var(--gold-tint); color: var(--gold-ink); font-weight: 700; }

@@ -218,6 +218,8 @@ test('a mentor profile that cannot be found has no Thai in English', async ({ pa
 /* หน้าใหม่ของการติดต่อเมนเทอร์ทุกสถานะ ใช้เมนเทอร์และเวทีทดสอบที่เป็นอังกฤษทั้งหมด (createMentorFixture)
    ภาษาไทยที่เหลือบนหน้าจึงมาจากข้อความของหน้าเว็บเท่านั้น ส่วนรายชื่อเมนเทอร์ตัวอย่างและเวทีจริงเป็นเนื้อหา ตัดออกก่อนตรวจ */
 test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai in English', async ({ page }) => {
+  // เทสนี้เดินทั้งเส้นทางจ้าง จ่ายเงิน แชต และ Mentor zone จึงยาวกว่าเทสทั่วไป
+  test.setTimeout(90_000);
   const fixture = await createMentorFixture();
   const learner = await createAccount('member', { verified: false });
   const ploy = await createAccount('member', { verified: true, name: 'Ploy Student' });
@@ -256,7 +258,7 @@ test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai
     await hire.getByLabel('What do you need help with?').fill('Help me rehearse my pitch.');
     await hire.getByRole('button', { name: 'Send request' }).click();
     await expect(hire.getByText('Waiting for the mentor to accept.')).toBeVisible();
-    await expect(hire.locator('.cx-stepper li')).toHaveText(['Request (done)', '2Mentor accepts', '3Chat', '4Mark as done', '5Review']);
+    await expect(hire.locator('.cx-stepper li')).toHaveText(['Request (done)', '2Mentor accepts', '3Pay', '4Chat', '5Mark as done', '6Review']);
     await expectNoThai(page);
 
     // Consulting: รายการ รายละเอียด ถามก่อนยกเลิก ยังไม่มีแชต
@@ -264,7 +266,7 @@ test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai
     await expect(page.getByRole('heading', { level: 1, name: 'Consulting' })).toBeVisible();
     await page.locator('.hw__row').first().click();
     await expect(page.getByRole('heading', { level: 2, name: fixture.name })).toBeVisible();
-    await expect(page.getByText('The chat opens when the mentor accepts.')).toBeVisible();
+    await expect(page.getByText('The chat opens after the mentor accepts and you pay.')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel hire' }).click();
     await expect(page.getByText('Cancel this hire?')).toBeVisible();
     await expectNoThai(page);
@@ -284,19 +286,61 @@ test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai
     await expectNoThai(page, zoneContent);
     await card.getByRole('button', { name: 'Back' }).click();
     await card.getByRole('button', { name: 'Accept the hire request from Ploy' }).click();
-    await expect(page.getByText('Accepted. The chat is open.')).toBeVisible();
+    await expect(page.getByText('Accepted. The student can pay now, and the chat opens after they pay.')).toBeVisible();
+    await expectNoThai(page, zoneContent);
+
+    // รับงานแล้วยังไม่มีห้องแชต: เมนเทอร์เห็นว่ากำลังรอเงิน และมีแบนเนอร์เตือนให้เพิ่มบัญชีรับเงิน
+    await page.getByRole('tab', { name: /^Hire requests/ }).click();
+    await expect(page.getByText('Add a payout account so we can pay you when a student marks the work as done.')).toBeVisible();
+    await page.getByRole('tab', { name: /^Hires and chats/ }).click();
     const rows = page.getByRole('tabpanel', { name: 'Hires and chats' }).locator('.hw__row');
     if (await rows.first().isVisible()) await rows.first().click();
+    await expect(page.locator('.cx-money')).toContainText('Waiting for the student to pay.');
+    await expectNoThai(page, zoneContent);
+
+    // บัญชีรับเงิน: ข้อความตรวจฟอร์มเป็นอังกฤษ แล้วบันทึกเห็นแค่ 4 ตัวท้าย
+    await page.getByRole('tab', { name: 'Payouts' }).click();
+    const payout = page.getByRole('region', { name: 'Payout account' });
+    await payout.getByRole('button', { name: 'Save payout account' }).click();
+    await expect(payout.getByText('Enter the account name.')).toBeVisible();
+    await expectNoThai(page, zoneContent);
+    await payout.getByLabel('Account name').fill('Somchai Test');
+    await payout.getByLabel('Bank').selectOption('kbank');
+    await payout.getByLabel('Account number').fill('1234567890');
+    await payout.getByRole('button', { name: 'Save payout account' }).click();
+    await expect(payout.getByText('Kasikornbank · ending 7890')).toBeVisible();
+    await expectNoThai(page, await contentFrom(page, '/api/consult/zone'));
+
+    // นักเรียนที่รับงานแล้ว: ปุ่มจ่ายเงิน หน้าจ่ายเงินจำลอง แล้วแชตเปิด แจ้งปัญหา
+    await page.context().clearCookies();
+    await signInEnglish(page, ploy, `/consulting#hire-${waitingId}`);
+    await expect(page.getByText(/Mentor accepted — pay 1,000\s*THB to start\./)).toBeVisible();
+    await expect(page.getByText('The chat opens as soon as you pay.')).toBeVisible();
+    await expectNoThai(page);
+    await page.getByRole('button', { name: /^Pay 1,000/ }).click();
+    await expect(page.getByText('Test payment — no real money is charged.')).toBeVisible();
+    await expectNoThai(page);
+    await page.getByRole('button', { name: 'Pay (test)' }).click();
+    await expect(page).toHaveURL(/\/consulting#room-/);
     const chat = page.getByRole('region', { name: /^Chat with/ });
     await expect(chat.getByText('No messages yet. Say hello and share what you want to work on.')).toBeVisible();
-    await chat.getByRole('textbox', { name: 'Message' }).fill('Hello, send me the plan.');
+    await chat.getByRole('textbox', { name: 'Message' }).fill('Hello, here is the plan.');
     await chat.getByRole('button', { name: 'Send', exact: true }).click();
-    await expect(chat.getByText('Hello, send me the plan.')).toBeVisible();
-    await expectNoThai(page, zoneContent);
+    await expect(chat.getByText('Hello, here is the plan.')).toBeVisible();
+    await expect(page.getByText('Paid. The chat is open. ChampionWays holds your money and pays the mentor when you mark the work as done.')).toBeVisible();
+    await expectNoThai(page);
+    await page.getByRole('button', { name: 'Report a problem' }).click();
+    await page.getByRole('button', { name: 'Send report' }).click();
+    await expect(page.getByText('Write a short description of the problem.')).toBeVisible();
+    await expectNoThai(page);
+    await page.getByLabel('What went wrong?').fill('The mentor stopped answering.');
+    await page.getByRole('button', { name: 'Send report' }).click();
+    await expect(page.getByText('You reported a problem. Our team will decide, and the money stays on hold until then.')).toBeVisible();
+    await expectNoThai(page);
 
     // นักเรียนที่จบงานแล้ว: เสร็จงาน → รีวิว → รีวิวแล้ว (ใช้บัญชีที่ยืนยันแล้วกับห้องที่เตรียมไว้)
     const finisher = await createAccount('member', { verified: true });
-    const done = await createHire(fixture, finisher, 'accepted', { note: 'Last check of my slides.' });
+    const done = await createHire(fixture, finisher, 'paid', { note: 'Last check of my slides.' });
     await page.context().clearCookies();
     await signInEnglish(page, finisher, `/consulting#hire-${done.id}`);
     await expect(page.getByRole('button', { name: 'Mark as done' })).toBeVisible();

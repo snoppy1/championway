@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { TriangleAlert } from 'lucide-react';
 import { BrandMark } from '../../components/Layout';
-import { isReviewer, useAuth } from '../../data/auth';
+import { isAdmin, isReviewer, useAuth } from '../../data/auth';
 import { useApi } from '../../lib/useApi';
 import '../../admin.css';
 
@@ -50,6 +50,10 @@ export function AdminLayout() {
             คำขอเพิ่มเวที{pendingRequests > 0 && <span className="admin-badge">{pendingRequests}</span>}
           </NavLink>
           <NavLink to="/admin/reviews">รีวิว</NavLink>
+          {isAdmin(user) && <>
+            <NavLink to="/admin/payouts">โอนเงินเมนเทอร์</NavLink>
+            <NavLink to="/admin/disputes">เรื่องแจ้งปัญหา</NavLink>
+          </>}
         </nav>}
         <Link className="admin-exit" to="/">กลับไปหน้าบ้าน</Link>
       </div>

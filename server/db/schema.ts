@@ -410,15 +410,16 @@ export const risingStarPeriods = pgTable('rising_star_periods', {
    รอบถัดไปจะเพิ่มการจ่ายเงินผ่าน Stripe ระหว่าง "รับ" กับ "เปิดแชต" และห้องวิดีโอตามชั่วโมงที่จ้าง
 
    ชื่อตารางยังเป็น consultations เพราะรีวิวอ้างถึงตารางนี้อยู่แล้ว หนึ่งแถวคือการจ้างหนึ่งครั้ง
-   status: requested → accepted → completed
+   status: requested → accepted (รอนักเรียนจ่ายเงิน) → paid (จ่ายแล้ว แชตเปิด) → completed
            requested → declined (เมนเทอร์ปฏิเสธ)
-           requested / accepted → cancelled (นักเรียนยกเลิกก่อนเสร็จงาน) */
+           requested / accepted → cancelled (นักเรียนยกเลิกก่อนจ่ายเงิน)
+           paid → cancelled ได้ทางเดียวคือทีมงานตัดสินคืนเงินหลังนักเรียนแจ้งปัญหา (disputedAt) */
 export const consultations = pgTable('consultations', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
   competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
-  status: text('status').$type<'requested' | 'accepted' | 'declined' | 'cancelled' | 'completed'>().notNull().default('requested'),
+  status: text('status').$type<'requested' | 'accepted' | 'paid' | 'declined' | 'cancelled' | 'completed'>().notNull().default('requested'),
   /** เวลาที่จ้างเป็นนาที และราคารวมเป็นบาท คิดจากราคาต่องานของเมนเทอร์ตอนส่งคำขอ ไม่เปลี่ยนตามราคาใหม่ */
   minutes: integer('minutes').notNull().default(60),
   price: integer('price').notNull().default(0),
@@ -431,6 +432,10 @@ export const consultations = pgTable('consultations', {
   acceptedAt: timestamp('accepted_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  /** นักเรียนแจ้งปัญหา เงินถูกพักไว้จนทีมงานตัดสิน ระบบจะไม่โอนอัตโนมัติ */
+  disputedAt: timestamp('disputed_at', { withTimezone: true }),
+  disputeReason: text('dispute_reason').notNull().default(''),
   /** จากรุ่นติดต่อนอกเว็บ (30 ก.ย. 2569) เก็บไว้เป็นประวัติ ไม่ใช้แล้ว */
   claimedAt: timestamp('claimed_at', { withTimezone: true }),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
@@ -438,9 +443,72 @@ export const consultations = pgTable('consultations', {
   index('consultations_user_idx').on(t.userId, t.createdAt),
   index('consultations_mentor_idx').on(t.mentorId, t.status),
   // ค้างได้ทีละหนึ่งงานต่อคู่นักเรียนกับเมนเทอร์ กดจ้างซ้ำไม่สร้างแถวใหม่
-  uniqueIndex('consultations_open_key').on(t.userId, t.mentorId).where(sql`status in ('requested', 'accepted')`),
-  check('consultations_status_check', sql`status in ('requested', 'accepted', 'declined', 'cancelled', 'completed')`),
+  uniqueIndex('consultations_open_key').on(t.userId, t.mentorId).where(sql`status in ('requested', 'accepted', 'paid')`),
+  check('consultations_status_check', sql`status in ('requested', 'accepted', 'paid', 'declined', 'cancelled', 'completed')`),
 ]);
+
+/* ---------- เงินของการจ้าง ----------
+
+   เงินผ่านเว็บแบบพักไว้ก่อน (ผู้ใช้ตัดสิน 1 ต.ค. 2569)
+   นักเรียนจ่ายให้เว็บ → เว็บพักเงิน → นักเรียนกดเสร็จงาน หรือเงียบเกิน 3 วันหลังนัด → โอนให้เมนเทอร์
+   ยังไม่หักค่าคอม ยอดโอนเท่ากับยอดที่นักเรียนจ่าย
+   ผู้ให้บริการรับจ่ายเงินแยกไว้ใน server/lib/payments (ตอนนี้ทดลอง Opn Payments, มีตัวจำลองไว้ใช้ตอนพัฒนา) */
+
+/** การจ่ายเงินหนึ่งครั้งของการจ้าง สร้างตอนนักเรียนกดจ่าย จ่ายสำเร็จเมื่อผู้ให้บริการยืนยันกลับมา */
+export const hirePayments = pgTable('hire_payments', {
+  id: text('id').primaryKey(),
+  hireId: text('hire_id').notNull().references(() => consultations.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  /** id ของรายการฝั่งผู้ให้บริการ ใช้จับคู่ตอนได้ webhook และตอนคืนเงิน */
+  providerRef: text('provider_ref'),
+  amount: integer('amount').notNull(),
+  currency: text('currency').notNull().default('thb'),
+  status: text('status').$type<'pending' | 'paid' | 'failed' | 'refunded'>().notNull().default('pending'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  refundedAt: timestamp('refunded_at', { withTimezone: true }),
+}, t => [
+  index('hire_payments_hire_idx').on(t.hireId),
+  uniqueIndex('hire_payments_provider_ref_key').on(t.provider, t.providerRef),
+  // นับเป็นเงินของงานได้รายการเดียว ถ้าจ่ายซ้ำจากอีกแท็บ รายการที่สองถูกคืนเงินอัตโนมัติ (lib/hire-money.ts)
+  uniqueIndex('hire_payments_one_paid_key').on(t.hireId).where(sql`status = 'paid'`),
+  check('hire_payments_status_check', sql`status in ('pending', 'paid', 'failed', 'refunded')`),
+]);
+
+/** ยอดที่ต้องโอนให้เมนเทอร์ หนึ่งแถวต่อการจ้างที่จ่ายแล้ว
+    due: ครบเงื่อนไขแล้ว รอโอน · held: นักเรียนแจ้งปัญหา รอทีมงานตัดสิน
+    paid: โอนแล้ว · cancelled: ทีมงานตัดสินคืนเงินนักเรียน */
+export const mentorPayouts = pgTable('mentor_payouts', {
+  id: text('id').primaryKey(),
+  hireId: text('hire_id').notNull().references(() => consultations.id, { onDelete: 'cascade' }),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  amount: integer('amount').notNull(),
+  status: text('status').$type<'due' | 'held' | 'paid' | 'cancelled'>().notNull().default('due'),
+  /** ช่องทางที่โอนจริง: ผ่านผู้ให้บริการ หรือทีมงานโอนเองแล้วกดบันทึก */
+  method: text('method'),
+  providerRef: text('provider_ref'),
+  note: text('note').notNull().default(''),
+  decidedBy: text('decided_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+}, t => [
+  uniqueIndex('mentor_payouts_hire_key').on(t.hireId),
+  index('mentor_payouts_status_idx').on(t.status, t.createdAt),
+  check('mentor_payouts_status_check', sql`status in ('due', 'held', 'paid', 'cancelled')`),
+]);
+
+/** บัญชีรับเงินของเมนเทอร์ เลขบัญชีเก็บแบบเข้ารหัส (server/lib/secret-box.ts) เห็นเต็มได้เฉพาะทีมงาน
+    เจ้าตัวเห็นแค่ 4 ตัวท้าย ผู้ให้บริการตรวจบัญชีแล้วจะได้ providerRecipientId */
+export const mentorPayoutAccounts = pgTable('mentor_payout_accounts', {
+  mentorId: text('mentor_id').primaryKey().references(() => mentors.id, { onDelete: 'cascade' }),
+  accountName: text('account_name').notNull(),
+  bankCode: text('bank_code').notNull(),
+  accountNumberEncrypted: text('account_number_encrypted').notNull(),
+  accountLast4: text('account_last4').notNull(),
+  providerRecipientId: text('provider_recipient_id'),
+  status: text('status').$type<'pending' | 'verified' | 'failed'>().notNull().default('pending'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, () => [check('mentor_payout_accounts_status_check', sql`status in ('pending', 'verified', 'failed')`)]);
 
 /** รีวิวหนึ่งอันต่อการจ้างที่เสร็จแล้วหนึ่งครั้ง Rising Star ใช้ค่าเฉลี่ยดาวของรีวิวที่เขียนในเดือนนั้น
     แอดมินซ่อนรีวิวที่น่าสงสัยได้ รีวิวที่ซ่อนไม่นับคะแนน */

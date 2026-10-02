@@ -11,16 +11,24 @@ export type RankedMentor = ListedMentor & { rank: number };
 
 /* การจ้างเมนเทอร์ผ่านเว็บ (1 ต.ค. 2569) สถานะเดินตามลำดับ
    requested → accepted → completed (นักเรียนกดเสร็จงาน) แล้วรีวิวได้ หรือจบที่ declined / cancelled */
-export type HireStatus = 'requested' | 'accepted' | 'declined' | 'cancelled' | 'completed';
+export type HireStatus = 'requested' | 'accepted' | 'paid' | 'declined' | 'cancelled' | 'completed';
 export type HireBase = {
   id: string; status: HireStatus; createdAt: string; acceptedAt: string | null; completedAt: string | null;
   minutes: number; price: number; preferredAt: string | null; note: string; reason: string;
   roomId: string | null; unread: number; competition: { slug: string; name: string } | null;
+  /** จ่ายเงินแล้วเมื่อไร และนักเรียนแจ้งปัญหาไว้หรือไม่ (งานที่แจ้งปัญหายังเป็น paid จนกว่าทีมงานตัดสิน) */
+  paidAt: string | null; disputedAt: string | null;
 };
 /** ฝั่งนักเรียน: GET /consult/mine */
 export type MemberHire = HireBase & { mentor: MentorCard; review: { stars: number } | null };
 /** ฝั่งเมนเทอร์: GET /consult/zone (ชื่อนักเรียนเป็นชื่อแรกเท่านั้น) */
-export type MentorHire = HireBase & { student: string };
+export type MentorHire = HireBase & {
+  student: string;
+  payout: null | { status: 'due' | 'held' | 'paid' | 'cancelled'; amount: number; paidAt: string | null };
+};
+
+export type PayoutAccount = { accountName: string; bankCode: string; last4: string; status: 'pending' | 'verified' | 'failed' };
+export const bankCodes = ['bbl', 'kbank', 'ktb', 'scb', 'bay', 'ttb', 'gsb', 'baac', 'uob', 'cimb', 'kk', 'tisco', 'lhb', 'ghb', 'icbc'] as const;
 
 /** ราคารวมของการจ้าง = ราคาต่องาน × เวลาที่จ้าง ÷ นาทีของราคานั้น ปัดขึ้น ตรงกับที่เซิร์ฟเวอร์คิดตอนส่งคำขอ
     หน้าเว็บคำนวณไว้แค่แสดงให้เห็นสด เซิร์ฟเวอร์คิดเองใหม่เสมอ */
@@ -34,7 +42,8 @@ export function hireStep(status: HireStatus | null): number {
   switch (status) {
     case 'requested': return 1;
     case 'accepted': return 2;
-    case 'completed': return 4;
+    case 'paid': return 3;
+    case 'completed': return 5;
     default: return 0;
   }
 }

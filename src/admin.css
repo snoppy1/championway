@@ -289,3 +289,12 @@
 .admin .queue-row > .ghost-button, .admin .queue-row > .danger-button { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; }
 /* ลิงก์ในประโยคต้องมีเส้นใต้ แยกจากข้อความรอบข้างได้โดยไม่พึ่งสี */
 .admin .admin-muted a, .admin .request-details a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- โอนเงินเมนเทอร์และเรื่องแจ้งปัญหา ---------- */
+.queue-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.queue-actions .ghost-button { min-height: 44px; }
+.payout-account { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--text-base); overflow-wrap: anywhere; }
+.payout-account svg { flex: none; margin-top: 2px; color: var(--purple-deep); }
+.payout-number { font-family: var(--body); font-size: var(--text-md); letter-spacing: 0.04em; }
+.request-decision .review-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.request-decision .review-gate { display: grid; gap: var(--space-2); }

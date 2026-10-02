@@ -5,8 +5,8 @@ import { and, desc, eq, inArray, like } from 'drizzle-orm';
 import { app } from '../server/app';
 import { db, client } from '../server/db/client';
 import {
-  chatRooms, competitionRequests, competitions, emailLog, mentorCompetitionChoices, mentorReviews, mentorSubmissions,
-  mentors, sessions, users,
+  chatRooms, competitionRequests, competitions, consultations, emailLog, hirePayments, mentorCompetitionChoices, mentorPayoutAccounts,
+  mentorPayouts, mentorReviews, mentorSubmissions, mentors, sessions, users,
 } from '../server/db/schema';
 import { testDatabase } from '../server/lib/database-safety';
 import { createSession } from '../server/lib/session';
@@ -20,7 +20,7 @@ testDatabase(process.env);
 const prefix = `consult-${randomUUID().slice(0, 8)}`;
 const userIds: string[] = [];
 
-async function account(role: 'member' | 'reviewer' = 'member', verified = false) {
+async function account(role: 'member' | 'reviewer' | 'admin' = 'member', verified = false) {
   const id = `${prefix}-u${userIds.length}`;
   await db.insert(users).values({
     id, email: `${id}@championways.test`, name: `ทดสอบ${userIds.length} นามสกุล`, role,
@@ -51,6 +51,7 @@ test('hire a mentor, chat, finish and review', async (t) => {
   const student = await account();
   const outsider = await account('member', true);
   const reviewer = await account('reviewer', true);
+  const admin = await account('admin', true);
   const future = new Date(Date.now() + 3 * 86400000).toISOString();
 
   for (const [id, s] of [[`${prefix}-cmp`, slug], [`${prefix}-cmp2`, otherSlug]]) {
@@ -75,6 +76,7 @@ test('hire a mentor, chat, finish and review', async (t) => {
   try {
     let hireId = '';
     let roomId = '';
+    let thirdHireId = '';
     const hireBody = { competition: slug, hours: 2, preferredAt: future, note: 'ช่วยดูสไลด์พิตช์', price: 1 };
 
     await t.test('off-platform contacts are never sent', async () => {
@@ -109,18 +111,45 @@ test('hire a mentor, chat, finish and review', async (t) => {
       assert.match(mail.body, /mentor-zone#hire-/);
     });
 
-    await t.test('only the mentor answers, and the chat opens on accept', async () => {
+    await t.test('only the mentor answers; accepting waits for payment and opens no chat yet', async () => {
       assert.equal((await call(`/consult/${hireId}/complete`, student.cookie, 'POST', {})).status, 409);
+      assert.equal((await call(`/consult/${hireId}/pay`, student.cookie, 'POST', {})).status, 409);
       assert.equal((await call(`/consult/${hireId}/accept`, student.cookie, 'POST', {})).status, 403);
       assert.equal((await call(`/consult/${hireId}/accept`, outsider.cookie, 'POST', {})).status, 403);
-      const accepted = await call(`/consult/${hireId}/accept`, mentorUser.cookie, 'POST', {});
-      assert.equal(accepted.status, 200);
-      roomId = (await accepted.json()).roomId;
+      assert.equal((await call(`/consult/${hireId}/accept`, mentorUser.cookie, 'POST', {})).status, 200);
       assert.equal((await call(`/consult/${hireId}/accept`, mentorUser.cookie, 'POST', {})).status, 409);
       assert.equal((await call(`/consult/${hireId}/decline`, mentorUser.cookie, 'POST', { reason: 'x' })).status, 409);
       const zone = await (await call('/consult/zone', mentorUser.cookie)).json();
       assert.equal(zone.hires[0].status, 'accepted');
-      assert.equal(zone.hires[0].roomId, roomId);
+      assert.equal(zone.hires[0].roomId, null);
+      assert.equal((await call(`/consult/${hireId}/complete`, student.cookie, 'POST', {})).status, 409);
+    });
+
+    await t.test('the student pays the locked price, once, and only then the chat opens', async () => {
+      assert.equal((await call(`/consult/${hireId}/pay`, outsider.cookie, 'POST', { amount: 1 })).status, 404);
+      const started = await call(`/consult/${hireId}/pay`, student.cookie, 'POST', { amount: 1 });
+      assert.equal(started.status, 200);
+      const { url, paymentId } = await started.json();
+      assert.match(url, /\/pay\/simulated\?payment=/);
+      const [payment] = await db.select().from(hirePayments).where(eq(hirePayments.id, paymentId));
+      assert.deepEqual([payment.amount, payment.status], [1200, 'pending']);
+      // คนอื่นยืนยันการจ่ายแทนหรือดูสถานะไม่ได้
+      assert.equal((await call(`/consult/payments/${paymentId}/simulate`, outsider.cookie, 'POST', {})).status, 404);
+      assert.equal((await call(`/consult/payments/${paymentId}`, outsider.cookie)).status, 404);
+      // เปิดหน้าจ่ายสองแท็บ จ่ายได้สำเร็จแท็บเดียว
+      const second = await (await call(`/consult/${hireId}/pay`, student.cookie, 'POST', {})).json();
+      const paid = await call(`/consult/payments/${paymentId}/simulate`, student.cookie, 'POST', {});
+      assert.equal(paid.status, 200);
+      roomId = (await paid.json()).roomId;
+      assert.ok(roomId);
+      assert.equal((await call(`/consult/payments/${paymentId}/simulate`, student.cookie, 'POST', {})).status, 409);
+      const late = await (await call(`/consult/payments/${second.paymentId}/simulate`, student.cookie, 'POST', {})).json();
+      assert.equal(late.opened, false);
+      assert.equal((await call(`/consult/${hireId}/pay`, student.cookie, 'POST', {})).status, 409);
+      const status = await (await call(`/consult/payments/${paymentId}`, student.cookie)).json();
+      assert.deepEqual([status.status, status.hire.status], ['paid', 'paid']);
+      // จ่ายแล้วยกเลิกเองไม่ได้ ต้องแจ้งปัญหา
+      assert.equal((await call(`/consult/${hireId}/cancel`, student.cookie, 'POST', {})).status, 409);
     });
 
     await t.test('the chat is private to the two of them, and files are checked by content', async () => {
@@ -188,10 +217,101 @@ test('hire a mentor, chat, finish and review', async (t) => {
       assert.equal((await call(`/consult/${again.hire.id}/decline`, mentorUser.cookie, 'POST', { reason: '' })).status, 400);
       assert.equal((await call(`/consult/${again.hire.id}/decline`, mentorUser.cookie, 'POST', { reason: 'ช่วงนี้ไม่ว่าง' })).status, 200);
       const third = await (await call(`/consult/mentors/${mentorId}/hire`, student.cookie, 'POST', { ...hireBody, hours: 1 })).json();
-      const accepted = await (await call(`/consult/${third.hire.id}/accept`, mentorUser.cookie, 'POST', {})).json();
-      assert.equal(accepted.roomId, roomId);
+      assert.equal((await call(`/consult/${third.hire.id}/accept`, mentorUser.cookie, 'POST', {})).status, 200);
+      const pay = await (await call(`/consult/${third.hire.id}/pay`, student.cookie, 'POST', {})).json();
+      const paid = await (await call(`/consult/payments/${pay.paymentId}/simulate`, student.cookie, 'POST', {})).json();
+      assert.equal(paid.roomId, roomId);
       assert.equal((await db.select().from(chatRooms).where(eq(chatRooms.mentorId, mentorId))).length, 1);
-      assert.equal((await call(`/consult/${third.hire.id}/cancel`, student.cookie, 'POST', {})).status, 200);
+      thirdHireId = third.hire.id;
+    });
+
+    await t.test('marking done creates a payout for the mentor; the team sends it once', async () => {
+      const [payout] = await db.select().from(mentorPayouts).where(eq(mentorPayouts.hireId, hireId));
+      assert.deepEqual([payout.status, payout.amount], ['due', 1200]);
+      // บัญชีรับเงิน: ตรวจรูปแบบ เก็บแบบเข้ารหัส เจ้าตัวเห็นแค่ 4 ตัวท้าย
+      assert.equal((await call('/consult/zone/payout-account', mentorUser.cookie, 'PUT', { accountName: 'ทดสอบ', bankCode: 'kbank', accountNumber: '12ab' })).status, 400);
+      assert.equal((await call('/consult/zone/payout-account', student.cookie, 'PUT', { accountName: 'ทดสอบ', bankCode: 'kbank', accountNumber: '1234567890' })).status, 403);
+      assert.equal((await call('/consult/zone/payout-account', mentorUser.cookie, 'PUT', { accountName: 'ทดสอบ ท', bankCode: 'kbank', accountNumber: '123-4-56789-0' })).status, 200);
+      const [stored] = await db.select().from(mentorPayoutAccounts).where(eq(mentorPayoutAccounts.mentorId, mentorId));
+      assert.ok(!stored.accountNumberEncrypted.includes('1234567890'));
+      const zone = await (await call('/consult/zone', mentorUser.cookie)).json();
+      assert.deepEqual(zone.payoutAccount, { accountName: 'ทดสอบ ท', bankCode: 'kbank', last4: '7890', status: 'pending' });
+      assert.ok(!JSON.stringify(zone).includes('1234567890'));
+      assert.equal(zone.hires.find((h: { id: string }) => h.id === hireId).payout.status, 'due');
+
+      // หน้าเงินเป็นของ admin เท่านั้น reviewer ก็เข้าไม่ได้
+      assert.equal((await call('/admin/payouts', reviewer.cookie)).status, 403);
+      const list = await (await call('/admin/payouts', admin.cookie)).json();
+      const row = list.items.find((i: { hireId: string }) => i.hireId === hireId);
+      assert.equal(row.account.accountNumber, '1234567890');
+      assert.equal((await call(`/admin/payouts/${row.id}/mark-paid`, admin.cookie, 'POST', { note: '' })).status, 400);
+      assert.equal((await call(`/admin/payouts/${row.id}/mark-paid`, admin.cookie, 'POST', { note: 'KBANK ref 001' })).status, 200);
+      assert.equal((await call(`/admin/payouts/${row.id}/mark-paid`, admin.cookie, 'POST', { note: 'again' })).status, 409);
+      const after = await (await call('/admin/payouts', admin.cookie)).json();
+      assert.equal(after.items.find((i: { hireId: string }) => i.hireId === hireId).account.accountNumber, null);
+    });
+
+    await t.test('a reported problem holds the money until an admin releases or refunds it', async () => {
+      assert.equal((await call(`/consult/${thirdHireId}/dispute`, outsider.cookie, 'POST', { reason: 'x' })).status, 409);
+      assert.equal((await call(`/consult/${thirdHireId}/dispute`, student.cookie, 'POST', { reason: '' })).status, 400);
+      assert.equal((await call(`/consult/${thirdHireId}/dispute`, student.cookie, 'POST', { reason: 'เมนเทอร์ไม่มาตามนัด' })).status, 200);
+      assert.equal((await call(`/consult/${thirdHireId}/dispute`, student.cookie, 'POST', { reason: 'ซ้ำ' })).status, 409);
+      // แจ้งปัญหาแล้วกดเสร็จเองเพื่อปล่อยเงินไม่ได้ (Astra รีวิว 2 ต.ค. 2569)
+      assert.equal((await call(`/consult/${thirdHireId}/complete`, student.cookie, 'POST', {})).status, 409);
+      // หน้าเงินของ admin ปฏิเสธคำขอที่มาจากเว็บอื่น
+      const foreign = await app.request('/api/admin/payouts/release-overdue', { method: 'POST', headers: { cookie: admin.cookie, origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' });
+      assert.equal(foreign.status, 403);
+      // ถึงจะเลยกำหนดแล้ว งานที่แจ้งปัญหาไม่ถูกปล่อยเงินอัตโนมัติ
+      await db.update(consultations).set({ paidAt: new Date(Date.now() - 10 * 86400000), preferredAt: null }).where(eq(consultations.id, thirdHireId));
+      await call('/admin/payouts/release-overdue', admin.cookie, 'POST', {});
+      assert.equal((await db.select().from(consultations).where(eq(consultations.id, thirdHireId)))[0].status, 'paid');
+      assert.equal((await call('/admin/disputes', reviewer.cookie)).status, 403);
+      const disputes = await (await call('/admin/disputes', admin.cookie)).json();
+      assert.ok(disputes.items.some((d: { id: string }) => d.id === thirdHireId));
+      assert.equal((await call(`/admin/disputes/${thirdHireId}/decision`, admin.cookie, 'POST', { decision: 'refund', note: '' })).status, 400);
+      assert.equal((await call(`/admin/disputes/${thirdHireId}/decision`, admin.cookie, 'POST', { decision: 'refund', note: 'เมนเทอร์ไม่มา คืนเงิน' })).status, 200);
+      assert.equal((await call(`/admin/disputes/${thirdHireId}/decision`, admin.cookie, 'POST', { decision: 'release', note: 'x' })).status, 409);
+      const [hire] = await db.select().from(consultations).where(eq(consultations.id, thirdHireId));
+      assert.equal(hire.status, 'cancelled');
+      const payments = await db.select().from(hirePayments).where(eq(hirePayments.hireId, thirdHireId));
+      assert.ok(payments.some((p) => p.status === 'refunded'));
+      assert.equal((await db.select().from(mentorPayouts).where(eq(mentorPayouts.hireId, thirdHireId))).length, 0);
+      // ห้องยังอ่านได้ แต่งานในห้องปิดหมดแล้ว ส่งข้อความใหม่ไม่ได้... ยกเว้นงานแรกที่เสร็จแล้ว ห้องจึงยังคุยได้
+      assert.equal((await sendMessage(roomId, student.cookie, { text: 'ขอบคุณครับ' })).status, 201);
+    });
+
+    await t.test('three quiet days after the session release the money automatically', async () => {
+      const quiet = await (await call(`/consult/mentors/${mentorId}/hire`, student.cookie, 'POST', { ...hireBody, hours: 1 })).json();
+      await call(`/consult/${quiet.hire.id}/accept`, mentorUser.cookie, 'POST', {});
+      const pay = await (await call(`/consult/${quiet.hire.id}/pay`, student.cookie, 'POST', {})).json();
+      await call(`/consult/payments/${pay.paymentId}/simulate`, student.cookie, 'POST', {});
+      // นัดเมื่อ 2 วันก่อน ยังไม่ครบ 3 วัน: ยังไม่ปล่อย
+      await db.update(consultations).set({ preferredAt: new Date(Date.now() - 2 * 86400000) }).where(eq(consultations.id, quiet.hire.id));
+      assert.equal((await call('/cron/release-payments', '')).status, 401);
+      assert.equal((await app.request('/api/cron/release-payments', { headers: { authorization: 'Bearer wrong' } })).status, 401);
+      await app.request('/api/cron/release-payments', { headers: { authorization: 'Bearer test-cron-secret' } });
+      assert.equal((await db.select().from(consultations).where(eq(consultations.id, quiet.hire.id)))[0].status, 'paid');
+      // นัดเมื่อ 4 วันก่อน: ปล่อย งานเสร็จ ยอดโอนเกิด และรีวิวได้
+      await db.update(consultations).set({ preferredAt: new Date(Date.now() - 4 * 86400000) }).where(eq(consultations.id, quiet.hire.id));
+      const run = await (await app.request('/api/cron/release-payments', { headers: { authorization: 'Bearer test-cron-secret' } })).json();
+      assert.ok(run.released >= 1);
+      assert.equal((await db.select().from(consultations).where(eq(consultations.id, quiet.hire.id)))[0].status, 'completed');
+      const [payout] = await db.select().from(mentorPayouts).where(eq(mentorPayouts.hireId, quiet.hire.id));
+      assert.deepEqual([payout.status, payout.amount], ['due', 600]);
+    });
+
+    await t.test('on Production without a real provider nobody can pay or fake a payment', async () => {
+      const before = process.env.VERCEL_ENV;
+      process.env.VERCEL_ENV = 'production';
+      try {
+        const fresh = await (await call(`/consult/mentors/${mentorId}/hire`, student.cookie, 'POST', { ...hireBody, hours: 1 })).json();
+        await call(`/consult/${fresh.hire.id}/accept`, mentorUser.cookie, 'POST', {});
+        assert.equal((await call(`/consult/${fresh.hire.id}/pay`, student.cookie, 'POST', {})).status, 409);
+        assert.equal((await call('/consult/payments/anything/simulate', student.cookie, 'POST', {})).status, 404);
+        await call(`/consult/${fresh.hire.id}/cancel`, student.cookie, 'POST', {});
+      } finally {
+        if (before === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = before;
+      }
     });
 
     await t.test('mentor zone: price per competition shows on the competition page', async () => {

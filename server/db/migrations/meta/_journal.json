@@ -50,6 +50,20 @@
       "when": 1790866089259,
       "tag": "0006_groovy_peter_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790937920978,
+      "tag": "0007_cynical_slyde",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790938275027,
+      "tag": "0008_sparkling_shiver_man",
+      "breakpoints": true
     }
   ]
 }

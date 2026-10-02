@@ -5,17 +5,19 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import { demoTotals, insertDemoData, presentDemo, removeDemoData } from '../db/demo-data.js';
-import { demoToolsEnabled } from '../lib/env.js';
+import { demoToolsEnabled, env } from '../lib/env.js';
 import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
-  competitionRequests, competitionSubmissions, competitions, levelEnum, mentorAwards, mentorCompetitionChoices,
-  mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
+  competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices,
+  mentorPayoutAccounts, mentorPayouts, mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
   submissionCategories, submissionLevels, submissionRewards, users,
 } from '../db/schema.js';
 import type { AppEnv } from '../lib/guards.js';
 import { requireReviewer } from '../lib/guards.js';
 import { newId, slugify } from '../lib/id.js';
 import { notify } from '../lib/email.js';
+import { open } from '../lib/secret-box.js';
+import { releaseOverdue, resolveDispute } from '../lib/hire-money.js';
 import { filesOf, publicFile } from '../lib/files.js';
 import { firstIssue } from './public.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
@@ -23,6 +25,14 @@ import type { Kind, Theme } from '../../src/data/focus.js';
 
 export const admin = new Hono<AppEnv>();
 admin.use('*', requireReviewer);
+// คำขอที่เปลี่ยนข้อมูลต้องมาจากเว็บนี้ (เหมือน /api/consult) โดยเฉพาะหน้าเงินที่ admin สั่งโอนหรือคืนเงิน (Astra รีวิว 2 ต.ค. 2569)
+admin.use('*', async (c, next) => {
+  const origin = c.req.header('origin');
+  if (!['GET', 'HEAD'].includes(c.req.method) && origin && origin !== env.appOrigin) {
+    throw new HTTPException(403, { message: 'คำขอต้องมาจากเว็บนี้' });
+  }
+  await next();
+});
 
 /** ต้องตรงกับรายการตรวจที่หน้าเว็บแสดง ฝั่งเซิร์ฟเวอร์เป็นฝ่ายบังคับตัวจริง */
 export const competitionChecks = [
@@ -721,5 +731,82 @@ admin.post('/reviews/:id/visibility', async (c) => {
     .set(parsed.data.hidden ? { hiddenAt: new Date(), hiddenBy: reviewer.id } : { hiddenAt: null, hiddenBy: null })
     .where(eq(mentorReviews.id, c.req.param('id'))).returning({ id: mentorReviews.id });
   if (!row) throw new HTTPException(404, { message: 'ไม่พบรีวิวนี้' });
+  return c.json({ ok: true });
+});
+
+/* ---------- เงินของการจ้าง ----------
+   ยอดที่ต้องโอนให้เมนเทอร์ และงานที่นักเรียนแจ้งปัญหา
+   เฉพาะ admin (ไม่ใช่ reviewer) เพราะเห็นเลขบัญชีเต็มของเมนเทอร์และสั่งคืนเงินได้ */
+
+function requireAdmin(c: Context<AppEnv>) {
+  if (c.get('user')!.role !== 'admin') throw new HTTPException(403, { message: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
+}
+
+admin.get('/payouts', async (c) => {
+  requireAdmin(c);
+  const rows = await db.select({ payout: mentorPayouts, mentorName: mentors.name, account: mentorPayoutAccounts, competitionName: competitions.name })
+    .from(mentorPayouts)
+    .innerJoin(mentors, eq(mentors.id, mentorPayouts.mentorId))
+    .innerJoin(consultations, eq(consultations.id, mentorPayouts.hireId))
+    .leftJoin(competitions, eq(competitions.id, consultations.competitionId))
+    .leftJoin(mentorPayoutAccounts, eq(mentorPayoutAccounts.mentorId, mentorPayouts.mentorId))
+    .orderBy(asc(mentorPayouts.status), asc(mentorPayouts.createdAt)).limit(300);
+  return c.json({
+    items: rows.map(({ payout, mentorName, account, competitionName }) => ({
+      ...payout, mentorName, competitionName,
+      // เลขบัญชีเต็มให้เฉพาะยอดที่ยังต้องโอน โอนแล้วเห็นแค่ 4 ตัวท้าย
+      account: account ? {
+        accountName: account.accountName, bankCode: account.bankCode, last4: account.accountLast4, status: account.status,
+        accountNumber: payout.status === 'due' ? open(account.accountNumberEncrypted) : null,
+      } : null,
+    })),
+  });
+});
+
+admin.post('/payouts/:id/mark-paid', async (c) => {
+  requireAdmin(c);
+  const parsed = z.object({ note: z.string().trim().min(1, 'บันทึกเลขอ้างอิงการโอน').max(500) }).safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const [row] = await db.update(mentorPayouts)
+    .set({ status: 'paid', method: 'manual', note: parsed.data.note, decidedBy: c.get('user')!.id, paidAt: new Date() })
+    .where(and(eq(mentorPayouts.id, c.req.param('id')), eq(mentorPayouts.status, 'due'))).returning();
+  if (!row) throw new HTTPException(409, { message: 'รายการนี้โอนไปแล้วหรือไม่ได้อยู่ในสถานะรอโอน' });
+  const [owner] = await db.select({ email: users.email }).from(mentorSubmissions)
+    .innerJoin(users, eq(users.id, mentorSubmissions.userId))
+    .where(and(eq(mentorSubmissions.publishedMentorId, row.mentorId), eq(mentorSubmissions.status, 'published'))).limit(1);
+  if (owner) {
+    await notify(owner.email, 'ChampionWays โอนค่าจ้างให้คุณแล้ว / Your payout was sent',
+      `โอน ${row.amount.toLocaleString('th-TH')} บาท แล้ว อ้างอิง ${parsed.data.note}\nWe sent ${row.amount} THB. Reference: ${parsed.data.note}`);
+  }
+  return c.json({ ok: true });
+});
+
+/** ปล่อยเงินงานที่เงียบเกินกำหนดทันที ใช้บน dev ที่ไม่มี cron และเผื่อ cron ล่ม */
+admin.post('/payouts/release-overdue', async (c) => {
+  requireAdmin(c);
+  return c.json({ released: await releaseOverdue() });
+});
+
+admin.get('/disputes', async (c) => {
+  requireAdmin(c);
+  const rows = await db.select({ hire: consultations, mentorName: mentors.name, student: users.name, studentEmail: users.email, competitionName: competitions.name })
+    .from(consultations)
+    .innerJoin(mentors, eq(mentors.id, consultations.mentorId))
+    .innerJoin(users, eq(users.id, consultations.userId))
+    .leftJoin(competitions, eq(competitions.id, consultations.competitionId))
+    .where(and(eq(consultations.status, 'paid'), sql`${consultations.disputedAt} is not null`))
+    .orderBy(asc(consultations.disputedAt));
+  return c.json({ items: rows.map(({ hire, ...rest }) => ({ ...rest, id: hire.id, price: hire.price, minutes: hire.minutes, paidAt: hire.paidAt, disputedAt: hire.disputedAt, disputeReason: hire.disputeReason, roomId: hire.roomId })) });
+});
+
+admin.post('/disputes/:id/decision', async (c) => {
+  requireAdmin(c);
+  const parsed = z.object({
+    decision: z.enum(['release', 'refund']),
+    note: z.string().trim().min(1, 'บอกเหตุผลของการตัดสิน').max(1000),
+  }).safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const outcome = await resolveDispute(c.req.param('id'), parsed.data.decision, parsed.data.note, c.get('user')!.id);
+  if (!outcome) throw new HTTPException(409, { message: 'งานนี้ไม่ได้อยู่ระหว่างแจ้งปัญหา หรือตัดสินไปแล้ว' });
   return c.json({ ok: true });
 });

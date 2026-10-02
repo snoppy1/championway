@@ -291,6 +291,17 @@ test('hire a mentor, chat, finish and review', async (t) => {
       assert.equal((await app.request('/api/cron/release-payments', { headers: { authorization: 'Bearer wrong' } })).status, 401);
       await app.request('/api/cron/release-payments', { headers: { authorization: 'Bearer test-cron-secret' } });
       assert.equal((await db.select().from(consultations).where(eq(consultations.id, quiet.hire.id)))[0].status, 'paid');
+      // รายการที่หน้าโอนเงินแสดงก่อนกดปล่อย ใช้กติกาเดียวกับการปล่อยจริง: ยังไม่ครบ 3 วันจึงยังไม่อยู่ในรายการ
+      assert.equal((await call('/admin/payouts', reviewer.cookie)).status, 403);
+      const early = await (await call('/admin/payouts', admin.cookie)).json();
+      assert.ok(!early.overdue.some((o: { hireId: string }) => o.hireId === quiet.hire.id));
+      await db.update(consultations).set({ preferredAt: new Date(Date.now() - 4 * 86400000) }).where(eq(consultations.id, quiet.hire.id));
+      const late = await (await call('/admin/payouts', admin.cookie)).json();
+      const listed = late.overdue.find((o: { hireId: string }) => o.hireId === quiet.hire.id);
+      assert.deepEqual([listed.amount, typeof listed.mentorName, Number.isNaN(Date.parse(listed.dueSince))], [600, 'string', false]);
+      // งานที่แจ้งปัญหาไว้ไม่อยู่ในรายการ เพราะจะไม่ถูกปล่อย
+      assert.ok(!late.overdue.some((o: { hireId: string }) => o.hireId === thirdHireId));
+      await db.update(consultations).set({ preferredAt: new Date(Date.now() - 2 * 86400000) }).where(eq(consultations.id, quiet.hire.id));
       // นัดเมื่อ 4 วันก่อน: ปล่อย งานเสร็จ ยอดโอนเกิด และรีวิวได้
       await db.update(consultations).set({ preferredAt: new Date(Date.now() - 4 * 86400000) }).where(eq(consultations.id, quiet.hire.id));
       const run = await (await app.request('/api/cron/release-payments', { headers: { authorization: 'Bearer test-cron-secret' } })).json();

@@ -17,7 +17,7 @@ import { requireReviewer } from '../lib/guards.js';
 import { newId, slugify } from '../lib/id.js';
 import { notify } from '../lib/email.js';
 import { open } from '../lib/secret-box.js';
-import { releaseOverdue, resolveDispute } from '../lib/hire-money.js';
+import { listOverdue, releaseOverdue, resolveDispute } from '../lib/hire-money.js';
 import { filesOf, publicFile } from '../lib/files.js';
 import { firstIssue } from './public.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
@@ -752,6 +752,8 @@ admin.get('/payouts', async (c) => {
     .leftJoin(mentorPayoutAccounts, eq(mentorPayoutAccounts.mentorId, mentorPayouts.mentorId))
     .orderBy(asc(mentorPayouts.status), asc(mentorPayouts.createdAt)).limit(300);
   return c.json({
+    // งานที่เงียบเกินกำหนดและกำลังจะถูกปล่อยเงิน (กติกาเดียวกับ release-overdue) ให้หน้าเว็บแสดงจำนวนและรายชื่อก่อนกดปล่อย
+    overdue: (await listOverdue()).map((row) => ({ ...row, dueSince: new Date(row.dueSince).toISOString() })),
     items: rows.map(({ payout, mentorName, account, competitionName }) => ({
       ...payout, mentorName, competitionName,
       // เลขบัญชีเต็มให้เฉพาะยอดที่ยังต้องโอน โอนแล้วเห็นแค่ 4 ตัวท้าย

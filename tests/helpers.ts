@@ -122,6 +122,9 @@ export async function removeAccount(account: TestAccount) {
 
 /** เข้าสู่ระบบผ่านหน้าเว็บจริง เพื่อให้เทสเดินเส้นทางเดียวกับผู้ใช้ */
 export async function signIn(page: Page, account: TestAccount, next = '/') {
+  /* ล้าง session เดิมก่อนเสมอ ถ้ายังล็อกอินบัญชีก่อนหน้าค้างอยู่ หน้าเข้าสู่ระบบจะพาไปหน้า next ทันที (ถูกต้องสำหรับผู้ใช้)
+     แต่เทสที่กำลังจะกดปุ่มเข้าสู่ระบบจะเจอหน้าเปลี่ยนกลางทางและล้มแบบสุ่ม ("element was detached") */
+  await page.context().clearCookies();
   await page.goto(`/signin?next=${encodeURIComponent(next)}`);
   await page.getByLabel('อีเมล').fill(account.email);
   await page.getByLabel('รหัสผ่าน').fill(account.password);

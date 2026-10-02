@@ -24,7 +24,7 @@ export type MemberHire = HireBase & { mentor: MentorCard; review: { stars: numbe
 /** ฝั่งเมนเทอร์: GET /consult/zone (ชื่อนักเรียนเป็นชื่อแรกเท่านั้น) */
 export type MentorHire = HireBase & {
   student: string;
-  payout: null | { status: 'due' | 'held' | 'paid' | 'cancelled'; amount: number; paidAt: string | null };
+  payout: null | { status: 'due' | 'held' | 'paid' | 'cancelled'; amount: number; paidAt: string | null; reference: string };
 };
 
 export type PayoutAccount = { accountName: string; bankCode: string; last4: string; status: 'pending' | 'verified' | 'failed' };

@@ -192,6 +192,69 @@ function ChatsPanel({ items }: { items: MentorHire[] }) {
   />;
 }
 
+/* ---------- เงินของเมนเทอร์ ---------- */
+
+const DAY = 86_400_000;
+/** วันที่คาดว่าระบบจะปล่อยเงินเอง: จบเซสชัน (เวลานัดหรือเวลาจ่าย + ชั่วโมงที่จ้าง) + 3 วัน ตรงกับกติกาของเซิร์ฟเวอร์ (RELEASE_DAYS ใน hire-money.ts) */
+const releaseDate = (hire: MentorHire) => new Date(new Date(hire.preferredAt ?? hire.paidAt ?? hire.createdAt).getTime() + hire.minutes * 60_000 + 3 * DAY).toISOString();
+
+type MoneyKind = 'held' | 'problem' | 'due' | 'paid';
+/** งานที่มีเงินเข้ามาแล้ว (จ่ายแล้ว) จัดเป็นสี่กลุ่ม: ถือไว้ แจ้งปัญหา รอโอน โอนแล้ว งานที่คืนเงินไม่นับ */
+function moneyKind(hire: MentorHire): MoneyKind | null {
+  if (hire.status === 'paid') return hire.disputedAt || hire.payout?.status === 'held' ? 'problem' : 'held';
+  if (hire.status === 'completed') {
+    if (hire.payout?.status === 'paid') return 'paid';
+    if (hire.payout?.status === 'cancelled') return null;
+    return 'due';
+  }
+  return null;
+}
+
+/** ตัวเลขสามช่องเรียงแถวเดียว (ถือไว้ / รอโอน / โอนแล้ว) แล้วรายการต่องาน: ชื่อนักเรียน เวที ยอด สถานะ และวันที่ */
+function MoneySection({ hires }: { hires: MentorHire[] }) {
+  const { t, lang } = useI18n();
+  const s = t.payout;
+  const rows = hires.map((hire) => ({ hire, kind: moneyKind(hire) })).filter((row): row is { hire: MentorHire; kind: MoneyKind } => row.kind !== null);
+  const sum = (kinds: MoneyKind[]) => rows.filter((row) => kinds.includes(row.kind)).reduce((total, row) => total + (row.hire.payout?.amount ?? row.hire.price), 0);
+  const figures = [
+    { id: 'held', label: s.figHeld, hint: s.figHeldHint, value: sum(['held', 'problem']) },
+    { id: 'due', label: s.figDue, hint: s.figDueHint, value: sum(['due']) },
+    { id: 'paid', label: s.figPaid, hint: s.figPaidHint, value: sum(['paid']) },
+  ];
+  const dateLine = (hire: MentorHire, kind: MoneyKind) => {
+    if (kind === 'held') return s.expected(formatDate(releaseDate(hire), lang));
+    if (kind === 'problem') return s.waitingTeam;
+    if (kind === 'due') return s.waitingTransfer;
+    return s.sentOn(hire.payout?.paidAt ? formatDate(hire.payout.paidAt, lang) : '', hire.payout?.reference ?? '');
+  };
+  return <section className="panel cx-section" aria-labelledby="money-title">
+    <h2 id="money-title">{s.moneyTitle}</h2>
+    <p className="cx-lead">{s.moneyLead}</p>
+    <dl className="cx-figures">
+      {figures.map((figure) => <div key={figure.id} className={`cx-figure cx-figure--${figure.id}`}>
+        <dt>{figure.label}</dt>
+        <dd>{t.price.total(figure.value)}</dd>
+        <dd className="cx-figure__hint">{figure.hint}</dd>
+      </div>)}
+    </dl>
+    {rows.length === 0
+      ? <p className="cx-empty">{s.listEmpty}</p>
+      : <ul className="cx-money-list" aria-label={s.listLabel}>
+        {rows.map(({ hire, kind }) => <li key={hire.id} className="cx-money-row">
+          <div className="cx-money-row__who">
+            <p className="cx-money-row__name">{hire.student}</p>
+            {hire.competition && <p className="cx-hint">{hire.competition.name}</p>}
+          </div>
+          <p className="cx-money-row__amount">{t.price.total(hire.payout?.amount ?? hire.price)}</p>
+          <div className="cx-money-row__state">
+            <span className={`cx-pill cx-pill--money-${kind}`}>{s.rowStatus[kind]}</span>
+            <p className="cx-hint">{dateLine(hire, kind)}</p>
+          </div>
+        </li>)}
+      </ul>}
+  </section>;
+}
+
 /* ---------- บัญชีรับเงิน ---------- */
 
 /* เมนเทอร์กรอกชื่อบัญชี ธนาคาร และเลขบัญชี เซิร์ฟเวอร์เข้ารหัสเลขบัญชีและไม่ส่งกลับมาอีก (เห็นแค่ 4 ตัวท้าย)
@@ -233,7 +296,7 @@ function PayoutPanel({ account, reload }: { account: PayoutAccount | null; reloa
     }
   }
 
-  return <section className="panel cx-section" aria-labelledby="payout-title">
+  return <section className="panel cx-section cx-section--small" aria-labelledby="payout-title">
     <h2 id="payout-title">{s.title}</h2>
     <p className="cx-lead">{s.lead}</p>
     {account && <div className="cx-account">
@@ -241,6 +304,8 @@ function PayoutPanel({ account, reload }: { account: PayoutAccount | null; reloa
       <p className="cx-account__name">{account.accountName}</p>
       <p>{s.masked(s.banks[account.bankCode] ?? account.bankCode, account.last4)}</p>
       <p className={account.status === 'failed' ? 'cx-pill cx-pill--cancelled' : account.status === 'verified' ? 'cx-pill cx-pill--confirmed' : 'cx-pill cx-pill--requested'}>{s.status[account.status]}</p>
+      {/* คำอธิบายสถานะอยู่ใต้ป้ายในการ์ด (เดิมเป็นข้อความแยกว่า "บันทึกแล้ว เราจะตรวจ…") */}
+      {(s.statusHelp[account.status] ?? '') !== '' && <p className="cx-hint">{s.statusHelp[account.status]}</p>}
     </div>}
     <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
     {account && !editing && <button type="button" className="ghost-button cx-button" onClick={() => { setEditing(true); setMessage(''); }}>{s.change}</button>}
@@ -660,7 +725,10 @@ export function MentorZone() {
         <ChatsPanel items={rest} />
       </div>
       <div role="tabpanel" id={panelId('zone', 'payouts')} aria-labelledby={tabId('zone', 'payouts')} hidden={current !== 'payouts'} className="cx-zone-panel">
-        <PayoutPanel account={data.payoutAccount} reload={reload} />
+        <div className="cx-stack">
+          <MoneySection hires={data.hires} />
+          <PayoutPanel account={data.payoutAccount} reload={reload} />
+        </div>
       </div>
       <div role="tabpanel" id={panelId('zone', 'competitions')} aria-labelledby={tabId('zone', 'competitions')} hidden={current !== 'competitions'} className="cx-zone-panel">
         <div className="cx-stack">

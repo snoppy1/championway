@@ -91,13 +91,25 @@ export async function dispute(hireId: string, userId: string, reason: string) {
   return row ?? null;
 }
 
-/** ปล่อยเงินงานที่เงียบเกินกำหนด: เวลานัด (หรือเวลาจ่ายถ้าไม่ได้นัด) + ชั่วโมงที่จ้าง + RELEASE_DAYS วัน
-    ข้ามงานที่แจ้งปัญหาไว้ เรียกจาก cron วันละครั้ง */
+/** เงื่อนไขของงานที่เงียบเกินกำหนด: เวลานัด (หรือเวลาจ่ายถ้าไม่ได้นัด) + ชั่วโมงที่จ้าง + RELEASE_DAYS วัน ข้ามงานที่แจ้งปัญหาไว้
+    ใช้ทั้งตอนปล่อยเงินและตอนแสดงรายการที่จะถูกปล่อย (หน้าโอนเงินของทีมงาน) กติกาจึงตรงกันเสมอ */
+const dueSince = sql<Date>`coalesce(${consultations.preferredAt}, ${consultations.paidAt}) + make_interval(mins => ${consultations.minutes}) + make_interval(days => ${RELEASE_DAYS})`;
+const overdueWhere = (now: Date) => and(
+  eq(consultations.status, 'paid'), isNull(consultations.disputedAt),
+  sql`${dueSince} < ${now.toISOString()}::timestamptz`,
+);
+
+/** งานที่เกินกำหนดและกำลังจะถูกปล่อยเงิน (อ่านอย่างเดียว) */
+export async function listOverdue(now = new Date()) {
+  return db.select({
+    hireId: consultations.id, mentorName: mentors.name, amount: consultations.price, dueSince,
+  }).from(consultations).innerJoin(mentors, eq(mentors.id, consultations.mentorId))
+    .where(overdueWhere(now)).orderBy(dueSince);
+}
+
+/** ปล่อยเงินงานที่เงียบเกินกำหนด เรียกจาก cron วันละครั้ง */
 export async function releaseOverdue(now = new Date()) {
-  const due = await db.select({ id: consultations.id }).from(consultations).where(and(
-    eq(consultations.status, 'paid'), isNull(consultations.disputedAt),
-    sql`coalesce(${consultations.preferredAt}, ${consultations.paidAt}) + make_interval(mins => ${consultations.minutes}) + make_interval(days => ${RELEASE_DAYS}) < ${now.toISOString()}::timestamptz`,
-  ));
+  const due = await db.select({ id: consultations.id }).from(consultations).where(overdueWhere(now));
   let released = 0;
   for (const { id } of due) {
     const done = await db.transaction(async (tx) => {

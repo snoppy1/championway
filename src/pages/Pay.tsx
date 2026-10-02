@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { CircleAlert, CircleCheck, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CircleCheck, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { ApiError, api, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
+import type { MemberHire } from '../data/consult';
 import { useI18n } from '../i18n';
 import '../consult.css';
 
@@ -35,6 +36,9 @@ export function PaySimulated() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [failed, setFailed] = useState(false);
+  // บรรทัดสรุปว่าจ่ายให้ใคร: ชื่อเมนเทอร์ ระยะเวลา เวที มาจาก /consult/mine ตาม id งาน (รายการจ่ายเงินไม่มีข้อมูลเหล่านี้)
+  const mine = useApi<{ items: MemberHire[] }>(data ? '/consult/mine' : null);
+  const hireInfo = mine.data?.items.find((item) => item.id === data?.hire.id);
 
   if (authLoading) return <main id="main" tabIndex={-1} className="shell page"><p className="side-note" role="status">{s.loading}</p></main>;
   if (!user) return <Navigate to={`/signin?next=${encodeURIComponent(next)}`} replace />;
@@ -65,7 +69,7 @@ export function PaySimulated() {
   return <main id="main" tabIndex={-1} className="shell page cx-page">
     <div className="cx-pay panel">
       <h1>{s.pageTitle}</h1>
-      <p className="cx-test-banner">{s.testBanner}</p>
+      <p className="cx-test-banner"><span className="cx-tag">{s.testTag}</span>{s.testBanner}</p>
       <p className="cx-hint">{s.testOnly}</p>
       {loading && !data && <p className="side-note" role="status">{s.loading}</p>}
       {error && !data && <div className="cx-state cx-state--error" role="alert">
@@ -75,16 +79,21 @@ export function PaySimulated() {
       </div>}
       {data && <>
         <div>
+          {hireInfo && <p className="cx-pay__for">{[hireInfo.mentor.name, t.consult.duration(hireInfo.minutes), hireInfo.competition?.name].filter(Boolean).join(' · ')}</p>}
           <p className="cx-hint">{s.amountLabel}</p>
           <p className="cx-pay__amount">{t.price.total(data.amount)}</p>
         </div>
-        {data.status === 'pending' && <button type="button" className="primary-button cx-button" disabled={busy} onClick={() => { void simulate(); }}>
-          {busy ? s.paying : s.payTest}</button>}
+        {data.status === 'pending' && <div className="cx-paybox">
+          <button type="button" className="primary-button cx-button" disabled={busy} onClick={() => { void simulate(); }}>
+            {busy ? s.paying : s.payTest}</button>
+          <p className="cx-hint cx-paybox__promise">{s.heldNote}</p>
+        </div>}
         {data.status === 'paid' && <p className="cx-note">{s.alreadyPaid}</p>}
         {data.status === 'refunded' && <p className="cx-note">{s.refunded}</p>}
         {data.status === 'failed' && <p className="cx-note">{s.failed}</p>}
         <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
-        <p><Link className="ghost-button cx-button" to={data.hire.roomId ? `/consulting#room-${data.hire.roomId}` : `/consulting#hire-${data.hire.id}`}>{s.toConsulting}</Link></p>
+        <Link className="link-button cx-link cx-link--back" to={data.hire.roomId ? `/consulting#room-${data.hire.roomId}` : `/consulting#hire-${data.hire.id}`}>
+          <ArrowLeft size={16} aria-hidden="true" />{s.toConsulting}</Link>
       </>}
     </div>
   </main>;
@@ -139,7 +148,7 @@ export function PayReturn() {
         <CircleCheck className="cx-verify__icon cx-verify__icon--ok" aria-hidden="true" />
         <p>{s.returnPaid}</p>
       </>}
-      <div className="cx-row cx-row--center"><Link className="ghost-button cx-button" to="/consulting">{s.toConsulting}</Link></div>
+      <div className="cx-row cx-row--center"><Link className="link-button cx-link cx-link--back" to="/consulting"><ArrowLeft size={16} aria-hidden="true" />{s.toConsulting}</Link></div>
     </div>
   </main>;
 }

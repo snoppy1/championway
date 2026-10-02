@@ -29,6 +29,15 @@ export function AdminLayout() {
   }, [pathname]);
 
   useEffect(() => { document.title = 'หน้าจัดการ — ChampionWays'; }, []);
+  // จอแคบเมนูเลื่อนแนวนอน พาหน้าที่เปิดอยู่มาอยู่ในแถบที่มองเห็น ไม่ให้ป้ายสีม่วงหลบอยู่นอกจอ
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const nav = document.querySelector<HTMLElement>('.admin-nav');
+      const active = nav?.querySelector<HTMLElement>('a.active');
+      if (nav && active && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pathname, allowed]);
 
   return <div className="admin">
     <a className="skip-link" href="#main">ข้ามไปเนื้อหาหลัก</a>
@@ -59,13 +68,14 @@ export function AdminLayout() {
       </div>
     </header>
 
-    <p className="admin-warning" role="note">
+    {/* หน้าโอนเงินไม่ใช่การตัดสินเผยแพร่ ข้อความเตือนเรื่องผู้สมัครไม่เกี่ยวจึงไม่แสดงที่นี่ */}
+    {pathname !== '/admin/payouts' && <p className="admin-warning" role="note">
       <TriangleAlert size={16} aria-hidden="true" />
       <span>
         การตัดสินถูกบันทึกลงฐานข้อมูลจริง ตรวจสอบข้อมูลและหลักฐานให้ครบก่อนเผยแพร่
         และตรวจสถานะการส่งอีเมลก่อนแจ้งผู้สมัครว่าได้รับผลแล้ว
       </span>
-    </p>
+    </p>}
 
     <main id="main" tabIndex={-1} className="admin-shell admin-main">
       {loading ? <p className="admin-muted">กำลังตรวจสิทธิ์…</p>

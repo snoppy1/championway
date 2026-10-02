@@ -291,10 +291,68 @@
 .admin .admin-muted a, .admin .request-details a { text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---------- โอนเงินเมนเทอร์และเรื่องแจ้งปัญหา ---------- */
-.queue-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
-.queue-actions .ghost-button { min-height: 44px; }
-.payout-account { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--text-base); overflow-wrap: anywhere; }
-.payout-account svg { flex: none; margin-top: 2px; color: var(--purple-deep); }
-.payout-number { font-family: var(--body); font-size: var(--text-md); letter-spacing: 0.04em; }
 .request-decision .review-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .request-decision .review-gate { display: grid; gap: var(--space-2); }
+
+/* ตัวนับรายการ ปุ่มปล่อยเงิน และผลลัพธ์อยู่แถวเดียวกัน (ไม่อยู่เหนือแท็บกรอง) */
+.queue-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); margin: var(--space-4) 0 var(--space-3); }
+.queue-meta .queue-count { margin: 0; }
+.queue-meta .ghost-button { min-height: 44px; }
+.queue-meta .queue-notice { margin: 0; }
+.queue-meta .queue-notice:empty { display: none; }
+.admin .queue-meta .ghost-button:disabled { cursor: not-allowed; opacity: 1; color: var(--muted); border-color: var(--line); background: var(--paper); }
+
+/* การ์ดโอนเงิน: ชื่อเมนเทอร์นำ ยอดเงินเป็นตัวเลขใหญ่ของการ์ด บัญชีเป็นบรรทัดมีป้ายกำกับ */
+.payout-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); align-items: start; gap: var(--space-5) var(--space-8); }
+.payout-card .queue-main { min-width: 0; }
+.payout-card .queue-main h2 { font-size: var(--text-xl); }
+.payout-side { display: grid; gap: var(--space-4); justify-items: end; }
+.payout-amount { margin: 0; font: 700 var(--text-3xl)/1.1 var(--display); color: var(--ink-deep); text-align: right; }
+.payout-amount small { margin-left: var(--space-2); font-size: var(--text-lg); font-weight: 600; color: var(--ink); }
+.payout-account { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; }
+.payout-account > div { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); align-items: center; gap: var(--space-3); }
+.payout-account dt { font-size: var(--text-sm); color: var(--ink); }
+.payout-account dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); font-size: var(--text-md); overflow-wrap: anywhere; }
+.payout-account dd svg { flex: none; color: var(--purple-deep); }
+.payout-number { font-family: var(--body); font-size: var(--text-xl); font-weight: 700; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+.payout-copy { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; padding-inline: var(--space-4); }
+.payout-mark { width: 100%; }
+.request-decision.payout-mark .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); width: 100%; max-width: 280px; justify-self: end; }
+@media (max-width: 760px) {
+  .payout-card { grid-template-columns: minmax(0, 1fr); }
+  .payout-side { justify-items: stretch; }
+  .payout-amount { text-align: left; }
+  .request-decision.payout-mark .primary-button { max-width: none; justify-self: stretch; }
+}
+
+/* กล่องยืนยันปล่อยเงิน */
+.admin-dialog { width: min(32rem, calc(100vw - var(--space-8))); max-height: calc(100vh - var(--space-8)); padding: var(--space-6); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); color: var(--ink); box-shadow: var(--shadow-lift); overflow: auto; }
+.admin-dialog::backdrop { background: rgb(33 23 45 / 55%); }
+.admin-dialog h2 { margin: 0 0 var(--space-2); font-size: var(--text-xl); }
+.admin-dialog__list { display: grid; gap: var(--space-2); margin: var(--space-4) 0; padding: 0; list-style: none; }
+.admin-dialog__list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.admin-dialog__list li > :nth-child(2) { grid-column: 1; font-size: var(--text-sm); }
+.admin-dialog__list li > b { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.admin-dialog .review-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.admin-dialog button { min-height: 44px; }
+
+/* แถบเมนู: จอแคบ (และจอที่ยังใส่ไม่พอ) โลโก้กับลิงก์ออกอยู่แถวบน เมนูเป็นแถวปุ่มเลื่อนแนวนอนใต้โลโก้ ขอบขวาจางบอกว่าเลื่อนต่อได้
+   ชื่อเมนูไม่ตัดกลางคำ จอกว้างพอเรียงแถวเดียวและบีบระยะห่างลง */
+.admin-nav a { white-space: nowrap; flex: none; }
+@media (max-width: 1279px) {
+  .admin-header-inner { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-4); }
+  .admin-nav { grid-column: 1 / -1; grid-row: 2; flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--space-1); scrollbar-width: thin;
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - var(--space-8)), transparent); mask-image: linear-gradient(to right, black calc(100% - var(--space-8)), transparent); }
+  .admin-nav { padding-right: var(--space-8); }
+  .admin-exit { justify-self: end; }
+}
+@media (min-width: 1280px) {
+  .admin-header-inner { flex-wrap: nowrap; gap: var(--space-4); }
+  .admin-nav { flex-wrap: nowrap; gap: var(--space-1); }
+  .admin-nav a { padding-inline: var(--space-3); }
+  .admin-exit { white-space: nowrap; }
+}
+
+.admin-header .brand-name { white-space: nowrap; }
+.admin .admin-muted, .admin .request-decision small { text-wrap: pretty; }
+.payout-card[hidden] { display: none; }

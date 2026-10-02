@@ -471,4 +471,79 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-report textarea:focus-visible { border-color: var(--purple); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .cx-pay { display: grid; gap: var(--space-4); max-width: 34em; margin: var(--space-8) auto; text-align: left; }
 .cx-pay__amount { font: 700 var(--text-display)/1.1 var(--display); color: var(--ink-deep); }
-.cx-test-banner { margin: 0; padding: var(--space-3) var(--space-4); border: 2px dashed var(--gold-ink); border-radius: var(--radius-sm); background: var(--gold-tint); color: var(--gold-ink); font-weight: 700; }
+/* กล่องแจ้งว่าเป็นการทดสอบใช้โทนทองบางเดียวกับแถบสถานะในหน้า Consulting ไม่ใช้เส้นประหนา */
+.cx-test-banner { display: flex; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--gold-line); border-radius: var(--radius-sm); background: var(--gold-tint); color: var(--gold-ink); font-size: var(--text-md); line-height: var(--leading-body); }
+.cx-tag { flex: none; padding: 1px var(--space-2); border: 1px solid var(--gold-line); border-radius: var(--radius-pill); background: var(--card); color: var(--gold-ink); font-size: var(--text-xs); font-weight: 700; line-height: 1.8; }
+.cx-pay__for { margin: 0 0 var(--space-2); font: 600 var(--text-lg)/1.5 var(--display); color: var(--ink-deep); overflow-wrap: anywhere; }
+.cx-paybox { display: grid; gap: var(--space-2); justify-items: start; }
+.cx-paybox__promise { margin: 0; max-width: 36em; }
+.cx-link--back { justify-self: start; color: var(--purple-deep); }
+.cx-link--back svg { margin-right: var(--space-1); }
+@media (max-width: 480px) { .cx-pay__amount { font-size: var(--text-3xl); } }
+
+
+/* ---------- รอบปรับหลังตรวจดีไซน์ครั้งที่สาม ---------- */
+
+/* แถวปุ่มที่มีปุ่มยกเลิก: ยกเลิกอยู่ปลายแถวทางขวา จอแคบลงบรรทัดใหม่ห่างออก 24px */
+.cx-row--split { justify-content: space-between; }
+.cx-row--split > .cx-link--quiet { margin-left: auto; }
+.cx-row--split > .cx-confirm { flex: 1 1 100%; }
+@media (max-width: 700px) {
+  .cx-row--split { flex-direction: column; align-items: flex-start; }
+  .cx-row--split > .cx-link--quiet { margin: var(--space-6) 0 0; }
+}
+
+/* ป้ายหัวข้อในสรุปงานเข้มพอให้ผ่าน 4.5:1 ลำดับความสำคัญใช้ขนาดกับน้ำหนักตัวอักษรแทนสีจาง */
+.cx-summary dt { color: var(--ink); }
+
+/* ประโยคไทยไม่มีช่องว่างให้เบราว์เซอร์ตัดคำเอง pretty/balance กันคำสั้น ๆ ท้ายประโยคตกบรรทัดเดียว (เช่น "เริ่มงาน" "4 ตัวท้าย") */
+.cx-banner, .cx-hint, .cx-note, .cx-money, .cx-lead, .cx-test-banner, .cx-pay__for, .cx-empty, .cx-message { text-wrap: pretty; }
+.cx-banner, .cx-test-banner { text-wrap: balance; }
+
+/* จอแคบ: ขั้นตอนเป็นบรรทัดเดียวกับแถบความคืบหน้า รายการเต็มซ่อนแบบที่โปรแกรมอ่านหน้าจอยังอ่านได้ */
+.cx-stepper-compact { display: none; margin-top: var(--space-3); }
+.cx-stepper-compact p { margin: 0 0 var(--space-2); font-weight: 700; font-size: var(--text-base); }
+.cx-stepper-compact__bar { height: var(--space-1); border-radius: var(--radius-pill); background: var(--line-purple); overflow: hidden; }
+.cx-stepper-compact__bar span { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--purple); }
+@media (max-width: 700px) {
+  .cx-stepper-compact { display: block; }
+  .cx-stepper { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+
+/* Mentor zone: แท็บล้นแล้วขอบขวาจางให้รู้ว่าเลื่อนต่อได้ */
+.cx-tabs-wrap { position: relative; }
+.cx-tabs-wrap.has-more::after { content: ''; position: absolute; top: 0; right: 0; bottom: var(--space-1); width: var(--space-8); pointer-events: none; background: linear-gradient(to right, transparent, var(--paper)); }
+
+/* Payouts: ตัวเลขเงินสามช่องแถวเดียว แล้วรายการต่องาน */
+.cx-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-4) 0 0; }
+.cx-figure { display: grid; align-content: start; gap: var(--space-1); padding: var(--space-4); border: 1px solid var(--line-purple); border-radius: var(--radius-card); background: var(--purple-tint); }
+.cx-figure--due { border-color: var(--gold-line); background: var(--gold-tint); }
+.cx-figure--paid { border-color: var(--success-line); background: var(--success-tint); }
+.cx-figure dt { font-size: var(--text-sm); font-weight: 700; color: var(--ink-deep); }
+.cx-figure dd { margin: 0; }
+.cx-figure dd:first-of-type { font: 700 var(--text-xl)/1.2 var(--display); color: var(--ink-deep); white-space: nowrap; }
+.cx-figure__hint { font-size: var(--text-xs); line-height: 1.5; color: var(--ink); }
+@media (max-width: 700px) {
+  .cx-figures { gap: var(--space-2); }
+  .cx-figure { padding: var(--space-3); }
+  .cx-figure dd:first-of-type { font-size: var(--text-md); }
+  .cx-figure__hint { display: none; }
+}
+.cx-money-list { display: grid; margin: var(--space-4) 0 0; padding: 0; list-style: none; }
+.cx-money-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 14em); align-items: center; gap: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line); }
+.cx-money-row p { margin: 0; }
+.cx-money-row__name { font-weight: 700; color: var(--ink-deep); }
+.cx-money-row__amount { font: 700 var(--text-lg)/1.3 var(--display); color: var(--ink-deep); white-space: nowrap; }
+.cx-money-row__state { display: grid; gap: var(--space-1); justify-items: start; }
+.cx-pill--money-held { border-color: var(--line-purple); background: var(--purple-tint); color: var(--purple-deep); }
+.cx-pill--money-due { border-color: var(--gold-line); background: var(--gold-tint); color: var(--gold-ink); }
+.cx-pill--money-paid { border-color: var(--success-line); background: var(--success-tint); color: var(--success); }
+.cx-pill--money-problem { border-color: var(--danger-line); background: var(--danger-tint); color: var(--danger); }
+@media (max-width: 700px) {
+  .cx-money-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .cx-money-row__state { grid-column: 1 / -1; grid-auto-flow: column; justify-content: space-between; align-items: center; justify-items: start; gap: var(--space-3); }
+}
+/* บัญชีรับเงินเป็นการ์ดเล็กใต้ส่วนเงิน */
+.cx-section--small { padding: var(--space-5); }
+.cx-section--small h2 { font-size: var(--text-lg); }
+.cx-row--split > .cx-link--text { padding-left: 0; }

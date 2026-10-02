@@ -318,7 +318,7 @@ test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai
     await expect(page.getByText('The chat opens as soon as you pay.')).toBeVisible();
     await expectNoThai(page);
     await page.getByRole('button', { name: /^Pay 1,000/ }).click();
-    await expect(page.getByText('Test payment — no real money is charged.')).toBeVisible();
+    await expect(page.getByText('No real money is charged on this page.')).toBeVisible();
     await expectNoThai(page);
     await page.getByRole('button', { name: 'Pay (test)' }).click();
     await expect(page).toHaveURL(/\/consulting#room-/);

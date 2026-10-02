@@ -237,7 +237,7 @@ consult.get('/zone', requireUser, async (c) => {
   ]);
   const unread = await unreadByRoom(user.id);
   const [account] = await db.select().from(mentorPayoutAccounts).where(eq(mentorPayoutAccounts.mentorId, mentor.id));
-  const payouts = await db.select({ hireId: mentorPayouts.hireId, status: mentorPayouts.status, amount: mentorPayouts.amount, paidAt: mentorPayouts.paidAt })
+  const payouts = await db.select({ hireId: mentorPayouts.hireId, status: mentorPayouts.status, amount: mentorPayouts.amount, paidAt: mentorPayouts.paidAt, note: mentorPayouts.note })
     .from(mentorPayouts).where(eq(mentorPayouts.mentorId, mentor.id));
   const payoutOf = new Map(payouts.map((p) => [p.hireId, p]));
   return c.json({
@@ -252,7 +252,7 @@ consult.get('/zone', requireUser, async (c) => {
       minutes: hire.minutes, price: hire.price, preferredAt: hire.preferredAt, note: hire.note, reason: hire.reason,
       roomId: hire.roomId, unread: hire.roomId ? unread.get(hire.roomId) ?? 0 : 0,
       paidAt: hire.paidAt, disputedAt: hire.disputedAt,
-      payout: payoutOf.has(hire.id) ? { status: payoutOf.get(hire.id)!.status, amount: payoutOf.get(hire.id)!.amount, paidAt: payoutOf.get(hire.id)!.paidAt } : null,
+      payout: payoutOf.has(hire.id) ? { status: payoutOf.get(hire.id)!.status, amount: payoutOf.get(hire.id)!.amount, paidAt: payoutOf.get(hire.id)!.paidAt, reference: payoutOf.get(hire.id)!.status === 'paid' ? payoutOf.get(hire.id)!.note : '' } : null,
       student: student.split(/\s+/)[0],
       competition: competitionSlug ? { slug: competitionSlug, name: competitionName } : null,
     })),

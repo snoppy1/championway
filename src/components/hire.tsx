@@ -24,6 +24,20 @@ export function StatusPill({ status, reviewed = false, disputed = false }: { sta
 export function HireSteps({ status }: { status: HireStatus | null }) {
   const { t } = useI18n();
   const current = hireStep(status);
+  const steps = t.consult.steps;
+  return <>
+    {/* จอแคบไม่มีที่พอให้ทั้ง 6 ขั้นเรียงกัน แสดงเป็น "ขั้นที่ 3 จาก 6 · ชำระเงิน" กับแถบความคืบหน้าบาง ๆ แทน
+        รายการเต็มยังอยู่ใน DOM ให้โปรแกรมอ่านหน้าจอและจอกว้างใช้ */}
+    <div className="cx-stepper-compact" aria-hidden="true">
+      <p>{t.consult.stepOf(current + 1, steps.length, steps[current])}</p>
+      <div className="cx-stepper-compact__bar"><span style={{ width: `${((current + 1) / steps.length) * 100}%` }} /></div>
+    </div>
+    <StepList current={current} />
+  </>;
+}
+
+function StepList({ current }: { current: number }) {
+  const { t } = useI18n();
   return <ol className="cx-stepper" aria-label={t.consult.stepsLabel}>
     {t.consult.steps.map((step, index) => <li key={step} aria-current={index === current ? 'step' : undefined}
       className={index < current ? 'is-done' : index === current ? 'is-current' : undefined}>

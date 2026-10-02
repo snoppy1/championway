@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { eq } from 'drizzle-orm';
 import { db } from '../server/db/client';
-import { consultations, mentorCompetitionChoices, users } from '../server/db/schema';
+import { consultations, mentorCompetitionChoices, mentorPayouts, users } from '../server/db/schema';
 import { competitions as demoCompetitions } from '../src/data/competitions';
 import {
   addFileMessage, addMessage, createAccount, createHire, createMentorFixture, createVerifyToken, removeAccount, signIn, verifyEmail,
@@ -124,7 +124,7 @@ test('a member hires a mentor, the mentor accepts, they chat with a file, the me
     await detail.getByRole('button', { name: 'ชำระ 1,500 บาท' }).click();
     // หน้าจ่ายเงินจำลอง: บอกชัดว่าไม่ใช่เงินจริง แสดงยอดจากเซิร์ฟเวอร์
     await expect(page).toHaveURL(/\/pay\/simulated\?payment=/);
-    await expect(page.getByText('ชำระเงินทดสอบ — ไม่มีการเก็บเงินจริง')).toBeVisible();
+    await expect(page.getByText('หน้านี้ไม่มีการเก็บเงินจริง')).toBeVisible();
     await expect(page.locator('.cx-pay__amount')).toHaveText('1,500 บาท');
     await page.getByRole('button', { name: 'ชำระเงิน (ทดสอบ)' }).click();
     await expect(page).toHaveURL(/\/consulting#room-/);
@@ -712,6 +712,17 @@ test('the new pages pass axe, fit the viewport, and are captured with realistic 
     await audit(zone, 'mentor zone, hires and chats');
     await capture(zone, 'mentor-zone-chats');
 
+    // เงินของเมนเทอร์: งานที่รอโอนกับงานที่โอนแล้ว (มีเลขอ้างอิง) เพิ่มจากงานที่นักเรียนจ่ายไปแล้วข้างบน
+    const third = await createAccount('member', { verified: true, name: 'กมลชนก ใจดี' });
+    const fourth = await createAccount('member', { verified: true, name: 'ธีรภัทร สุขสันต์' });
+    students.push(third, fourth);
+    const dueHire = await createHire(thai, third, 'completed', { hours: 2, note: 'ซ้อมพิตช์รอบรองชนะเลิศ' });
+    const sentHire = await createHire(thai, fourth, 'completed', { hours: 1, note: 'ตรวจประมาณการรายได้' });
+    await db.insert(mentorPayouts).values([
+      { id: `pout-${dueHire.id}`, hireId: dueHire.id, mentorId: thai.mentorId, amount: 1000, status: 'due' },
+      { id: `pout-${sentHire.id}`, hireId: sentHire.id, mentorId: thai.mentorId, amount: 500, status: 'paid', paidAt: new Date(Date.now() - 2 * 86_400_000), note: 'KBANK-20261001-014' },
+    ]);
+    await zone.reload();
     // บัญชีรับเงิน: กรอกแล้วบันทึก เห็นเลขแค่ 4 ตัวท้าย
     await zone.getByRole('tab', { name: 'การรับเงิน' }).click();
     await zone.getByLabel('ชื่อบัญชี').fill('ธนพล ศรีสุข');

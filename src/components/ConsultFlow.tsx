@@ -180,14 +180,16 @@ export function MemberHireActions({ hire, onChange, extra, paymentsOpen }: {
   const { status } = hire;
   const done = async () => { await onChange(); rootRef.current?.focus({ preventScroll: true }); };
   return <div className="cx-actions" ref={rootRef} tabIndex={-1}>
-    {status === 'requested' && <div className="cx-row">{extra}{cancel}</div>}
+    {/* ยกเลิกอยู่ปลายแถวทางขวา (จอแคบ: ลงบรรทัดใหม่ห่างออกไป) แยกจากปุ่มหลักและลิงก์ดูโปรไฟล์ กันกดผิด */}
+    {status === 'requested' && <div className="cx-row cx-row--split">{extra}{cancel}</div>}
     {status === 'accepted' && <>
       {!paymentsOpen && <p className="cx-note">{s.paymentsClosed}</p>}
-      <div className="cx-row">
-        {paymentsOpen && <button type="button" className="primary-button cx-button" disabled={busy !== null} onClick={() => { void pay(); }}>
-          {busy === 'pay' ? s.paying : s.pay(t.price.total(hire.price))}</button>}
-        {extra}{cancel}
-      </div>
+      {paymentsOpen && <div className="cx-paybox">
+        <button type="button" className="primary-button cx-button" disabled={busy !== null} onClick={() => { void pay(); }}>
+          {busy === 'pay' ? s.paying : s.pay(t.price.total(hire.price))}</button>
+        <p className="cx-hint cx-paybox__promise">{s.holdPromise}</p>
+      </div>}
+      <div className="cx-row cx-row--split">{extra}{cancel}</div>
     </>}
     {status === 'paid' && (hire.disputedAt
       ? (extra && <div className="cx-row">{extra}</div>)

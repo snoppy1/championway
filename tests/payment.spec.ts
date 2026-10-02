@@ -13,6 +13,7 @@ import type { MentorFixture, TestAccount } from './helpers';
    ทุกเทสสร้างเมนเทอร์และบัญชีของตัวเอง รันขนานกันได้ */
 
 let fixture: MentorFixture;
+const extraCleanups: Array<() => Promise<void>> = [];
 const accounts: TestAccount[] = [];
 async function account(role: 'member' | 'reviewer' | 'admin' = 'member', name?: string) {
   const created = await createAccount(role, { verified: true, name });
@@ -24,6 +25,7 @@ test.afterEach(async ({ page }) => {
   await page.close();
   for (const item of accounts.splice(0)) await removeAccount(item);
   await fixture.cleanup();
+  for (const cleanup of extraCleanups.splice(0)) await cleanup();
 });
 
 const paymentOf = async (page: Page, hireId: string) => {
@@ -41,7 +43,7 @@ test('a late second payment from another tab is refunded and says so', async ({ 
 
   // แท็บแรกจ่ายก่อน งานเป็น paid ห้องแชตเปิด
   await page.goto(first.url);
-  await expect(page.getByText('ชำระเงินทดสอบ — ไม่มีการเก็บเงินจริง')).toBeVisible();
+  await expect(page.getByText('หน้านี้ไม่มีการเก็บเงินจริง')).toBeVisible();
   await expect(page.locator('.cx-pay__amount')).toHaveText('500 บาท');
   await page.getByRole('button', { name: 'ชำระเงิน (ทดสอบ)' }).click();
   await expect(page).toHaveURL(/\/consulting#room-/);
@@ -206,6 +208,28 @@ test('the Mentor zone shows where the money is for each hire', async ({ page }) 
   await expectLine('Problem', /นักเรียนแจ้งปัญหา เงินถูกพักไว้/);
   await expectLine('Due', /ถึงกำหนดจ่าย: เราจะโอน 1,000\s*บาท/);
   await expectLine('Sent', /โอนแล้ว: 1,000\s*บาท เมื่อ/);
+
+  // แท็บการรับเงิน: เงินสามกลุ่มแถวเดียว (ถือไว้ รวมงานที่แจ้งปัญหา / รอโอน / โอนแล้ว) แล้วรายการต่องาน
+  await page.getByRole('tab', { name: 'การรับเงิน' }).click();
+  const figures = page.locator('.cx-figures');
+  await expect(figures.locator('.cx-figure--held dd').first()).toHaveText(/^2,000\s*บาท$/);
+  await expect(figures.locator('.cx-figure--due dd').first()).toHaveText(/^1,000\s*บาท$/);
+  await expect(figures.locator('.cx-figure--paid dd').first()).toHaveText(/^1,000\s*บาท$/);
+  // สามช่องอยู่แถวเดียวกัน (แถวบนสุดเท่ากัน)
+  const tops = await figures.locator('.cx-figure').evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
+  const list = page.getByRole('list', { name: 'งานจ้างและยอดเงินของแต่ละงาน' });
+  await expect(list.getByRole('listitem')).toHaveCount(4);
+  const rowOf = (student: string) => list.getByRole('listitem').filter({ hasText: student });
+  await expect(rowOf('Held')).toContainText('ถือไว้');
+  await expect(rowOf('Held')).toContainText('คาดว่าจะได้รับภายใน');
+  await expect(rowOf('Problem')).toContainText('รอทีมงานตัดสิน');
+  await expect(rowOf('Due')).toContainText('รอโอน');
+  await expect(rowOf('Sent')).toContainText('อ้างอิง REF-1');
+  // บัญชีรับเงินอยู่ใต้ส่วนเงิน
+  const moneyBox = await page.locator('#money-title').boundingBox();
+  const accountBox = await page.locator('#payout-title').boundingBox();
+  expect(accountBox!.y).toBeGreaterThan(moneyBox!.y);
 });
 
 /* ---------- หน้าจัดการ: เฉพาะ admin ---------- */
@@ -224,40 +248,82 @@ test('a reviewer does not see the payout pages and the server refuses them', asy
 });
 
 test('an admin sees the full account number only while a payout is due, and marks it sent with a reference', async ({ page }, info) => {
+  // ชื่อเมนเทอร์และนักเรียนเป็นภาษาไทยเหมือนข้อมูลจริง ภาพหน้าจอจะได้ไม่เป็น "Mentor fx-…"
+  const thai = await createMentorFixture({ thai: true });
   const admin = await account('admin');
-  const learner = await account();
-  const { id } = await createHire(fixture, learner, 'completed', { hours: 2 });
-  await db.insert(mentorPayoutAccounts).values({
-    mentorId: fixture.mentorId, accountName: 'ธนพล ศรีสุข', bankCode: 'kbank', accountNumberEncrypted: seal('1234567890'), accountLast4: '7890', status: 'verified',
-  }).onConflictDoNothing();
-  await db.insert(mentorPayouts).values({ id: `pout-${id}`, hireId: id, mentorId: fixture.mentorId, amount: 1000, status: 'due' });
+  const learner = await account('member', 'ปรียา วงศ์สวัสดิ์');
+  const other = await account('member', 'ณัฐพล แก้วใส');
+  const earlier = await account('member', 'กมลชนก ใจดี');
+  try {
+    const { id } = await createHire(thai, learner, 'completed', { hours: 2 });
+    const second = await createHire(thai, other, 'completed', { hours: 3 });
+    const sent = await createHire(thai, earlier, 'completed', { hours: 1 });
+    await db.insert(mentorPayoutAccounts).values({
+      mentorId: thai.mentorId, accountName: 'ธนพล ศรีสุข', bankCode: 'kbank', accountNumberEncrypted: seal('1234567890'), accountLast4: '7890', status: 'verified',
+    }).onConflictDoNothing();
+    await db.insert(mentorPayouts).values([
+      { id: `pout-${id}`, hireId: id, mentorId: thai.mentorId, amount: 1000, status: 'due' },
+      { id: `pout-${second.id}`, hireId: second.id, mentorId: thai.mentorId, amount: 1500, status: 'due' },
+      { id: `pout-${sent.id}`, hireId: sent.id, mentorId: thai.mentorId, amount: 500, status: 'paid', paidAt: new Date(), note: 'KBANK-20261001-014' },
+    ]);
 
-  await signIn(page, admin, '/admin/payouts');
-  await expect(page.getByRole('heading', { level: 1, name: 'โอนเงินเมนเทอร์' })).toBeVisible();
-  const row = page.locator('.queue-row').filter({ hasText: fixture.name });
-  await expect(row).toContainText('1,000 บาท');
-  await expect(row).toContainText('ธนาคารกสิกรไทย');
-  await expect(row.locator('.payout-number')).toHaveText('1234567890');
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  expect(results.violations).toEqual([]);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  if (info.project.name !== 'tablet') await page.screenshot({ path: `artifacts/admin-payouts-${info.project.name}.png`, fullPage: true });
+    await signIn(page, admin, '/admin/payouts');
+    await expect(page.getByRole('heading', { level: 1, name: 'โอนเงินเมนเทอร์' })).toBeVisible();
+    // หน้านี้ไม่ใช่การตัดสินเผยแพร่ แถบเตือนสีเหลืองของหน้าอื่นจึงไม่ขึ้น
+    await expect(page.getByText('การตัดสินถูกบันทึกลงฐานข้อมูลจริง')).toHaveCount(0);
+    const card = page.locator(`[data-hire="${id}"]`);
+    await expect(card.locator('h2')).toHaveText(thai.name);
+    // ยอดเงินเป็นตัวเลขใหญ่ของการ์ด (≥ 32px) บัญชีเป็นบรรทัดมีป้ายกำกับ เลขบัญชีแบ่งกลุ่มแบบไทย
+    const size = await card.locator('.payout-amount').evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+    expect(size).toBeGreaterThanOrEqual(32);
+    await expect(card.getByText('ธนาคาร', { exact: true })).toBeVisible();
+    await expect(card.getByText('ชื่อบัญชี', { exact: true })).toBeVisible();
+    await expect(card).toContainText('ธนาคารกสิกรไทย');
+    await expect(card.locator('.payout-number')).toHaveText('123-4-56789-0');
+    await expect(card.getByRole('button', { name: 'คัดลอก' })).toBeVisible();
+    // ปุ่มบันทึกกว้างไม่เกิน 280px
+    const width = await card.getByRole('button', { name: 'บันทึกว่าโอนแล้ว' }).evaluate((element) => element.getBoundingClientRect().width);
+    if ((page.viewportSize()?.width ?? 1440) > 760) expect(width).toBeLessThanOrEqual(281);
+    // ปุ่มปล่อยเงินอยู่แถวเดียวกับตัวนับรายการ ไม่ใช่เหนือแท็บกรอง
+    const meta = page.locator('.queue-meta');
+    await expect(meta.getByText(/^\d+ รายการ$/)).toBeVisible();
+    await expect(meta.getByRole('button', { name: /^ปล่อยเงินงานที่เกินกำหนด \(\d+\)$/ })).toBeVisible();
 
-  // ต้องมีเลขอ้างอิงการโอน ไม่ส่งอะไรไปเซิร์ฟเวอร์ถ้าว่าง
-  await row.getByRole('button', { name: 'บันทึกว่าโอนแล้ว' }).click();
-  await expect(row.getByRole('alert')).toContainText('บันทึกเลขอ้างอิงการโอนก่อน');
-  await row.getByLabel('เลขอ้างอิงการโอน').fill('KBANK-20261002-001');
-  await row.getByRole('button', { name: 'บันทึกว่าโอนแล้ว' }).click();
-  await expect(page.locator('.queue-row').filter({ hasText: fixture.name })).toHaveCount(0);
-  const [payout] = await db.select().from(mentorPayouts).where(eq(mentorPayouts.hireId, id));
-  expect([payout.status, payout.note]).toEqual(['paid', 'KBANK-20261002-001']);
+    // เมนู: ไม่มีชื่อเมนูตัดบรรทัด (ทุกลิงก์สูงเท่ากันหนึ่งบรรทัด) และไม่มีแถบเลื่อนของทั้งหน้า
+    const heights = await page.locator('.admin-nav a').evaluateAll((links) => links.map((link) => link.getBoundingClientRect().height));
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(2);
+    expect(Math.max(...heights)).toBeLessThan(60);
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (info.project.name !== 'tablet') {
+      // เทสอื่นที่รันขนานกันมีรายการของตัวเองในหน้าเดียวกัน ภาพหน้าจอเก็บเฉพาะรายการของเทสนี้ให้เหมือนข้อมูลจริงชุดเดียว
+      await page.evaluate((mine) => {
+        document.querySelectorAll<HTMLElement>('.payout-card').forEach((element) => { if (!mine.includes(element.dataset.hire ?? '')) element.hidden = true; });
+      }, [id, second.id, sent.id]);
+      await page.screenshot({ path: `artifacts/admin-payouts-${info.project.name}.png`, fullPage: true });
+      await page.evaluate(() => document.querySelectorAll<HTMLElement>('.payout-card').forEach((element) => { element.hidden = false; }));
+    }
 
-  // โอนแล้ว: ดูได้ในแท็บ "โอนแล้ว" แต่เลขบัญชีเหลือ 4 ตัวท้าย
-  await page.getByRole('button', { name: 'โอนแล้ว', exact: true }).click();
-  const paid = page.locator('.queue-row').filter({ hasText: fixture.name });
-  await expect(paid).toContainText('ลงท้าย 7890');
-  await expect(paid).not.toContainText('1234567890');
-  await expect(paid).toContainText('อ้างอิง KBANK-20261002-001');
+    // ต้องมีเลขอ้างอิงการโอน ไม่ส่งอะไรไปเซิร์ฟเวอร์ถ้าว่าง
+    await card.getByRole('button', { name: 'บันทึกว่าโอนแล้ว' }).click();
+    await expect(card.getByRole('alert')).toContainText('บันทึกเลขอ้างอิงการโอนก่อน');
+    await card.getByLabel('เลขอ้างอิงการโอน').fill('KBANK-20261002-001');
+    await card.getByRole('button', { name: 'บันทึกว่าโอนแล้ว' }).click();
+    await expect(page.locator(`[data-hire="${id}"]`)).toHaveCount(0);
+    const [payout] = await db.select().from(mentorPayouts).where(eq(mentorPayouts.hireId, id));
+    expect([payout.status, payout.note]).toEqual(['paid', 'KBANK-20261002-001']);
+
+    // โอนแล้ว: ดูได้ในแท็บ "โอนแล้ว" แต่เลขบัญชีเหลือ 4 ตัวท้าย
+    await page.getByRole('button', { name: 'โอนแล้ว', exact: true }).click();
+    const paid = page.locator(`[data-hire="${id}"]`);
+    await expect(paid).toContainText('ลงท้าย 7890');
+    await expect(paid).not.toContainText('1234567890');
+    await expect(paid).not.toContainText('123-4-56789-0');
+  } finally {
+    // ลบเมนเทอร์หลังบัญชีนักเรียน (afterEach) เพราะงานจ้างอ้างถึงเมนเทอร์
+    extraCleanups.push(thai.cleanup);
+  }
 });
 
 test('an admin releases hires that stayed silent past the deadline', async ({ page }) => {
@@ -268,7 +334,15 @@ test('an admin releases hires that stayed silent past the deadline', async ({ pa
   await db.update(consultations).set({ paidAt: new Date(Date.now() - 10 * 86_400_000) }).where(eq(consultations.id, id));
   await db.insert(hirePayments).values({ id: `pay-${id}`, hireId: id, provider: 'simulated', amount: 500, status: 'paid' });
   await signIn(page, admin, '/admin/payouts');
-  await page.getByRole('button', { name: 'ปล่อยเงินงานที่เกินกำหนด' }).click();
+  await page.getByRole('button', { name: /^ปล่อยเงินงานที่เกินกำหนด \(\d+\)$/ }).click();
+  // ต้องยืนยันในกล่องที่ลิสต์งานก่อน (ปล่อยแล้วย้อนไม่ได้) ปิดด้วยปุ่มยกเลิกแล้วไม่มีอะไรเปลี่ยน
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText(fixture.name);
+  await dialog.getByRole('button', { name: 'ยกเลิก' }).click();
+  await expect(dialog).toBeHidden();
+  expect((await db.select().from(consultations).where(eq(consultations.id, id)))[0].status).toBe('paid');
+  await page.getByRole('button', { name: /^ปล่อยเงินงานที่เกินกำหนด \(\d+\)$/ }).click();
+  await dialog.getByRole('button', { name: /^ยืนยันปล่อยเงิน \d+ งาน$/ }).click();
   await expect(page.getByRole('status').filter({ hasText: /ปล่อยเงินแล้ว \d+ งาน/ })).toBeVisible();
   const [hire] = await db.select().from(consultations).where(eq(consultations.id, id));
   expect(hire.status).toBe('completed');
@@ -310,4 +384,44 @@ test('an admin decides a reported problem: refund or release, with a reason and 
   await expect(page.locator('.queue-row').filter({ hasText: 'ไม่พอใจคำแนะนำ' })).toHaveCount(0);
   const [released] = await db.select().from(consultations).where(eq(consultations.id, release.id));
   expect(released.status).toBe('completed');
+});
+
+test('before paying, the hold promise sits under Pay, Cancel is set apart, and the pay page says who is paid', async ({ page }) => {
+  const learner = await account();
+  const { id } = await createHire(fixture, learner, 'accepted', { hours: 1 });
+  await signIn(page, learner, `/consulting#hire-${id}`);
+  const detail = page.locator('.hw__detail');
+  const narrow = (page.viewportSize()?.width ?? 1440) <= 700;
+  const promise = detail.getByText('ChampionWays ถือเงินไว้และจ่ายให้เมนเทอร์เมื่อคุณกดเสร็จงาน หรือจ่ายให้อัตโนมัติหลังจบเซสชัน 3 วัน ถ้าคุณไม่แจ้งปัญหา');
+  await expect(promise).toBeVisible();
+  const payBox = await detail.getByRole('button', { name: /^ชำระ / }).boundingBox();
+  const promiseBox = await promise.boundingBox();
+  const cancelBox = await detail.getByRole('button', { name: 'ยกเลิกงานนี้' }).boundingBox();
+  const profileBox = await detail.locator('.cx-link--text').boundingBox();
+  // สัญญาว่าถือเงินไว้อยู่ใต้ปุ่มชำระเงิน ก่อนกดจ่าย
+  expect(promiseBox!.y).toBeGreaterThan(payBox!.y + payBox!.height - 1);
+  expect(cancelBox!.height).toBeGreaterThanOrEqual(44);
+  if (narrow) expect(cancelBox!.y - (profileBox!.y + profileBox!.height)).toBeGreaterThanOrEqual(23);
+  else expect(cancelBox!.x).toBeGreaterThan(profileBox!.x + profileBox!.width);
+
+  // จอแคบ: ขั้นตอนเป็น "ขั้นที่ 3 จาก 6 · ชำระเงิน" กับแถบความคืบหน้า จอกว้างเห็นขั้นครบ
+  const compact = detail.locator('.cx-stepper-compact');
+  if (narrow) {
+    await expect(compact).toContainText('ขั้นที่ 3 จาก 6 · ชำระเงิน');
+    await expect(compact.locator('.cx-stepper-compact__bar')).toBeVisible();
+    await expect(detail.locator('.cx-stepper li')).toHaveCount(6);
+  } else {
+    await expect(compact).toBeHidden();
+    await expect(detail.locator('.cx-stepper li').first()).toBeVisible();
+  }
+
+  await detail.getByRole('button', { name: /^ชำระ / }).click();
+  await expect(page.locator('.cx-pay__for')).toContainText(`${fixture.name} · 1 ชั่วโมง · ${fixture.competition.name}`);
+  await expect(page.getByText('เงินจะถูกถือไว้จนกว่าคุณจะกดเสร็จงาน')).toBeVisible();
+  // กล่องแจ้งทดสอบเป็นเส้นทึบบางตามโทนของแถบสถานะ มีป้าย "ทดสอบ" และลิงก์กลับเป็นข้อความมีลูกศร ไม่ใช่ปุ่มมีกรอบ
+  const banner = page.locator('.cx-test-banner');
+  await expect(banner.locator('.cx-tag')).toHaveText('ทดสอบ');
+  expect(await banner.evaluate((element) => { const style = getComputedStyle(element); return [style.borderTopStyle, style.borderTopWidth]; })).toEqual(['solid', '1px']);
+  const back = page.getByRole('link', { name: 'กลับไปที่การปรึกษา' });
+  expect(await back.evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe('0px');
 });

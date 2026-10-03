@@ -62,6 +62,9 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - ไฟล์: `server/lib/billing.ts`, `server/routes/billing.ts`, หน้า `/mentors` (การ์ดสมัคร + กล่องสมาชิก), migration **0010–0012** (รันแล้วบน dev/test **ยังไม่ได้รันบน Production**)
 - ตั้งค่าที่ยังขาด: `STRIPE_RISING_STAR_PRICE` (ต้องสร้างสินค้าใน Stripe), webhook ใหม่ชี้ `/api/billing/stripe-webhook`, เปิด PromptPay และ Customer portal ใน Dashboard, สิทธิ์คีย์ตาม `.env.example` · ยังไม่ได้ลองจ่ายจริงในโหมดทดสอบ
 - อีเมลยืนยันตก Spam: เพิ่ม DMARC แล้ว + อีเมลส่ง HTML (commit ก่อนหน้า)
+- ทดสอบจริงบน dev.championways.space (Stripe Sandbox) ผ่าน: PromptPay (Simulate scan) → webhook → ได้ช่วงสมาชิก 1 เดือน + ขึ้นอันดับ · บัตร 4242 กับเมนเทอร์ที่ยังมีเวลาเหลือ → subscription `trialing` ถึงวันหมดเดิม ไม่ตัดซ้อน · กดสมัครซ้ำได้ลิงก์เดิม
+- dev URL ใหม่: `dev.championways.space` · webhook Sandbox ชี้ `/api/billing/stripe-webhook` (เดิมเจ้าของตั้งผิดเป็น callback ของ Google) · `/api/health` บอกว่าตั้งตัวแปร Stripe ครบไหม
+- ยังไม่เห็น invoice ที่จ่ายเงินจริง (ไม่มีช่วงทดลอง) ลงฐานข้อมูล: รอ Stripe ส่ง event ของบัญชีทดสอบ mentor-aom ซ้ำ
 - เทส: API 72/72, หน้า Rising Star 31 ผ่าน, build ผ่าน
 - ส่งงานให้ Astra: 4 ครั้ง (รีวิว HTML email 1, รีวิวระบบจ่ายเงิน 3 รอบ: รอบแรกเจอ 4 ข้อ แก้จนผ่าน) โควตา Codex 5 ชม. 13% · สัปดาห์ 10%
 

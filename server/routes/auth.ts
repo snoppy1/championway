@@ -26,6 +26,19 @@ import type { Occupation, PersonLevel } from '../../src/data/profile.js';
 
 export const auth = new Hono<AppEnv>();
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** ตรวจใต้ล็อกแถวผู้ใช้ว่า session ที่ส่งคำขอยังอยู่ ใช้กับทุกคำขอที่เปลี่ยนข้อมูลบัญชี (Astra รีวิว 3 ต.ค. 2569)
+    การผูก Google กับบัญชีที่ยังไม่ยืนยันอีเมลจะตัด session ของคนที่ยึดบัญชีไว้ คำขอที่ผ่านการตรวจ session มาก่อน
+    ต้องเขียนทับข้อมูลที่ล้างแล้วไม่ได้ ล็อกแถวผู้ใช้ก่อน จึงเรียงคิวกับธุรกรรมการผูก Google เสมอ */
+async function sessionStillValid(tx: Tx, userId: string, sessionId: string | undefined | null) {
+  await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');
+  if (!sessionId) return false;
+  const [alive] = await tx.select({ id: sessions.id }).from(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId), gt(sessions.expiresAt, new Date()))).limit(1);
+  return Boolean(alive);
+}
+
 /* คำขอที่เปลี่ยนข้อมูลต้องมาจากเว็บของเราเอง กันเว็บอื่นยิงคำขอข้ามโดเมนด้วยคุกกี้ของผู้ใช้
    คำขอจากสคริปต์และเทสไม่มี header origin ติดมา จึงผ่านตามปกติ เหมือนที่ /api/chats กับ /api/journey ทำ */
 auth.use('*', async (c, next) => {
@@ -232,15 +245,21 @@ auth.patch('/profile', requireUser, async (c) => {
     }
   }
 
-  const [updated] = await db.update(users).set({
-    name: body.name,
-    bio: body.bio,
-    occupation: body.occupation ?? null,
-    organization: body.organization,
-    position: body.position,
-    educationLevel: body.educationLevel ?? null,
-    ...(avatarUrl === undefined ? {} : { avatarUrl }),
-  }).where(eq(users.id, user.id)).returning();
+  const sessionId = sessionIdFrom(c);
+  const updated = await db.transaction(async (tx) => {
+    if (!await sessionStillValid(tx, user.id, sessionId)) return null;
+    const [row] = await tx.update(users).set({
+      name: body.name,
+      bio: body.bio,
+      occupation: body.occupation ?? null,
+      organization: body.organization,
+      position: body.position,
+      educationLevel: body.educationLevel ?? null,
+      ...(avatarUrl === undefined ? {} : { avatarUrl }),
+    }).where(eq(users.id, user.id)).returning();
+    return row;
+  });
+  if (!updated) throw new HTTPException(401, { message: 'คุณออกจากระบบแล้ว เข้าสู่ระบบใหม่อีกครั้ง' });
 
   return c.json({ user: publicUser(updated) });
 });
@@ -272,13 +291,20 @@ auth.post('/email', requireUser, async (c) => {
   const taken = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
   if (taken.length) throw new HTTPException(409, { message: 'อีเมลนี้มีบัญชีอยู่แล้ว' });
 
-  const [updated] = await db.update(users)
-    // อีเมลใหม่ยังไม่ผ่านการยืนยัน ต้องล้างสถานะเดิม ไม่อย่างนั้นจะได้สิทธิ์ของอีเมลที่ยืนยันแล้วไปฟรี ๆ
-    .set({ email, emailVerifiedAt: null })
-    /* เช็กซ้ำตอนเขียนจริงว่ายังไม่ได้ผูก Google ถ้าการผูก Google เกิดขึ้นระหว่างที่คำขอนี้รอ
-       จะไม่มีแถวถูกแก้ ไม่อย่างนั้นอีเมลใหม่จะติดสถานะ "ยืนยันแล้ว" ที่ Google ตั้งให้อีเมลเดิม */
-    .where(and(eq(users.id, user.id), isNull(users.googleId)))
-    .returning();
+  const sessionId = sessionIdFrom(c);
+  const outcome = await db.transaction(async (tx) => {
+    if (!await sessionStillValid(tx, user.id, sessionId)) return 'signed-out' as const;
+    const [row] = await tx.update(users)
+      // อีเมลใหม่ยังไม่ผ่านการยืนยัน ต้องล้างสถานะเดิม ไม่อย่างนั้นจะได้สิทธิ์ของอีเมลที่ยืนยันแล้วไปฟรี ๆ
+      .set({ email, emailVerifiedAt: null })
+      /* เช็กซ้ำตอนเขียนจริงว่ายังไม่ได้ผูก Google ถ้าการผูก Google เกิดขึ้นระหว่างที่คำขอนี้รอ
+         จะไม่มีแถวถูกแก้ ไม่อย่างนั้นอีเมลใหม่จะติดสถานะ "ยืนยันแล้ว" ที่ Google ตั้งให้อีเมลเดิม */
+      .where(and(eq(users.id, user.id), isNull(users.googleId)))
+      .returning();
+    return row ?? null;
+  });
+  if (outcome === 'signed-out') throw new HTTPException(401, { message: 'คุณออกจากระบบแล้ว เข้าสู่ระบบใหม่อีกครั้ง' });
+  const updated = outcome;
   if (!updated) {
     throw new HTTPException(409, { message: 'บัญชีนี้เพิ่งผูกกับ Google อีเมลจึงเปลี่ยนที่นี่ไม่ได้แล้ว' });
   }
@@ -321,11 +347,7 @@ auth.post('/password', requireUser, async (c) => {
     /* session ที่ส่งคำขอนี้ต้องยังอยู่ ตรวจหลังล็อกแถวผู้ใช้แล้ว (Astra รีวิว 3 ต.ค. 2569)
        ถ้าเจ้าของตัวจริงเพิ่งเข้าสู่ระบบด้วย Google ระหว่างนั้น ระบบล้างรหัสผ่านและตัด session ของคนที่ยึดบัญชีไว้
        คำขอที่ผ่านการตรวจ session มาก่อนหน้าจะตั้งรหัสใหม่แทรกเข้ามาไม่ได้ */
-    const [alive] = currentSession
-      ? await tx.select({ id: sessions.id }).from(sessions)
-        .where(and(eq(sessions.id, currentSession), eq(sessions.userId, user.id), gt(sessions.expiresAt, new Date()))).limit(1)
-      : [];
-    if (!alive) return 'signed-out' as const;
+    if (!await sessionStillValid(tx, user.id, currentSession)) return 'signed-out' as const;
     const [changed] = await tx.update(users)
       .set({ passwordHash: nextHash })
       .where(eq(users.id, user.id))

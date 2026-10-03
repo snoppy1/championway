@@ -196,6 +196,21 @@ test('editing your own profile, email and password', async (t) => {
       assert.equal((await db.select().from(sessions).where(eq(sessions.userId, row.id))).length, 0);
     });
 
+    await t.test('a profile edit in flight cannot overwrite the account after its session was revoked', async () => {
+      const { row, cookie } = await makeUser({ bio: 'clean' });
+      let response: Response | undefined;
+      await db.transaction(async (tx) => {
+        await tx.select({ id: users.id }).from(users).where(eq(users.id, row.id)).for('update');
+        void send('/api/auth/profile', cookie, 'PATCH', { name: 'Squatter', bio: 'fake' }).then((r) => { response = r; });
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await tx.delete(sessions).where(eq(sessions.userId, row.id));
+      });
+      for (let i = 0; i < 50 && !response; i++) await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.equal(response?.status, 401);
+      const [after] = await db.select().from(users).where(eq(users.id, row.id));
+      assert.equal(after.bio, 'clean');
+    });
+
     await t.test('changing the password signs other devices out but keeps this one', async () => {
       const me = await makeUser();
       const otherDevice = await createSession(me.row.id);

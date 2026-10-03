@@ -68,6 +68,8 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
   - แผน: Rising Star subscription ผ่าน Stripe (เมนเทอร์จ่ายให้เรา เราเป็นผู้ขาย ไม่ต้อง Connect)
   - feedback ให้ Stripe ยังส่งไม่ได้ (เครื่องไม่มี Stripe CLI, MCP ตอบ Permission denied)
 - ส่งงานให้ Astra รอบนี้: 0 ครั้ง (งาน deploy/ตั้งค่า ไม่มีโค้ดเปลี่ยน)
+- อีเมลยืนยันตก Spam ใน Gmail: เพิ่ม DMARC (`_dmarc` TXT `v=DMARC1; p=none;`) ใน Vercel DNS แล้ว และอีเมลทุกฉบับส่ง HTML คู่ข้อความล้วน (ปุ่มเฉพาะลิงก์ของ APP_ORIGIN) ตั้ง `EMAIL_REPLY_TO` ได้ถ้าต้องการ (ยังไม่ได้ตั้ง)
+- ส่งงานให้ Astra: 1 ครั้ง (รีวิว HTML email เจอลิงก์ของคนอื่นกลายเป็นปุ่มทางการ แก้แล้ว) API 60/60
 
 ### 3 ตุลาคม 2569 (ต่อ) — คอม Windows: PDPA + ตรวจก่อนขึ้น Production
 

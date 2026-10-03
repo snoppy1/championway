@@ -28,7 +28,10 @@ export async function notify(to: string, subject: string, body: string): Promise
           authorization: `Bearer ${env.resendApiKey}`,
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ from: env.emailFrom, to: [to], subject, text: body }),
+        body: JSON.stringify({
+          from: env.emailFrom, to: [to], subject, text: body, html: renderEmailHtml(body),
+          ...(env.emailReplyTo ? { reply_to: env.emailReplyTo } : {}),
+        }),
         signal: AbortSignal.timeout(10000),
       });
       if (response.ok) {
@@ -61,3 +64,62 @@ export async function notify(to: string, subject: string, body: string): Promise
 
 /** แทนค่า token=… ในลิงก์ด้วย [ซ่อน] */
 export const redactTokens = (text: string) => text.replace(/([?&]token=)[\w-]+/g, '$1[ซ่อน]');
+
+/* อีเมลข้อความล้วนที่มีแค่ลิงก์ยาว ๆ Gmail มักจัดเข้า Spam (เจอจริงวันแรกที่ขึ้น Production)
+   จึงส่ง HTML คู่กับข้อความเดิมเสมอ สร้างจากข้อความเดิมโดยตรง ทุกจุดที่เรียก notify ไม่ต้องแก้
+   บรรทัดที่เป็นลิงก์ล้วนกลายเป็นปุ่ม ลิงก์กลางประโยคกลายเป็นลิงก์ธรรมดา ข้อความอื่น escape ทั้งหมด
+   เพราะบางส่วนมาจากผู้ใช้ เช่นชื่อนักเรียน */
+const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (ch) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!));
+
+const URL_RE = /https?:\/\/[^\s<>"']+/g;
+
+/* ลิงก์และปุ่มทำเฉพาะ URL ของเว็บเราเอง (APP_ORIGIN) ข้อความจากผู้ใช้ที่มี URL อื่น เช่นชื่อที่แอบใส่ลิงก์
+   จะเป็นตัวหนังสือธรรมดา ไม่กลายเป็นปุ่มที่ดูเป็นทางการในอีเมลของเรา (Astra รีวิว 3 ต.ค. 2569) */
+function ownUrl(raw: string, origin: string) {
+  try {
+    const url = new URL(raw);
+    return url.origin === origin ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function buttonLabel(url: URL) {
+  if (url.pathname === '/verify-email') return 'ยืนยันอีเมล · Verify email';
+  if (url.pathname === '/confirm') return 'ตอบคำขอยืนยัน · Respond';
+  return 'เปิดลิงก์ · Open link';
+}
+
+function linkify(line: string, origin: string) {
+  let out = '';
+  let last = 0;
+  for (const match of line.matchAll(URL_RE)) {
+    if (!ownUrl(match[0], origin)) continue;
+    const url = escapeHtml(match[0]);
+    out += escapeHtml(line.slice(last, match.index)) + `<a href="${url}" style="color:#6d28d9">${url}</a>`;
+    last = match.index! + match[0].length;
+  }
+  return out + escapeHtml(line.slice(last));
+}
+
+export function renderEmailHtml(body: string, origin = env.appOrigin) {
+  const blocks = body.split(/\n{2,}/).map((block) => {
+    const trimmed = block.trim();
+    const own = /^https?:\/\/\S+$/.test(trimmed) ? ownUrl(trimmed, origin) : null;
+    if (own) {
+      const url = escapeHtml(trimmed);
+      return `<p style="margin:24px 0"><a href="${url}" style="display:inline-block;background:#6d28d9;color:#ffffff;`
+        + `text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px">${buttonLabel(own)}</a></p>`
+        + `<p style="margin:0 0 16px;font-size:13px;color:#6b6475;word-break:break-all">${url}</p>`;
+    }
+    return `<p style="margin:0 0 16px">${block.split('\n').map((line) => linkify(line, origin)).join('<br>')}</p>`;
+  });
+  return '<!doctype html><html><body style="margin:0;background:#f6f4fa">'
+    + '<div style="max-width:560px;margin:0 auto;padding:32px 20px;font-family:-apple-system,Segoe UI,Roboto,Noto Sans Thai,sans-serif;'
+    + 'font-size:15px;line-height:1.6;color:#1c1917">'
+    + '<p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#2e1065">ChampionWays</p>'
+    + `<div style="background:#ffffff;border-radius:14px;padding:24px">${blocks.join('')}</div>`
+    + '<p style="margin:20px 0 0;font-size:12px;color:#6b6475">อีเมลนี้ส่งจากระบบ ChampionWays · Sent by ChampionWays</p>'
+    + '</div></body></html>';
+}

@@ -57,6 +57,8 @@ export const env = {
   /** ว่างได้ ไม่มีคีย์ก็ยังบันทึกอีเมลลงตาราง แค่ไม่ส่งออกจริง */
   resendApiKey: process.env.RESEND_API_KEY ?? '',
   emailFrom: process.env.EMAIL_FROM ?? 'ChampionWays <onboarding@resend.dev>',
+  /** ที่อยู่รับคำตอบ ไม่ตั้งก็ได้ ตั้งแล้วอีเมลดูเป็นอีเมลจากคนจริงมากขึ้น */
+  emailReplyTo: process.env.EMAIL_REPLY_TO ?? '',
   /** ว่างได้ ไม่มี token ก็เก็บไฟล์ลงดิสก์ ซึ่งใช้ได้เฉพาะตอนพัฒนาในเครื่อง */
   blobToken: process.env.BLOB_READ_WRITE_TOKEN ?? '',
 };

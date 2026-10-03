@@ -176,6 +176,26 @@ test('editing your own profile, email and password', async (t) => {
       }
     });
 
+    await t.test('a password request in flight cannot set a password after its session was revoked', async () => {
+      /* Astra รีวิว 3 ต.ค. 2569: คนยึดบัญชีส่งคำขอตั้งรหัสผ่านค้างไว้ ระหว่างนั้นเจ้าของตัวจริงผูก Google
+         (ล้างรหัสผ่าน ตัด session) คำขอที่ผ่านการตรวจ session มาแล้วต้องตั้งรหัสใหม่ไม่ได้
+         จำลองด้วยการล็อกแถวผู้ใช้ไว้ ปล่อยให้คำขอวิ่งไปรอที่ล็อก แล้วตัด session ก่อนปล่อยล็อก */
+      const { row, cookie } = await makeUser({ passwordHash: null });
+      let response: Response | undefined;
+      await db.transaction(async (tx) => {
+        await tx.select({ id: users.id }).from(users).where(eq(users.id, row.id)).for('update');
+        const pending = send('/api/auth/password', cookie, 'POST', { current: '', next: 'squatter-pass-123' }).then((r) => { response = r; });
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await tx.delete(sessions).where(eq(sessions.userId, row.id));
+        void pending;
+      });
+      for (let i = 0; i < 50 && !response; i++) await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.equal(response?.status, 401);
+      const [after] = await db.select().from(users).where(eq(users.id, row.id));
+      assert.equal(after.passwordHash, null);
+      assert.equal((await db.select().from(sessions).where(eq(sessions.userId, row.id))).length, 0);
+    });
+
     await t.test('changing the password signs other devices out but keeps this one', async () => {
       const me = await makeUser();
       const otherDevice = await createSession(me.row.id);

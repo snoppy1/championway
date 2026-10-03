@@ -2,10 +2,10 @@ import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { createHash } from 'node:crypto';
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { emailVerifications, users } from '../db/schema.js';
+import { emailVerifications, mentorSubmissions, sessions, users } from '../db/schema.js';
 import { env, googleConfigured } from '../lib/env.js';
 import { notify } from '../lib/email.js';
 import { authorizeUrl, exchangeCode, fetchProfile, newPkcePair } from '../lib/google.js';
@@ -306,7 +306,8 @@ auth.post('/password', requireUser, async (c) => {
   if (problem) throw new HTTPException(400, { message: problem });
 
   const nextHash = await hashPassword(body.next);
-  const remember = await sessionRemembers(sessionIdFrom(c));
+  const currentSession = sessionIdFrom(c);
+  const remember = await sessionRemembers(currentSession);
 
   /* เปลี่ยนรหัสผ่านแล้วต้องเตะอุปกรณ์อื่นออก ไม่อย่างนั้นคนที่แอบใช้บัญชีอยู่จะยังอยู่ต่อได้
      แล้วออกคุกกี้ใหม่ให้เครื่องที่เพิ่งเปลี่ยน จะได้ไม่ต้องล็อกอินซ้ำทันที
@@ -317,6 +318,14 @@ auth.post('/password', requireUser, async (c) => {
     /* ถ้ามีการเปลี่ยนรหัสอีกคำขอหนึ่งบันทึกไปก่อนระหว่างที่คำขอนี้ตรวจรหัสเดิม
        รหัสเดิมที่ตรวจผ่านมาก็ไม่ใช่ตัวปัจจุบันแล้ว ต้องปฏิเสธ ไม่ให้คำขอหลังทับคำขอแรก */
     if (locked?.passwordHash !== row.passwordHash) return null;
+    /* session ที่ส่งคำขอนี้ต้องยังอยู่ ตรวจหลังล็อกแถวผู้ใช้แล้ว (Astra รีวิว 3 ต.ค. 2569)
+       ถ้าเจ้าของตัวจริงเพิ่งเข้าสู่ระบบด้วย Google ระหว่างนั้น ระบบล้างรหัสผ่านและตัด session ของคนที่ยึดบัญชีไว้
+       คำขอที่ผ่านการตรวจ session มาก่อนหน้าจะตั้งรหัสใหม่แทรกเข้ามาไม่ได้ */
+    const [alive] = currentSession
+      ? await tx.select({ id: sessions.id }).from(sessions)
+        .where(and(eq(sessions.id, currentSession), eq(sessions.userId, user.id), gt(sessions.expiresAt, new Date()))).limit(1)
+      : [];
+    if (!alive) return 'signed-out' as const;
     const [changed] = await tx.update(users)
       .set({ passwordHash: nextHash })
       .where(eq(users.id, user.id))
@@ -324,6 +333,7 @@ auth.post('/password', requireUser, async (c) => {
     await destroyAllSessions(user.id, tx);
     return { updated: changed, session: await createSession(user.id, remember, tx) };
   });
+  if (result === 'signed-out') throw new HTTPException(401, { message: 'คุณออกจากระบบแล้ว เข้าสู่ระบบใหม่อีกครั้ง' });
   if (!result) throw new HTTPException(409, { message: 'รหัสผ่านเพิ่งถูกเปลี่ยนจากอีกหน้าหนึ่ง ลองใหม่อีกครั้ง' });
   const { updated, session } = result;
   setSessionCookie(c, session.id, session.expiresAt, remember);
@@ -405,11 +415,20 @@ auth.get('/google/callback', async (c) => {
         const [linked] = await tx.update(users)
           .set({
             googleId: profile.sub, emailVerifiedAt: new Date(), avatarUrl: byEmail.avatarUrl ?? profile.picture ?? null,
-            ...(untrusted ? { passwordHash: null } : {}),
+            /* ข้อมูลที่คนยึดบัญชีอาจกรอกไว้ ล้างทิ้ง ใช้ชื่อและรูปจาก Google แทน เจ้าของตัวจริงกรอกโปรไฟล์ใหม่เอง */
+            ...(untrusted ? {
+              passwordHash: null, name: profile.name?.trim() || email.split('@')[0], avatarUrl: profile.picture ?? null,
+              bio: null, occupation: null, organization: null, position: null, educationLevel: null,
+            } : {}),
           })
           .where(and(eq(users.id, byEmail.id), eq(users.email, email), isNull(users.googleId)))
           .returning();
-        if (linked && untrusted) await destroyAllSessions(linked.id, tx);
+        if (linked && untrusted) {
+          await destroyAllSessions(linked.id, tx);
+          // ใบสมัครเมนเทอร์ที่ยังไม่ผ่าน แยกออกจากบัญชี จะได้ไม่ถูกอนุมัติในนามเจ้าของตัวจริง (ทีมงานยังเห็นใบในคิว)
+          await tx.update(mentorSubmissions).set({ userId: null })
+            .where(and(eq(mentorSubmissions.userId, linked.id), inArray(mentorSubmissions.status, ['pending', 'info'])));
+        }
         return linked;
       });
       if (!account) return fail('ข้อมูลบัญชีเปลี่ยนระหว่างเข้าสู่ระบบ ลองใหม่อีกครั้ง');

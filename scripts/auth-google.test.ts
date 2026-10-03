@@ -122,13 +122,14 @@ test('Google authorization and callback against isolated test database', async t
     });
     await t.test('a password account someone pre-registered with an unverified Gmail loses its password and sessions when the real owner links Google', async () => {
       // Astra รีวิว 3 ต.ค. 2569: กันการยึดบัญชีล่วงหน้า
-      await db.insert(users).values({ id: `${prefix}-squatter`, email: emails[3], name: 'Squatter', role: 'member', passwordHash: 'scrypt:attacker' });
+      await db.insert(users).values({ id: `${prefix}-squatter`, email: emails[3], name: 'Squatter', role: 'member', passwordHash: 'scrypt:attacker', bio: 'fake bio' });
       const squat = await createSession(`${prefix}-squatter`);
       profile = { sub: `${prefix}-owner`, email: emails[3], email_verified: true };
       const owner = sessionCookie(await finish(await start()));
       assert.ok(owner);
       const [row] = await db.select().from(users).where(eq(users.email, emails[3]));
-      assert.deepEqual([row.googleId, row.passwordHash], [`${prefix}-owner`, null]);
+      assert.deepEqual([row.googleId, row.passwordHash, row.bio], [`${prefix}-owner`, null, null]);
+      assert.notEqual(row.name, 'Squatter');
       const left = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, row.id));
       assert.ok(!left.some((s) => s.id === squat.id), 'the squatter session must be gone');
       assert.equal(left.length, 1);

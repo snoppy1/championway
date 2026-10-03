@@ -43,13 +43,20 @@ export async function notify(to: string, subject: string, body: string): Promise
     if (error) console.error('[email]', error);
   }
 
+  /* ส่งออกจริงแล้ว ปิด token ในลิงก์ก่อนเก็บ เพราะ token ในฐานข้อมูลเก็บแบบ hash ถ้าเก็บลิงก์เต็มไว้ใน log
+     คนที่เข้าถึงฐานข้อมูลได้จะเอาลิงก์ไปยืนยันอีเมลหรือยืนยันการปรึกษาแทนเจ้าของได้
+     ถ้าส่งไม่สำเร็จหรือไม่มีคีย์ (เครื่องพัฒนา/เทส) เก็บลิงก์ไว้ ทีมงานจะได้ส่งต่อให้ผู้ใช้เองหรือทดสอบได้ */
+  const stored = sent ? redactTokens(body) : body;
   await db.insert(emailLog).values({
     id: newId('eml'),
     to,
     subject,
-    body: error ? `${body}\n\n[ส่งไม่สำเร็จ] ${error}` : body,
+    body: error ? `${stored}\n\n[ส่งไม่สำเร็จ] ${error}` : stored,
     provider: sent ? 'resend' : 'log',
   });
 
   return { logged: true, sent, error };
 }
+
+/** แทนค่า token=… ในลิงก์ด้วย [ซ่อน] */
+export const redactTokens = (text: string) => text.replace(/([?&]token=)[\w-]+/g, '$1[ซ่อน]');

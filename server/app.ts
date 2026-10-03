@@ -31,8 +31,17 @@ app.use('*', async (c, next) => {
 
 app.use('*', withUser);
 
-// payoutKey บอกสถานะคีย์เข้ารหัสบัญชีรับเงิน (ready/missing/invalid) โดยไม่เผยค่า
-app.get('/health', (c) => c.json({ ok: true, payoutKey: secretBoxStatus() }));
+/* payoutKey บอกสถานะคีย์เข้ารหัสบัญชีรับเงิน (ready/missing/invalid) โดยไม่เผยค่า
+   billing บอกแค่ว่าตั้งตัวแปร Stripe ครบไหม (true/false) ใช้ไล่ปัญหาตอนตั้งค่าใน Vercel */
+app.get('/health', (c) => c.json({
+  ok: true,
+  payoutKey: secretBoxStatus(),
+  billing: {
+    key: Boolean(process.env.STRIPE_SECRET_KEY),
+    webhookSecret: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
+    price: Boolean(process.env.STRIPE_RISING_STAR_PRICE),
+  },
+}));
 
 app.route('/auth', auth);
 app.route('/admin', admin);

@@ -54,6 +54,21 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 เพิ่มบันทึกใหม่ไว้บนสุด
 
+### 3 ตุลาคม 2569 (ต่อ 2) — คอม Windows: ขึ้น Production ที่ championways.space
+
+- โดเมน `championways.space` ซื้อผ่าน Vercel ยืนยันใน Resend แล้ว (region Tokyo) ผู้ส่ง `ChampionWays <noreply@championways.space>`
+- Production: เจ้าของรัน migration 0001–0009 บน Neon production เอง (auto mode บล็อก Claude) แล้ว push `dev:main` ที่ `48fe538`
+- โดเมน: `championways.space` เป็นหลัก, `www` เด้งไปหลัก, `dev.championways.space` ผูกกับ branch dev
+- env Production: `APP_ORIGIN=https://championways.space`, `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET` (ไม่ตั้ง `HIRING_ENABLED`, `payoutKey` เป็น missing ตามตั้งใจ)
+- เช็กเว็บจริง: health ok, Google ส่ง redirect_uri เป็นโดเมนใหม่และ Google รับ, หน้า /, /explore, /mentors, /signin, /mentors/apply เปิดได้ทั้งมือถือและเดสก์ท็อปไม่มี console error, cron ไม่มี secret ได้ 401, route จ้างได้ 404
+- **ค้าง**
+  - Preview `APP_ORIGIN` ยังเป็น `https://championways-git-dev-st12.vercel.app` ถ้าจะใช้ `dev.championways.space` ต้องแก้ค่านี้ + เพิ่ม Google redirect + redeploy
+  - ยังไม่ได้ทดสอบล็อกอิน Google ด้วยบัญชีจริงและส่งอีเมลถึงคนอื่นบน Production
+  - เพิ่มงานแข่งจริงผ่าน admin, ตรวจใบสมัครเมนเทอร์ 3 ใบ
+  - แผน: Rising Star subscription ผ่าน Stripe (เมนเทอร์จ่ายให้เรา เราเป็นผู้ขาย ไม่ต้อง Connect)
+  - feedback ให้ Stripe ยังส่งไม่ได้ (เครื่องไม่มี Stripe CLI, MCP ตอบ Permission denied)
+- ส่งงานให้ Astra รอบนี้: 0 ครั้ง (งาน deploy/ตั้งค่า ไม่มีโค้ดเปลี่ยน)
+
 ### 3 ตุลาคม 2569 (ต่อ) — คอม Windows: PDPA + ตรวจก่อนขึ้น Production
 
 - ร่างนโยบายความเป็นส่วนตัว (PDPA) ไทย/อังกฤษ คุกกี้ บันทึกรายการข้อมูล ขั้นตอนคำขอและข้อมูลรั่ว ที่ `markdown/legal/` + สารบัญ `markdown/README.md` (ร่าง ยังห้ามเผยแพร่)

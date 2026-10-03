@@ -397,10 +397,21 @@ auth.get('/google/callback', async (c) => {
       /* เงื่อนไขซ้ำตอนเขียนจริง: อีเมลต้องยังเป็นอันที่ Google เพิ่งยืนยัน และยังไม่มีบัญชี Google ผูกอยู่
          ถ้าเจ้าของเปลี่ยนอีเมลระหว่างที่รอ Google ตอบกลับ จะไม่มีแถวถูกแก้ และไม่มีอีเมลอื่นได้สถานะยืนยันไปฟรี
          (Astra รีวิวพบ 30 ก.ย. 2569) */
-      [account] = await db.update(users)
-        .set({ googleId: profile.sub, emailVerifiedAt: new Date(), avatarUrl: byEmail.avatarUrl ?? profile.picture ?? null })
-        .where(and(eq(users.id, byEmail.id), eq(users.email, email), isNull(users.googleId)))
-        .returning();
+      /* กันการยึดบัญชีล่วงหน้า (Astra รีวิว 3 ต.ค. 2569): คนอื่นสมัครด้วยอีเมล Gmail ของเหยื่อพร้อมรหัสผ่านของตัวเองไว้ก่อน
+         ถ้าอีเมลนั้นยังไม่เคยยืนยัน เจ้าของตัวจริงคือคนที่ Google เพิ่งยืนยันให้ จึงล้างรหัสผ่านเดิมและตัด session ทุกเครื่อง
+         ในธุรกรรมเดียวกับการผูก บัญชีที่ยืนยันอีเมลไว้แล้วเก็บรหัสผ่านเดิมไว้ เพราะเจ้าของพิสูจน์อีเมลมาก่อนแล้ว */
+      const untrusted = !byEmail.emailVerifiedAt;
+      account = await db.transaction(async (tx) => {
+        const [linked] = await tx.update(users)
+          .set({
+            googleId: profile.sub, emailVerifiedAt: new Date(), avatarUrl: byEmail.avatarUrl ?? profile.picture ?? null,
+            ...(untrusted ? { passwordHash: null } : {}),
+          })
+          .where(and(eq(users.id, byEmail.id), eq(users.email, email), isNull(users.googleId)))
+          .returning();
+        if (linked && untrusted) await destroyAllSessions(linked.id, tx);
+        return linked;
+      });
       if (!account) return fail('ข้อมูลบัญชีเปลี่ยนระหว่างเข้าสู่ระบบ ลองใหม่อีกครั้ง');
     } else {
       [account] = await db.insert(users).values({

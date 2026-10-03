@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import type { AppEnv } from '../lib/guards.js';
 import { releaseOverdue } from '../lib/hire-money.js';
+import { hiringEnabled } from '../lib/flow.js';
 import { remindUnconfirmed } from './consult.js';
 
 /* งานที่ Vercel Cron เรียกตามเวลา (vercel.json) Vercel แนบ Authorization: Bearer <CRON_SECRET> มาเอง
@@ -27,5 +28,7 @@ cron.get('/remind-confirmations', async (c) => {
 /** ปล่อยเงินงานที่นักเรียนเงียบเกิน 3 วันหลังนัด (lib/hire-money.ts) */
 cron.get('/release-payments', async (c) => {
   if (!authorized(c.req.header('authorization'))) return c.json({ error: 'unauthorized' }, 401);
+  // การจ้างพักไว้ (lib/flow.ts) ไม่มีเงินให้ปล่อย ไม่ทำอะไร (Astra รีวิว 3 ต.ค. 2569)
+  if (!hiringEnabled()) return c.json({ released: 0, skipped: 'hiring paused' });
   return c.json({ released: await releaseOverdue() });
 });

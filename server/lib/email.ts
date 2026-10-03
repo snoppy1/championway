@@ -45,8 +45,9 @@ export async function notify(to: string, subject: string, body: string): Promise
 
   /* ส่งออกจริงแล้ว ปิด token ในลิงก์ก่อนเก็บ เพราะ token ในฐานข้อมูลเก็บแบบ hash ถ้าเก็บลิงก์เต็มไว้ใน log
      คนที่เข้าถึงฐานข้อมูลได้จะเอาลิงก์ไปยืนยันอีเมลหรือยืนยันการปรึกษาแทนเจ้าของได้
-     ถ้าส่งไม่สำเร็จหรือไม่มีคีย์ (เครื่องพัฒนา/เทส) เก็บลิงก์ไว้ ทีมงานจะได้ส่งต่อให้ผู้ใช้เองหรือทดสอบได้ */
-  const stored = sent ? redactTokens(body) : body;
+     บน Production ซ่อนเสมอแม้ส่งไม่สำเร็จ (Astra รีวิว 3 ต.ค. 2569) ผู้ใช้ขอลิงก์ใหม่ได้ เมนเทอร์ยืนยันใน Mentor zone ได้
+     เครื่องพัฒนา/เทส/dev ที่ส่งไม่ออก เก็บลิงก์ไว้ให้ทดสอบได้ */
+  const stored = sent || process.env.VERCEL_ENV === 'production' ? redactTokens(body) : body;
   await db.insert(emailLog).values({
     id: newId('eml'),
     to,

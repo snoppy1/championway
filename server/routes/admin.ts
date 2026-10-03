@@ -18,6 +18,7 @@ import { newId, slugify } from '../lib/id.js';
 import { notify } from '../lib/email.js';
 import { open } from '../lib/secret-box.js';
 import { listOverdue, releaseOverdue, resolveDispute } from '../lib/hire-money.js';
+import { hiringEnabled } from '../lib/flow.js';
 import { filesOf, publicFile } from '../lib/files.js';
 import { firstIssue } from './public.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
@@ -741,6 +742,12 @@ admin.post('/reviews/:id/visibility', async (c) => {
 function requireAdmin(c: Context<AppEnv>) {
   if (c.get('user')!.role !== 'admin') throw new HTTPException(403, { message: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
 }
+
+// หน้าเงินของการจ้างปิดพร้อมการจ้าง (lib/flow.ts) (Astra รีวิว 3 ต.ค. 2569)
+admin.use('/payouts/*', async (_c, next) => { if (!hiringEnabled()) throw new HTTPException(404, { message: 'ฟีเจอร์นี้ยังไม่เปิด' }); await next(); });
+admin.use('/payouts', async (_c, next) => { if (!hiringEnabled()) throw new HTTPException(404, { message: 'ฟีเจอร์นี้ยังไม่เปิด' }); await next(); });
+admin.use('/disputes/*', async (_c, next) => { if (!hiringEnabled()) throw new HTTPException(404, { message: 'ฟีเจอร์นี้ยังไม่เปิด' }); await next(); });
+admin.use('/disputes', async (_c, next) => { if (!hiringEnabled()) throw new HTTPException(404, { message: 'ฟีเจอร์นี้ยังไม่เปิด' }); await next(); });
 
 admin.get('/payouts', async (c) => {
   requireAdmin(c);

@@ -142,8 +142,16 @@ publicApi.get('/mentors', async (c) => {
   const rows = await db.select().from(mentors)
     .leftJoin(competitionsTable, eq(competitionsTable.slug, mentors.wonSlug))
     .orderBy(asc(mentors.name));
+  /* ส่งออกเฉพาะช่องที่เป็นข้อมูลสาธารณะ ห้ามกระจายทั้งแถว ช่องทางติดต่อ (contact_*) เห็นได้เฉพาะคนที่ยืนยันอีเมล
+     และกดติดต่อเมนเทอร์คนนั้นแล้ว ผ่าน /api/consult/mentors/:id เท่านั้น (Astra รีวิว 3 ต.ค. 2569) */
   return c.json({
-    items: rows.map((row) => ({ ...row.mentors, wonName: row.competitions?.name ?? null })),
+    items: rows.map(({ mentors: m, competitions }) => ({
+      id: m.id, name: m.name, avatar: m.avatar, bio: m.bio, replyTime: m.replyTime, wonSlug: m.wonSlug,
+      category: m.category, topics: m.topics, price: m.price, minutes: m.minutes, best: m.best, cannot: m.cannot,
+      firstSlotInDays: m.firstSlotInDays, verified: m.verified, weeklyRank: m.weeklyRank, weeklyFocus: m.weeklyFocus,
+      confirmedThemes: m.confirmedThemes, disabledThemes: m.disabledThemes,
+      wonName: competitions?.name ?? null,
+    })),
   });
 });
 

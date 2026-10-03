@@ -66,6 +66,9 @@ test('contact a mentor, confirm by email link or in the Mentor zone, then review
       assert.equal((await call('/consult/anything/pay', student.cookie, 'POST', {})).status, 404);
       assert.equal((await call('/consult/payments/x', student.cookie)).status, 404);
       assert.equal((await call('/chats', student.cookie)).status, 404);
+      // Astra รีวิว 3 ต.ค. 2569: งานปล่อยเงินและหน้าเงินของ admin ปิดตามการจ้างด้วย
+      const cron = await (await app.request('/api/cron/release-payments', { headers: { authorization: 'Bearer test-cron-secret' } })).json();
+      assert.equal(cron.skipped, 'hiring paused');
     });
 
     await t.test('contacts need a verified email; contacting twice returns the same entry', async () => {
@@ -181,6 +184,13 @@ test('contact a mentor, confirm by email link or in the Mentor zone, then review
       // ลิงก์ใหม่ในอีเมลเตือนใช้ยืนยันได้
       const token = tokenFrom((await lastMail(mentorUser.email)).body);
       assert.equal((await call('/consult/confirm-link', '', 'POST', { token, answer: 'yes' })).status, 200);
+    });
+
+    await t.test('the public mentor list never carries contact channels', async () => {
+      // Astra รีวิว 3 ต.ค. 2569: /api/mentors เคยกระจายทั้งแถวรวมช่องทางติดต่อ
+      const list = await (await call('/mentors')).text();
+      assert.ok(!list.includes('mentor.line'));
+      assert.ok(!/contact(Email|Line|Phone|Instagram|Link)/.test(list));
     });
 
     await t.test('mentor contacts need at least one channel and safe links', async () => {

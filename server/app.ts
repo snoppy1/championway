@@ -5,6 +5,7 @@ import { secretBoxStatus } from './lib/secret-box.js';
 import type { AppEnv } from './lib/guards.js';
 import { withUser } from './lib/guards.js';
 import { auth } from './routes/auth.js';
+import { billing } from './routes/billing.js';
 import { admin } from './routes/admin.js';
 import { publicApi } from './routes/public.js';
 import { chat } from './routes/chat.js';
@@ -35,6 +36,7 @@ app.get('/health', (c) => c.json({ ok: true, payoutKey: secretBoxStatus() }));
 
 app.route('/auth', auth);
 app.route('/admin', admin);
+app.route('/billing', billing);
 app.route('/chats', chat);
 app.route('/consult', consult);
 app.route('/cron', cron);

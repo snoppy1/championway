@@ -54,6 +54,17 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 เพิ่มบันทึกใหม่ไว้บนสุด
 
+### 4 ตุลาคม 2569 — คอม Windows: ค่าสมาชิก Rising Star ผ่าน Stripe
+
+- เจ้าของตัดสิน: รายเดือนอย่างเดียว 99 บาท · ตัดเงินไม่ผ่าน = หลุดอันดับเมื่อช่วงหมด · รับทั้งบัตรและ PromptPay
+- บัตร = Checkout แบบ subscription ต่ออายุเอง · PromptPay = Stripe ตัดซ้ำไม่ได้ จึงจ่ายทีละเดือน ต่อท้ายช่วงเดิม เตือนทางอีเมล 3 วันก่อนหมด (รวมใน cron `remind-confirmations`)
+- สมาชิกเกิดจาก webhook ที่ตรวจลายเซ็นเท่านั้น (`/api/billing/stripe-webhook`) กัน event ซ้ำ, ตรวจ price/สกุลเงิน/ยอด, คืนเงินเต็มหรือ dispute = ปิดช่วงทันที (ถ้าคืนก่อนจ่ายก็ไม่ให้สมาชิก), สมัครบัตรซ้อนไม่ได้, event วินาทีเดียวกันให้สถานะที่ปิดกว่าชนะ
+- ไฟล์: `server/lib/billing.ts`, `server/routes/billing.ts`, หน้า `/mentors` (การ์ดสมัคร + กล่องสมาชิก), migration **0010–0012** (รันแล้วบน dev/test **ยังไม่ได้รันบน Production**)
+- ตั้งค่าที่ยังขาด: `STRIPE_RISING_STAR_PRICE` (ต้องสร้างสินค้าใน Stripe), webhook ใหม่ชี้ `/api/billing/stripe-webhook`, เปิด PromptPay และ Customer portal ใน Dashboard, สิทธิ์คีย์ตาม `.env.example` · ยังไม่ได้ลองจ่ายจริงในโหมดทดสอบ
+- อีเมลยืนยันตก Spam: เพิ่ม DMARC แล้ว + อีเมลส่ง HTML (commit ก่อนหน้า)
+- เทส: API 72/72, หน้า Rising Star 31 ผ่าน, build ผ่าน
+- ส่งงานให้ Astra: 4 ครั้ง (รีวิว HTML email 1, รีวิวระบบจ่ายเงิน 3 รอบ: รอบแรกเจอ 4 ข้อ แก้จนผ่าน) โควตา Codex 5 ชม. 13% · สัปดาห์ 10%
+
 ### 3 ตุลาคม 2569 (ต่อ 2) — คอม Windows: ขึ้น Production ที่ championways.space
 
 - โดเมน `championways.space` ซื้อผ่าน Vercel ยืนยันใน Resend แล้ว (region Tokyo) ผู้ส่ง `ChampionWays <noreply@championways.space>`

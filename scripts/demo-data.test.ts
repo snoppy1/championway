@@ -58,7 +58,8 @@ test('demo data tools on the dev site', async (t) => {
       assert.ok(data.hall[0].closesAt && !data.hall[1].closesAt);
 
       // จัดอันดับเฉพาะสมาชิกตอนนี้ พิมมีรีวิว 5 ดาวเดือนนี้แต่ไม่ได้สมัคร จึงไม่มีอันดับ
-      assert.deepEqual(data.ranked.map((row) => `${row.rank}:${row.id}:${row.rating.average}`),
+      // เทสไฟล์อื่นที่รันพร้อมกันอาจมีสมาชิกที่ยังไม่มีรีวิว (อยู่ท้ายสุด) จึงดูเฉพาะเมนเทอร์ตัวอย่าง
+      assert.deepEqual(data.ranked.filter((row) => row.id.startsWith('mentor-')).map((row) => `${row.rank}:${row.id}:${row.rating.average}`),
         ['1:mentor-mind:4.8', '2:mentor-jay:4.3', '3:mentor-nut:4', '4:mentor-tae:3.5']);
       const others = data.others.map((row) => row.id);
       assert.ok(others.includes('mentor-pim') && others.includes('mentor-aom'));

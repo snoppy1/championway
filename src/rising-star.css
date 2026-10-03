@@ -384,3 +384,21 @@
   .rs-skeleton { animation: none; }
   .rs-upsell__cta[aria-busy="true"]::before, .rs-code__apply[aria-busy="true"]::before { animation: none; border-top-color: currentcolor; }
 }
+
+/* Stripe payment buttons (upsell and member note) */
+.rs-upsell__alt { margin-top: var(--space-2); }
+.rs-pay { display: grid; gap: var(--space-2); margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--gold-line); }
+.rs-pay__status { font-weight: 500; }
+.rs-pay__button { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; font-weight: 600; }
+.rs-pay__button[aria-busy="true"] { pointer-events: none; }
+.rs-pay__button[aria-busy="true"]::before {
+  content: ""; flex: none; width: 14px; height: 14px; margin-right: var(--space-2);
+  border: 2px solid currentcolor; border-top-color: transparent; border-radius: 50%;
+  animation: rs-spin 700ms linear infinite;
+}
+.rs-pay__error { margin-top: var(--space-2); font-size: var(--text-sm); font-weight: 500; }
+.rs-upsell .rs-pay__error, .rs-note .rs-pay__error { color: var(--danger); }
+.rs-joined {
+  margin-top: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  background: var(--gold-tint); color: var(--gold-ink); font-weight: 500;
+}

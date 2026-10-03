@@ -396,10 +396,57 @@ export const risingStarPeriods = pgTable('rising_star_periods', {
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
   source: text('source').notNull(),
-  /** id ของ subscription หรือ invoice ใน Stripe ว่างได้จนกว่าจะต่อระบบจ่ายเงิน */
+  /** id ของ invoice (บัตร ต่ออายุเอง) หรือ checkout session (PromptPay จ่ายทีละเดือน) ใน Stripe
+      unique กัน webhook ที่ Stripe ส่งซ้ำไม่ให้นับเดือนซ้ำ */
   externalId: text('external_id'),
+  /** PaymentIntent ที่จ่ายช่วงนี้ ใช้หาช่วงที่ต้องยกเลิกเมื่อคืนเงินหรือถูก dispute */
+  paymentRef: text('payment_ref'),
+  /** ส่งอีเมลเตือนว่าใกล้หมดแล้ว (เฉพาะช่วงที่ไม่ต่ออายุเอง) */
+  remindedAt: timestamp('reminded_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, t => [index('rising_star_periods_mentor_idx').on(t.mentorId, t.endsAt)]);
+}, t => [
+  index('rising_star_periods_mentor_idx').on(t.mentorId, t.endsAt),
+  uniqueIndex('rising_star_periods_external_key').on(t.externalId).where(sql`${t.externalId} is not null`),
+]);
+
+/* ---------- Stripe (ค่าสมาชิก Rising Star เมนเทอร์จ่ายให้เรา) ----------
+
+   เราเป็นผู้ขายเอง ไม่ได้ถือเงินแทนใคร จึงไม่ต้องใช้ Connect
+   บัตร: subscription รายเดือน ต่ออายุเอง ทุก invoice ที่จ่ายแล้วกลายเป็นหนึ่งช่วงใน rising_star_periods
+   PromptPay: Stripe ต่ออายุเองไม่ได้ จึงจ่ายครั้งละหนึ่งเดือน ต่อท้ายช่วงเดิม แล้วเตือนทางอีเมลก่อนหมด
+   ตัดเงินไม่ผ่าน = ไม่มีช่วงใหม่ หลุดอันดับเมื่อช่วงเดิมหมด (ผู้ใช้ตัดสิน 3 ต.ค. 2569) */
+
+/** หนึ่งบัญชีผู้ใช้ต่อหนึ่ง customer ใน Stripe */
+export const billingCustomers = pgTable('billing_customers', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  customerId: text('customer_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [uniqueIndex('billing_customers_customer_key').on(t.customerId)]);
+
+/** สถานะ subscription แบบบัตรล่าสุดที่ webhook บอก ใช้แสดงปุ่ม "จัดการ" และกันสมัครซ้ำ */
+export const risingStarSubscriptions = pgTable('rising_star_subscriptions', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  status: text('status').notNull(),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+  /** created ของ event ล่าสุดที่ใช้ อันที่มาช้ากว่าจะไม่ทับอันใหม่ */
+  eventCreated: integer('event_created').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('rising_star_subscriptions_mentor_idx').on(t.mentorId)]);
+
+/** PaymentIntent ที่ถูกคืนเงินเต็มหรือถูก dispute ถ้า event คืนเงินมาก่อน event จ่ายเงิน จะไม่ให้สมาชิกจากเงินก้อนนี้ */
+export const billingRevocations = pgTable('billing_revocations', {
+  paymentRef: text('payment_ref').primaryKey(),
+  reason: text('reason').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** event ที่ประมวลผลแล้ว Stripe ส่งซ้ำได้ เจอ id เดิมให้ข้าม */
+export const stripeEvents = pgTable('stripe_events', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 /* ---------- จ้างเมนเทอร์ ----------
 

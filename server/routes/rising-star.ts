@@ -5,6 +5,7 @@ import { mentorSubmissions, mentors, risingStarPeriods } from '../db/schema.js';
 import type { AppEnv } from '../lib/guards.js';
 import { bangkokMonth, byRating, ratingJson, ratingsBetween } from '../lib/ratings.js';
 import type { Rating } from '../lib/ratings.js';
+import { billingEnabled, membershipOf } from '../lib/billing.js';
 
 /* ข้อมูลของหน้า Hall of Fame: สามเดือน รายชื่อที่จัดอันดับ และรายชื่อที่ไม่จัดอันดับ
 
@@ -22,7 +23,8 @@ const HALL_SIZE = 3;
 const initialOf = (text: string) => text.replace(/^[เแโใไ]+/, '').slice(0, 1).toUpperCase() || text.slice(0, 1);
 
 type Period = { mentorId: string; startsAt: Date; endsAt: Date; source: string };
-const overlaps = (p: Period, start: Date, end: Date) => p.startsAt < end && p.endsAt > start;
+// ช่วงศูนย์วัน (คืนเงินก่อนเริ่ม) ไม่นับ
+const overlaps = (p: Period, start: Date, end: Date) => p.endsAt > p.startsAt && p.startsAt < end && p.endsAt > start;
 
 risingStar.get('/', async (c) => {
   const now = new Date();
@@ -89,6 +91,10 @@ risingStar.get('/', async (c) => {
         activeUntil: active?.endsAt.toISOString() ?? null,
         rating: ratingJson(current.get(mine)),
         projectedRank: ranked.filter((row) => row.id !== mine && order(row.id, mine) < 0).length + 1,
+        billing: billingEnabled() ? await (async () => {
+          const state = await membershipOf(mine, now);
+          return { subscription: state.subscription, canSubscribe: state.canSubscribe, canPrepay: state.canPrepay };
+        })() : null,
       };
     }
   }

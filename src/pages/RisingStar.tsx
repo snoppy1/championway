@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { post } from '../lib/api';
 import { Check, ChevronDown } from 'lucide-react';
 import { useApi } from '../lib/useApi';
 import { useI18n } from '../i18n';
@@ -14,7 +15,11 @@ import { Avatar, OtherRow, RankedRow, Rating, RisingStarPill } from '../componen
 type Mentor = ListedMentor;
 type Ranked = RankedMentor;
 type HallMonth = { month: string; closesAt: string | null; top: Ranked[] };
-type Viewer = { mentorId: string; active: boolean; activeUntil: string | null; rating: RatingValue; projectedRank: number };
+/** สถานะการชำระเงิน null = ยังไม่เปิดรับเงินในสภาพแวดล้อมนี้ */
+type Billing = { subscription: { status: string; cancelAtPeriodEnd: boolean } | null; canSubscribe: boolean; canPrepay: boolean };
+type Viewer = {
+  mentorId: string; active: boolean; activeUntil: string | null; rating: RatingValue; projectedRank: number; billing: Billing | null;
+};
 type Payload = { hall: HallMonth[]; ranked: Ranked[]; others: Mentor[]; viewer: Viewer | null; demo: boolean };
 
 const locales: Record<Lang, string> = { en: 'en-US', th: 'th-TH' };
@@ -97,24 +102,76 @@ function MonthPanel({ data, kind }: { data: HallMonth; kind: Kind }) {
 
 /* ---------- upsell ---------- */
 
-function Upsell({ viewer }: { viewer: Viewer | null }) {
+/* ปุ่มไปหน้าชำระเงินของ Stripe สมาชิกจะเปิดเมื่อ webhook ยืนยันเท่านั้น หน้านี้แค่ส่งผู้ใช้ไปและรอกลับมา */
+function usePay() {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const go = async (path: string, body: unknown, key: string) => {
+    setBusy(key);
+    setError('');
+    try {
+      const { url } = await post<{ url: string }>(path, body);
+      window.location.assign(url);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+      setBusy(null);
+    }
+  };
+  return {
+    busy, error,
+    checkout: (method: 'card' | 'promptpay') => go('/billing/rising-star/checkout', { method }, method),
+    portal: () => go('/billing/rising-star/portal', {}, 'portal'),
+  };
+}
+
+function PayError({ text }: { text: string }) {
+  return text ? <p className="rs-pay__error" role="alert">{text}</p> : null;
+}
+
+function MemberNote({ viewer }: { viewer: Viewer }) {
   const { t, lang } = useI18n();
   const s = t.risingStar;
   const uid = useId();
+  const pay = usePay();
+  const billing = viewer.billing;
+  const sub = billing?.subscription ?? null;
+  const until = viewer.activeUntil ? bangkokDate(viewer.activeUntil, lang) : '';
+  const status = !billing ? null
+    : sub?.status === 'past_due' ? s.billingPastDue
+    : sub && !sub.cancelAtPeriodEnd ? s.billingAuto
+    : sub ? s.billingCancelled
+    : s.billingManual;
+  return <aside className="rs-note" aria-labelledby={`${uid}-title`}>
+    <RisingStarPill />
+    <h2 id={`${uid}-title`}>{s.memberTitle}</h2>
+    {until && <p>{s.memberUntil(until)}</p>}
+    <p>{viewer.rating.average !== null
+      ? s.memberProgress(viewer.rating.average.toFixed(1), viewer.rating.reviews, viewer.projectedRank)
+      : s.memberNoReviews}</p>
+    {billing && <div className="rs-pay">
+      {status && <p className="rs-pay__status">{status}</p>}
+      {sub && <button type="button" className="ghost-button rs-pay__button" aria-busy={pay.busy === 'portal'}
+        disabled={pay.busy !== null} onClick={pay.portal}>{s.manage}</button>}
+      {!sub && billing.canSubscribe && <button type="button" className="primary-button rs-pay__button" aria-busy={pay.busy === 'card'}
+        disabled={pay.busy !== null} onClick={() => pay.checkout('card')}>{s.switchToCard}</button>}
+      {billing.canPrepay && <button type="button" className="ghost-button rs-pay__button" aria-busy={pay.busy === 'promptpay'}
+        disabled={pay.busy !== null} onClick={() => pay.checkout('promptpay')}>{s.renewPromptPay}</button>}
+      <PayError text={pay.error} />
+    </div>}
+  </aside>;
+}
 
-  // สมาชิกอยู่แล้วไม่ต้องชวนสมัครซ้ำ บอกแค่ว่าสมาชิกภาพหมดเมื่อไหร่
-  if (viewer?.active) {
-    return <aside className="rs-note" aria-labelledby={`${uid}-title`}>
-      <RisingStarPill />
-      <h2 id={`${uid}-title`}>{s.memberTitle}</h2>
-      {viewer.activeUntil && <p>{s.memberUntil(bangkokDate(viewer.activeUntil, lang))}</p>}
-      <p>{viewer.rating.average !== null
-        ? s.memberProgress(viewer.rating.average.toFixed(1), viewer.rating.reviews, viewer.projectedRank)
-        : s.memberNoReviews}</p>
-    </aside>;
-  }
+function Upsell({ viewer }: { viewer: Viewer | null }) {
+  const { t } = useI18n();
+  const s = t.risingStar;
+  const uid = useId();
+  const pay = usePay();
+
+  // สมาชิกอยู่แล้วไม่ต้องชวนสมัครซ้ำ บอกว่าสมาชิกหมดเมื่อไหร่และจัดการการชำระเงินได้
+  if (viewer?.active) return <MemberNote viewer={viewer} />;
 
   const isMentor = viewer !== null;
+  const billing = viewer?.billing ?? null;
   const text = isMentor
     ? (viewer.rating.average !== null ? s.upsellProgress(viewer.rating.average.toFixed(1), viewer.rating.reviews, viewer.projectedRank) : s.upsellNoReviews)
     : s.upsellGuestText;
@@ -127,12 +184,22 @@ function Upsell({ viewer }: { viewer: Viewer | null }) {
     <div className="rs-upsell__body">
       <p className="rs-upsell__lead">{text}</p>
       <ul className="rs-perks">{s.perks.map((perk) => <li key={perk}><Check aria-hidden="true" /><span>{perk}</span></li>)}</ul>
-      {/* TODO(stripe): เมื่อฝั่ง Stripe พร้อม ให้ปุ่มนี้ไปที่ /rising-star/join แทน /profile
-          ตอนนี้ยังไม่มีทางชำระเงิน จึงพาเมนเทอร์ไปโปรไฟล์ และพาคนอื่นไปสมัครเป็นเมนเทอร์ก่อน */}
-      <Link className="primary-button rs-upsell__cta" to={isMentor ? '/profile' : '/mentors/apply'}>
-        {isMentor ? s.joinCta : s.applyCta}
-      </Link>
-      <p className="rs-upsell__fine">{s.renewal}</p>
+      {isMentor && billing ? <>
+        {billing.canSubscribe && <button type="button" className="primary-button rs-upsell__cta" aria-busy={pay.busy === 'card'}
+          disabled={pay.busy !== null} onClick={() => pay.checkout('card')}>{s.payCard}</button>}
+        {billing.canPrepay && <button type="button" className="ghost-button rs-upsell__cta rs-upsell__alt" aria-busy={pay.busy === 'promptpay'}
+          disabled={pay.busy !== null} onClick={() => pay.checkout('promptpay')}>{s.payPromptPay}</button>}
+        {billing.subscription && <button type="button" className="ghost-button rs-upsell__cta rs-upsell__alt" aria-busy={pay.busy === 'portal'}
+          disabled={pay.busy !== null} onClick={pay.portal}>{s.manage}</button>}
+        <PayError text={pay.error} />
+        <p className="rs-upsell__fine">{s.payFine}</p>
+      </> : <>
+        {/* ยังไม่เปิดรับเงินในสภาพแวดล้อมนี้ พาเมนเทอร์ไปโปรไฟล์ และพาคนอื่นไปสมัครเป็นเมนเทอร์ก่อน */}
+        <Link className="primary-button rs-upsell__cta" to={isMentor ? '/profile' : '/mentors/apply'}>
+          {isMentor ? s.joinCta : s.applyCta}
+        </Link>
+        <p className="rs-upsell__fine">{s.renewal}</p>
+      </>}
     </div>
   </aside>;
 }
@@ -169,6 +236,17 @@ export function RisingStar() {
   const s = t.risingStar;
   const { data, error, loading, reload } = useApi<Payload>('/rising-star');
   const [now, last, older] = data?.hall ?? [];
+  const [params] = useSearchParams();
+  const joined = params.get('joined') === '1';
+  const [tries, setTries] = useState(0);
+  const waiting = joined && Boolean(data?.viewer) && !data?.viewer?.active && tries < 6;
+
+  /* กลับจาก Stripe แล้ว webhook อาจมาช้ากว่าเบราว์เซอร์ไม่กี่วินาที ถามซ้ำสักพักจนสมาชิกเปิด */
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setTimeout(() => { setTries((n) => n + 1); reload(); }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [waiting, tries, reload]);
 
   // ไม่ตั้งชื่อแท็บเอง จะค้างเป็นชื่อเริ่มต้นของ index.html ซึ่งเป็นภาษาไทยเสมอ
   useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
@@ -181,6 +259,9 @@ export function RisingStar() {
             <h1 id="rs-title">{s.pageTitle}</h1>
             <p>{s.lead}</p>
             {data?.demo && <p className="rs-sample">{s.sample}</p>}
+            {joined && data?.viewer && <p className="rs-joined" role="status">
+              {data.viewer.active ? s.joinedActive : waiting ? s.joinedWaiting : s.joinedSlow}
+            </p>}
           </div>
         </div>
         {loading && <LoadingBody />}

@@ -1,0 +1,1 @@
+ALTER TABLE "rising_star_periods" ADD COLUMN "payment_ref" text;

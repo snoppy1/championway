@@ -71,6 +71,27 @@
       "when": 1790956146148,
       "tag": "0009_vengeful_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791046026988,
+      "tag": "0010_wet_mach_iv",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791046731104,
+      "tag": "0011_mysterious_sabretooth",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791047255425,
+      "tag": "0012_dark_tag",
+      "breakpoints": true
     }
   ]
 }

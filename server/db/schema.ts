@@ -205,6 +205,9 @@ export const mentorSubmissions = pgTable('mentor_submissions', {
   contactLink: text('contact_link').notNull().default(''),
   /** งานแข่งที่ติ๊กไว้ตอนสมัคร จะกลายเป็นงานที่รับปรึกษาเมื่อใบสมัครผ่าน ไม่ติ๊กเลยก็ได้ */
   competitionIds: text('competition_ids').array().notNull().default([]),
+  /** ราคาของแต่ละงานที่ติ๊กไว้ (ผู้ใช้ตัดสิน 4 ต.ค. 2569: ราคาขึ้นกับงาน ไม่มีราคากลาง)
+      price/minutes เป็น null = ข้ามไว้ ไปใส่ทีหลังใน Mentor zone */
+  competitionOffers: jsonb('competition_offers').$type<{ competitionId: string; price: number | null; minutes: number | null }[]>().notNull().default([]),
   paidSlot: timestamp('paid_slot', { withTimezone: true }),
   freeSlot: timestamp('free_slot', { withTimezone: true }),
   publishedMentorId: text('published_mentor_id'),

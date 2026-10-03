@@ -1,0 +1,1 @@
+ALTER TABLE "mentor_submissions" ADD COLUMN "competition_offers" jsonb DEFAULT '[]'::jsonb NOT NULL;

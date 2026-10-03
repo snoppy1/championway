@@ -49,7 +49,7 @@ export const mentorChecks = [
   'ตัวตนและที่ทำงานตรวจสอบได้จากข้อมูลที่ให้มา',
   'หลักฐานรางวัลเป็นของผู้สมัครจริง และตรงกับเวทีที่อ้าง',
   'ขอบเขตช่วยได้และช่วยไม่ได้เขียนชัด และไม่ขัดกับกติกาของเวที',
-  'ราคาและคิวสมเหตุสมผล ไม่มีการชวนไปคุยนอกระบบ',
+  'ราคาของแต่ละงานสมเหตุสมผล และช่องทางติดต่อดูเป็นของผู้สมัครจริง',
 ];
 
 const decisionBody = z.object({
@@ -318,8 +318,20 @@ async function loadMentorSubmission(id: string) {
     ? await db.select({ slug: competitions.slug, name: competitions.name })
       .from(competitions).where(inArray(competitions.slug, slugs))
     : [];
+  // งานที่ติ๊กพร้อมราคาของแต่ละงาน ใบเก่าที่ไม่มีราคาต่องานใช้รายการ id เดิม
+  const offerRows = row.competitionOffers.length
+    ? row.competitionOffers
+    : row.competitionIds.map((competitionId) => ({ competitionId, price: row.price, minutes: row.minutes }));
+  const named = offerRows.length
+    ? await db.select({ id: competitions.id, slug: competitions.slug, name: competitions.name })
+      .from(competitions).where(inArray(competitions.id, offerRows.map((offer) => offer.competitionId)))
+    : [];
   return {
     ...row,
+    offers: offerRows.flatMap((offer) => {
+      const event = named.find((item) => item.id === offer.competitionId);
+      return event ? [{ slug: event.slug, name: event.name, price: offer.price, minutes: offer.minutes }] : [];
+    }),
     awards: awards.map((award) => ({
       ...award,
       matched: known.find((item) => item.slug === award.competitionSlug) ?? null,
@@ -356,6 +368,15 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
           .limit(1)
         : [];
 
+      /* ราคาต่องานจากใบสมัคร ใบเก่าที่ยังไม่มี competitionOffers ใช้ราคากลางเดิม
+         ราคาบนโปรไฟล์ = งานที่ถูกที่สุดที่ใส่ราคาไว้ ไม่มีเลยก็ว่าง (แสดง "-") */
+      const offerOf = new Map(submission.competitionOffers.map((offer) => [offer.competitionId, offer]));
+      const priced = submission.competitionOffers.filter((offer) => offer.price !== null && offer.minutes !== null);
+      const cheapest = priced.sort((a, b) => a.price! / a.minutes! - b.price! / b.minutes!)[0];
+      const profilePrice = submission.competitionOffers.length
+        ? { price: cheapest?.price ?? null, minutes: cheapest?.minutes ?? null }
+        : { price: submission.price, minutes: submission.minutes };
+
       mentorId = newId('mtr');
       await tx.insert(mentors).values({
         id: mentorId,
@@ -367,8 +388,7 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
         wonSlug: verifiedAward?.matched?.slug ?? null,
         category: primary?.competition_categories.category ?? null,
         topics: [],
-        price: submission.price,
-        minutes: submission.minutes,
+        ...profilePrice,
         contactEmail: submission.contactEmail,
         contactLine: submission.contactLine,
         contactPhone: submission.contactPhone,
@@ -378,13 +398,16 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
         cannot: submission.cannot,
         verified: Boolean(verifiedAward),
       });
-      // งานที่ติ๊กไว้ตอนสมัครกลายเป็นงานที่รับปรึกษา ใช้ราคาจากใบสมัคร แก้ทีหลังได้ใน Mentor zone
+      // งานที่ติ๊กไว้ตอนสมัครกลายเป็นงานที่รับปรึกษา ใช้ราคาของงานนั้นจากใบสมัคร แก้ทีหลังได้ใน Mentor zone
       const stillThere = submission.competitionIds.length
         ? await tx.select({ id: competitions.id }).from(competitions).where(inArray(competitions.id, submission.competitionIds))
         : [];
       if (stillThere.length) {
         await tx.insert(mentorCompetitionChoices).values(stillThere.map((row) => ({
-          mentorId: mentorId!, competitionId: row.id, choice: 'help', price: submission.price, minutes: submission.minutes,
+          mentorId: mentorId!, competitionId: row.id, choice: 'help',
+          ...(offerOf.has(row.id)
+            ? { price: offerOf.get(row.id)!.price, minutes: offerOf.get(row.id)!.minutes }
+            : { price: submission.price, minutes: submission.minutes }),
         })));
       }
       await tx.update(mentorSubmissions)

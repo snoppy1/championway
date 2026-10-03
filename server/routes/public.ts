@@ -308,8 +308,15 @@ const mentorSubmissionBody = z.object({
   contactPhone: z.string().trim().max(40).default(''),
   contactInstagram: z.string().trim().max(100).default(''),
   contactLink: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://').default(''),
-  /** slug ของงานแข่งที่ติ๊กไว้ว่าจะรับปรึกษา ไม่ติ๊กเลยก็ได้ */
+  /** slug ของงานแข่งที่ติ๊กไว้ว่าจะรับปรึกษา ไม่ติ๊กเลยก็ได้ (แบบเก่า ไม่มีราคา) */
   competitions: z.array(z.string().trim().max(200)).max(50).default([]),
+  /** งานที่ติ๊กพร้อมราคาของงานนั้น ราคากับนาทีต้องมาคู่กัน หรือว่างทั้งคู่ = ข้ามไว้ใส่ทีหลังใน Mentor zone */
+  offers: z.array(z.object({
+    slug: z.string().trim().min(1).max(200),
+    price: z.number().int().min(0).max(100000).nullable(),
+    minutes: z.number().int().min(1).max(600).nullable(),
+  }).refine((o) => (o.price === null) === (o.minutes === null), 'ใส่ทั้งราคาและจำนวนนาที หรือติ๊กข้ามไว้ก่อน'))
+    .max(50).default([]),
   paidSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
   freeSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
   awards: z.array(z.object({
@@ -329,10 +336,14 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
   const body = parsed.data;
   const user = c.get('user')!;
   const id = newId('ms');
-  // เก็บเฉพาะงานที่มีอยู่จริง slug ที่ไม่รู้จักถูกทิ้งเงียบ ๆ
-  const picked = body.competitions.length
-    ? await db.select({ id: competitionsTable.id }).from(competitionsTable).where(inArray(competitionsTable.slug, body.competitions))
+  // เก็บเฉพาะงานที่มีอยู่จริง slug ที่ไม่รู้จักถูกทิ้งเงียบ ๆ งานเดียวกันส่งซ้ำได้ราคาแรก
+  const wanted = new Map<string, { price: number | null; minutes: number | null }>();
+  for (const offer of body.offers) if (!wanted.has(offer.slug)) wanted.set(offer.slug, { price: offer.price, minutes: offer.minutes });
+  for (const slug of body.competitions) if (!wanted.has(slug)) wanted.set(slug, { price: null, minutes: null });
+  const picked = wanted.size
+    ? await db.select({ id: competitionsTable.id, slug: competitionsTable.slug }).from(competitionsTable).where(inArray(competitionsTable.slug, [...wanted.keys()]))
     : [];
+  const offers = picked.map((row) => ({ competitionId: row.id, ...wanted.get(row.slug)! }));
 
   await db.transaction(async (tx) => {
     await tx.insert(mentorSubmissions).values({
@@ -359,6 +370,7 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
       contactInstagram: body.contactInstagram,
       contactLink: body.contactLink,
       competitionIds: picked.map((row) => row.id),
+      competitionOffers: offers,
       paidSlot: body.paidSlot ? new Date(body.paidSlot) : null,
       freeSlot: body.freeSlot ? new Date(body.freeSlot) : null,
     });

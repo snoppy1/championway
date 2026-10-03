@@ -9,20 +9,19 @@ import { useAuth } from '../data/auth';
 import { ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { isWebLink, parsePrice } from '../data/consult';
+import { CompetitionOffers } from '../components/CompetitionOffers';
+import type { OpenCompetition, Offers } from '../components/CompetitionOffers';
 import { useI18n } from '../i18n';
-import { formatInputDate } from '../i18n/format';
 import '../form.css';
 
 /* ใบสมัครเมนเทอร์ไม่มีตัวเลือก "นักเรียน" เพราะเมนเทอร์ต้องผ่านเวทีมาแล้ว */
 const applicantStatuses: OccupationId[] = ['university', 'working', 'other'];
-/* ช่องทางติดต่อ ราคา (บาทต่อกี่นาที) และเวทีที่ติ๊กไว้อยู่ในใบสมัครตั้งแต่ต้น
+/* ช่องทางติดต่อและงานที่ติ๊กไว้พร้อมราคาของแต่ละงานอยู่ในใบสมัครตั้งแต่ต้น ไม่มีราคากลาง
    ติดต่อกันนอกเว็บ เว็บไม่เก็บเงิน แก้ทั้งหมดได้ภายหลังใน Mentor zone */
 type Field = 'first' | 'last' | 'nickname' | 'email' | 'occupation' | 'organization' | 'role' | 'experience' | 'portfolio' | 'best' | 'cannot'
-  | 'contactEmail' | 'contactLine' | 'contactPhone' | 'contactInstagram' | 'contactLink' | 'price' | 'minutes';
-type OpenCompetition = { slug: string; name: string; org: string; closesAt: string };
-const COMPETITION_PAGE = 10;
+  | 'contactEmail' | 'contactLine' | 'contactPhone' | 'contactInstagram' | 'contactLink';
 interface Award { id: number; title: string; prize: string; year: string; url: string; file?: File }
-const empty: Record<Field, string> = { first: '', last: '', nickname: '', email: '', occupation: '', organization: '', role: '', experience: '', portfolio: '', best: '', cannot: '', contactEmail: '', contactLine: '', contactPhone: '', contactInstagram: '', contactLink: '', price: '', minutes: '' };
+const empty: Record<Field, string> = { first: '', last: '', nickname: '', email: '', occupation: '', organization: '', role: '', experience: '', portfolio: '', best: '', cannot: '', contactEmail: '', contactLine: '', contactPhone: '', contactInstagram: '', contactLink: '' };
 
 type ConsentKey = 'accuracy' | 'guidanceOnly' | 'replies' | 'noJudging' | 'payment';
 /** Every box starts unticked and all of them are required before the sample submit. */
@@ -30,7 +29,7 @@ const consentKeys: ConsentKey[] = ['accuracy', 'guidanceOnly', 'replies', 'noJud
 const noConsent: Record<ConsentKey, boolean> = { accuracy: false, guidanceOnly: false, replies: false, noJudging: false, payment: false };
 
 export function MentorApplication() {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const s = t.mentorApply;
   const [stage, setStage] = useState(0);
   const [values, setValues] = useState(empty);
@@ -40,8 +39,8 @@ export function MentorApplication() {
   const [portraitUrl, setPortraitUrl] = useState('');
   const [selectedTopics, setSelectedTopics] = useState<TopicId[]>([]);
   const [consent, setConsent] = useState(noConsent);
-  const [selectedCompetitions, setSelectedCompetitions] = useState<string[]>([]);
-  const [competitionLimit, setCompetitionLimit] = useState(COMPETITION_PAGE);
+  const [offers, setOffers] = useState<Offers>({});
+  const [badOffers, setBadOffers] = useState<string[]>([]);
   // รายชื่อเวทีที่ยังเปิดรับสมัคร ใช้ติ๊กเลือก ไม่บังคับ โหลดไม่ได้ก็ส่งใบสมัครต่อได้
   const openList = useApi<{ items: OpenCompetition[] }>('/consult/open-competitions');
   const [message, setMessage] = useState('');
@@ -99,9 +98,16 @@ export function MentorApplication() {
     }
     if (stage === 2) {
       if (selectedTopics.length !== 2) error = s.errors.pickTwo;
-      else if (!parsePrice(values.price, values.minutes)) error = s.errors.badPrice;
       else if (![values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].some((value) => value.trim())) error = s.errors.needContact;
       else if (values.contactLink.trim() && !isWebLink(values.contactLink)) error = s.errors.badLink;
+      // งานที่ติ๊กแล้วต้องมีราคาที่ถูกต้อง หรือติ๊กข้ามไว้ก่อน
+      const bad = Object.entries(offers).filter(([, offer]) => !offer.skip && !parsePrice(offer.price, offer.minutes)).map(([slug]) => slug);
+      setBadOffers(bad);
+      if (!error && bad.length) {
+        error = s.errors.offerPrice(bad.length);
+        // รอให้กรอบแดงขึ้นก่อน แล้วพาไปช่องราคาแรกที่ต้องแก้
+        setTimeout(() => document.querySelector<HTMLInputElement>('.offer.is-invalid .offer-rate__input[aria-invalid="true"]')?.focus(), 50);
+      }
     }
     if (stage === 3) {
       missingConsent = consentKeys.find((key) => !consent[key]);
@@ -123,8 +129,9 @@ export function MentorApplication() {
         best: values.best, cannot: values.cannot,
         contactEmail: values.contactEmail, contactLine: values.contactLine, contactPhone: values.contactPhone,
         contactInstagram: values.contactInstagram, contactLink: values.contactLink,
-        ...parsePrice(values.price, values.minutes),
-        competitions: selectedCompetitions,
+        offers: Object.entries(offers).map(([slug, offer]) => ({
+          slug, ...(offer.skip ? { price: null, minutes: null } : parsePrice(offer.price, offer.minutes)!),
+        })),
         // ฐานข้อมูลเก็บความถนัดเป็นข้อความไทยตามเดิม ไม่ว่าผู้ใช้เลือกภาษาไหน
         topics: selectedTopics.map((id) => topicValues[id]),
         awards: awards.map((award) => ({
@@ -217,10 +224,6 @@ export function MentorApplication() {
             {group(s.strengthsGroup, <div className="topics" role="group" aria-labelledby="topic-label">
               {topicIds.map((topic) => <label className="check topic" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={(event) => { if (event.target.checked && selectedTopics.length === 2) { setMessage(s.errors.maxTopics); return; } reviewAgain(); setSelectedTopics(event.target.checked ? [...selectedTopics, topic] : selectedTopics.filter((item) => item !== topic)); setMessage(''); }} /><span>{t.taxonomy.topics[topic]}</span></label>)}
             </div>, s.strengthsHint, <span className="count" id="topic-label" aria-live="polite">{s.strengthsCount(selectedTopics.length)}</span>)}
-            {group(s.priceGroup, <div className="grid">
-              {field('price', s.price, { type: 'number', inputMode: 'numeric', step: 1, autoComplete: 'off' })}
-              {field('minutes', s.minutes, { type: 'number', inputMode: 'numeric', step: 1, autoComplete: 'off' })}
-            </div>, s.priceHint)}
             {group(s.contactsGroup, <div className="grid">
               {field('contactEmail', s.contactEmail, { type: 'email', maxLength: 200, autoComplete: 'off' })}
               {field('contactLine', s.contactLine, { maxLength: 100, autoComplete: 'off' })}
@@ -232,18 +235,9 @@ export function MentorApplication() {
               {openList.loading && !openList.data && <p className="muted" role="status">{s.competitionsLoading}</p>}
               {openList.error && !openList.data && <p className="note" role="status">{s.competitionsError}</p>}
               {openList.data && openList.data.items.length === 0 && <p className="muted">{s.competitionsEmpty}</p>}
-              {openList.data && openList.data.items.length > 0 && <>
-                <div className="topics" role="group" aria-labelledby="competition-count">
-                  {openList.data.items.slice(0, competitionLimit).map((item) => <label className="check topic" key={item.slug}>
-                    <input type="checkbox" checked={selectedCompetitions.includes(item.slug)}
-                      onChange={(event) => { reviewAgain(); setSelectedCompetitions(event.target.checked ? [...selectedCompetitions, item.slug] : selectedCompetitions.filter((slug) => slug !== item.slug)); }} />
-                    <span>{item.name}<small className="muted"> · {s.competitionCloses(formatInputDate(item.closesAt.slice(0, 10), lang))}</small></span>
-                  </label>)}
-                </div>
-                {openList.data.items.length > competitionLimit && <button type="button" onClick={() => setCompetitionLimit(competitionLimit + COMPETITION_PAGE)}>
-                  {s.competitionsMore(openList.data.items.length - competitionLimit)}</button>}
-              </>}
-            </>, s.competitionsHint, <span className="count" id="competition-count" aria-live="polite">{s.competitionsCount(selectedCompetitions.length)}</span>)}
+              {openList.data && openList.data.items.length > 0 && <CompetitionOffers items={openList.data.items} invalid={badOffers}
+                offers={offers} onChange={(next) => { reviewAgain(); setOffers(next); setBadOffers((bad) => bad.filter((slug) => next[slug])); }} />}
+            </>, s.competitionsHint, <span className="count" aria-live="polite">{s.competitionsCount(Object.keys(offers).length)}</span>)}
             <p className="muted">{s.zoneNote}</p>
           </fieldset>
 
@@ -271,10 +265,12 @@ export function MentorApplication() {
             </>)}
             {reviewGroup(s.strengthsGroup, 2, <>
               <div className="review"><small>{s.reviewStrengths}</small>{selectedTopics.map((topic) => t.taxonomy.topics[topic]).join(' · ')}</div>
-              <div className="review"><small>{s.reviewPrice}</small>{t.price.line(Number(values.price), Number(values.minutes))}</div>
               <div className="review"><small>{s.reviewContacts}</small>{[values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].filter((value) => value.trim()).join(' · ')}</div>
-              <div className="review"><small>{s.reviewCompetitions}</small>{selectedCompetitions.length
-                ? selectedCompetitions.map((slug) => openList.data?.items.find((item) => item.slug === slug)?.name ?? slug).join(' · ')
+              <div className="review"><small>{s.reviewCompetitions}</small>{Object.keys(offers).length
+                ? <ul className="review-offers">{Object.entries(offers).map(([slug, offer]) => <li key={slug}>
+                  <span>{openList.data?.items.find((item) => item.slug === slug)?.name ?? slug}</span>
+                  <strong>{offer.skip ? s.reviewPriceLater : t.price.line(Number(offer.price), Number(offer.minutes))}</strong>
+                </li>)}</ul>
                 : s.reviewNoCompetitions}</div>
             </>)}
             {group(s.consentGroup, <>

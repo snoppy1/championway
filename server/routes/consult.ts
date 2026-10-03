@@ -5,6 +5,7 @@ import { and, desc, eq, gte, inArray, isNull, lt, lte, gt, ne, sql } from 'drizz
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
+  competitionCategories, competitionLevels,
   competitionRequests, competitions, consultationConfirmTokens, consultations, hirePayments, mentorCompetitionChoices, mentorPayoutAccounts, mentorPayouts,
   mentorReviews, mentors, mentorSubmissions, risingStarPeriods, users,
 } from '../db/schema.js';
@@ -96,10 +97,25 @@ consult.get('/me', async (c) => {
 });
 
 /** งานที่ยังเปิดรับสมัคร ใช้ในฟอร์มสมัครเมนเทอร์ให้ติ๊กเลือก ไม่มีข้อมูลส่วนตัว เปิดสาธารณะได้ */
+/* งานที่ยังเปิดรับ ใช้ในใบสมัครเมนเทอร์และ Mentor zone ส่งหมวด ระดับ และข้อมูลย่อของงานมาด้วย
+   หน้าเว็บจะได้จัดกลุ่มตามหมวดและให้เมนเทอร์รู้ว่างานคืออะไรก่อนติ๊ก */
 consult.get('/open-competitions', async (c) => {
-  const rows = await db.select({ slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt })
-    .from(competitions).where(sql`${competitions.closesAt} >= (now() at time zone 'Asia/Bangkok')::date`).orderBy(competitions.closesAt);
-  return c.json({ items: rows });
+  const rows = await db.select({
+    id: competitions.id, slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt,
+    type: competitions.type, region: competitions.region, teamMin: competitions.teamMin, teamMax: competitions.teamMax,
+  }).from(competitions).where(sql`${competitions.closesAt} >= (now() at time zone 'Asia/Bangkok')::date`).orderBy(competitions.closesAt);
+  const ids = rows.map((row) => row.id);
+  const [cats, levels] = ids.length ? await Promise.all([
+    db.select().from(competitionCategories).where(inArray(competitionCategories.competitionId, ids)).orderBy(competitionCategories.position),
+    db.select().from(competitionLevels).where(inArray(competitionLevels.competitionId, ids)),
+  ]) : [[], []];
+  const catsOf = new Map<string, string[]>();
+  for (const row of cats) catsOf.set(row.competitionId, [...(catsOf.get(row.competitionId) ?? []), row.category]);
+  const levelsOf = new Map<string, string[]>();
+  for (const row of levels) levelsOf.set(row.competitionId, [...(levelsOf.get(row.competitionId) ?? []), row.level]);
+  return c.json({
+    items: rows.map(({ id, ...row }) => ({ ...row, categories: catsOf.get(id) ?? [], levels: levelsOf.get(id) ?? [] })),
+  });
 });
 
 /* ---------- หน้างานแข่ง: Available Mentors ---------- */

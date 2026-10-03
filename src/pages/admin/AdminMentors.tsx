@@ -93,6 +93,8 @@ type MentorSubmission = {
   contactInstagram: string;
   contactLink: string;
   competitionIds: string[];
+  /** งานที่ติ๊กพร้อมราคาของแต่ละงาน ราคาว่าง = ผู้สมัครข้ามไว้ใส่ทีหลัง */
+  offers: { slug: string; name: string; price: number | null; minutes: number | null }[];
   awards: Award[];
   files: AttachedFile[];
   events: ReviewEvent[];
@@ -185,16 +187,18 @@ export function AdminMentorReview() {
             <Field label="ช่วยได้">{submission.best}</Field>
             <Field label="ช่วยไม่ได้">{submission.cannot}</Field>
             <Field label="ความถนัด">{submission.topics.join(' · ')}</Field>
-            <Field label="ราคา">{submission.price === null || submission.minutes === null
-              ? 'ไม่ได้ระบุ'
-              : `${baht.format(submission.price)} บาท / ${submission.minutes} นาที`}</Field>
             {/* นักเรียนที่ยืนยันอีเมลแล้วเห็นช่องทางเหล่านี้หลังกดติดต่อ ผู้ตรวจจึงควรเห็นก่อนเผยแพร่ */}
             <Field label="ติดต่อ: อีเมล">{submission.contactEmail || 'ไม่ได้ระบุ'}</Field>
             <Field label="ติดต่อ: LINE ID">{submission.contactLine || 'ไม่ได้ระบุ'}</Field>
             <Field label="ติดต่อ: เบอร์โทร">{submission.contactPhone || 'ไม่ได้ระบุ'}</Field>
             <Field label="ติดต่อ: Instagram">{submission.contactInstagram || 'ไม่ได้ระบุ'}</Field>
             <Field label="ติดต่อ: ลิงก์อื่น">{submission.contactLink ? <ExternalLink href={submission.contactLink} /> : 'ไม่ได้ระบุ'}</Field>
-            <Field label="เวทีที่ติ๊กไว้">{submission.competitionIds?.length ? `${submission.competitionIds.length} เวที` : 'ไม่ได้ติ๊กเวทีใด'}</Field>
+            <Field label="งานที่ติ๊กและราคา">{submission.offers?.length
+              ? <ul className="admin-offers">{submission.offers.map((offer) => <li key={offer.slug}>
+                <Link to={`/competitions/${offer.slug}`}>{offer.name}</Link>
+                {' · '}{offer.price === null || offer.minutes === null ? 'ข้ามไว้ ใส่ราคาทีหลัง' : `${baht.format(offer.price)} บาท / ${offer.minutes} นาที`}
+              </li>)}</ul>
+              : 'ไม่ได้ติ๊กงานใด'}</Field>
             <Field label="ผลงาน"><ExternalLink href={submission.portfolio || null} /></Field>
           </dl>
         </section>

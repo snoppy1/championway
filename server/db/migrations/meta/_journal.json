@@ -92,6 +92,13 @@
       "when": 1791047255425,
       "tag": "0012_dark_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791054115460,
+      "tag": "0013_outgoing_stellaris",
+      "breakpoints": true
     }
   ]
 }

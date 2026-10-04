@@ -169,7 +169,8 @@ main:focus { outline: none; }
 }
 
 .brand-link { display: flex; align-items: center; gap: 10px; color: var(--ink); }
-.brand-mark { width: 36px; height: 37px; display: block; flex-shrink: 0; }
+.brand-mark { width: 36px; height: 36px; display: block; flex-shrink: 0; }
+.brand-wordmark { display: block; width: auto; height: 38px; flex-shrink: 0; }
 .brand-name { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.2px; }
 
 .header-menu { display: contents; }
@@ -273,15 +274,13 @@ main:focus { outline: none; }
     linear-gradient(115deg, #f6f0ff, #fffced);
 }
 .hero-inner { padding-block: 72px 100px; text-align: center; }
-/* The wordmark art is a white-background JPEG; multiply drops that white into
-   the hero gradient without needing a cut-out alpha channel. */
+/* โลโก้ตัวอักษรพื้นใส (ตัดพื้นครีมออกแล้ว) วางบนพื้นไล่สีของ hero ได้ตรง ๆ */
 .hero-wordmark {
-  max-width: 740px;
+  max-width: 680px;
   margin: 0 auto;
   line-height: 0;
-  mix-blend-mode: multiply;
 }
-.hero-wordmark img { display: block; width: 100%; height: auto; margin-block: -4% -2%; }
+.hero-wordmark img { display: block; width: 100%; height: auto; }
 .hero-tagline {
   margin-top: 22px;
   font-family: var(--display);
@@ -1089,6 +1088,7 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 
 @media (max-width: 700px) {
   .brand-name { font-size: 17px; }
+  .brand-wordmark { height: 30px; }
   .hero-wordmark { max-width: 92%; }
   .hero-tagline { margin-top: 14px; }
   .hero-lead { margin-top: 12px; font-size: 14.5px; line-height: 1.75; text-wrap: balance; }

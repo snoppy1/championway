@@ -10,11 +10,17 @@ import { CHAT_CHANGED } from './ChatPanel';
 import { UnreadBadge } from './hire';
 import { useHiring } from '../data/hiring';
 import trophy from '../assets/trophy.png';
+import wordmark from '../assets/wordmark.png';
 import { useI18n } from '../i18n';
 
-/** The wordmark beside it already says ChampionWays, so the image is decorative. */
+/** The text beside it says what this is (admin), so the image is decorative. */
 export function BrandMark() {
-  return <img className="brand-mark" src={trophy} alt="" width={36} height={37} />;
+  return <img className="brand-mark" src={trophy} alt="" width={36} height={36} />;
+}
+
+/** โลโก้ตัวอักษรเต็ม (ถ้วย + ChampionWays) ใช้หัวและท้ายเว็บ ลิงก์ที่ครอบมี aria-label อยู่แล้ว รูปจึงไม่ต้องมี alt */
+export function Wordmark() {
+  return <img className="brand-wordmark" src={wordmark} alt="" width={572} height={120} />;
 }
 
 /* ปุ่มสลับภาษา ค่าตั้งต้นคืออังกฤษ ป้ายบนปุ่มเป็นรหัสภาษา EN/TH เหมือนกันทั้งสองภาษา
@@ -76,7 +82,7 @@ function Header() {
   return <header className="site-header">
     <div className="shell header-inner">
       <Link to="/" className="brand-link" aria-label={t.common.homeLink}>
-        <BrandMark /><span className="brand-name">ChampionWays</span>
+        <Wordmark />
       </Link>
       {/* จอกว้างใช้ display: contents ให้ลูกเรียงอยู่ในแถบเดียวกับโลโก้ตามเดิม
           จอแคบกลายเป็นแผงเมนูที่เปิดจากปุ่มสามขีด หัวเว็บจึงเหลือแถวเดียว */}
@@ -144,7 +150,7 @@ export function Layout() {
       <div className="shell footer-grid">
         <div className="footer-brand">
           <Link to="/" className="brand-link" aria-label={t.common.homeLink}>
-            <BrandMark /><span className="brand-name">ChampionWays</span>
+            <Wordmark />
           </Link>
           <p>{t.footer.tagline}</p>
         </div>

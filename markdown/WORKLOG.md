@@ -61,6 +61,7 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - เซิร์ฟเวอร์: ใบสมัครส่ง `offers` (slug + price/minutes หรือ null) เก็บใน `mentor_submissions.competition_offers` (migration **0013** รันแล้วบน dev/test ยังไม่ได้รันบน Production) · อนุมัติแล้วราคาไปอยู่กับแต่ละเวที ราคาบนโปรไฟล์ = เวทีที่ถูกที่สุดต่อนาที · `/consult/open-competitions` ส่งหมวด ระดับ ประเภท ขนาดทีม · หน้า admin แสดงเวทีพร้อมราคา · แก้ข้อความเก่าที่ยังพูดถึงการจ้าง/แชต
 - เทส: API 77/77, หน้าเว็บทั้งหมด 284 ผ่าน, ใบสมัคร 27 ผ่าน · design-critic 3 รอบ (FAIL → FAIL → PASS)
 - ส่งงานให้ Astra รอบนี้: 0 ครั้ง (งานหน้าฟอร์ม ไม่แตะ auth/เงิน)
+- โลโก้ใหม่จากเจ้าของ: wordmark (ถ้วย+หมวก+ChampionWays) ตัดพื้นครีมเป็นพื้นใส ใช้หัวเว็บ ท้ายเว็บ และหน้าแรก (`src/assets/wordmark.png`, `wordmark-lg.webp`) · ไอคอนถ้วยมีวงแหวนเป็น favicon/apple-touch-icon และไอคอนหน้าจัดการ · ลบ `wordmark.jpg` เก่า
 
 ### 4 ตุลาคม 2569 — คอม Windows: ค่าสมาชิก Rising Star ผ่าน Stripe
 

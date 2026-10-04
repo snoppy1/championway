@@ -13,7 +13,7 @@ import { useApi } from '../lib/useApi';
 import { CoverArt } from '../components/CoverArt';
 import { FilterPanel } from '../components/FilterPanel';
 import { BookmarkSimple } from '../components/icons';
-import wordmark from '../assets/wordmark.jpg';
+import wordmark from '../assets/wordmark-lg.webp';
 
 import { CompetitionTypeFilter } from '../components/CompetitionTypeFilter';
 import { useI18n } from '../i18n';
@@ -182,7 +182,7 @@ export function Home() {
   }}>
     <section className="hero">
       <div className="shell hero-inner">
-        <h1 className="hero-wordmark"><img src={wordmark} alt="ChampionWays" /></h1>
+        <h1 className="hero-wordmark"><img src={wordmark} alt="ChampionWays" width={1480} height={311} /></h1>
         <p className="hero-tagline">{s.tagline}</p>
         <p className="hero-lead">{s.lead}</p>
       </div>

@@ -179,6 +179,21 @@ test('only competitions you competed in can be mentored, each priced as free or 
   await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
 });
 
+test('a competition name typed before the list finishes loading still matches once it loads', async ({ page }) => {
+  const list = await (await page.request.get('/api/consult/open-competitions?all=1')).json() as { items: { name: string }[] };
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/api/consult/open-competitions?all=1', async (route) => { await gate; await route.continue(); });
+  await page.goto('/mentors/apply'); await fillIdentity(page); await next(page);
+  await page.getByRole('button', { name: '+ เพิ่มเวทีที่เคยแข่ง', exact: true }).click();
+  const card = page.locator('#cw-apply .exp').first();
+  await card.getByLabel('ชื่อเวที *', { exact: true }).fill(list.items[0].name);
+  await expect(card).toContainText('ยังไม่มีใน ChampionWays');
+  release();
+  await expect(card).toContainText('มีใน ChampionWays · เป็นเมนเทอร์ของเวทีนี้ได้');
+  await expect(card.getByRole('checkbox', { name: /อยากเป็นเมนเทอร์ของเวทีนี้/ })).toBeEnabled();
+});
+
 test('experiences are unlimited, show what is missing under each field, fold when done, and can be undone', async ({ page }) => {
   await page.goto('/mentors/apply'); await fillIdentity(page); await next(page);
   await page.locator('#apply-experience').fill('ผลงานและหน้าที่ในทีมตัวอย่าง');

@@ -9,7 +9,7 @@ import { useAuth } from '../data/auth';
 import { ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { isWebLink } from '../data/consult';
-import { ExperienceCard, PriceCard, experienceProblems, priceProblem } from '../components/ApplyExperience';
+import { ExperienceCard, PriceCard, experienceProblems, matchCompetition, priceProblem } from '../components/ApplyExperience';
 import type { Experience, KnownCompetition, Price } from '../components/ApplyExperience';
 import { useI18n } from '../i18n';
 import '../form.css';
@@ -47,6 +47,16 @@ export function MentorApplication() {
   // รายชื่อเวทีทั้งหมดในระบบ (รวมที่ปิดแล้ว) ใช้จับคู่ชื่อเวทีในประสบการณ์ โหลดไม่ได้ก็ยังพิมพ์ชื่อเองได้
   const knownList = useApi<{ items: KnownCompetition[] }>('/consult/open-competitions?all=1');
   const known = knownList.data?.items ?? [];
+  /* รายชื่อเวทีโหลดเสร็จทีหลังได้ (เน็ตช้า หรือวางชื่อก่อนโหลดเสร็จ) จับคู่ชื่อที่พิมพ์ไว้แล้วใหม่ทุกครั้งที่รายชื่อเปลี่ยน
+     ไม่งั้นเวทีที่มีในระบบจะค้างเป็น "ยังไม่มีใน ChampionWays" และติ๊กเป็นเมนเทอร์ไม่ได้ (เจอจากการทดสอบบน dev 5 ต.ค. 2569) */
+  useEffect(() => {
+    if (!knownList.data) return;
+    const list = knownList.data.items;
+    setExperiences((current) => current.map((item) => {
+      const slug = matchCompetition(list, item.name)?.slug ?? null;
+      return slug === item.slug ? item : { ...item, slug, mentor: slug ? item.mentor : false };
+    }));
+  }, [knownList.data]);
   // เวทีที่ติ๊กว่าอยากเป็นเมนเทอร์ ไม่ซ้ำกัน ตามลำดับที่ใส่
   const mentorFor = [...new Map(experiences.filter((item) => item.mentor && item.slug).map((item) => [item.slug!, known.find((row) => row.slug === item.slug)?.name ?? item.name])).entries()];
   const [message, setMessage] = useState('');

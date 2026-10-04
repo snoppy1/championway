@@ -18,6 +18,9 @@ export type Experience = {
   open: boolean;
 };
 export type KnownCompetition = { slug: string; name: string; org: string };
+/** หาเวทีในระบบจากชื่อที่พิมพ์ (ไม่สนตัวพิมพ์เล็กใหญ่และช่องว่างหัวท้าย) */
+export const matchCompetition = (known: KnownCompetition[], name: string) =>
+  known.find((row) => row.name.trim().toLowerCase() === name.trim().toLowerCase()) ?? null;
 export { priceProblem };
 export type { Price };
 
@@ -61,7 +64,7 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
   const { t } = useI18n();
   const s = t.mentorApply.exp;
   const uid = useId();
-  const match = (name: string) => known.find((row) => row.name.trim().toLowerCase() === name.trim().toLowerCase()) ?? null;
+  const match = (name: string) => matchCompetition(known, name);
   const inSystem = Boolean(item.slug);
   const year = new Date().getFullYear() + 543;
   const has = (problem: ExperienceProblem) => problems.includes(problem);

@@ -1,6 +1,7 @@
-import { useId } from 'react';
-import { AlertCircle, Check, CircleCheck, Info, Paperclip } from 'lucide-react';
+import { Fragment, useId } from 'react';
+import { AlertCircle, Check, CircleCheck, ExternalLink, Info, Paperclip } from 'lucide-react';
 import { useI18n } from '../i18n';
+import { formatInputDate } from '../i18n/format';
 import { priceProblem } from '../data/consult';
 import type { Price } from '../data/consult';
 
@@ -17,7 +18,9 @@ export type Experience = {
   /** การ์ดที่กรอกครบแล้วพับเหลือบรรทัดเดียว หน้าจะได้ไม่ยาวเกินเมื่อมีหลายเวที */
   open: boolean;
 };
-export type KnownCompetition = { slug: string; name: string; org: string };
+export type KnownCompetition = {
+  slug: string; name: string; org: string; closesAt: string; type: string; teamMin: number; teamMax: number; levels: string[];
+};
 /** หาเวทีในระบบจากชื่อที่พิมพ์ (ไม่สนตัวพิมพ์เล็กใหญ่และช่องว่างหัวท้าย) */
 export const matchCompetition = (known: KnownCompetition[], name: string) =>
   known.find((row) => row.name.trim().toLowerCase() === name.trim().toLowerCase()) ?? null;
@@ -53,6 +56,26 @@ function Segmented<T extends string>({ name, label, value, options, invalid, des
   </div>;
 }
 
+function CompetitionInfo({ competition }: { competition: KnownCompetition }) {
+  const { t, lang } = useI18n();
+  const s = t.mentorApply.exp;
+  const facts = [
+    competition.org,
+    s.closes(formatInputDate(competition.closesAt.slice(0, 10), lang)),
+    t.taxonomy.types[competition.type as keyof typeof t.taxonomy.types] ?? competition.type,
+    competition.levels.map((level) => t.taxonomy.levels[level as keyof typeof t.taxonomy.levels] ?? level).join(', '),
+    competition.teamMax <= 1 ? s.solo : s.team(competition.teamMin, competition.teamMax),
+  ].filter(Boolean);
+  return <div className="exp-info">
+    <p className="exp-info__name">{competition.name}</p>
+    {/* แต่ละข้อไม่ตัดกลางคำ ตัดบรรทัดได้เฉพาะระหว่างข้อ */}
+    <p className="exp-info__facts">{facts.map((fact, index) => <Fragment key={index}>{index > 0 && ' '}<span>{fact}{index < facts.length - 1 && ' ·'}</span></Fragment>)}</p>
+    <a className="exp-info__link" href={`/competitions/${encodeURIComponent(competition.slug)}`} target="_blank" rel="noreferrer">
+      {s.openDetails}<ExternalLink aria-hidden="true" size={14} />
+    </a>
+  </div>;
+}
+
 function FieldError({ id, text }: { id: string; text: string }) {
   return <p className="offer-error exp-error" id={id}><AlertCircle aria-hidden="true" size={16} />{text}</p>;
 }
@@ -66,6 +89,7 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
   const uid = useId();
   const match = (name: string) => matchCompetition(known, name);
   const inSystem = Boolean(item.slug);
+  const found = item.slug ? known.find((row) => row.slug === item.slug) ?? null : null;
   const year = new Date().getFullYear() + 543;
   const has = (problem: ExperienceProblem) => problems.includes(problem);
   const remove = <button className="plain exp-remove" type="button" aria-label={s.removeAria(index + 1)} onClick={onRemove}>{s.remove}</button>;
@@ -105,6 +129,8 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
         ? inSystem ? <><CircleCheck aria-hidden="true" size={16} />{s.inSystem}</> : <><Info aria-hidden="true" size={16} />{s.notInSystem}</>
         : s.competitionHint}
     </p>
+    {/* เวทีที่จับคู่ได้ แสดงรายละเอียดให้แน่ใจว่าเลือกถูกเวที (ชื่อคล้ายกันได้) พร้อมลิงก์เปิดหน้าเวทีในแท็บใหม่ */}
+    {found && <CompetitionInfo competition={found} />}
     <div className="exp-field">
       <span className="exp-label">{s.result}</span>
       <Segmented name={`${uid}-result`} label={s.result} value={item.result} invalid={has('result')}

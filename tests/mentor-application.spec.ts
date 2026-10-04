@@ -141,6 +141,9 @@ test('only competitions you competed in can be mentored, each priced as free or 
   await expect(typed).toContainText('ยังไม่มีใน ChampionWays');
   const known = await addExperience(page, first.name, { result: 'ได้รางวัล', mentor: true });
   await expect(known).toContainText('มีใน ChampionWays');
+  // จับคู่ได้แล้วเห็นรายละเอียดเวทีและลิงก์ไปหน้าเวที เพื่อให้แน่ใจว่าเลือกถูกเวที
+  await expect(known.locator('.exp-info__name')).toHaveText(first.name);
+  await expect(known.getByRole('link', { name: /ดูหน้าเวทีนี้/ })).toHaveAttribute('target', '_blank');
   await addExperience(page, second.name, { mentor: true });
   await next(page);
 

@@ -161,12 +161,10 @@ export function Layout() {
           </div>
           <div>
             <strong>{t.footer.forOrganizers}</strong>
-            {/* ฟอร์มผู้จัดงานพร้อมแล้วที่ /organizers แต่ยังไม่เปิดทางเข้า
-                เพราะฟอร์มสัญญาว่าจะแจ้งผลทางอีเมล ซึ่งยังส่งถึงผู้จัดไม่ได้
-                จนกว่าจะมีโดเมนของตัวเองไปยืนยันกับผู้ให้บริการอีเมล
-                เปลี่ยนกลับเป็น Link ได้ทันทีเมื่อพร้อม */}
-            <span className="nav-soon" title={t.common.comingSoon}>{t.footer.listForFree}</span>
-            <span className="nav-soon" title={t.common.comingSoon}>{t.footer.suggestCompetition}</span>
+            {/* เปิดทางเข้าฟอร์มผู้จัดงานแล้ว (4 ต.ค. 2569) โดเมน championways.space ยืนยันกับ Resend แล้ว
+                ฟอร์มที่สัญญาว่าจะแจ้งผลทางอีเมลจึงส่งถึงผู้จัดได้จริง */}
+            <Link to="/organizers">{t.footer.listForFree}</Link>
+            <Link to="/organizers/submit">{t.footer.suggestCompetition}</Link>
           </div>
         </div>
       </div>

@@ -14,11 +14,12 @@ import { unreadByRoom } from './chat.js';
 import { completeByMember, dispute, markPaid } from '../lib/hire-money.js';
 import { paymentProvider } from '../lib/payments.js';
 import { seal, secretBoxReady } from '../lib/secret-box.js';
+import { bestResult, mentorScore } from '../lib/mentor-rank.js';
 import { newId, newToken } from '../lib/id.js';
 import { hiringEnabled } from '../lib/flow.js';
 import { env } from '../lib/env.js';
 import { notify } from '../lib/email.js';
-import { bangkokMonth, byRating, ratingJson, ratingsBetween } from '../lib/ratings.js';
+import { bangkokMonth, ratingJson, ratingsBetween } from '../lib/ratings.js';
 
 /* จ้างเมนเทอร์ผ่านเว็บ (ผู้ใช้ตัดสิน 1 ต.ค. 2569 แทนการติดต่อนอกเว็บ)
 
@@ -131,16 +132,35 @@ consult.get('/competitions/:slug/mentors', async (c) => {
     .where(and(eq(mentorCompetitionChoices.competitionId, event.id), eq(mentorCompetitionChoices.choice, 'help')));
   const rows = choices.length ? await approvedMentors(choices.map((row) => row.mentorId)) : [];
   const now = new Date();
-  const month = bangkokMonth(now, 0);
-  const [ratings, members] = await Promise.all([ratingsBetween(month.start, month.end), activeMemberIds(now)]);
+  const ids = rows.map((row) => row.mentor.id);
+  const [ratings, members, done, competed] = await Promise.all([
+    ratingsBetween(new Date(0), now),
+    activeMemberIds(now),
+    ids.length ? db.select({ mentorId: consultations.mentorId, count: sql<number>`count(*)::int` }).from(consultations)
+      .where(and(inArray(consultations.mentorId, ids), eq(consultations.status, 'completed'))).groupBy(consultations.mentorId) : [],
+    ids.length ? db.select({ mentorId: mentorExperiences.mentorId, result: mentorExperiences.result, year: mentorExperiences.year })
+      .from(mentorExperiences).where(and(eq(mentorExperiences.competitionId, event.id), inArray(mentorExperiences.mentorId, ids))) : [],
+  ]);
   const byId = new Map(rows.map((row) => [row.mentor.id, row.mentor]));
   const priceOf = new Map(choices.map((row) => [row.mentorId, { price: row.price, minutes: row.minutes, unit: row.unit }]));
-  const entry = (id: string) => ({ ...card(byId.get(id)!), ...priceOf.get(id)!, rating: ratingJson(ratings.get(id)) });
-  const ids = [...byId.keys()];
-  const risingStar = ids.filter((id) => members.has(id)).sort(byRating(ratings, (id) => byId.get(id)!.name))
-    .map((id, index) => ({ rank: index + 1, ...entry(id) }));
-  const others = ids.filter((id) => !members.has(id)).sort((a, b) => byId.get(a)!.name.localeCompare(byId.get(b)!.name, 'th'))
-    .map(entry);
+  const doneOf = new Map(done.map((row) => [row.mentorId, row.count]));
+  const experienceOf = new Map(ids.map((id) => {
+    const best = bestResult(competed.filter((row) => row.mentorId === id));
+    return [id, best ? { result: best.result, year: best.year } : null];
+  }));
+  /* ลำดับ: คะแนนรวมของรีวิวทั้งหมด จำนวนครั้งที่ปรึกษาสำเร็จ และผลงานในเวทีนี้ (lib/mentor-rank.ts)
+     ป้ายผลงานมาจากประสบการณ์ที่ทีมตรวจหลักฐานแล้วเท่านั้น */
+  const scoreOf = new Map(ids.map((id) => [id, mentorScore({
+    average: ratings.get(id)?.average ?? null, reviews: ratings.get(id)?.reviews ?? 0,
+    consultations: doneOf.get(id) ?? 0, result: experienceOf.get(id)?.result ?? null,
+  })]));
+  const byScore = (a: string, b: string) => scoreOf.get(b)! - scoreOf.get(a)! || byId.get(a)!.name.localeCompare(byId.get(b)!.name, 'th');
+  const entry = (id: string) => ({
+    ...card(byId.get(id)!), ...priceOf.get(id)!, rating: ratingJson(ratings.get(id)),
+    experience: experienceOf.get(id), consultations: doneOf.get(id) ?? 0,
+  });
+  const risingStar = ids.filter((id) => members.has(id)).sort(byScore).map((id, index) => ({ rank: index + 1, ...entry(id) }));
+  const others = ids.filter((id) => !members.has(id)).sort(byScore).map(entry);
   return c.json({ competition: { id: event.id, slug: event.slug, name: event.name }, risingStar, others });
 });
 

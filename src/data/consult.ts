@@ -6,7 +6,12 @@ import type { Messages } from '../i18n/en';
 export type Rating = { average: number | null; reviews: number };
 export type MentorCard = { id: string; name: string; initial: string; specialty: string; verified: boolean };
 /** เมนเทอร์ในรายชื่อ พร้อมราคาและคะแนนเดือนนี้ ราคาเป็น null ได้ถ้าเมนเทอร์ยังไม่ตั้ง */
-export type ListedMentor = MentorCard & { price: number | null; minutes: number | null; unit?: string; rating: Rating };
+export type ListedMentor = MentorCard & {
+  price: number | null; minutes: number | null; unit?: string; rating: Rating;
+  /** หน้าเวทีเท่านั้น: ผลงานของเมนเทอร์ในเวทีนี้ (ทีมตรวจหลักฐานแล้ว) และจำนวนครั้งที่ปรึกษาสำเร็จ */
+  experience?: { result: 'winner' | 'finalist' | 'participant'; year: string } | null;
+  consultations?: number;
+};
 export type RankedMentor = ListedMentor & { rank: number };
 
 /* การจ้างเมนเทอร์ผ่านเว็บ (1 ต.ค. 2569) สถานะเดินตามลำดับ

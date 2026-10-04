@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { Award, ChevronRight, MessageCircle, Trophy, UserCheck } from 'lucide-react';
 import { useI18n } from '../i18n';
 import '../consult.css';
 import type { ListedMentor, Rating as RatingValue, RankedMentor } from '../data/consult';
@@ -29,7 +29,30 @@ export function Rating({ rating }: { rating: RatingValue }) {
 
 function Meta({ mentor }: { mentor: ListedMentor }) {
   const { t } = useI18n();
-  return <p className="rs-row__meta"><Rating rating={mentor.rating} /> · <span className="cx-nowrap">{t.price.line(mentor.price, mentor.minutes, mentor.unit)}</span></p>;
+  return <>
+    <Proof mentor={mentor} />
+    {/* จุดคั่นอยู่ติดกับราคา บรรทัดใหม่จึงขึ้นต้นด้วย "· ราคา" ไม่ทิ้งจุดไว้ท้ายบรรทัด */}
+    <p className="rs-row__meta"><Rating rating={mentor.rating} /> <span className="cx-nowrap">· {t.price.line(mentor.price, mentor.minutes, mentor.unit)}</span></p>
+  </>;
+}
+
+const resultIcon = { winner: Trophy, finalist: Award, participant: UserCheck } as const;
+
+/** ป้ายผลงานในเวทีนี้ ("ได้รางวัล · 2567") กับจำนวนครั้งที่ปรึกษาสำเร็จ แสดงเฉพาะในหน้าเวที (ข้อมูลมาเฉพาะ endpoint นั้น) */
+function Proof({ mentor }: { mentor: ListedMentor }) {
+  const { t } = useI18n();
+  const s = t.risingStar;
+  const experience = mentor.experience;
+  if (!experience && !mentor.consultations) return null;
+  const Icon = experience ? resultIcon[experience.result] : null;
+  return <p className="rs-row__proof">
+    {experience && Icon && <span className={`rs-proof rs-proof--${experience.result}`}>
+      <Icon aria-hidden="true" size={14} />{s.proof(t.taxonomy.results[experience.result], experience.year)}
+    </span>}
+    {Boolean(mentor.consultations) && <span className="rs-proof rs-proof--count">
+      <MessageCircle aria-hidden="true" size={14} />{s.consultations(mentor.consultations!)}
+    </span>}
+  </p>;
 }
 
 /** ปุ่มดูโปรไฟล์ พกบริบทเวทีไปด้วยเมื่อมี เพื่อให้หน้าโปรไฟล์เลือกเวทีตอนกดติดต่อให้ */

@@ -402,3 +402,14 @@
   margin-top: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
   background: var(--gold-tint); color: var(--gold-ink); font-weight: 500;
 }
+
+/* ผลงานในเวทีนี้และจำนวนครั้งที่ให้คำปรึกษา (แท็บเมนเทอร์ของหน้าเวที) */
+.rs-row__proof { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-1); }
+.rs-proof { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: var(--text-sm); font-weight: 500; background: var(--card); color: var(--ink); }
+.rs-proof svg { flex: none; color: var(--muted); }
+/* ป้ายรางวัลเป็นกรอบทอง ไม่ทึบ จะได้ไม่เหมือนป้าย Rising Star ที่เป็นเม็ดทองทึบ */
+.rs-proof--winner { border-color: var(--gold-line); color: var(--gold-ink); }
+.rs-proof--winner svg { color: var(--gold-star); }
+.rs-proof--finalist { border-color: var(--line-purple, var(--line)); color: var(--purple-deep); }
+.rs-proof--finalist svg { color: var(--purple); }

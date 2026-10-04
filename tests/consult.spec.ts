@@ -568,40 +568,58 @@ test('a mentor with a published profile reaches the Mentor zone from their profi
 
 /* ---------- แท็บเมนเทอร์ที่พร้อมให้ปรึกษาในหน้าเวที ---------- */
 
-test('Available mentors ranks Rising Star members by this month’s average stars, then lists the rest unranked', async ({ page }) => {
+test('Available mentors lists Rising Star members first and ranked, then everyone else, in the order the server scores them', async ({ page }) => {
   const slug = demoCompetitions[0].slug;
+  // ลำดับคำนวณที่เซิร์ฟเวอร์ (รีวิวทั้งหมด + ครั้งที่ปรึกษาสำเร็จ + ผลงานในเวทีนี้ ดู scripts/mentor-rank.test.ts) หน้าเว็บต้องแสดงตามนั้น
+  const api = await (await page.request.get(`/api/consult/competitions/${slug}/mentors`)).json() as {
+    risingStar: { id: string; name: string }[]; others: { id: string; name: string }[];
+  };
   await page.goto(`/competitions/${slug}#mentors`);
   // ลิงก์ที่มี #mentors เปิดที่แท็บเมนเทอร์เลย
   const tab = page.getByRole('tab', { name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' });
   await expect(tab).toHaveAttribute('aria-selected', 'true');
 
   const rising = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.rs-row');
-  await expect(rising).toHaveCount(4);
+  await expect(rising).toHaveCount(api.risingStar.length);
+  expect(api.risingStar.length).toBeGreaterThan(1);
   const names = await rising.locator('.rs-row__name').allTextContents();
-  expect(names.map((name) => name.replace('Rising Star', ''))).toEqual(['พี่มายด์ ก.', 'พี่เจ ธ.', 'พี่นัท ว.', 'พี่เต้ ส.']);
-  // เรียงตามค่าเฉลี่ยดาวของรีวิวเดือนนี้ และบอกจำนวนรีวิวกำกับ
-  const ratings = await rising.locator('.rating').allTextContents();
-  expect(ratings.map((text) => text.replace(/\s+/g, ' ').trim())).toEqual([
-    expect.stringContaining('4.8 · 4 รีวิว'), expect.stringContaining('4.3 · 3 รีวิว'),
-    expect.stringContaining('4.0 · 2 รีวิว'), expect.stringContaining('3.5 · 2 รีวิว'),
-  ]);
+  expect(names.map((name) => name.replace('Rising Star', ''))).toEqual(api.risingStar.map((mentor) => mentor.name));
+  await expect(page.getByRole('region', { name: 'เมนเทอร์ Rising Star' })).toContainText('เรียงตามรีวิว จำนวนครั้งที่ให้คำปรึกษา และผลงานในเวทีนี้');
   for (const [index, row] of (await rising.all()).entries()) {
     await expect(row.locator('.rs-row__rank')).toContainText(`อันดับ ${index + 1}`);
     await expect(row.locator('.rs-row__meta')).toContainText('บาท');
     await expect(row.getByRole('link', { name: hiringOn ? /^จ้าง / : /^ดูโปรไฟล์ของ / })).toBeVisible();
   }
 
-  // ที่ไม่ใช่สมาชิกอยู่ต่อท้ายและไม่มีอันดับ แม้คนหนึ่งจะมีรีวิว 5 ดาวเดือนนี้
+  // ที่ไม่ใช่สมาชิกอยู่ต่อท้าย ไม่มีเลขอันดับและไม่มีป้าย Rising Star
   const others = page.getByRole('region', { name: 'เมนเทอร์คนอื่น ๆ' });
   await expect(others.locator('.rs-row__rank')).toHaveCount(0);
   await expect(others.locator('.rs-pill')).toHaveCount(0);
-  await expect(others.locator('.rs-row__name')).toHaveText(['พี่พิม พ.', 'พี่ออม ร.']);
+  await expect(others.locator('.rs-row__name')).toHaveText(api.others.map((mentor) => mentor.name));
   const order = await page.locator('#panel-mentors section').evaluateAll((els) => els.map((el) => el.getAttribute('aria-labelledby')));
   expect(order).toEqual(['rising-title', 'others-title']);
 
   // ทุกคนลิงก์ไปโปรไฟล์ของตัวเอง พกเวทีไปด้วยเพื่อให้กดติดต่อเรื่องเวทีนี้ได้เลย
   await rising.first().getByRole('link', { name: hiringOn ? /^จ้าง / : /^ดูโปรไฟล์ของ / }).click();
-  await expect(page).toHaveURL(new RegExp(`/mentors/mentor-mind\\?competition=${slug}$`));
+  await expect(page).toHaveURL(new RegExp(`/mentors/${api.risingStar[0].id}\\?competition=${slug}$`));
+});
+
+test('a mentor card on the competition page shows their checked result there and how many consultations they confirmed', async ({ page }) => {
+  const slug = demoCompetitions[0].slug;
+  await page.route(`**/api/consult/competitions/${slug}/mentors`, async (route) => {
+    const json = await (await route.fetch()).json();
+    json.risingStar[0] = { ...json.risingStar[0], experience: { result: 'winner', year: '2567' }, consultations: 12 };
+    if (json.others[0]) json.others[0] = { ...json.others[0], experience: { result: 'participant', year: '2566' }, consultations: 0 };
+    await route.fulfill({ json });
+  });
+  await page.goto(`/competitions/${slug}#mentors`);
+  const first = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.rs-row').first();
+  await expect(first.locator('.rs-proof--winner')).toHaveText('ได้รางวัลในเวทีนี้ · 2567');
+  await expect(first.locator('.rs-proof--count')).toHaveText('ให้คำปรึกษาแล้ว 12 ครั้ง');
+  const other = page.getByRole('region', { name: 'เมนเทอร์คนอื่น ๆ' }).locator('.rs-row').first();
+  await expect(other.locator('.rs-proof--participant')).toHaveText('เข้าร่วมในเวทีนี้ · 2566');
+  await expect(other.locator('.rs-proof--count')).toHaveCount(0);
+  await page.locator('#panel-mentors').screenshot({ path: `artifacts/competition-mentors-proof-${test.info().project.name}.png` });
 });
 
 test('the competition page tabs work with mouse, keyboard and deep links', async ({ page }) => {

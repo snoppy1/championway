@@ -16,7 +16,6 @@ import type { ListedMentor, RankedMentor } from '../data/consult';
 import { OtherRow, RankedRow } from '../components/mentors';
 import { useI18n } from '../i18n';
 import { useHiring } from '../data/hiring';
-import { locales } from '../i18n/format';
 import '../journey.css';
 import '../consult.css';
 
@@ -27,13 +26,11 @@ type MentorsPayload = { competition: { slug: string; name: string }; risingStar:
    แล้วเมนเทอร์ที่ไม่ได้เป็นสมาชิกต่อท้ายโดยไม่มีอันดับ ข้อมูลและการเรียงมาจาก GET /api/consult/competitions/:slug/mentors
    ถ้าไม่มีใครเลือกเวทีนี้ จะบอกตามจริง ไม่เติมรายชื่อที่ไม่เกี่ยวข้องให้หน้าดูเต็ม */
 function AvailableMentors({ slug }: { slug: string }) {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   // จ้างพักไว้: แถวเมนเทอร์เป็น "ดูโปรไฟล์" ไม่ใช่ "จ้าง"
   const hiring = useHiring();
   const s = t.detail;
   const { data, error, loading, reload } = useApi<MentorsPayload>(`/consult/competitions/${encodeURIComponent(slug)}/mentors`);
-  // อันดับนับตามเดือนปฏิทินเวลาไทย
-  const month = new Intl.DateTimeFormat(locales[lang], { month: 'long', timeZone: 'Asia/Bangkok' }).format(new Date());
 
   if (loading && !data) return <>
     <p className="sr-only" role="status">{s.mentorsLoading}</p>
@@ -54,7 +51,7 @@ function AvailableMentors({ slug }: { slug: string }) {
   return <>
     <section className="rs-section" aria-labelledby="rising-title">
       <div className="rs-section-head"><h3 id="rising-title">{s.risingTitle}</h3></div>
-      <p className="rs-section-sub">{s.risingSub(month)}</p>
+      <p className="rs-section-sub">{s.risingSub}</p>
       {data.risingStar.length === 0
         ? <div className="rs-empty"><p>{s.risingEmpty}</p></div>
         : <ol className="rs-list">{data.risingStar.map((mentor) => <RankedRow key={mentor.id} mentor={mentor} competition={slug} hire={hiring === true} />)}</ol>}

@@ -112,6 +112,10 @@ test('per-competition prices from the application become the mentor\'s offers on
       const experiences = await db.select().from(mentorExperiences).where(eq(mentorExperiences.mentorId, row.publishedMentorId!));
       assert.equal(experiences.length, 4);
       assert.deepEqual(experiences.filter((e) => e.competitionId).map((e) => e.result).sort(), ['finalist', 'participant', 'winner']);
+      // หน้าเวทีแสดงผลงานของเมนเทอร์ในเวทีนั้น
+      const page = await (await app.request(`/api/consult/competitions/${slugs[0]}/mentors`)).json();
+      const listed = [...page.risingStar, ...page.others].find((m: { id: string }) => m.id === row.publishedMentorId);
+      assert.deepEqual([listed.experience, listed.consultations, listed.price], [{ result: 'winner', year: '2567' }, 0, 600]);
     });
   } finally {
     const [row] = submissionId ? await db.select().from(mentorSubmissions).where(eq(mentorSubmissions.id, submissionId)) : [];

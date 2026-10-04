@@ -39,7 +39,7 @@ const base = {
 test('per-competition prices from the application become the mentor\'s offers on approval', async (t) => {
   const slugs = [`${prefix}-a`, `${prefix}-b`, `${prefix}-c`];
   await db.insert(competitions).values(slugs.map((slug, index) => ({
-    id: `${slug}-id`, slug, name: `งาน ${index}`, description: 'ทดสอบ', type: 'contest' as const, org: 'ทีมทดสอบ', closesAt: '2099-01-01',
+    id: `${slug}-id`, slug, name: `งาน ${index}`, description: 'ทดสอบ', type: 'contest' as const, kind: 'hackathon' as const, org: 'ทีมทดสอบ', closesAt: '2099-01-01',
     region: 'online' as const, prizeValue: 0, prizeNote: 'ใบประกาศ', teamMin: 1, teamMax: 3, keywords: [],
     sourceUrl: 'https://example.test', source: 'editorial' as const, lastVerifiedAt: '2026-09-30',
   })));

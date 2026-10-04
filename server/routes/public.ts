@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
@@ -358,7 +358,9 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
      (เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง) ราคาของเวทีอื่นที่ส่งมาถูกทิ้ง */
   const claimed = [...new Set(body.awards.map((award) => award.competitionSlug).filter((slug): slug is string => Boolean(slug)))];
   const known = claimed.length
-    ? await db.select({ id: competitionsTable.id, slug: competitionsTable.slug }).from(competitionsTable).where(inArray(competitionsTable.slug, claimed))
+    // เฉพาะเวทีที่มีหน้าบนเว็บ (kind ไม่ว่าง) นักเรียนถึงจะเห็นเมนเทอร์ของเวทีนั้น
+    ? await db.select({ id: competitionsTable.id, slug: competitionsTable.slug }).from(competitionsTable)
+      .where(and(inArray(competitionsTable.slug, claimed), sql`${competitionsTable.kind} is not null`))
     : [];
   const idOf = new Map(known.map((row) => [row.slug, row.id]));
   const mentorFor = new Set(body.awards.filter((award) => award.wantsMentor && award.competitionSlug && idOf.has(award.competitionSlug))

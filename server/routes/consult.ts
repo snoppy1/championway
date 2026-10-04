@@ -107,8 +107,10 @@ consult.get('/open-competitions', async (c) => {
     id: competitions.id, slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt,
     type: competitions.type, region: competitions.region, teamMin: competitions.teamMin, teamMax: competitions.teamMax,
   }).from(competitions)
-    // ?all=1 รวมเวทีที่ปิดรับแล้ว ใช้ตอนเลือกเวทีที่เคยแข่งในใบสมัคร (ส่วนใหญ่เป็นรอบที่จบไปแล้ว)
-    .where(c.req.query('all') === '1' ? undefined : sql`${competitions.closesAt} >= (now() at time zone 'Asia/Bangkok')::date`)
+    /* เฉพาะเวทีที่มีหน้าบนเว็บ (kind ไม่ว่าง เหมือน findCompetitionBySlug) เวทีที่ไม่มีหน้า นักเรียนมองไม่เห็นเมนเทอร์ของเวทีนั้น
+       (เจอจากการทดสอบบน dev 5 ต.ค. 2569) ?all=1 รวมเวทีที่ปิดรับแล้ว ใช้ตอนเลือกเวทีที่เคยแข่งในใบสมัคร */
+    .where(and(sql`${competitions.kind} is not null`,
+      c.req.query('all') === '1' ? undefined : sql`${competitions.closesAt} >= (now() at time zone 'Asia/Bangkok')::date`))
     .orderBy(competitions.closesAt);
   const ids = rows.map((row) => row.id);
   const [cats, levels] = ids.length ? await Promise.all([

@@ -29,7 +29,7 @@ export function Rating({ rating }: { rating: RatingValue }) {
 
 function Meta({ mentor }: { mentor: ListedMentor }) {
   const { t } = useI18n();
-  return <p className="rs-row__meta"><Rating rating={mentor.rating} /> · <span className="cx-nowrap">{t.price.line(mentor.price, mentor.minutes)}</span></p>;
+  return <p className="rs-row__meta"><Rating rating={mentor.rating} /> · <span className="cx-nowrap">{t.price.line(mentor.price, mentor.minutes, mentor.unit)}</span></p>;
 }
 
 /** ปุ่มดูโปรไฟล์ พกบริบทเวทีไปด้วยเมื่อมี เพื่อให้หน้าโปรไฟล์เลือกเวทีตอนกดติดต่อให้ */

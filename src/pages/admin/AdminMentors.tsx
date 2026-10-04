@@ -12,12 +12,17 @@ import {
 } from './AdminCompetitions';
 import type { AttachedFile, ReviewEvent, SubmissionStatus } from './AdminCompetitions';
 
+const resultLabel = { winner: 'ชนะ/ได้รางวัล', finalist: 'เข้ารอบสุดท้าย', participant: 'เข้าร่วมแข่งขัน' } as const;
+
 type Award = {
   id: string;
   title: string;
   competitionSlug: string | null;
   year: string;
   evidence: string;
+  result: 'winner' | 'finalist' | 'participant';
+  detail: string;
+  wantsMentor: boolean;
   matched: { slug: string; name: string } | null;
   /** หมวดที่ผู้ตรวจยืนยันให้ผลงานชิ้นนี้ มีน้ำหนักมากที่สุดในการจับคู่เมนเทอร์กับเวที */
   verifiedThemes: Theme[];
@@ -214,7 +219,7 @@ export function AdminMentorReview() {
         </section>
 
         <section className="admin-block" aria-labelledby="awards-title">
-          <h2 id="awards-title">หลักฐานรางวัล</h2>
+          <h2 id="awards-title">ประสบการณ์แข่งขันและหลักฐาน</h2>
           <p className="admin-muted">
             ป้าย “ยืนยันแล้ว” ออกให้อัตโนมัติเมื่อมีรางวัลที่ตรงกับเวทีในระบบ รางวัลที่ไม่ตรงต้องตรวจด้วยมือก่อน
           </p>
@@ -222,7 +227,9 @@ export function AdminMentorReview() {
             {submission.awards.map((award) => <li key={award.id}>
               <h3>{award.title}</h3>
               <dl className="admin-fields">
+                <Field label="ผลที่ได้">{resultLabel[award.result]}{award.detail ? ` · ${award.detail}` : ''}</Field>
                 <Field label="ปี">{award.year}</Field>
+                <Field label="อยากเป็นเมนเทอร์ของเวทีนี้">{award.wantsMentor ? 'ใช่' : 'ไม่'}</Field>
                 <Field label="เวทีในระบบ">
                   {award.matched
                     ? <Link to={`/competitions/${award.matched.slug}`}>{award.matched.name}</Link>
@@ -232,7 +239,7 @@ export function AdminMentorReview() {
                 <VerifyAward award={award} onDone={reload} />
               </dl>
             </li>)}
-          </ul> : <p className="admin-empty">ไม่ได้อ้างรางวัลใด ให้ป้ายยืนยันไม่ได้</p>}
+          </ul> : <p className="admin-empty">ไม่ได้อ้างประสบการณ์แข่งขัน ให้ป้ายยืนยันไม่ได้</p>}
         </section>
         <AttachedFiles files={submission.files} />
       </div>

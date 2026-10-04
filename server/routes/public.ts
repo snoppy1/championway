@@ -147,7 +147,7 @@ publicApi.get('/mentors', async (c) => {
   return c.json({
     items: rows.map(({ mentors: m, competitions }) => ({
       id: m.id, name: m.name, avatar: m.avatar, bio: m.bio, replyTime: m.replyTime, wonSlug: m.wonSlug,
-      category: m.category, topics: m.topics, price: m.price, minutes: m.minutes, best: m.best, cannot: m.cannot,
+      category: m.category, topics: m.topics, price: m.price, minutes: m.minutes, unit: m.priceUnit, best: m.best, cannot: m.cannot,
       firstSlotInDays: m.firstSlotInDays, verified: m.verified, weeklyRank: m.weeklyRank, weeklyFocus: m.weeklyFocus,
       confirmedThemes: m.confirmedThemes, disabledThemes: m.disabledThemes,
       wonName: competitions?.name ?? null,
@@ -284,6 +284,17 @@ publicApi.post('/submissions/competition', requireUser, async (c) => {
   return c.json({ id }, 201);
 });
 
+/* หลักฐานเป็นลิงก์ http(s) หรือข้อความ (ชื่อไฟล์แนบ) ห้ามอักขระควบคุม เช่น java<TAB>script: ที่เบราว์เซอร์ตัดทิ้งแล้วกลายเป็นลิงก์อันตราย
+   ถ้าตีความเป็น URL ได้ ต้องเป็น http(s) เท่านั้น (Astra รีวิว 4 ต.ค. 2569) */
+function safeEvidence(value: string) {
+  if (/[\u0000-\u001f\u007f]/.test(value)) return false;
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol);
+  } catch {
+    return !/^[a-z][a-z0-9+.-]*:/i.test(value);
+  }
+}
+
 const mentorSubmissionBody = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
@@ -299,32 +310,33 @@ const mentorSubmissionBody = z.object({
   cannot: z.string().trim().min(1).max(1000),
   // หน้าเว็บบังคับเลือกความถนัดสองข้อพอดี ฝั่งเซิร์ฟเวอร์ต้องบังคับซ้ำ
   topics: z.array(z.string().trim().min(1).max(80)).length(2, 'เลือกความถนัดสองข้อ'),
-  price: z.number().int().min(0).max(100000).nullish(),
-  /** ราคาคิดต่อกี่นาที อัตราเล็กอย่าง 10 บาท / 1 นาที ก็ได้ */
-  minutes: z.number().int().min(1).max(600).nullish(),
   /* ช่องทางติดต่อที่นักเรียนเห็นหลังกด Contact Mentor ต้องมีอย่างน้อยหนึ่งช่อง (ตรวจใน refine ด้านล่าง) */
   contactEmail: z.string().trim().max(200).refine((v) => !v || z.string().email().safeParse(v).success, 'อีเมลติดต่อไม่ถูกต้อง').default(''),
   contactLine: z.string().trim().max(100).default(''),
   contactPhone: z.string().trim().max(40).default(''),
   contactInstagram: z.string().trim().max(100).default(''),
   contactLink: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://').default(''),
-  /** slug ของงานแข่งที่ติ๊กไว้ว่าจะรับปรึกษา ไม่ติ๊กเลยก็ได้ (แบบเก่า ไม่มีราคา) */
-  competitions: z.array(z.string().trim().max(200)).max(50).default([]),
-  /** งานที่ติ๊กพร้อมราคาของงานนั้น ราคากับนาทีต้องมาคู่กัน หรือว่างทั้งคู่ = ข้ามไว้ใส่ทีหลังใน Mentor zone */
+  /* ราคาของเวทีที่ติ๊ก "อยากเป็นเมนเทอร์" ไว้ในประสบการณ์ (ผู้ใช้ตัดสิน 4 ต.ค. 2569)
+     0 = ฟรี (ไม่มีหน่วย) · มากกว่า 0 ต้องบอกว่าคิดต่ออะไร เช่น "ชั่วโมง" "โปรเจกต์" */
   offers: z.array(z.object({
     slug: z.string().trim().min(1).max(200),
-    price: z.number().int().min(0).max(100000).nullable(),
-    minutes: z.number().int().min(1).max(600).nullable(),
-  }).refine((o) => (o.price === null) === (o.minutes === null), 'ใส่ทั้งราคาและจำนวนนาที หรือติ๊กข้ามไว้ก่อน'))
+    price: z.number().int().min(0).max(100000),
+    unit: z.string().trim().max(40).default(''),
+  }).refine((o) => o.price === 0 || o.unit.length > 0, 'บอกด้วยว่าราคานี้คิดต่ออะไร เช่น ชั่วโมง หรือโปรเจกต์'))
     .max(50).default([]),
   paidSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
   freeSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
+  /** ประสบการณ์แข่งขัน ต้องมีอย่างน้อยหนึ่งรายการ (เป็นเมนเทอร์ได้ต้องเคยแข่ง) ไม่จำกัดว่าต้องได้รางวัล */
   awards: z.array(z.object({
     title: z.string().trim().min(1).max(200),
-    competitionSlug: z.string().trim().max(120).nullable().default(null),
+    competitionSlug: z.string().trim().max(200).nullable().default(null),
+    result: z.enum(['winner', 'finalist', 'participant']).default('winner'),
+    detail: z.string().trim().max(200).default(''),
     year: z.string().trim().min(1).max(10),
-    evidence: z.string().trim().min(1).max(400),
-  })).max(2).default([]),
+    // ลิงก์ต้องเป็น http(s) ห้าม javascript: data: (หน้า admin อาจทำเป็นลิงก์) ค่าที่ไม่ใช่ลิงก์คือชื่อไฟล์แนบ
+    evidence: z.string().trim().min(1).max(400).refine(safeEvidence, 'ลิงก์หลักฐานต้องขึ้นต้นด้วย https://'),
+    wantsMentor: z.boolean().default(false),
+  })).min(1, 'เพิ่มประสบการณ์แข่งขันอย่างน้อยหนึ่งรายการ').max(30),
   /** id ของไฟล์หลักฐานที่อัปโหลดไว้ก่อนหน้า */
   fileIds: z.array(z.string().max(60)).max(4).default([]),
 }).refine((v) => [v.contactEmail, v.contactLine, v.contactPhone, v.contactInstagram, v.contactLink].some(Boolean),
@@ -336,14 +348,22 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
   const body = parsed.data;
   const user = c.get('user')!;
   const id = newId('ms');
-  // เก็บเฉพาะงานที่มีอยู่จริง slug ที่ไม่รู้จักถูกทิ้งเงียบ ๆ งานเดียวกันส่งซ้ำได้ราคาแรก
-  const wanted = new Map<string, { price: number | null; minutes: number | null }>();
-  for (const offer of body.offers) if (!wanted.has(offer.slug)) wanted.set(offer.slug, { price: offer.price, minutes: offer.minutes });
-  for (const slug of body.competitions) if (!wanted.has(slug)) wanted.set(slug, { price: null, minutes: null });
-  const picked = wanted.size
-    ? await db.select({ id: competitionsTable.id, slug: competitionsTable.slug }).from(competitionsTable).where(inArray(competitionsTable.slug, [...wanted.keys()]))
+  /* เวทีที่อ้างต้องมีในระบบจริง ถึงจะติ๊กเป็นเมนเทอร์ได้ และตั้งราคาได้เฉพาะเวทีที่ติ๊กไว้ในประสบการณ์
+     (เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง) ราคาของเวทีอื่นที่ส่งมาถูกทิ้ง */
+  const claimed = [...new Set(body.awards.map((award) => award.competitionSlug).filter((slug): slug is string => Boolean(slug)))];
+  const known = claimed.length
+    ? await db.select({ id: competitionsTable.id, slug: competitionsTable.slug }).from(competitionsTable).where(inArray(competitionsTable.slug, claimed))
     : [];
-  const offers = picked.map((row) => ({ competitionId: row.id, ...wanted.get(row.slug)! }));
+  const idOf = new Map(known.map((row) => [row.slug, row.id]));
+  const mentorFor = new Set(body.awards.filter((award) => award.wantsMentor && award.competitionSlug && idOf.has(award.competitionSlug))
+    .map((award) => award.competitionSlug!));
+  const priced = new Map<string, { price: number; unit: string }>();
+  for (const offer of body.offers) {
+    if (mentorFor.has(offer.slug) && !priced.has(offer.slug)) priced.set(offer.slug, { price: offer.price, unit: offer.price === 0 ? '' : offer.unit });
+  }
+  const missing = [...mentorFor].filter((slug) => !priced.has(slug));
+  if (missing.length) throw new HTTPException(400, { message: 'ใส่ราคาของทุกเวทีที่อยากเป็นเมนเทอร์ (ฟรี หรือราคาต่ออะไร)' });
+  const offers = [...mentorFor].map((slug) => ({ competitionId: idOf.get(slug)!, ...priced.get(slug)! }));
 
   await db.transaction(async (tx) => {
     await tx.insert(mentorSubmissions).values({
@@ -362,14 +382,14 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
       best: body.best,
       cannot: body.cannot,
       topics: body.topics,
-      price: body.price,
-      minutes: body.minutes,
+      price: null,
+      minutes: null,
       contactEmail: body.contactEmail,
       contactLine: body.contactLine,
       contactPhone: body.contactPhone,
       contactInstagram: body.contactInstagram,
       contactLink: body.contactLink,
-      competitionIds: picked.map((row) => row.id),
+      competitionIds: offers.map((offer) => offer.competitionId),
       competitionOffers: offers,
       paidSlot: body.paidSlot ? new Date(body.paidSlot) : null,
       freeSlot: body.freeSlot ? new Date(body.freeSlot) : null,
@@ -379,9 +399,13 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
         id: newId('aw'),
         submissionId: id,
         title: award.title,
-        competitionSlug: award.competitionSlug,
+        // เก็บ slug เฉพาะเวทีที่มีในระบบ ชื่อที่พิมพ์เองอยู่ใน title
+        competitionSlug: award.competitionSlug && idOf.has(award.competitionSlug) ? award.competitionSlug : null,
         year: award.year,
         evidence: award.evidence,
+        result: award.result,
+        detail: award.detail,
+        wantsMentor: Boolean(award.wantsMentor && award.competitionSlug && mentorFor.has(award.competitionSlug)),
       })));
     }
   });

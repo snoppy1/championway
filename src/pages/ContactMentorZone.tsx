@@ -240,8 +240,7 @@ export function ContactMentorZone() {
       </div>
       <div role="tabpanel" id={panelId('zone', 'competitions')} aria-labelledby={tabId('zone', 'competitions')} hidden={current !== 'competitions'} className="cx-zone-panel">
         <div className="cx-stack">
-          <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests}
-            defaults={{ price: mentor.price, minutes: mentor.minutes }} reload={reload} />
+          <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests} reload={reload} />
         </div>
       </div>
     </>}

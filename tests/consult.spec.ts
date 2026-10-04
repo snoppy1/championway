@@ -454,45 +454,51 @@ test('the Mentor zone is for approved mentors, and a mentor can manage prices an
   }
   await page.getByRole('tab', { name: competitionsTab }).click();
 
-  // เวทีที่รับปรึกษา: แก้ราคาเป็นอัตราเล็ก ๆ ได้ และหน้าเวทีเห็นราคาใหม่
+  // เวทีที่รับปรึกษา: ราคาแบบเก่า (นาที) ยังแสดงได้ แก้เป็นบาทต่อหน่วยที่พิมพ์เองหรือฟรี แล้วหน้าเวทีเห็นราคาใหม่
   const mine = page.getByRole('region', { name: 'เวทีที่ฉันรับปรึกษา' });
   const row = mine.locator('.cx-competition').filter({ hasText: fixture.competition.name });
   await expect(row).toContainText('500 บาท / 60 นาที');
   await expect(row.getByRole('button', { name: /^บันทึกราคาของ/ })).toBeDisabled();
+  await expect(row.getByLabel('จำนวนนาที')).toHaveCount(0);
   await row.getByLabel('ราคา (บาท)').fill('10');
-  await row.getByLabel('จำนวนนาที').fill('1');
+  await row.getByRole('button', { name: /^บันทึกราคาของ/ }).click();
+  // ราคามากกว่า 0 ต้องบอกว่าคิดต่ออะไร
+  await expect(row.getByRole('alert')).toContainText('บอกหน่วย เช่น ชั่วโมง');
+  await row.getByLabel('คิดต่ออะไร').fill('ครั้ง');
   await row.getByRole('button', { name: /^บันทึกราคาของ/ }).click();
   await expect(mine.getByRole('status')).toContainText('บันทึกแล้ว');
-  await expect(row).toContainText('10 บาท / 1 นาที');
+  await expect(row).toContainText('10 บาท / ครั้ง');
   const listed = await (await page.request.get(`/api/consult/competitions/${fixture.competition.slug}/mentors`)).json();
-  expect([...listed.risingStar, ...listed.others].find((m: { id: string }) => m.id === fixture.mentorId)).toMatchObject({ price: 10, minutes: 1 });
-  // ราคาเป็นศูนย์ได้ แต่ราคาติดลบหรือนาทีเป็นศูนย์ไม่ได้
-  await row.getByLabel('จำนวนนาที').fill('0');
+  expect([...listed.risingStar, ...listed.others].find((m: { id: string }) => m.id === fixture.mentorId)).toMatchObject({ price: 10, unit: 'ครั้ง' });
+  await row.locator('.cx-price__option').filter({ hasText: 'ฟรี' }).click();
   await row.getByRole('button', { name: /^บันทึกราคาของ/ }).click();
-  await expect(row.getByRole('alert')).toContainText('ใส่ราคา 0 ถึง 100,000 บาท');
+  await expect(row).toContainText('ฟรี');
 
-  // เพิ่มเวทีที่เปิดรับสมัครอยู่จากรายการ แล้วเอาออก
-  const add = page.getByRole('region', { name: 'เพิ่มเวที' });
-  await add.getByLabel('ค้นหาเวทีที่เปิดรับสมัคร').fill(fixture.spare.name);
+  // เพิ่มได้เฉพาะเวทีที่เคยแข่ง แล้วเอาออก
+  const add = page.getByRole('region', { name: 'เวทีที่คุณเคยแข่ง' });
+  await add.getByLabel('ค้นหาเวทีของคุณ').fill(fixture.spare.name);
   const candidate = add.locator('.cx-competition').filter({ hasText: fixture.spare.name });
   await candidate.getByText('รายละเอียด').click();
   await expect(candidate).toContainText('A competition made for a test.');
-  // ถามราคาหลังเลือกเวทีเท่านั้น
+  // ถามราคาหลังเลือกเวทีเท่านั้น และต้องเลือกฟรีหรือตั้งราคาก่อน
   await expect(candidate.getByLabel('ราคา (บาท)')).toHaveCount(0);
   await candidate.getByRole('button', { name: `เพิ่ม ${fixture.spare.name}` }).click();
+  await candidate.getByRole('button', { name: 'เพิ่มในรายการของฉัน' }).click();
+  await expect(candidate.getByRole('alert')).toContainText('เลือก "ฟรี" หรือ "ตั้งราคา"');
+  await candidate.locator('.cx-price__option').filter({ hasText: 'ฟรี' }).click();
   await candidate.getByRole('button', { name: 'เพิ่มในรายการของฉัน' }).click();
   await expect(mine.locator('.cx-competition').filter({ hasText: fixture.spare.name })).toBeVisible();
   await mine.getByRole('button', { name: `เอา ${fixture.spare.name} ออก` }).click();
   await expect(mine.getByText(`เอา ${fixture.spare.name} ออกจากรายการของคุณหรือไม่`).first()).toBeVisible();
   await mine.getByRole('button', { name: 'ใช่ เอาออก' }).click();
   await expect(mine.locator('.cx-competition').filter({ hasText: fixture.spare.name })).toHaveCount(0);
-  await add.getByLabel('ค้นหาเวทีที่เปิดรับสมัคร').fill('zzz-no-such-competition');
-  await expect(add.getByText('ไม่พบเวทีที่ตรงกับคำค้น')).toBeVisible();
+  await add.getByLabel('ค้นหาเวทีของคุณ').fill('zzz-no-such-competition');
+  await expect(add.getByText('ไม่พบเวทีของคุณที่ตรงกับคำค้น')).toBeVisible();
 
-  // ขอเพิ่มเวทีใหม่: ตรวจฟอร์มก่อนส่ง แล้วเห็นสถานะรอทีมงาน
-  const request = page.getByRole('region', { name: 'ไม่เจอเวทีของคุณ' });
+  // ขอเพิ่มเวทีที่เคยแข่ง: ตรวจฟอร์มก่อนส่ง (ต้องมีผล ปี หลักฐาน และราคา) แล้วเห็นสถานะรอทีมงาน
+  const request = page.getByRole('region', { name: 'เพิ่มเวทีที่คุณเคยแข่ง' });
   await expect(request).toBeHidden();
-  await add.getByRole('button', { name: 'ไม่มีในรายการ? ขอเพิ่มเวที' }).click();
+  await add.getByRole('button', { name: 'เคยแข่งเวทีที่ไม่อยู่ในรายการนี้? ส่งให้ทีมตรวจ' }).click();
   await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
   await expect(request.getByRole('alert')).toContainText('กรอกชื่อเวที');
   await request.getByLabel('ชื่อเวที').fill('Brand New Cup');
@@ -502,10 +508,18 @@ test('the Mentor zone is for approved mentors, and a mentor can manage prices an
   await request.getByLabel('ลิงก์ประกาศ').fill('https://example.test/brand-new-cup');
   await request.getByLabel('รายละเอียด (ไม่บังคับ)').fill('Open to all students.');
   await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
+  await expect(request.getByRole('alert')).toContainText('เลือกผลที่ได้จากเวทีนี้');
+  await request.getByLabel('ผลที่ได้').selectOption('finalist');
+  await request.getByLabel('ปี พ.ศ.').fill('2567');
+  await request.getByLabel('ลิงก์ที่แสดงว่าคุณเคยแข่ง').fill('https://example.test/brand-new-cup/results');
+  await request.locator('.cx-price__option').filter({ hasText: 'ตั้งราคา' }).click();
+  await request.getByLabel('ราคา (บาท)').fill('500');
+  await request.getByLabel('คิดต่ออะไร').fill('ชั่วโมง');
+  await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
   await expect(request.getByRole('status')).toContainText('ส่งคำขอแล้ว');
   const submitted = page.locator('.cx-request').filter({ hasText: 'Brand New Cup' });
   await expect(submitted).toContainText('รอทีมงานตรวจ');
-  await expect(submitted).toContainText('500 บาท / 60 นาที');
+  await expect(submitted).toContainText('500 บาท / ชั่วโมง');
   await expectNoSideScroll(page);
 });
 

@@ -8,7 +8,7 @@ import { demoTotals, insertDemoData, presentDemo, removeDemoData } from '../db/d
 import { demoToolsEnabled, env } from '../lib/env.js';
 import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
-  competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices,
+  competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices, mentorExperiences,
   mentorPayoutAccounts, mentorPayouts, mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
   submissionCategories, submissionLevels, submissionRewards, users,
 } from '../db/schema.js';
@@ -315,13 +315,13 @@ async function loadMentorSubmission(id: string) {
   // บอกคนตรวจว่าเวทีที่อ้างมีอยู่จริงในระบบไหม จุดที่ไม่มีคือจุดที่ต้องตรวจด้วยมือ
   const slugs = awards.map((award) => award.competitionSlug).filter((slug): slug is string => Boolean(slug));
   const known = slugs.length
-    ? await db.select({ slug: competitions.slug, name: competitions.name })
+    ? await db.select({ id: competitions.id, slug: competitions.slug, name: competitions.name })
       .from(competitions).where(inArray(competitions.slug, slugs))
     : [];
   // งานที่ติ๊กพร้อมราคาของแต่ละงาน ใบเก่าที่ไม่มีราคาต่องานใช้รายการ id เดิม
   const offerRows = row.competitionOffers.length
     ? row.competitionOffers
-    : row.competitionIds.map((competitionId) => ({ competitionId, price: row.price, minutes: row.minutes }));
+    : row.competitionIds.map((competitionId) => ({ competitionId, price: row.price, minutes: row.minutes, unit: '' }));
   const named = offerRows.length
     ? await db.select({ id: competitions.id, slug: competitions.slug, name: competitions.name })
       .from(competitions).where(inArray(competitions.id, offerRows.map((offer) => offer.competitionId)))
@@ -330,7 +330,7 @@ async function loadMentorSubmission(id: string) {
     ...row,
     offers: offerRows.flatMap((offer) => {
       const event = named.find((item) => item.id === offer.competitionId);
-      return event ? [{ slug: event.slug, name: event.name, price: offer.price, minutes: offer.minutes }] : [];
+      return event ? [{ slug: event.slug, name: event.name, price: offer.price, minutes: offer.minutes ?? null, unit: offer.unit ?? '' }] : [];
     }),
     awards: awards.map((award) => ({
       ...award,
@@ -357,10 +357,13 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
   let mentorId: string | null = null;
 
   await db.transaction(async (tx) => {
+    // ล็อกใบแล้วอ่านสถานะใหม่ในธุรกรรม กดอนุมัติพร้อมกันสองครั้งจะได้เมนเทอร์คนเดียว (Astra รีวิว 4 ต.ค. 2569)
+    const [locked] = await tx.select({ publishedMentorId: mentorSubmissions.publishedMentorId }).from(mentorSubmissions)
+      .where(eq(mentorSubmissions.id, id)).for('update');
     if (body.decision === 'publish') {
-      if (submission.publishedMentorId) throw new HTTPException(409, { message: 'ใบนี้เผยแพร่ไปแล้ว' });
+      if (submission.publishedMentorId || locked?.publishedMentorId) throw new HTTPException(409, { message: 'ใบนี้เผยแพร่ไปแล้ว' });
       // ป้าย "ยืนยันแล้ว" ผูกกับเวทีที่ชนะ ซึ่งออกให้ได้ต่อเมื่อหลักฐานตรงกับเวทีในระบบ
-      const verifiedAward = submission.awards.find((award) => award.matched);
+      const verifiedAward = submission.awards.find((award) => award.matched && award.result === 'winner');
       const [primary] = verifiedAward
         ? await tx.select().from(competitionCategories)
           .innerJoin(competitions, eq(competitions.id, competitionCategories.competitionId))
@@ -368,13 +371,13 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
           .limit(1)
         : [];
 
-      /* ราคาต่องานจากใบสมัคร ใบเก่าที่ยังไม่มี competitionOffers ใช้ราคากลางเดิม
-         ราคาบนโปรไฟล์ = งานที่ถูกที่สุดที่ใส่ราคาไว้ ไม่มีเลยก็ว่าง (แสดง "-") */
+      /* ราคาต่อเวทีจากใบสมัคร (บาท ต่อหน่วยที่เมนเทอร์พิมพ์เอง หรือฟรี) ใบเก่าที่ยังไม่มีใช้ราคากลางเดิม
+         ราคาบนโปรไฟล์ = เวทีที่ราคาต่ำสุด หน่วยต่างกันเทียบกันตรง ๆ ไม่ได้ จึงดูแค่ตัวเลข ไม่มีเลยก็ว่าง (แสดง "-") */
       const offerOf = new Map(submission.competitionOffers.map((offer) => [offer.competitionId, offer]));
-      const priced = submission.competitionOffers.filter((offer) => offer.price !== null && offer.minutes !== null);
-      const cheapest = priced.sort((a, b) => a.price! / a.minutes! - b.price! / b.minutes!)[0];
+      const cheapest = submission.competitionOffers.filter((offer) => offer.price !== null)
+        .sort((a, b) => a.price! - b.price!)[0];
       const profilePrice = submission.competitionOffers.length
-        ? { price: cheapest?.price ?? null, minutes: cheapest?.minutes ?? null }
+        ? { price: cheapest?.price ?? null, minutes: cheapest?.minutes ?? null, priceUnit: cheapest?.unit ?? '' }
         : { price: submission.price, minutes: submission.minutes };
 
       mentorId = newId('mtr');
@@ -398,17 +401,27 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
         cannot: submission.cannot,
         verified: Boolean(verifiedAward),
       });
-      // งานที่ติ๊กไว้ตอนสมัครกลายเป็นงานที่รับปรึกษา ใช้ราคาของงานนั้นจากใบสมัคร แก้ทีหลังได้ใน Mentor zone
-      const stillThere = submission.competitionIds.length
-        ? await tx.select({ id: competitions.id }).from(competitions).where(inArray(competitions.id, submission.competitionIds))
+      /* งานที่ติ๊กไว้ตอนสมัครกลายเป็นงานที่รับปรึกษา ใช้ราคาของงานนั้นจากใบสมัคร แก้ทีหลังได้ใน Mentor zone
+         เฉพาะเวทีที่มีประสบการณ์แข่งในใบนี้ ใบแบบเก่าที่ติ๊กเวทีโดยไม่มีหลักฐานว่าเคยแข่งจะไม่ได้เวทีนั้น (Astra รีวิว 4 ต.ค. 2569) */
+      const competed = new Set(submission.awards.map((award) => award.matched?.id).filter((competitionId): competitionId is string => Boolean(competitionId)));
+      const eligible = submission.competitionIds.filter((competitionId) => competed.has(competitionId));
+      const stillThere = eligible.length
+        ? await tx.select({ id: competitions.id }).from(competitions).where(inArray(competitions.id, eligible))
         : [];
       if (stillThere.length) {
         await tx.insert(mentorCompetitionChoices).values(stillThere.map((row) => ({
           mentorId: mentorId!, competitionId: row.id, choice: 'help',
           ...(offerOf.has(row.id)
-            ? { price: offerOf.get(row.id)!.price, minutes: offerOf.get(row.id)!.minutes }
+            ? { price: offerOf.get(row.id)!.price, minutes: offerOf.get(row.id)!.minutes ?? null, unit: offerOf.get(row.id)!.unit ?? '' }
             : { price: submission.price, minutes: submission.minutes }),
         })));
+      }
+      // ประสบการณ์แข่งขันที่ผู้ตรวจดูหลักฐานแล้ว กลายเป็นป้ายบนหน้าเวทีและคะแนนจัดอันดับ
+      if (submission.awards.length) {
+        await tx.insert(mentorExperiences).values(submission.awards.map((award) => ({
+          id: newId('exp'), mentorId: mentorId!, competitionId: award.matched?.id ?? null,
+          name: award.matched?.name ?? award.title, result: award.result, year: award.year, detail: award.detail,
+        }))).onConflictDoNothing();
       }
       await tx.update(mentorSubmissions)
         .set({ status: 'published', publishedMentorId: mentorId })
@@ -712,13 +725,22 @@ admin.post('/competition-requests/:id/decision', async (c) => {
       competitionId, decidedBy: reviewer.id, decidedAt: new Date(),
     }).where(and(eq(competitionRequests.id, id), eq(competitionRequests.status, 'pending'))).returning();
     if (!row) return null;
+    // เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง คำขอแบบเก่าที่ไม่มีผลการแข่งจึงไม่ทำให้รับปรึกษาเวทีนั้นได้ (Astra รีวิว 4 ต.ค. 2569)
+    if (competitionId && !row.result) throw new HTTPException(409, { message: 'คำขอแบบเก่าไม่มีหลักฐานว่าเคยแข่ง ปฏิเสธแล้วให้เมนเทอร์ส่งใหม่พร้อมผลและหลักฐาน' });
     if (competitionId) {
       await tx.insert(mentorCompetitionChoices)
-        .values({ mentorId: row.mentorId, competitionId, choice: 'help', price: row.price, minutes: row.minutes })
+        .values({ mentorId: row.mentorId, competitionId, choice: 'help', price: row.price, minutes: row.minutes, unit: row.unit })
         .onConflictDoUpdate({
           target: [mentorCompetitionChoices.mentorId, mentorCompetitionChoices.competitionId],
-          set: { choice: 'help', price: row.price, minutes: row.minutes, updatedAt: new Date() },
+          set: { choice: 'help', price: row.price, minutes: row.minutes, unit: row.unit, updatedAt: new Date() },
         });
+      // คำขอใหม่บอกผลที่ได้มาด้วย อนุมัติแล้วกลายเป็นประสบการณ์ที่ตรวจแล้ว (ป้ายบนหน้าเวทีและเงื่อนไขรับปรึกษา)
+      if (row.result) {
+        const [event] = await tx.select({ name: competitions.name }).from(competitions).where(eq(competitions.id, competitionId));
+        await tx.insert(mentorExperiences).values({
+          id: newId('exp'), mentorId: row.mentorId, competitionId, name: event?.name ?? row.name, result: row.result, year: row.year,
+        }).onConflictDoNothing();
+      }
     }
     return row;
   });

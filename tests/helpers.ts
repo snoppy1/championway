@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 import { like } from 'drizzle-orm';
 import { db, client } from '../server/db/client';
 import {
+  mentorExperiences,
   competitionCategories, competitionLevels, competitionRewards, competitionRequests, competitions,
   chatMembers, chatMessages, chatRooms, consultations, emailVerifications, mentorCompetitionChoices, mentorSubmissions,
   mentors, reviewEvents, sessions, users,
@@ -97,9 +98,13 @@ export async function createMentorFixture(options: { thai?: boolean } = {}): Pro
     best: thai ? 'ช่วยตีโจทย์และซ้อมพิทช์' : 'Scoping a project.',
     cannot: thai ? 'ไม่รับทำงานส่งแทนทีม' : 'Writing code for you.', topics: [],
   });
+  // แถวราคาแบบเก่า (นาที) ไว้ทดสอบว่ายังแสดงได้ และเมนเทอร์เคยแข่งทั้งสองเวที (เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง)
   await db.insert(mentorCompetitionChoices).values({
     mentorId, competitionId: competition.id, choice: 'help', price: 500, minutes: 60,
   });
+  await db.insert(mentorExperiences).values([competition, spare].map((row, index) => ({
+    id: `${prefix}-exp-${index}`, mentorId, competitionId: row.id, name: row.name, result: index ? 'participant' as const : 'winner' as const, year: '2567',
+  })));
 
   return {
     mentorId, owner, competition, spare, name,

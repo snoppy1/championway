@@ -207,7 +207,8 @@ export const mentorSubmissions = pgTable('mentor_submissions', {
   competitionIds: text('competition_ids').array().notNull().default([]),
   /** ราคาของแต่ละงานที่ติ๊กไว้ (ผู้ใช้ตัดสิน 4 ต.ค. 2569: ราคาขึ้นกับงาน ไม่มีราคากลาง)
       price/minutes เป็น null = ข้ามไว้ ไปใส่ทีหลังใน Mentor zone */
-  competitionOffers: jsonb('competition_offers').$type<{ competitionId: string; price: number | null; minutes: number | null }[]>().notNull().default([]),
+  competitionOffers: jsonb('competition_offers')
+    .$type<{ competitionId: string; price: number | null; minutes?: number | null; unit?: string }[]>().notNull().default([]),
   paidSlot: timestamp('paid_slot', { withTimezone: true }),
   freeSlot: timestamp('free_slot', { withTimezone: true }),
   publishedMentorId: text('published_mentor_id'),
@@ -225,7 +226,35 @@ export const mentorAwards = pgTable('mentor_awards', {
   competitionSlug: text('competition_slug'),
   year: text('year').notNull(),
   evidence: text('evidence').notNull(),
-}, (table) => [index('mentor_awards_submission_idx').on(table.submissionId)]);
+  /* ประสบการณ์แข่งขัน (ผู้ใช้ตัดสิน 4 ต.ค. 2569): เป็นเมนเทอร์ของเวทีไหนได้ต้องเคยแข่งเวทีนั้นเอง ผลอะไรก็ได้
+     ไม่รับโค้ชหรือกรรมการ รางวัลเป็นป้ายและคะแนนจัดอันดับ ไม่ใช่เงื่อนไข */
+  result: text('result').$type<'winner' | 'finalist' | 'participant'>().notNull().default('winner'),
+  /** รายละเอียดผล เช่น "รองชนะเลิศอันดับ 1" ไม่บังคับ */
+  detail: text('detail').notNull().default(''),
+  /** อยากเป็นเมนเทอร์ของเวทีนี้ ติ๊กได้เฉพาะเวทีที่มีในระบบ */
+  wantsMentor: boolean('wants_mentor').notNull().default(false),
+}, (table) => [
+  index('mentor_awards_submission_idx').on(table.submissionId),
+  check('mentor_awards_result_check', sql`${table.result} in ('winner', 'finalist', 'participant')`),
+]);
+
+/** ประสบการณ์แข่งขันของเมนเทอร์ที่ผ่านการตรวจแล้ว คัดลอกจากใบสมัครตอนอนุมัติ
+    ใช้ทำป้ายบนหน้าเวที ("ชนะ 2567") คะแนนจัดอันดับ และเป็นเงื่อนไขว่ารับปรึกษาเวทีไหนได้ */
+export const mentorExperiences = pgTable('mentor_experiences', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  result: text('result').$type<'winner' | 'finalist' | 'participant'>().notNull(),
+  year: text('year').notNull(),
+  detail: text('detail').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('mentor_experiences_mentor_idx').on(table.mentorId),
+  index('mentor_experiences_competition_idx').on(table.competitionId),
+  // เวทีเดียวกันปีเดียวกันนับครั้งเดียว ใบสมัครที่ใส่ซ้ำหรือคำขอที่อนุมัติซ้ำจะไม่เกิดแถวซ้ำ (Astra รีวิว 4 ต.ค. 2569)
+  uniqueIndex('mentor_experiences_once_key').on(table.mentorId, table.competitionId, table.year).where(sql`${table.competitionId} is not null`),
+]);
 
 /* ---------- เมนเทอร์ที่ผ่านการตรวจแล้ว ---------- */
 
@@ -243,6 +272,8 @@ export const mentors = pgTable('mentors', {
   topics: integer('topics').array().notNull().default([]),
   price: integer('price'),
   minutes: integer('minutes'),
+  /** หน่วยของราคาบนโปรไฟล์ เช่น "ชั่วโมง" ว่าง = ฟรี หรือแถวเก่าที่ใช้นาที */
+  priceUnit: text('price_unit').notNull().default(''),
   /* ช่องทางติดต่อ ว่างได้ทุกช่อง (หน้าเว็บแสดง "-")
      เปิดให้เฉพาะคนที่เข้าสู่ระบบและยืนยันอีเมลแล้ว */
   contactEmail: text('contact_email').notNull().default(''),
@@ -345,9 +376,12 @@ export const mentorCompetitionChoices = pgTable('mentor_competition_choices', {
   mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
   competitionId: text('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
   choice: text('choice').notNull(),
-  /** ค่าปรึกษาของงานนี้ ใส่ทั้งราคาและความยาว ว่างได้สำหรับแถวเก่าก่อนมีราคาต่องาน */
+  /** ค่าปรึกษาของงานนี้ 0 = ฟรี ว่างได้สำหรับแถวเก่าก่อนมีราคาต่องาน */
   price: integer('price'),
+  /** แถวเก่าคิดเป็นนาที แถวใหม่ใช้ unit แทน */
   minutes: integer('minutes'),
+  /** ราคาข้างบนคิดต่ออะไร เมนเทอร์พิมพ์เอง เช่น "ชั่วโมง" "โปรเจกต์" ว่าง = ฟรี หรือแถวเก่า */
+  unit: text('unit').notNull().default(''),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [primaryKey({ columns: [t.mentorId, t.competitionId] })]);
 
@@ -615,7 +649,13 @@ export const competitionRequests = pgTable('competition_requests', {
   url: text('url').notNull(),
   details: text('details').notNull().default(''),
   price: integer('price').notNull(),
-  minutes: integer('minutes').notNull(),
+  /** คำขอเก่าคิดเป็นนาที คำขอใหม่ใช้ unit */
+  minutes: integer('minutes'),
+  unit: text('unit').notNull().default(''),
+  /* เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง คำขอจึงต้องบอกผลที่ได้ ปี และหลักฐาน อนุมัติแล้วกลายเป็นประสบการณ์ด้วย */
+  result: text('result').$type<'winner' | 'finalist' | 'participant'>(),
+  year: text('year').notNull().default(''),
+  evidence: text('evidence').notNull().default(''),
   status: text('status').$type<'pending' | 'approved' | 'rejected'>().notNull().default('pending'),
   reason: text('reason').notNull().default(''),
   competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),

@@ -34,7 +34,7 @@ risingStar.get('/', async (c) => {
   const [allMentors, periods, monthRatings] = await Promise.all([
     db.select({
       id: mentors.id, name: mentors.name, avatar: mentors.avatar, bio: mentors.bio,
-      focus: mentors.weeklyFocus, price: mentors.price, minutes: mentors.minutes,
+      focus: mentors.weeklyFocus, price: mentors.price, minutes: mentors.minutes, unit: mentors.priceUnit,
     }).from(mentors),
     db.select({ mentorId: risingStarPeriods.mentorId, startsAt: risingStarPeriods.startsAt, endsAt: risingStarPeriods.endsAt, source: risingStarPeriods.source })
       .from(risingStarPeriods).where(gt(risingStarPeriods.endsAt, twoAgo.start)),
@@ -47,7 +47,7 @@ risingStar.get('/', async (c) => {
     const mentor = byId.get(id)!;
     return {
       id: mentor.id, name: mentor.name, initial: initialOf(mentor.avatar || mentor.name),
-      specialty: mentor.focus ?? mentor.bio, price: mentor.price, minutes: mentor.minutes,
+      specialty: mentor.focus ?? mentor.bio, price: mentor.price, minutes: mentor.minutes, unit: mentor.unit,
       rating: ratingJson(ratings.get(id)),
     };
   };

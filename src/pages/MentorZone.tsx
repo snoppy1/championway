@@ -5,7 +5,8 @@ import { ExternalLink, Search } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { api, ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
-import { consultError, isWebLink, parsePrice } from '../data/consult';
+import { consultError, isWebLink, priceDraft, pricePayload, priceProblem } from '../data/consult';
+import type { Price } from '../data/consult';
 import { bankCodes } from '../data/consult';
 import type { MentorCard, MentorHire, PayoutAccount, Rating as RatingValue } from '../data/consult';
 import { Avatar, Rating, RisingStarPill } from '../components/mentors';
@@ -22,10 +23,10 @@ import '../consult.css';
    ลิงก์ในอีเมลแจ้งเตือนมาที่ /mentor-zone#hire-<id> หน้านี้เลื่อนไปที่คำขอนั้นให้เอง (ส่วนแชตใช้ #room-<id>)
    สิทธิ์ทั้งหมดตัดสินที่เซิร์ฟเวอร์ หน้านี้แค่ซ่อนสิ่งที่คนที่ไม่ใช่เมนเทอร์ใช้ไม่ได้ */
 
-export type Chosen = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null };
+export type Chosen = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null; unit: string };
 export type Open = { slug: string; name: string; org: string; closesAt: string; description: string; sourceUrl: string | null };
 export type Request = {
-  id: string; name: string; url: string; details: string; price: number; minutes: number;
+  id: string; name: string; url: string; details: string; price: number; minutes: number | null; unit: string;
   status: 'pending' | 'approved' | 'rejected'; reason: string; createdAt: string;
 };
 type Zone = {
@@ -337,48 +338,58 @@ function PayoutPanel({ account, reload }: { account: PayoutAccount | null; reloa
 
 /* ---------- ราคาต่อเวที ---------- */
 
-function PriceFields({ idPrefix, price, minutes, disabled, onPrice, onMinutes }: {
-  idPrefix: string; price: string; minutes: string; disabled: boolean;
-  onPrice: (value: string) => void; onMinutes: (value: string) => void;
+/* ราคาของแต่ละเวที: ฟรี หรือบาทต่อหน่วยที่เมนเทอร์พิมพ์เอง (ต่อชั่วโมง ต่อโปรเจกต์) ไม่มีจำนวนนาทีแล้ว */
+function PriceFields({ idPrefix, value, disabled, label, onChange }: {
+  idPrefix: string; value: Price; disabled: boolean; label: string; onChange: (next: Price) => void;
 }) {
   const { t } = useI18n();
-  return <div className="cx-price-fields">
-    <div className="cx-field">
-      <label htmlFor={`${idPrefix}-price`}>{t.price.thb}</label>
-      <input id={`${idPrefix}-price`} type="number" inputMode="numeric" min={0} max={100000} step={1}
-        value={price} disabled={disabled} onChange={(event) => onPrice(event.target.value)} />
+  const p = t.price;
+  return <div className="cx-price">
+    <div className="cx-price__mode" role="radiogroup" aria-label={label}>
+      {(['free', 'paid'] as const).map((mode) => <label key={mode} className={`cx-price__option${value.mode === mode ? ' is-on' : ''}`}>
+        <input type="radio" name={`${idPrefix}-mode`} checked={value.mode === mode} disabled={disabled} onChange={() => onChange({ ...value, mode })} />
+        <span>{mode === 'free' ? p.free : p.paid}</span>
+      </label>)}
     </div>
-    <div className="cx-field">
-      <label htmlFor={`${idPrefix}-minutes`}>{t.price.minutes}</label>
-      <input id={`${idPrefix}-minutes`} type="number" inputMode="numeric" min={1} max={600} step={1}
-        value={minutes} disabled={disabled} onChange={(event) => onMinutes(event.target.value)} />
-    </div>
+    {value.mode === 'paid' && <div className="cx-price-fields">
+      <div className="cx-field">
+        <label htmlFor={`${idPrefix}-price`}>{p.thb}</label>
+        <input id={`${idPrefix}-price`} inputMode="numeric" pattern="[0-9]*" autoComplete="off" value={value.price} disabled={disabled}
+          onChange={(event) => onChange({ ...value, price: event.target.value.replace(/[^0-9]/g, '') })} />
+      </div>
+      <div className="cx-field">
+        <label htmlFor={`${idPrefix}-unit`}>{p.unit}</label>
+        <input id={`${idPrefix}-unit`} maxLength={40} autoComplete="off" placeholder={p.unitPlaceholder} value={value.unit} disabled={disabled}
+          onChange={(event) => onChange({ ...value, unit: event.target.value })} />
+      </div>
+    </div>}
   </div>;
 }
 
-const text = (value: number | null) => (value === null ? '' : String(value));
+const same = (a: Price, b: Price) => a.mode === b.mode && (a.mode !== 'paid' || (a.price === b.price && a.unit.trim() === b.unit.trim()));
+
 
 function ChosenRow({ item, onChanged }: { item: Chosen; onChanged: (message: string) => void }) {
   const { t, lang } = useI18n();
   const s = t.mentorZone;
   const uid = useId();
-  const [price, setPrice] = useState(text(item.price));
-  const [minutes, setMinutes] = useState(text(item.minutes));
+  const saved = priceDraft(item.price, item.unit);
+  const [price, setPrice] = useState(saved);
   const [busy, setBusy] = useState<'save' | 'remove' | null>(null);
   const [asking, setAsking] = useState(false);
   const [message, setMessage] = useState('');
-  const dirty = price !== text(item.price) || minutes !== text(item.minutes);
+  const dirty = !same(price, saved);
   const askRef = useRef<HTMLButtonElement>(null);
   const openRef = useRef<HTMLButtonElement>(null);
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    const parsed = parsePrice(price, minutes);
-    if (!parsed) { setMessage(s.priceInvalid); return; }
+    const problem = priceProblem(price);
+    if (problem) { setMessage(t.price.errors[problem]); return; }
     setBusy('save');
     setMessage('');
     try {
-      await api(`/consult/zone/competitions/${encodeURIComponent(item.slug)}`, { method: 'PUT', body: JSON.stringify(parsed) });
+      await api(`/consult/zone/competitions/${encodeURIComponent(item.slug)}`, { method: 'PUT', body: JSON.stringify(pricePayload(price)) });
       onChanged(s.saved);
     } catch (failure) {
       setMessage(consultError(failure, t, 'mentor'));
@@ -403,7 +414,7 @@ function ChosenRow({ item, onChanged }: { item: Chosen; onChanged: (message: str
     <div className="cx-competition__top">
       <div className="cx-competition__head">
         <Link className="cx-list__title" to={`/competitions/${item.slug}#mentors`}>{item.name}</Link>
-        <p className="cx-hint">{s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))} · {t.price.line(item.price, item.minutes)}</p>
+        <p className="cx-hint">{s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))} · {t.price.line(item.price, item.minutes, item.unit)}</p>
       </div>
       {/* ลบเป็นปุ่มข้อความเงียบมุมขวาบน และถามก่อนลบ ไม่ให้กดพลาดแล้วหายไปเลย */}
       {!asking && <button type="button" ref={openRef} className="link-button cx-link cx-link--quiet" disabled={busy !== null}
@@ -418,8 +429,8 @@ function ChosenRow({ item, onChanged }: { item: Chosen; onChanged: (message: str
       </div>
     </div>}
     <form className="cx-competition__form" onSubmit={(event) => { void save(event); }} noValidate>
-      <PriceFields idPrefix={uid} price={price} minutes={minutes} disabled={busy !== null}
-        onPrice={(value) => { setPrice(value); setMessage(''); }} onMinutes={(value) => { setMinutes(value); setMessage(''); }} />
+      <PriceFields idPrefix={uid} value={price} disabled={busy !== null} label={t.price.modeLabel(item.name)}
+        onChange={(next) => { setPrice(next); setMessage(''); }} />
       <button className="ghost-button cx-button" disabled={busy !== null || !dirty} aria-label={s.saveAria(item.name)}>
         {busy === 'save' ? s.saving : s.save}
       </button>
@@ -428,8 +439,8 @@ function ChosenRow({ item, onChanged }: { item: Chosen; onChanged: (message: str
   </li>;
 }
 
-export function CompetitionsSection({ chosen, available, defaults, requests, reload }: {
-  chosen: Chosen[]; available: Open[]; defaults: { price: number | null; minutes: number | null }; requests: Request[]; reload: Reload;
+export function CompetitionsSection({ chosen, available, requests, reload }: {
+  chosen: Chosen[]; available: Open[]; requests: Request[]; reload: Reload;
 }) {
   const { t, lang } = useI18n();
   const s = t.mentorZone;
@@ -464,7 +475,7 @@ export function CompetitionsSection({ chosen, available, defaults, requests, rel
             onChange={(event) => { setQuery(event.target.value); setLimit(PAGE); }} />
         </div>
         {matches.length === 0 ? <p className="cx-empty">{s.searchNone}</p> : <ul className="cx-list cx-list--stack">
-          {matches.slice(0, limit).map((item) => <AddRow key={item.slug} item={item} defaults={defaults} lang={lang} onAdded={done} />)}
+          {matches.slice(0, limit).map((item) => <AddRow key={item.slug} item={item} lang={lang} onAdded={done} />)}
         </ul>}
         {matches.length > limit && <p><button type="button" className="ghost-button cx-button" onClick={() => setLimit(limit + PAGE)}>
           {s.showMore(matches.length - limit)}</button></p>}
@@ -473,7 +484,7 @@ export function CompetitionsSection({ chosen, available, defaults, requests, rel
       <p><button type="button" className="link-button cx-link" aria-expanded={requesting} aria-controls="request-form"
         onClick={() => setRequesting((value) => !value)}>{s.requestToggle}</button></p>
       <div id="request-form" hidden={!requesting}>
-        <RequestForm defaults={defaults} reload={reload} />
+        <RequestForm reload={reload} />
       </div>
     </section>
 
@@ -481,15 +492,14 @@ export function CompetitionsSection({ chosen, available, defaults, requests, rel
   </>;
 }
 
-function AddRow({ item, defaults, lang, onAdded }: {
-  item: Open; defaults: { price: number | null; minutes: number | null }; lang: 'en' | 'th'; onAdded: (message: string) => void;
+function AddRow({ item, lang, onAdded }: {
+  item: Open; lang: 'en' | 'th'; onAdded: (message: string) => void;
 }) {
   const { t } = useI18n();
   const s = t.mentorZone;
   const uid = useId();
   const [picking, setPicking] = useState(false);
-  const [price, setPrice] = useState(text(defaults.price));
-  const [minutes, setMinutes] = useState(text(defaults.minutes));
+  const [price, setPrice] = useState<Price>(priceDraft(null));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const priceRef = useRef<HTMLDivElement>(null);
@@ -497,12 +507,12 @@ function AddRow({ item, defaults, lang, onAdded }: {
 
   async function add(event: FormEvent) {
     event.preventDefault();
-    const parsed = parsePrice(price, minutes);
-    if (!parsed) { setMessage(s.priceInvalid); return; }
+    const problem = priceProblem(price);
+    if (problem) { setMessage(t.price.errors[problem]); return; }
     setBusy(true);
     setMessage('');
     try {
-      await api(`/consult/zone/competitions/${encodeURIComponent(item.slug)}`, { method: 'PUT', body: JSON.stringify(parsed) });
+      await api(`/consult/zone/competitions/${encodeURIComponent(item.slug)}`, { method: 'PUT', body: JSON.stringify(pricePayload(price)) });
       onAdded(s.added);
     } catch (failure) {
       setMessage(consultError(failure, t, 'mentor'));
@@ -525,11 +535,11 @@ function AddRow({ item, defaults, lang, onAdded }: {
       {!picking && <button type="button" ref={openRef} className="ghost-button cx-button" aria-label={s.addAria(item.name)}
         onClick={() => { setPicking(true); requestAnimationFrame(() => priceRef.current?.querySelector('input')?.focus()); }}>{s.add}</button>}
     </div>
-    {/* ราคากับจำนวนนาทีถามหลังเลือกเวทีแล้วเท่านั้น ในแถวเดียวกัน ไม่ต้องมีการ์ดกรอกราคาซ้ำทุกเวที */}
+    {/* ราคาถามหลังเลือกเวทีแล้วเท่านั้น ในแถวเดียวกัน ไม่ต้องมีการ์ดกรอกราคาซ้ำทุกเวที */}
     {picking && <form className="cx-competition__form" onSubmit={(event) => { void add(event); }} noValidate>
       <div ref={priceRef}>
-        <PriceFields idPrefix={uid} price={price} minutes={minutes} disabled={busy}
-          onPrice={(value) => { setPrice(value); setMessage(''); }} onMinutes={(value) => { setMinutes(value); setMessage(''); }} />
+        <PriceFields idPrefix={uid} value={price} disabled={busy} label={t.price.modeLabel(item.name)}
+          onChange={(next) => { setPrice(next); setMessage(''); }} />
       </div>
       <button className="primary-button cx-button" disabled={busy}>{busy ? s.saving : s.addConfirm}</button>
       <button type="button" className="link-button cx-link cx-link--quiet" disabled={busy}
@@ -541,14 +551,16 @@ function AddRow({ item, defaults, lang, onAdded }: {
 
 /* ---------- ขอเพิ่มเวทีใหม่ ---------- */
 
-function RequestForm({ defaults, reload }: { defaults: { price: number | null; minutes: number | null }; reload: Reload }) {
+function RequestForm({ reload }: { reload: Reload }) {
   const { t } = useI18n();
   const s = t.mentorZone;
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [details, setDetails] = useState('');
-  const [price, setPrice] = useState(text(defaults.price));
-  const [minutes, setMinutes] = useState(text(defaults.minutes));
+  const [result, setResult] = useState('');
+  const [year, setYear] = useState('');
+  const [evidence, setEvidence] = useState('');
+  const [price, setPrice] = useState<Price>(priceDraft(null));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [failed, setFailed] = useState(false);
@@ -559,16 +571,22 @@ function RequestForm({ defaults, reload }: { defaults: { price: number | null; m
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const parsed = parsePrice(price, minutes);
+    const problem = priceProblem(price);
     if (!name.trim()) return fail(s.reqNeedName, nameRef.current);
     if (!isWebLink(url)) return fail(s.reqBadUrl, urlRef.current);
-    if (!parsed) return fail(s.priceInvalid);
+    // เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง จึงต้องบอกผล ปี และหลักฐาน
+    if (!result) return fail(s.reqNeedResult, document.getElementById('req-result'));
+    if (!/^\d{4}$/.test(year.trim())) return fail(s.reqNeedYear, document.getElementById('req-year'));
+    if (!isWebLink(evidence)) return fail(s.reqBadEvidence, document.getElementById('req-evidence'));
+    if (problem) return fail(t.price.errors[problem]);
     setBusy(true);
     setMessage('');
     setFailed(false);
     try {
-      await post('/consult/zone/requests', { name: name.trim(), url: url.trim(), details: details.trim(), ...parsed });
-      setName(''); setUrl(''); setDetails('');
+      await post('/consult/zone/requests', {
+        name: name.trim(), url: url.trim(), details: details.trim(), result, year: year.trim(), evidence: evidence.trim(), ...pricePayload(price),
+      });
+      setName(''); setUrl(''); setDetails(''); setResult(''); setYear(''); setEvidence(''); setPrice(priceDraft(null));
       setMessage(s.reqSent);
       reload();
     } catch (failure) {
@@ -595,7 +613,24 @@ function RequestForm({ defaults, reload }: { defaults: { price: number | null; m
         <label htmlFor="req-details">{s.reqDetails}</label>
         <textarea id="req-details" rows={3} maxLength={2000} value={details} disabled={busy} onChange={(event) => setDetails(event.target.value)} />
       </div>
-      <PriceFields idPrefix="req" price={price} minutes={minutes} disabled={busy} onPrice={setPrice} onMinutes={setMinutes} />
+      <div className="cx-price-fields">
+        <div className="cx-field">
+          <label htmlFor="req-result">{s.reqResult}</label>
+          <select id="req-result" value={result} disabled={busy} onChange={(event) => setResult(event.target.value)}>
+            <option value="">{s.reqResultPick}</option>
+            {(['winner', 'finalist', 'participant'] as const).map((value) => <option key={value} value={value}>{t.taxonomy.results[value]}</option>)}
+          </select>
+        </div>
+        <div className="cx-field">
+          <label htmlFor="req-year">{s.reqYear}</label>
+          <input id="req-year" inputMode="numeric" maxLength={4} value={year} disabled={busy} onChange={(event) => setYear(event.target.value.replace(/[^0-9]/g, ''))} />
+        </div>
+      </div>
+      <div className="cx-field">
+        <label htmlFor="req-evidence">{s.reqEvidence}</label>
+        <input id="req-evidence" type="url" maxLength={500} placeholder="https://" value={evidence} disabled={busy} onChange={(event) => setEvidence(event.target.value)} />
+      </div>
+      <PriceFields idPrefix="req" value={price} disabled={busy} label={s.reqPrice} onChange={setPrice} />
       <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
       <button className="primary-button cx-button" disabled={busy}>{busy ? s.reqSending : s.reqSubmit}</button>
     </form>
@@ -613,7 +648,7 @@ function RequestList({ requests }: { requests: Request[] }) {
           <p className="cx-list__title">{isWebLink(request.url)
             ? <a href={request.url} target="_blank" rel="noopener noreferrer">{request.name}<ExternalLink size={14} aria-hidden="true" /></a>
             : request.name}</p>
-          <p className="cx-hint">{s.requestedOn(formatDate(request.createdAt, lang))} · {t.price.line(request.price, request.minutes)}</p>
+          <p className="cx-hint">{s.requestedOn(formatDate(request.createdAt, lang))} · {t.price.line(request.price, request.minutes, request.unit)}</p>
           {request.details && <p className="cx-prose">{request.details}</p>}
           {request.status === 'rejected' && request.reason && <p className="cx-prose">{s.requestReason(request.reason)}</p>}
         </div>
@@ -732,8 +767,7 @@ export function HireMentorZone() {
       </div>
       <div role="tabpanel" id={panelId('zone', 'competitions')} aria-labelledby={tabId('zone', 'competitions')} hidden={current !== 'competitions'} className="cx-zone-panel">
         <div className="cx-stack">
-          <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests}
-            defaults={{ price: mentor.price, minutes: mentor.minutes }} reload={reload} />
+          <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests} reload={reload} />
         </div>
       </div>
     </>}

@@ -24,10 +24,21 @@ async function fillIdentity(page: Page) {
 }
 
 async function next(page: Page) { await page.getByRole('button', { name: 'ถัดไป', exact: true }).click(); }
+/** เพิ่มประสบการณ์แข่งขันหนึ่งรายการ (บังคับอย่างน้อยหนึ่ง: เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง) */
+async function addExperience(page: Page, name: string, options: { result?: string; mentor?: boolean } = {}) {
+  await page.getByRole('button', { name: '+ เพิ่มเวทีที่เคยแข่ง', exact: true }).click();
+  const card = page.locator('#cw-apply .exp').last();
+  await card.getByLabel('ชื่อเวที *', { exact: true }).fill(name);
+  await card.locator('.offer-mode__option').filter({ hasText: options.result ?? 'เข้าร่วม' }).click();
+  await card.getByLabel('ปี พ.ศ. *', { exact: true }).fill('2567');
+  await card.getByLabel('ลิงก์ประกาศผล หรือหลักฐานว่าเคยเข้าร่วม', { exact: true }).fill('https://example.com/result');
+  if (options.mentor) await card.getByRole('checkbox', { name: /อยากเป็นเมนเทอร์ของเวทีนี้/ }).check();
+  return card;
+}
 async function reachService(page: Page) {
   await fillIdentity(page); await next(page);
   await page.locator('#apply-experience').fill('เคยวิเคราะห์โจทย์ธุรกิจและนำเสนอผลงานร่วมกับทีม');
-  await page.locator('#apply-portfolio').fill('https://example.com/portfolio');
+  await addExperience(page, 'เวทีที่ยังไม่มีในระบบ');
   await next(page);
 }
 const consentNames = [
@@ -99,9 +110,11 @@ test('required identity, evidence and exactly two topics', async ({ page }) => {
   await expect(page.locator('#apply-first')).toBeFocused();
   await fillIdentity(page); await next(page);
   await page.locator('#apply-experience').fill('ประสบการณ์ตัวอย่าง');
+  await page.locator('#apply-portfolio').fill('https://example.com/work');
   await next(page);
-  await expect(page.getByRole('alert')).toHaveText('เพิ่มหลักฐานรางวัล หรือใส่ลิงก์ผลงานก่อนดำเนินการต่อ');
-  await page.locator('#apply-portfolio').fill('https://example.com/work'); await next(page);
+  // ลิงก์ผลงานอย่างเดียวไม่พอแล้ว ต้องเคยแข่งอย่างน้อยหนึ่งเวที
+  await expect(page.getByRole('alert')).toHaveText('เพิ่มเวทีที่เคยแข่งอย่างน้อยหนึ่งรายการ เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง');
+  await addExperience(page, 'เวทีตัวอย่าง'); await next(page);
   await fillService(page);
   await page.getByRole('checkbox', { name: 'พัฒนาต้นแบบ', exact: true }).click();
   await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(2);
@@ -115,82 +128,90 @@ test('required identity, evidence and exactly two topics', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'ตรวจทานก่อนส่งใบสมัคร' })).toBeVisible();
 });
 
-test('contact channels and optional competitions with a price each are checked and sent', async ({ page }) => {
+test('only competitions you competed in can be mentored, each priced as free or per a unit you name', async ({ page }) => {
   await signIn(page, applicant, '/mentors/apply');
-  await reachService(page);
+  const list = await (await page.request.get('/api/consult/open-competitions?all=1')).json() as { items: { name: string }[] };
+  expect(list.items.length).toBeGreaterThan(1);
+  const [first, second] = list.items;
+  await fillIdentity(page); await next(page);
+  await page.locator('#apply-experience').fill('เคยแข่งหลายเวที');
+  // เวทีที่ไม่มีในระบบเก็บเป็นประสบการณ์ได้ แต่ติ๊กเป็นเมนเทอร์ไม่ได้
+  const typed = await addExperience(page, 'เวทีเล็ก ๆ นอกระบบ');
+  await expect(typed.getByRole('checkbox', { name: /อยากเป็นเมนเทอร์ของเวทีนี้/ })).toBeDisabled();
+  await expect(typed).toContainText('ยังไม่มีใน ChampionWays');
+  const known = await addExperience(page, first.name, { result: 'ได้รางวัล', mentor: true });
+  await expect(known).toContainText('มีใน ChampionWays');
+  await addExperience(page, second.name, { mentor: true });
+  await next(page);
+
   await page.locator('#apply-best').fill('ช่วยฝึกนำเสนอไอเดีย');
   await page.locator('#apply-cannot').fill('ไม่รับทำงานส่งแทน');
   await page.getByRole('checkbox', { name: 'ตีโจทย์และหาไอเดีย', exact: true }).check();
   await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
-  // ไม่มีราคากลางแล้ว ราคาขึ้นกับงาน (ผู้ใช้ตัดสิน 4 ต.ค. 2569)
-  await expect(page.locator('#apply-price')).toHaveCount(0);
-
-  // ช่องทางติดต่อมีครบห้าช่อง (นักเรียนเห็นหลังกดติดต่อเมนเทอร์)
-  for (const label of ['อีเมล', 'LINE ID', 'เบอร์โทร', 'Instagram', 'ลิงก์อื่น']) await expect(page.getByLabel(label, { exact: true })).toBeVisible();
-  // ต้องมีช่องทางติดต่ออย่างน้อยหนึ่งช่อง และลิงก์ต้องเป็น http(s)
-  await next(page);
-  await expect(page.getByRole('alert')).toHaveText('ใส่ช่องทางที่นักเรียนติดต่อคุณได้อย่างน้อยหนึ่งช่อง');
-  await page.locator('#apply-contactLink').fill('ftp://nope');
-  await next(page);
-  await expect(page.getByRole('alert')).toHaveText('ลิงก์อื่นต้องขึ้นต้นด้วย https:// หรือ http://');
-  await page.locator('#apply-contactLink').fill('');
   await page.locator('#apply-contactInstagram').fill('mentor.ig');
+  // ไม่มีส่วนเลือกเวทีและไม่มีช่องนาทีแล้ว ราคามีเฉพาะเวทีที่ติ๊กไว้
+  await expect(page.locator('#apply-price')).toHaveCount(0);
+  const cards = page.locator('#cw-apply .offers-list .offer');
+  await expect(cards).toHaveCount(2);
+  await next(page);
+  await expect(page.getByRole('alert')).toContainText('ยังไม่ได้ตั้งราคา');
+  await cards.nth(0).locator('.offer-mode__option').filter({ hasText: 'ตั้งราคา' }).click();
+  await cards.nth(0).getByLabel('ราคา (บาท)').fill('500');
+  await next(page);
+  await expect(cards.nth(0)).toContainText('บอกหน่วย เช่น ชั่วโมง');
+  await cards.nth(0).getByLabel('คิดต่ออะไร').fill('โปรเจกต์');
+  await cards.nth(1).locator('.offer-mode__option').filter({ hasText: 'ฟรี' }).click();
+  await next(page);
 
-  // งานแบ่งตามหมวด พับไว้ก่อน กางแล้วติ๊กได้ ติ๊กแล้วต้องใส่ราคาของงานนั้น หรือข้ามไว้ก่อน
-  await page.locator('.offers-group__toggle').first().click();
-  const offers = page.locator('.offer');
-  await offers.nth(0).locator('.offer-head input[type=checkbox]').check();
-  await next(page);
-  await expect(page.getByRole('alert')).toContainText('ยังไม่ได้ใส่ราคา');
-  await expect(offers.nth(0)).toHaveClass(/is-invalid/);
-  await offers.nth(0).getByLabel('ราคา (บาท)').fill('10');
-  await offers.nth(0).getByLabel('ต่อกี่นาที').fill('0');
-  await next(page);
-  await expect(page.getByRole('alert')).toContainText('ยังไม่ได้ใส่ราคา');
-  // ราคาเล็ก ๆ อย่าง 10 บาทต่อ 1 นาทีต้องใช้ได้
-  await offers.nth(0).getByLabel('ต่อกี่นาที').fill('1');
-  const second = (await offers.count()) > 1;
-  if (second) {
-    await offers.nth(1).locator('.offer-head input[type=checkbox]').check();
-    await offers.nth(1).locator('.offer-mode__option').filter({ hasText: 'ใส่ทีหลัง' }).click();
-    await expect(offers.nth(1).getByRole('radio', { name: 'ใส่ทีหลัง' })).toBeChecked();
-  }
-  await expect(page.locator('#cw-apply .group-head .count').last()).toContainText(second ? 'เลือกแล้ว 2' : 'เลือกแล้ว 1');
-
-  await next(page);
-  await expect(page.locator('#cw-apply .review-offers')).toContainText('10 บาท / 1 นาที');
-  if (second) await expect(page.locator('#cw-apply .review-offers')).toContainText('ใส่ราคาทีหลังในโซนเมนเทอร์');
+  await expect(page.locator('#cw-apply .review-offers')).toContainText('500 บาท / โปรเจกต์');
+  await expect(page.locator('#cw-apply .review-offers')).toContainText('ฟรี');
   await acceptAll(page);
   const sent = page.waitForRequest((request) => request.url().endsWith('/api/submissions/mentor'));
   await page.getByRole('button', { name: 'ส่งใบสมัคร', exact: true }).click();
   const body = (await sent).postDataJSON();
-  expect(body).toMatchObject({ contactInstagram: 'mentor.ig', contactLine: '' });
   expect(body.price).toBeUndefined();
-  expect(body.offers[0]).toMatchObject({ price: 10, minutes: 1 });
-  if (second) expect(body.offers[1]).toMatchObject({ price: null, minutes: null });
+  expect(body.awards).toHaveLength(3);
+  expect(body.awards.filter((award: { wantsMentor: boolean }) => award.wantsMentor)).toHaveLength(2);
+  expect(body.offers).toEqual([
+    expect.objectContaining({ price: 500, unit: 'โปรเจกต์' }),
+    expect.objectContaining({ price: 0, unit: '' }),
+  ]);
   await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
 });
 
-test('awards can be added and removed; evidence files validate and survive steps', async ({ page }) => {
+test('experiences are unlimited, show what is missing under each field, fold when done, and can be undone', async ({ page }) => {
   await page.goto('/mentors/apply'); await fillIdentity(page); await next(page);
   await page.locator('#apply-experience').fill('ผลงานและหน้าที่ในทีมตัวอย่าง');
-  await page.getByRole('button', { name: /เพิ่มรางวัล/ }).click();
-  const award = page.locator('#cw-apply .award').first();
-  await award.getByLabel('ชื่อการแข่งขัน *', { exact: true }).fill('Venture Ignite');
-  await award.getByLabel('รางวัลที่ได้รับ *', { exact: true }).fill('ชนะเลิศ');
-  await award.getByLabel('ปี พ.ศ. *', { exact: true }).fill('2568');
+  await page.getByRole('button', { name: '+ เพิ่มเวทีที่เคยแข่ง', exact: true }).click();
+  const card = page.locator('#cw-apply .exp').first();
+  await card.getByLabel('ชื่อเวที *', { exact: true }).fill('Venture Ignite');
   await next(page);
-  await expect(page.getByRole('alert')).toHaveText('แต่ละรางวัลต้องมีลิงก์ประกาศหรือไฟล์หลักฐาน');
-  await award.locator('input[type=file]').setInputFiles({ name: 'invalid.txt', mimeType: 'text/plain', buffer: Buffer.from('sample') });
-  await next(page);
-  await expect(page.getByRole('alert')).toHaveText('หลักฐานต้องเป็น PDF, JPG หรือ PNG ไม่เกิน 10 MB');
-  await award.locator('input[type=file]').setInputFiles({ name: 'award.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 sample') });
-  await page.getByRole('button', { name: /เพิ่มรางวัล/ }).click();
-  await expect(page.getByRole('button', { name: /เพิ่มรางวัล/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'ลบรางวัล 2' }).click();
+  // ข้อความรวมบอกจำนวน และใต้ช่องบอกว่าขาดอะไร
+  await expect(page.getByRole('alert').first()).toContainText('ยังกรอกไม่ครบ');
+  await expect(card).toContainText('เลือกผลที่ได้');
+  await expect(card).toContainText('ใส่ปี พ.ศ.');
+  await expect(card).toContainText('ใส่ลิงก์ประกาศผล หรือแนบไฟล์');
+  await card.locator('.offer-mode__option').filter({ hasText: 'เข้ารอบชิง' }).click();
+  await card.getByLabel('ปี พ.ศ. *', { exact: true }).fill('2568');
+  await card.locator('input[type=file]').setInputFiles({ name: 'invalid.txt', mimeType: 'text/plain', buffer: Buffer.from('sample') });
+  await expect(card).toContainText('ใช้ไฟล์ PDF, JPG หรือ PNG ไม่เกิน 10 MB');
+  await card.locator('input[type=file]').setInputFiles({ name: 'award.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 sample') });
+  await expect(card).toContainText('award.pdf');
+  // กดเสร็จแล้วพับเหลือบรรทัดเดียว
+  await card.getByRole('button', { name: 'เสร็จ', exact: true }).click();
+  await expect(card).toContainText('Venture Ignite');
+  await expect(card.getByLabel('ชื่อเวที *', { exact: true })).toHaveCount(0);
+  // เพิ่มได้ไม่จำกัด
+  for (let i = 0; i < 3; i++) await addExperience(page, `เวทีเพิ่ม ${i + 1}`);
+  await expect(page.locator('#cw-apply .exp')).toHaveCount(4);
+  await page.getByRole('button', { name: 'ลบเวทีที่ 4' }).click();
+  await expect(page.locator('#cw-apply .exp')).toHaveCount(3);
+  await page.getByRole('button', { name: 'เลิกทำ', exact: true }).click();
+  await expect(page.locator('#cw-apply .exp')).toHaveCount(4);
+  await page.getByRole('button', { name: 'ลบเวทีที่ 4' }).click();
   await next(page); await fillService(page); await next(page);
   await expect(page.locator('#cw-apply .review').filter({ hasText: 'Venture Ignite' })).toContainText('award.pdf');
-  await expect(page.locator('#cw-apply .review').filter({ hasText: 'Venture Ignite' })).toContainText('รอตรวจสอบ');
+  await expect(page.locator('#cw-apply .review').filter({ hasText: 'Venture Ignite' })).toContainText('เข้ารอบชิง');
 });
 
 test('profile file type and size are checked before proceeding', async ({ page }) => {
@@ -256,7 +277,7 @@ test('application visual QA and accessibility for every step', async ({ page }, 
     expect(results.violations).toEqual([]);
     await page.screenshot({ path: `artifacts/application-${testInfo.project.name}-step-${stage + 1}.png`, fullPage: true });
     if (stage === 0) { await fillIdentity(page); await next(page); }
-    if (stage === 1) { await page.locator('#apply-experience').fill('ประสบการณ์ตัวอย่าง'); await page.locator('#apply-portfolio').fill('https://example.com/work'); await next(page); }
+    if (stage === 1) { await page.locator('#apply-experience').fill('ประสบการณ์ตัวอย่าง'); await addExperience(page, 'เวทีตัวอย่าง'); await next(page); }
     if (stage === 2) { await fillService(page); await next(page); }
   }
   expect(errors).toEqual([]);

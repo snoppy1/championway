@@ -22,12 +22,12 @@ import '../consult.css';
    ราคารวมที่แสดงเป็นแค่ตัวช่วยดู เซิร์ฟเวอร์คิดจากราคาที่เมนเทอร์ตั้งไว้เองเสมอ
    ขั้นชำระเงินและปุ่มเข้าห้องวิดีโอจะมาเติมในบรรทัดขั้นตอนและแถวปุ่มของการ์ดงานโดยไม่ต้องจัดหน้าใหม่ */
 
-type Offer = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null };
+type Offer = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null; unit: string };
 type Payload = {
   mentor: MentorCard & {
     bio: string; experience: string; best: string; cannot: string;
     risingStar: boolean; rating: RatingValue; allTime: RatingValue;
-    price: number | null; minutes: number | null;
+    price: number | null; minutes: number | null; unit: string;
   };
   competitions: Offer[];
   reviews: { stars: number; comment: string; createdAt: string; name: string }[];
@@ -92,7 +92,7 @@ function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; off
     () => (validHours && offer.price !== null && offer.minutes ? hireTotal(offer.price, offer.minutes, count) : null),
     [validHours, offer, count],
   );
-  const rate = t.price.line(offer.price, offer.minutes);
+  const rate = t.price.line(offer.price, offer.minutes, offer.unit);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -119,7 +119,7 @@ function HireForm({ mentorId, offers, initial, onDone }: { mentorId: string; off
       {offers.map((item) => <label key={item.slug} className={item.slug === slug ? 'cx-choice is-on' : 'cx-choice'}>
         <input type="radio" name={`${uid}-competition`} value={item.slug} checked={item.slug === slug} onChange={() => setSlug(item.slug)} />
         <span className="cx-choice__name">{item.name}</span>
-        <span className="cx-choice__rate">{t.price.line(item.price, item.minutes)}</span>
+        <span className="cx-choice__rate">{t.price.line(item.price, item.minutes, item.unit)}</span>
       </label>)}
     </fieldset>
     <div className="cx-grid-2">
@@ -264,7 +264,7 @@ export function MentorProfile() {
               <div><dt>{s.ratingThisMonth}</dt><dd><Rating rating={mentor.rating} /></dd></div>
               <div><dt>{s.ratingAllTime}</dt><dd><Rating rating={mentor.allTime} /></dd></div>
             </>}
-          <div><dt>{s.usually}</dt><dd>{t.price.line(mentor.price, mentor.minutes)}</dd></div>
+          <div><dt>{s.usually}</dt><dd>{t.price.line(mentor.price, mentor.minutes, mentor.unit)}</dd></div>
         </dl>
       </div>
     </header>
@@ -292,7 +292,7 @@ export function MentorProfile() {
                 <Link className="cx-list__title" to={`/competitions/${item.slug}#mentors`}>{item.name}</Link>
                 <p className="cx-hint">{s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))}</p>
               </div>
-              <p className="cx-list__price">{t.price.line(item.price, item.minutes)}</p>
+              <p className="cx-list__price">{t.price.line(item.price, item.minutes, item.unit)}</p>
             </li>)}
           </ul>}
         </section>

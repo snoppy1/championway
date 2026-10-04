@@ -6,7 +6,7 @@ import type { Messages } from '../i18n/en';
 export type Rating = { average: number | null; reviews: number };
 export type MentorCard = { id: string; name: string; initial: string; specialty: string; verified: boolean };
 /** เมนเทอร์ในรายชื่อ พร้อมราคาและคะแนนเดือนนี้ ราคาเป็น null ได้ถ้าเมนเทอร์ยังไม่ตั้ง */
-export type ListedMentor = MentorCard & { price: number | null; minutes: number | null; rating: Rating };
+export type ListedMentor = MentorCard & { price: number | null; minutes: number | null; unit?: string; rating: Rating };
 export type RankedMentor = ListedMentor & { rank: number };
 
 /* การจ้างเมนเทอร์ผ่านเว็บ (1 ต.ค. 2569) สถานะเดินตามลำดับ
@@ -99,7 +99,23 @@ export type ChatMessage = {
 
 /** ลิงก์ต้องขึ้นต้นด้วย http(s):// เหมือนที่เซิร์ฟเวอร์ตรวจ */
 export const isWebLink = (value: string) => /^https?:\/\//i.test(value.trim());
-/** ราคาบาท 0–100,000 และนาที 1–600 เป็นจำนวนเต็ม ตรงกับ priceBody ของเซิร์ฟเวอร์ */
+/* ราคาแบบใหม่ (ผู้ใช้ตัดสิน 4 ต.ค. 2569): ฟรี หรือบาทต่อหน่วยที่เมนเทอร์พิมพ์เอง ตรงกับ priceBody ของเซิร์ฟเวอร์ */
+export type Price = { mode: '' | 'free' | 'paid'; price: string; unit: string };
+const wholeIn = (text: string, min: number, max: number) => /^\d+$/.test(text) && Number(text) >= min && Number(text) <= max;
+/** อะไรยังขาด: ยังไม่เลือกแบบ · ราคา · หน่วย · ทั้งสอง · null = ครบแล้ว */
+export function priceProblem(price: Price | undefined): 'mode' | 'price' | 'unit' | 'both' | null {
+  if (!price || !price.mode) return 'mode';
+  if (price.mode === 'free') return null;
+  const okPrice = wholeIn(price.price, 1, 100000);
+  const okUnit = price.unit.trim().length > 0;
+  return okPrice && okUnit ? null : !okPrice && !okUnit ? 'both' : !okPrice ? 'price' : 'unit';
+}
+/** ค่าจากเซิร์ฟเวอร์เป็นฟอร์ม แถวเก่าที่คิดเป็นนาทีจะไม่มีหน่วย เมนเทอร์ต้องใส่หน่วยตอนบันทึกครั้งถัดไป */
+export const priceDraft = (price: number | null, unit = ''): Price => (price === null ? { mode: '', price: '', unit: '' }
+  : price === 0 ? { mode: 'free', price: '', unit: '' } : { mode: 'paid', price: String(price), unit });
+export const pricePayload = (price: Price) => (price.mode === 'free' ? { price: 0, unit: '' } : { price: Number(price.price), unit: price.unit.trim() });
+
+/** ราคาบาท 0–100,000 และนาที 1–600 เป็นจำนวนเต็ม ใช้กับการจ้างแบบเก่าที่พักไว้ */
 export function parsePrice(price: string, minutes: string) {
   const p = price.trim() === '' ? NaN : Number(price);
   const m = minutes.trim() === '' ? NaN : Number(minutes);

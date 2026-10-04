@@ -24,7 +24,8 @@ async function addRequest(name: string) {
   const id = newId('creq');
   await db.insert(competitionRequests).values({
     id, mentorId: fixture.mentorId, userId: fixture.owner.id, name, url: 'https://example.test/cup',
-    details: 'Open to every student.', price: 300, minutes: 30,
+    details: 'Open to every student.', price: 300, unit: 'ชั่วโมง',
+    result: 'finalist', year: '2567', evidence: 'https://example.test/cup/results',
   });
   return id;
 }
@@ -46,7 +47,10 @@ test('a competition request needs a slug to approve and a reason to reject', asy
 
   const approveRow = page.locator('.queue-row').filter({ hasText: approveName });
   await expect(approveRow).toContainText(`ขอโดย Mentor ${fixture.mentorId.replace('-mentor', '')}`);
-  await expect(approveRow).toContainText('300 บาท / 30 นาที');
+  await expect(approveRow).toContainText('300 บาท / ชั่วโมง');
+  // เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง ผู้ตรวจเห็นผลที่อ้างและหลักฐาน
+  await expect(approveRow).toContainText('ผลที่อ้าง: เข้ารอบสุดท้าย · ปี 2567');
+  await expect(approveRow.getByRole('link', { name: 'เปิดลิงก์' })).toHaveAttribute('href', 'https://example.test/cup/results');
   await expect(approveRow).toContainText('Open to every student.');
 
   // ไม่ใส่ slug หรือเหตุผล: ไม่ส่งอะไรไปเซิร์ฟเวอร์ และบอกว่าต้องกรอกอะไร
@@ -64,7 +68,7 @@ test('a competition request needs a slug to approve and a reason to reject', asy
   await expect(page.locator('.queue-row').filter({ hasText: approveName })).toHaveCount(0);
   const [choice] = await db.select().from(mentorCompetitionChoices).where(and(
     eq(mentorCompetitionChoices.mentorId, fixture.mentorId), eq(mentorCompetitionChoices.competitionId, fixture.spare.id)));
-  expect([choice.price, choice.minutes]).toEqual([300, 30]);
+  expect([choice.price, choice.unit]).toEqual([300, 'ชั่วโมง']);
 
   const rejectRow = page.locator('.queue-row').filter({ hasText: rejectName });
   await rejectRow.getByLabel('เหตุผลที่ไม่อนุมัติ').fill('The announcement link is broken.');

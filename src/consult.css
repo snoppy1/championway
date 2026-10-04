@@ -626,3 +626,15 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 
 /* วงโฟกัสเห็นชัดบนปุ่ม ลิงก์ข้อความ ลิงก์ช่องทางติดต่อ และแท็บ */
 .cx-page :is(a, button, [role="tab"], summary):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ราคาต่อเวทีในโซนเมนเทอร์: ฟรี หรือตั้งราคา (บาทต่อหน่วยที่พิมพ์เอง) */
+.cx-price { display: grid; gap: var(--space-3); min-width: 0; }
+.cx-price__mode { display: inline-grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: min(100%, 320px);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--card); }
+.cx-price__option { position: relative; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 12px;
+  font-weight: 600; color: var(--purple-deep); cursor: pointer; text-align: center; }
+.cx-price__option + .cx-price__option { border-left: 1px solid var(--line); }
+.cx-price__option.is-on { background: var(--purple); color: var(--card); }
+.cx-price__option input { position: absolute; opacity: 0; pointer-events: none; }
+.cx-price__option:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.cx-price__option:has(input:disabled) { cursor: not-allowed; opacity: .6; }

@@ -5,7 +5,7 @@ import { and, desc, eq, gte, inArray, isNull, lt, lte, gt, ne, sql } from 'drizz
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
-  competitionCategories, competitionLevels,
+  competitionCategories, competitionLevels, mentorExperiences,
   competitionRequests, competitions, consultationConfirmTokens, consultations, hirePayments, mentorCompetitionChoices, mentorPayoutAccounts, mentorPayouts,
   mentorReviews, mentors, mentorSubmissions, risingStarPeriods, users,
 } from '../db/schema.js';
@@ -59,11 +59,12 @@ async function parse<T>(c: { req: { json: () => Promise<unknown> } }, schema: z.
   return result.data;
 }
 
-/** ราคา: บาทกับนาที อัตราเล็ก ๆ อย่าง 10 บาท / 1 นาที ก็ได้ */
+/** ราคา: 0 = ฟรี หรือบาทต่อหน่วยที่เมนเทอร์พิมพ์เอง เช่น "ชั่วโมง" "โปรเจกต์" (ผู้ใช้ตัดสิน 4 ต.ค. 2569 เลิกใช้นาที) */
 const priceBody = z.object({
   price: z.number().int().min(0, 'ราคาต้องไม่ติดลบ').max(100000),
-  minutes: z.number().int().min(1, 'ความยาวอย่างน้อย 1 นาที').max(600),
-});
+  unit: z.string().trim().max(40).default(''),
+}).refine((v) => v.price === 0 || v.unit.length > 0, 'บอกด้วยว่าราคานี้คิดต่ออะไร เช่น ชั่วโมง หรือโปรเจกต์')
+  .transform((v) => ({ price: v.price, unit: v.price === 0 ? '' : v.unit, minutes: null }));
 /** เมนเทอร์ที่ผ่านอนุมัติและผูกกับบัญชีแล้ว พร้อม user id ของเจ้าของ */
 async function approvedMentors(ids?: string[]) {
   return db.select({ mentor: mentors, userId: mentorSubmissions.userId, experience: mentorSubmissions.experience })
@@ -103,7 +104,10 @@ consult.get('/open-competitions', async (c) => {
   const rows = await db.select({
     id: competitions.id, slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt,
     type: competitions.type, region: competitions.region, teamMin: competitions.teamMin, teamMax: competitions.teamMax,
-  }).from(competitions).where(sql`${competitions.closesAt} >= (now() at time zone 'Asia/Bangkok')::date`).orderBy(competitions.closesAt);
+  }).from(competitions)
+    // ?all=1 รวมเวทีที่ปิดรับแล้ว ใช้ตอนเลือกเวทีที่เคยแข่งในใบสมัคร (ส่วนใหญ่เป็นรอบที่จบไปแล้ว)
+    .where(c.req.query('all') === '1' ? undefined : sql`${competitions.closesAt} >= (now() at time zone 'Asia/Bangkok')::date`)
+    .orderBy(competitions.closesAt);
   const ids = rows.map((row) => row.id);
   const [cats, levels] = ids.length ? await Promise.all([
     db.select().from(competitionCategories).where(inArray(competitionCategories.competitionId, ids)).orderBy(competitionCategories.position),
@@ -130,7 +134,7 @@ consult.get('/competitions/:slug/mentors', async (c) => {
   const month = bangkokMonth(now, 0);
   const [ratings, members] = await Promise.all([ratingsBetween(month.start, month.end), activeMemberIds(now)]);
   const byId = new Map(rows.map((row) => [row.mentor.id, row.mentor]));
-  const priceOf = new Map(choices.map((row) => [row.mentorId, { price: row.price, minutes: row.minutes }]));
+  const priceOf = new Map(choices.map((row) => [row.mentorId, { price: row.price, minutes: row.minutes, unit: row.unit }]));
   const entry = (id: string) => ({ ...card(byId.get(id)!), ...priceOf.get(id)!, rating: ratingJson(ratings.get(id)) });
   const ids = [...byId.keys()];
   const risingStar = ids.filter((id) => members.has(id)).sort(byRating(ratings, (id) => byId.get(id)!.name))
@@ -152,7 +156,7 @@ consult.get('/mentors/:id', async (c) => {
     ratingsBetween(month.start, month.end),
     ratingsBetween(new Date(0), now),
     activeMemberIds(now),
-    db.select({ slug: competitions.slug, name: competitions.name, closesAt: competitions.closesAt, price: mentorCompetitionChoices.price, minutes: mentorCompetitionChoices.minutes })
+    db.select({ slug: competitions.slug, name: competitions.name, closesAt: competitions.closesAt, price: mentorCompetitionChoices.price, minutes: mentorCompetitionChoices.minutes, unit: mentorCompetitionChoices.unit })
       .from(mentorCompetitionChoices).innerJoin(competitions, eq(competitions.id, mentorCompetitionChoices.competitionId))
       .where(and(eq(mentorCompetitionChoices.mentorId, m.id), eq(mentorCompetitionChoices.choice, 'help'))),
     // แสดงชื่อผู้รีวิวแค่ชื่อแรก ไม่เปิดอีเมลหรือบัญชี
@@ -181,7 +185,7 @@ consult.get('/mentors/:id', async (c) => {
     mentor: {
       ...card(m), bio: m.bio, experience: row.experience, best: m.best, cannot: m.cannot,
       risingStar: members.has(m.id), rating: ratingJson(monthly.get(m.id)), allTime: ratingJson(allTime.get(m.id)),
-      price: m.price, minutes: m.minutes,
+      price: m.price, minutes: m.minutes, unit: m.priceUnit,
     },
     competitions: offered,
     reviews: reviews.map((r) => ({ stars: r.stars, comment: r.comment, createdAt: r.createdAt, name: r.name.split(/\s+/)[0] })),
@@ -262,12 +266,13 @@ consult.get('/zone', requireUser, async (c) => {
   const now = new Date();
   const month = bangkokMonth(now, 0);
   const [chosen, open, requests, pending, monthly, members] = await Promise.all([
-    db.select({ slug: competitions.slug, name: competitions.name, closesAt: competitions.closesAt, price: mentorCompetitionChoices.price, minutes: mentorCompetitionChoices.minutes })
+    db.select({ slug: competitions.slug, name: competitions.name, closesAt: competitions.closesAt, price: mentorCompetitionChoices.price, minutes: mentorCompetitionChoices.minutes, unit: mentorCompetitionChoices.unit })
       .from(mentorCompetitionChoices).innerJoin(competitions, eq(competitions.id, mentorCompetitionChoices.competitionId))
       .where(and(eq(mentorCompetitionChoices.mentorId, mentor.id), eq(mentorCompetitionChoices.choice, 'help'))),
-    // งานที่ยังเปิดรับสมัคร ให้เลือกมารับปรึกษา
-    db.select({ slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt, description: competitions.description, sourceUrl: competitions.sourceUrl })
-      .from(competitions).where(sql`${competitions.closesAt} >= (now() at time zone 'Asia/Bangkok')::date`).orderBy(competitions.closesAt),
+    // เพิ่มได้เฉพาะเวทีที่เคยแข่งเอง (ประสบการณ์ที่ผ่านการตรวจแล้ว) เวทีอื่นต้องส่งคำขอพร้อมหลักฐาน
+    db.selectDistinct({ slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt, description: competitions.description, sourceUrl: competitions.sourceUrl })
+      .from(mentorExperiences).innerJoin(competitions, eq(competitions.id, mentorExperiences.competitionId))
+      .where(eq(mentorExperiences.mentorId, mentor.id)).orderBy(competitions.closesAt),
     db.select().from(competitionRequests).where(eq(competitionRequests.mentorId, mentor.id)).orderBy(desc(competitionRequests.createdAt)),
     db.select({ hire: consultations, student: users.name, competitionName: competitions.name, competitionSlug: competitions.slug })
       .from(consultations).innerJoin(users, eq(users.id, consultations.userId))
@@ -283,7 +288,7 @@ consult.get('/zone', requireUser, async (c) => {
     .from(mentorPayouts).where(eq(mentorPayouts.mentorId, mentor.id));
   const payoutOf = new Map(payouts.map((p) => [p.hireId, p]));
   return c.json({
-    mentor: { ...card(mentor), risingStar: members.has(mentor.id), rating: ratingJson(monthly.get(mentor.id)), price: mentor.price, minutes: mentor.minutes },
+    mentor: { ...card(mentor), risingStar: members.has(mentor.id), rating: ratingJson(monthly.get(mentor.id)), price: mentor.price, minutes: mentor.minutes, unit: mentor.priceUnit },
     // เลขบัญชีเต็มไม่ส่งออก แม้แต่เจ้าของ เห็นแค่ 4 ตัวท้าย
     contacts: contactsOf(mentor),
     // รอเมนเทอร์ยืนยันว่าให้คำปรึกษาจริง (โหมดติดต่อนอกเว็บ)
@@ -293,7 +298,7 @@ consult.get('/zone', requireUser, async (c) => {
     payoutAccount: account ? { accountName: account.accountName, bankCode: account.bankCode, last4: account.accountLast4, status: account.status } : null,
     competitions: chosen,
     available: open,
-    requests: requests.map((r) => ({ id: r.id, name: r.name, url: r.url, details: r.details, price: r.price, minutes: r.minutes, status: r.status, reason: r.reason, createdAt: r.createdAt })),
+    requests: requests.map((r) => ({ id: r.id, name: r.name, url: r.url, details: r.details, price: r.price, minutes: r.minutes, unit: r.unit, status: r.status, reason: r.reason, createdAt: r.createdAt })),
     hires: pending.map(({ hire, student, competitionName, competitionSlug }) => ({
       id: hire.id, status: hire.status, createdAt: hire.createdAt, acceptedAt: hire.acceptedAt, completedAt: hire.completedAt,
       minutes: hire.minutes, price: hire.price, preferredAt: hire.preferredAt, note: hire.note, reason: hire.reason,
@@ -315,8 +320,24 @@ consult.put('/zone/competitions/:slug', requireUser, async (c) => {
   const body = await parse(c, priceBody);
   const [event] = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.slug, c.req.param('slug'))).limit(1);
   if (!event) return fail('ไม่พบงานแข่งนี้', 404);
-  await db.insert(mentorCompetitionChoices).values({ mentorId: mentor.id, competitionId: event.id, choice: 'help', ...body })
-    .onConflictDoUpdate({ target: [mentorCompetitionChoices.mentorId, mentorCompetitionChoices.competitionId], set: { choice: 'help', ...body, updatedAt: new Date() } });
+  /* เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง ต้องมีประสบการณ์ที่ตรวจแล้วทุกครั้งที่เปิดรับปรึกษา
+     ข้อยกเว้นเดียว: เวทีที่กำลังรับปรึกษาอยู่ (choice = help) แก้ราคาได้ เป็นการ update อย่างเดียว ไม่สร้างแถวใหม่
+     ทำในธุรกรรมที่ล็อกแถวเมนเทอร์ ลบกับแก้ราคาพร้อมกันจะไม่ทำให้เวทีกลับมาโดยไม่มีประสบการณ์ (Astra รีวิว 4 ต.ค. 2569) */
+  const outcome = await db.transaction(async (tx) => {
+    await tx.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentor.id)).for('update');
+    const [edited] = await tx.update(mentorCompetitionChoices).set({ ...body, updatedAt: new Date() })
+      .where(and(eq(mentorCompetitionChoices.mentorId, mentor.id), eq(mentorCompetitionChoices.competitionId, event.id),
+        eq(mentorCompetitionChoices.choice, 'help')))
+      .returning({ id: mentorCompetitionChoices.competitionId });
+    if (edited) return 'ok';
+    const [competed] = await tx.select({ id: mentorExperiences.id }).from(mentorExperiences)
+      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id))).limit(1);
+    if (!competed) return 'not-competed';
+    await tx.insert(mentorCompetitionChoices).values({ mentorId: mentor.id, competitionId: event.id, choice: 'help', ...body })
+      .onConflictDoUpdate({ target: [mentorCompetitionChoices.mentorId, mentorCompetitionChoices.competitionId], set: { choice: 'help', ...body, updatedAt: new Date() } });
+    return 'ok';
+  });
+  if (outcome === 'not-competed') return fail('เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง ส่งคำขอพร้อมหลักฐานว่าเคยแข่งเวทีนี้ก่อน', 403);
   return c.json({ ok: true });
 });
 
@@ -324,19 +345,28 @@ consult.delete('/zone/competitions/:slug', requireUser, async (c) => {
   const mentor = await requireOwnMentor(c.get('user')!.id);
   const [event] = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.slug, c.req.param('slug'))).limit(1);
   if (!event) return fail('ไม่พบงานแข่งนี้', 404);
-  await db.delete(mentorCompetitionChoices)
-    .where(and(eq(mentorCompetitionChoices.mentorId, mentor.id), eq(mentorCompetitionChoices.competitionId, event.id)));
+  // ล็อกแถวเมนเทอร์เหมือนตอนแก้ราคา ลบกับแก้จึงทำทีละคำขอ
+  await db.transaction(async (tx) => {
+    await tx.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentor.id)).for('update');
+    await tx.delete(mentorCompetitionChoices)
+      .where(and(eq(mentorCompetitionChoices.mentorId, mentor.id), eq(mentorCompetitionChoices.competitionId, event.id)));
+  });
   return c.json({ ok: true });
 });
 
 consult.post('/zone/requests', requireUser, async (c) => {
   const user = c.get('user')!;
   const mentor = await requireOwnMentor(user.id);
-  const body = await parse(c, priceBody.extend({
+  const price = await parse(c, priceBody);
+  const body = { ...price, ...await parse(c, z.object({
     name: z.string().trim().min(1, 'กรอกชื่องาน').max(200),
     url: z.string().trim().url('ลิงก์ไม่ถูกต้อง').max(500).refine((v) => /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://'),
     details: z.string().trim().max(2000).default(''),
-  }));
+    // ต้องเคยแข่งเวทีนี้เอง: ผล ปี และหลักฐาน (ลิงก์ประกาศผลหรือหลักฐานว่าเข้าร่วม)
+    result: z.enum(['winner', 'finalist', 'participant'], { message: 'เลือกผลที่ได้จากเวทีนี้' }),
+    year: z.string().trim().regex(/^\d{4}$/, 'ใส่ปี พ.ศ. 4 หลัก'),
+    evidence: z.string().trim().url('ใส่ลิงก์หลักฐานว่าเคยแข่งเวทีนี้').max(500).refine((v) => /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://'),
+  })) };
   const id = newId('creq');
   // ล็อกแถวเมนเทอร์ก่อนนับ ส่งพร้อมกันหลายคำขอจะไม่ทะลุเพดาน 10 รายการ (Astra รีวิว 2 ต.ค. 2569)
   await db.transaction(async (tx) => {
@@ -382,7 +412,7 @@ consult.post('/mentors/:id/hire', requireUser, async (c) => {
   const body = await parse(c, hireBody);
   if (body.preferredAt && new Date(body.preferredAt) <= new Date()) return fail('เลือกเวลาในอนาคต');
   // ราคามาจากงานที่เมนเทอร์เปิดรับเท่านั้น ราคาที่หน้าเว็บส่งมาไม่นับ
-  const [offer] = await db.select({ competitionId: competitions.id, name: competitions.name, price: mentorCompetitionChoices.price, minutes: mentorCompetitionChoices.minutes })
+  const [offer] = await db.select({ competitionId: competitions.id, name: competitions.name, price: mentorCompetitionChoices.price, minutes: mentorCompetitionChoices.minutes, unit: mentorCompetitionChoices.unit })
     .from(mentorCompetitionChoices).innerJoin(competitions, eq(competitions.id, mentorCompetitionChoices.competitionId))
     .where(and(eq(mentorCompetitionChoices.mentorId, row.mentor.id), eq(mentorCompetitionChoices.choice, 'help'), eq(competitions.slug, body.competition)))
     .limit(1);

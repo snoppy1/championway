@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "mentor_experiences_once_key" ON "mentor_experiences" USING btree ("mentor_id","competition_id","year") WHERE "mentor_experiences"."competition_id" is not null;

@@ -12,11 +12,13 @@ import { useApi } from '../../lib/useApi';
 
 type Status = 'pending' | 'approved' | 'rejected';
 type Request = {
-  id: string; name: string; url: string; details: string; price: number; minutes: number;
+  id: string; name: string; url: string; details: string; price: number; minutes: number | null; unit: string;
+  result: 'winner' | 'finalist' | 'participant' | null; year: string; evidence: string;
   status: Status; reason: string; createdAt: string; decidedAt: string | null;
   mentorName: string; competitionSlug: string | null;
 };
 type Option = { id: string; slug: string; name: string };
+const resultLabel = { winner: 'ชนะ/ได้รางวัล', finalist: 'เข้ารอบสุดท้าย', participant: 'เข้าร่วมแข่งขัน' } as const;
 
 const labels: Record<Status, string> = { pending: 'รอตรวจ', approved: 'อนุมัติแล้ว', rejected: 'ไม่ผ่าน' };
 const pillClass: Record<Status, string> = { pending: 'is-pending', approved: 'is-published', rejected: 'is-rejected' };
@@ -109,8 +111,14 @@ export function AdminRequestQueue() {
             ? <a href={item.url} target="_blank" rel="noreferrer noopener">{item.name}<ArrowUpRight size={14} aria-hidden="true" /></a>
             : item.name}</h2>
           <p className="admin-muted">
-            ขอโดย {item.mentorName} · ส่งเมื่อ {formatDate(item.createdAt.slice(0, 10))} · ราคาที่ขอ {baht.format(item.price)} บาท / {item.minutes} นาที
+            ขอโดย {item.mentorName} · ส่งเมื่อ {formatDate(item.createdAt.slice(0, 10))} · ราคาที่ขอ {item.price === 0 ? 'ฟรี'
+              : item.unit ? `${baht.format(item.price)} บาท / ${item.unit}` : `${baht.format(item.price)} บาท / ${item.minutes} นาที`}
           </p>
+          {/* เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง ผู้ตรวจต้องดูหลักฐานก่อนอนุมัติ (คำขอเก่าไม่มีส่วนนี้) */}
+          {item.result && <p className="admin-muted">
+            ผลที่อ้าง: {resultLabel[item.result]} · ปี {item.year} · หลักฐาน {/^https?:\/\//i.test(item.evidence)
+              ? <a href={item.evidence} target="_blank" rel="noreferrer noopener">เปิดลิงก์<ArrowUpRight size={14} aria-hidden="true" /></a> : item.evidence}
+          </p>}
           {item.details && <p className="request-details">{item.details}</p>}
           {item.status === 'approved' && item.competitionSlug && <p className="admin-muted">
             ผูกกับเวที <Link to={`/competitions/${item.competitionSlug}`}>{item.competitionSlug}</Link>

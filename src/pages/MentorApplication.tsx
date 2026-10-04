@@ -8,19 +8,19 @@ import { occupationLabel } from '../data/profile';
 import { useAuth } from '../data/auth';
 import { ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
-import { isWebLink, parsePrice } from '../data/consult';
-import { CompetitionOffers } from '../components/CompetitionOffers';
-import type { OpenCompetition, Offers } from '../components/CompetitionOffers';
+import { isWebLink } from '../data/consult';
+import { ExperienceCard, PriceCard, experienceProblems, priceProblem } from '../components/ApplyExperience';
+import type { Experience, KnownCompetition, Price } from '../components/ApplyExperience';
 import { useI18n } from '../i18n';
 import '../form.css';
 
 /* ใบสมัครเมนเทอร์ไม่มีตัวเลือก "นักเรียน" เพราะเมนเทอร์ต้องผ่านเวทีมาแล้ว */
 const applicantStatuses: OccupationId[] = ['university', 'working', 'other'];
-/* ช่องทางติดต่อและงานที่ติ๊กไว้พร้อมราคาของแต่ละงานอยู่ในใบสมัครตั้งแต่ต้น ไม่มีราคากลาง
-   ติดต่อกันนอกเว็บ เว็บไม่เก็บเงิน แก้ทั้งหมดได้ภายหลังใน Mentor zone */
+/* ขั้น 2 ประสบการณ์แข่งขัน (ติ๊กเวทีที่อยากเป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งและมีในระบบ)
+   ขั้น 3 ช่องทางติดต่อ และราคาของเวทีที่ติ๊กไว้ (ฟรี หรือบาทต่อหน่วยที่พิมพ์เอง) ไม่มีราคากลาง
+   ติดต่อกันนอกเว็บ เว็บไม่เก็บเงิน แก้ราคาได้ภายหลังใน Mentor zone */
 type Field = 'first' | 'last' | 'nickname' | 'email' | 'occupation' | 'organization' | 'role' | 'experience' | 'portfolio' | 'best' | 'cannot'
   | 'contactEmail' | 'contactLine' | 'contactPhone' | 'contactInstagram' | 'contactLink';
-interface Award { id: number; title: string; prize: string; year: string; url: string; file?: File }
 const empty: Record<Field, string> = { first: '', last: '', nickname: '', email: '', occupation: '', organization: '', role: '', experience: '', portfolio: '', best: '', cannot: '', contactEmail: '', contactLine: '', contactPhone: '', contactInstagram: '', contactLink: '' };
 
 type ConsentKey = 'accuracy' | 'guidanceOnly' | 'replies' | 'noJudging' | 'payment';
@@ -33,16 +33,22 @@ export function MentorApplication() {
   const s = t.mentorApply;
   const [stage, setStage] = useState(0);
   const [values, setValues] = useState(empty);
-  const [awards, setAwards] = useState<Award[]>([]);
-  const nextAward = useRef(0);
+  const [experiences, setExperiences] = useState<Experience[]>([]);
+  const nextExperience = useRef(0);
+  // การ์ดที่แสดงปัญหาแล้ว (กดถัดไปหรือกด "เสร็จ") ปัญหาคำนวณใหม่ทุกครั้งที่แก้ จึงหายเองเมื่อแก้ครบ
+  const [checkedExperiences, setCheckedExperiences] = useState<number[]>([]);
+  const [removed, setRemoved] = useState<{ item: Experience; index: number } | null>(null);
   const [portrait, setPortrait] = useState<File>();
   const [portraitUrl, setPortraitUrl] = useState('');
   const [selectedTopics, setSelectedTopics] = useState<TopicId[]>([]);
   const [consent, setConsent] = useState(noConsent);
-  const [offers, setOffers] = useState<Offers>({});
-  const [badOffers, setBadOffers] = useState<string[]>([]);
-  // รายชื่อเวทีที่ยังเปิดรับสมัคร ใช้ติ๊กเลือก ไม่บังคับ โหลดไม่ได้ก็ส่งใบสมัครต่อได้
-  const openList = useApi<{ items: OpenCompetition[] }>('/consult/open-competitions');
+  const [prices, setPrices] = useState<Record<string, Price>>({});
+  const [showPriceErrors, setShowPriceErrors] = useState(false);
+  // รายชื่อเวทีทั้งหมดในระบบ (รวมที่ปิดแล้ว) ใช้จับคู่ชื่อเวทีในประสบการณ์ โหลดไม่ได้ก็ยังพิมพ์ชื่อเองได้
+  const knownList = useApi<{ items: KnownCompetition[] }>('/consult/open-competitions?all=1');
+  const known = knownList.data?.items ?? [];
+  // เวทีที่ติ๊กว่าอยากเป็นเมนเทอร์ ไม่ซ้ำกัน ตามลำดับที่ใส่
+  const mentorFor = [...new Map(experiences.filter((item) => item.mentor && item.slug).map((item) => [item.slug!, known.find((row) => row.slug === item.slug)?.name ?? item.name])).entries()];
   const [message, setMessage] = useState('');
   const [complete, setComplete] = useState(false);
   const [sending, setSending] = useState(false);
@@ -76,12 +82,39 @@ export function MentorApplication() {
     <label htmlFor={`apply-${key}`}>{label}<input id={`apply-${key}`} value={values[key]} onChange={(event) => set(key, event.target.value)} aria-describedby={hint ? `apply-${key}-hint` : undefined} {...props} /></label>
     {hint && <small id={`apply-${key}-hint`}>{hint}</small>}
   </div>;
-  const updateAward = (id: number, update: Partial<Award>) => { reviewAgain(); setAwards((current) => current.map((award) => award.id === id ? { ...award, ...update } : award)); };
+  const updateExperience = (id: number, update: Partial<Experience>) => {
+    reviewAgain();
+    setExperiences((current) => current.map((item) => item.id === id ? { ...item, ...update } : item));
+  };
+  const addExperience = () => {
+    reviewAgain();
+    setRemoved(null);
+    // การ์ดที่กรอกครบแล้วพับเก็บ เหลือการ์ดใหม่ใบเดียวที่กางอยู่
+    setExperiences((current) => [
+      ...current.map((item) => (item.open && !experienceProblems(item).length ? { ...item, open: false } : item)),
+      { id: ++nextExperience.current, name: '', slug: null, result: '', detail: '', year: '', url: '', mentor: false, open: true },
+    ]);
+  };
+  const finishExperience = (item: Experience) => {
+    if (experienceProblems(item).length) setCheckedExperiences((current) => [...new Set([...current, item.id])]);
+    else updateExperience(item.id, { open: false });
+  };
+  const removeExperience = (item: Experience, index: number) => {
+    reviewAgain();
+    setExperiences((current) => current.filter((row) => row.id !== item.id));
+    setRemoved({ item, index });
+  };
+  const undoRemove = () => {
+    if (!removed) return;
+    setExperiences((current) => [...current.slice(0, removed.index), removed.item, ...current.slice(removed.index)]);
+    setRemoved(null);
+  };
   const goTo = (target: number) => { setStage(target); setMessage(''); };
 
   function validate() {
     const active = formRef.current?.querySelector(`fieldset[data-stage="${stage}"]`);
-    for (const element of active?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input,select,textarea') ?? []) {
+    // ช่องในการ์ดประสบการณ์ตรวจเองพร้อมข้อความใต้ช่อง จึงข้ามการตรวจแบบ bubble ของเบราว์เซอร์
+    for (const element of active?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input:not(.exp *),select:not(.exp *),textarea:not(.exp *)') ?? []) {
       element.setCustomValidity('');
       if (element.required && ['text', 'textarea'].includes(element.type) && !element.value.trim()) element.setCustomValidity(s.errors.fillAll);
       if (!element.reportValidity()) return false;
@@ -90,23 +123,27 @@ export function MentorApplication() {
     let missingConsent: ConsentKey | undefined;
     if (stage === 0 && portrait && (!['image/png', 'image/jpeg', 'image/webp'].includes(portrait.type) || portrait.size > 5 * 1024 * 1024)) error = s.errors.portrait;
     if (stage === 1) {
-      if (!awards.length && !values.portfolio.trim()) error = s.errors.needEvidence;
-      for (const award of awards) {
-        if (!award.url.trim() && !award.file) error = s.errors.awardNeedsProof;
-        if (award.file && (award.file.size > 10 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png'].includes(award.file.type))) error = s.errors.evidenceFile;
+      // เป็นเมนเทอร์ได้ต้องเคยแข่ง จึงต้องมีประสบการณ์อย่างน้อยหนึ่งรายการ ปัญหาแสดงใต้ช่องในการ์ดนั้น
+      const bad = experiences.filter((item) => experienceProblems(item).length);
+      if (!experiences.length) error = s.errors.needExperience;
+      else if (bad.length) {
+        error = s.errors.fixExperience(bad.length);
+        setCheckedExperiences(experiences.map((item) => item.id));
+        setExperiences((current) => current.map((item) => (experienceProblems(item).length ? { ...item, open: true } : item)));
+        setTimeout(() => document.querySelector<HTMLElement>('.exp.is-invalid [aria-invalid="true"]')?.focus(), 50);
       }
     }
     if (stage === 2) {
       if (selectedTopics.length !== 2) error = s.errors.pickTwo;
       else if (![values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].some((value) => value.trim())) error = s.errors.needContact;
       else if (values.contactLink.trim() && !isWebLink(values.contactLink)) error = s.errors.badLink;
-      // งานที่ติ๊กแล้วต้องมีราคาที่ถูกต้อง หรือติ๊กข้ามไว้ก่อน
-      const bad = Object.entries(offers).filter(([, offer]) => !offer.skip && !parsePrice(offer.price, offer.minutes)).map(([slug]) => slug);
-      setBadOffers(bad);
+      // ทุกเวทีที่ติ๊กไว้ต้องเลือกฟรี หรือใส่ราคากับหน่วยให้ครบ
+      const bad = mentorFor.filter(([slug]) => priceProblem(prices[slug]));
+      setShowPriceErrors(true);
       if (!error && bad.length) {
         error = s.errors.offerPrice(bad.length);
-        // รอให้กรอบแดงขึ้นก่อน แล้วพาไปช่องราคาแรกที่ต้องแก้
-        setTimeout(() => document.querySelector<HTMLInputElement>('.offer.is-invalid .offer-rate__input[aria-invalid="true"]')?.focus(), 50);
+        // รอให้กรอบแดงขึ้นก่อน แล้วพาไปการ์ดแรกที่ต้องแก้
+        setTimeout(() => document.querySelector<HTMLElement>('.offer.is-invalid [aria-invalid="true"], .offer.is-invalid input[type=radio]')?.focus(), 50);
       }
     }
     if (stage === 3) {
@@ -129,17 +166,21 @@ export function MentorApplication() {
         best: values.best, cannot: values.cannot,
         contactEmail: values.contactEmail, contactLine: values.contactLine, contactPhone: values.contactPhone,
         contactInstagram: values.contactInstagram, contactLink: values.contactLink,
-        offers: Object.entries(offers).map(([slug, offer]) => ({
-          slug, ...(offer.skip ? { price: null, minutes: null } : parsePrice(offer.price, offer.minutes)!),
-        })),
+        offers: mentorFor.map(([slug]) => {
+          const price = prices[slug];
+          return price.mode === 'free' ? { slug, price: 0, unit: '' } : { slug, price: Number(price.price), unit: price.unit.trim() };
+        }),
         // ฐานข้อมูลเก็บความถนัดเป็นข้อความไทยตามเดิม ไม่ว่าผู้ใช้เลือกภาษาไหน
         topics: selectedTopics.map((id) => topicValues[id]),
-        awards: awards.map((award) => ({
-          title: award.title,
-          competitionSlug: null,
-          year: award.year,
+        awards: experiences.map((item) => ({
+          title: item.name.trim(),
+          competitionSlug: item.slug,
+          result: item.result,
+          detail: item.detail.trim(),
+          year: item.year,
+          wantsMentor: item.mentor && Boolean(item.slug),
           // ไฟล์ยังไม่ถูกอัปโหลด บันทึกชื่อไฟล์ไว้ให้คนตรวจรู้ว่าต้องขออะไรเพิ่ม
-          evidence: award.url || (award.file ? evidenceValues.file(award.file.name) : evidenceValues.none),
+          evidence: item.url || (item.file ? evidenceValues.file(item.file.name) : evidenceValues.none),
         })),
       });
       setComplete(true);
@@ -199,16 +240,14 @@ export function MentorApplication() {
             <legend className="sr-only">{s.steps[1]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage1Title}</h2><p className="muted">{s.stage1Lead}</p></div>
             {group(s.journeyGroup, <label htmlFor="apply-experience">{s.experience}<textarea id="apply-experience" required maxLength={600} value={values.experience} onChange={(event) => set('experience', event.target.value)} placeholder={s.experiencePlaceholder} /></label>, s.journeyHint)}
             {group(s.awardsGroup, <>
-              {awards.map((award, index) => <div className="award" key={award.id}>
-                <div className="award-header"><h4>{s.awardHeading(index + 1)}</h4><button className="plain" type="button" aria-label={s.removeAwardAria(index + 1)} onClick={() => { reviewAgain(); setAwards(awards.filter((item) => item.id !== award.id)); }}>{s.removeAward}</button></div>
-                <label>{s.awardTitle}<input required maxLength={120} value={award.title} onChange={(event) => updateAward(award.id, { title: event.target.value })} /></label>
-                <div className="grid"><label>{s.awardPrize}<input required maxLength={100} value={award.prize} onChange={(event) => updateAward(award.id, { prize: event.target.value })} placeholder={s.awardPrizePlaceholder} /></label><label>{s.awardYear}<input type="number" required min={2500} max={new Date().getFullYear() + 543} value={award.year} onChange={(event) => updateAward(award.id, { year: event.target.value })} /></label></div>
-                <label>{s.awardUrl}<input type="url" value={award.url} onChange={(event) => updateAward(award.id, { url: event.target.value })} placeholder="https://..." /></label>
-                <label>{s.awardFile}<input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => updateAward(award.id, { file: event.target.files?.[0] })} /><small>{s.awardFileHint}</small></label>
-              </div>)}
-              {awards.length < 2 && <button type="button" onClick={() => { reviewAgain(); setAwards([...awards, { id: ++nextAward.current, title: '', prize: '', year: '', url: '' }]); }}>{s.addAward}</button>}
-              <div className="note">{s.noAwardsNote}</div>
-            </>, s.awardsHint, <span className="count">{s.awardsCount(awards.length)}</span>)}
+              <datalist id="apply-known-competitions">{known.map((row) => <option key={row.slug} value={row.name}>{row.org}</option>)}</datalist>
+              {experiences.map((item, index) => <ExperienceCard key={item.id} index={index} item={item} known={known} listId="apply-known-competitions"
+                problems={checkedExperiences.includes(item.id) ? experienceProblems(item) : []} onChange={(patch) => updateExperience(item.id, patch)}
+                onRemove={() => removeExperience(item, index)} onDone={() => finishExperience(item)} />)}
+              {removed && <p className="exp-undo" role="status">{s.exp.removed(removed.item.name || s.exp.heading(removed.index + 1))}
+                <button type="button" className="plain" onClick={undoRemove}>{s.exp.undo}</button></p>}
+              <button type="button" className="exp-add" onClick={addExperience}>{s.addAward}</button>
+            </>, s.awardsHint, <span className="count">{s.awardsCount(experiences.length)}</span>)}
             {group(s.portfolioGroup, <>
               {field('portfolio', s.portfolioLink, { type: 'url', placeholder: 'https://...' }, s.portfolioHint)}
               <div className="note">{s.verifiedNote}</div>
@@ -231,13 +270,10 @@ export function MentorApplication() {
               {field('contactInstagram', s.contactInstagram, { maxLength: 100, autoComplete: 'off' })}
               {field('contactLink', s.contactLink, { type: 'url', maxLength: 500, placeholder: 'https://', autoComplete: 'off' }, s.contactLinkHint)}
             </div>, s.contactsHint)}
-            {group(s.competitionsGroup, <>
-              {openList.loading && !openList.data && <p className="muted" role="status">{s.competitionsLoading}</p>}
-              {openList.error && !openList.data && <p className="note" role="status">{s.competitionsError}</p>}
-              {openList.data && openList.data.items.length === 0 && <p className="muted">{s.competitionsEmpty}</p>}
-              {openList.data && openList.data.items.length > 0 && <CompetitionOffers items={openList.data.items} invalid={badOffers}
-                offers={offers} onChange={(next) => { reviewAgain(); setOffers(next); setBadOffers((bad) => bad.filter((slug) => next[slug])); }} />}
-            </>, s.competitionsHint, <span className="count" aria-live="polite">{s.competitionsCount(Object.keys(offers).length)}</span>)}
+            {group(s.pricingGroup, mentorFor.length
+              ? <ul className="offers-list">{mentorFor.map(([slug, name]) => <PriceCard key={slug} name={name} price={prices[slug]} invalid={showPriceErrors}
+                onChange={(next) => { reviewAgain(); setPrices((current) => ({ ...current, [slug]: next })); }} />)}</ul>
+              : <div className="note">{s.pricingEmpty}</div>, s.pricingHint)}
             <p className="muted">{s.zoneNote}</p>
           </fieldset>
 
@@ -259,17 +295,20 @@ export function MentorApplication() {
             </>)}
             {reviewGroup(s.reviewExperienceGroup, 1, <>
               <div className="review"><small>{s.reviewExperience}</small>{values.experience}</div>
-              {awards.map((award) => <div className="review" key={award.id}><strong>{award.title}</strong><p>{award.prize} · {award.year}</p><small>{s.reviewAwaiting(award.file?.name || award.url)}</small></div>)}
+              {experiences.map((item) => <div className="review" key={item.id}>
+                <strong>{item.name}</strong>
+                <p>{[item.result && t.taxonomy.results[item.result], item.detail, item.year].filter(Boolean).join(' · ')}</p>
+                <small>{s.reviewAwaiting(item.file?.name || item.url)}{item.mentor && item.slug ? ` · ${s.reviewWantsMentor}` : ''}</small>
+              </div>)}
               {values.portfolio && <div className="review"><small>{s.reviewPortfolio}</small>{values.portfolio}</div>}
-              {!awards.length && <div className="review"><small>{s.reviewAwardsLabel}</small>{s.reviewNoAwards}</div>}
             </>)}
             {reviewGroup(s.strengthsGroup, 2, <>
               <div className="review"><small>{s.reviewStrengths}</small>{selectedTopics.map((topic) => t.taxonomy.topics[topic]).join(' · ')}</div>
               <div className="review"><small>{s.reviewContacts}</small>{[values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].filter((value) => value.trim()).join(' · ')}</div>
-              <div className="review"><small>{s.reviewCompetitions}</small>{Object.keys(offers).length
-                ? <ul className="review-offers">{Object.entries(offers).map(([slug, offer]) => <li key={slug}>
-                  <span>{openList.data?.items.find((item) => item.slug === slug)?.name ?? slug}</span>
-                  <strong>{offer.skip ? s.reviewPriceLater : t.price.line(Number(offer.price), Number(offer.minutes))}</strong>
+              <div className="review"><small>{s.reviewCompetitions}</small>{mentorFor.length
+                ? <ul className="review-offers">{mentorFor.map(([slug, name]) => <li key={slug}>
+                  <span>{name}</span>
+                  <strong>{prices[slug]?.mode === 'free' ? t.price.line(0, null) : t.price.line(Number(prices[slug]?.price), null, prices[slug]?.unit.trim())}</strong>
                 </li>)}</ul>
                 : s.reviewNoCompetitions}</div>
             </>)}

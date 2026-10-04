@@ -5,7 +5,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { app } from '../server/app';
 import { db, client } from '../server/db/client';
 import {
-  competitions, emailLog, mentorCompetitionChoices, mentorSubmissions, mentors, reviewEvents, sessions, users,
+  competitions, emailLog, mentorAwards, mentorCompetitionChoices, mentorExperiences, mentorSubmissions, mentors, reviewEvents, sessions, users,
 } from '../server/db/schema';
 import { testDatabase } from '../server/lib/database-safety';
 import { createSession } from '../server/lib/session';
@@ -27,6 +27,9 @@ async function account(role: 'member' | 'admin' = 'member') {
 const post = (path: string, cookie: string, body: unknown) => app.request(`/api${path}`, {
   method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body),
 });
+const award = (slug: string, wantsMentor: boolean, result = 'participant') => ({
+  title: slug, competitionSlug: slug, result, detail: '', year: '2567', evidence: 'https://example.test/proof', wantsMentor,
+});
 const base = {
   firstName: 'ทดสอบ', lastName: 'ราคา', nickname: 'ทด', email: `${prefix}@championways.test`, occupation: 'ทำงานแล้ว',
   organization: 'ทีมทดสอบ', role: 'วิศวกร', experience: 'เคยชนะ', best: 'ช่วยตีโจทย์', cannot: 'ไม่ทำงานแทน',
@@ -44,47 +47,71 @@ test('per-competition prices from the application become the mentor\'s offers on
   const admin = await account('admin');
   let submissionId = '';
   try {
-    await t.test('a price without minutes (or the other way round) is rejected', async () => {
-      const bad = await post('/submissions/mentor', applicant.cookie, { ...base, offers: [{ slug: slugs[0], price: 500, minutes: null }] });
+    await t.test('you need at least one competition you competed in; a paid price needs a unit', async () => {
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [] })).status, 400);
+      const bad = await post('/submissions/mentor', applicant.cookie, {
+        ...base, awards: [award(slugs[0], true)], offers: [{ slug: slugs[0], price: 500, unit: '' }],
+      });
       assert.equal(bad.status, 400);
+      // ติ๊กเป็นเมนเทอร์แล้วต้องมีราคา (ฟรีก็ได้)
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [award(slugs[0], true)], offers: [] })).status, 400);
+      // ลิงก์หลักฐานต้องเป็น http(s) (Astra รีวิว 4 ต.ค. 2569)
+      const unsafe = { ...award(slugs[0], false), evidence: 'javascript:alert(1)' };
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [unsafe] })).status, 400);
+      // อักขระควบคุมที่เบราว์เซอร์ตัดทิ้ง (java<TAB>script:) ก็ไม่ผ่าน
+      const sneaky = { ...award(slugs[0], false), evidence: 'java	script:alert(1)' };
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [sneaky] })).status, 400);
     });
 
-    await t.test('priced, skipped and unknown competitions are stored as offers', async () => {
+    await t.test('only competitions you competed in and ticked get a price; typed competitions are kept as experience', async () => {
       const response = await post('/submissions/mentor', applicant.cookie, {
         ...base,
+        awards: [
+          award(slugs[0], true, 'winner'), award(slugs[1], true, 'participant'), award(slugs[2], false, 'finalist'),
+          // ใส่เวทีเดิมปีเดิมซ้ำ ได้ประสบการณ์แถวเดียว
+          award(slugs[2], false, 'finalist'),
+          { title: 'เวทีที่ยังไม่มีในระบบ', competitionSlug: null, result: 'participant', year: '2565', evidence: 'https://example.test/x', wantsMentor: true },
+        ],
         offers: [
-          { slug: slugs[0], price: 600, minutes: 60 },
-          { slug: slugs[1], price: 100, minutes: 30 },
-          { slug: slugs[2], price: null, minutes: null },
-          { slug: `${prefix}-missing`, price: 1, minutes: 1 },
+          { slug: slugs[0], price: 600, unit: 'โปรเจกต์' },
+          { slug: slugs[1], price: 0, unit: 'ไม่ควรเก็บ' },
+          // ไม่ได้ติ๊กเวทีนี้ ราคาถูกทิ้ง
+          { slug: slugs[2], price: 1, unit: 'ชั่วโมง' },
         ],
       });
-      assert.equal(response.status, 201);
+      assert.equal(response.status, 201, await response.clone().text());
       submissionId = (await response.json()).id;
       const [row] = await db.select().from(mentorSubmissions).where(eq(mentorSubmissions.id, submissionId));
-      assert.equal(row.price, null);
-      assert.equal(row.competitionOffers.length, 3);
-      assert.deepEqual(row.competitionOffers.find((offer) => offer.competitionId === `${slugs[2]}-id`), { competitionId: `${slugs[2]}-id`, price: null, minutes: null });
+      assert.deepEqual(row.competitionOffers.map((offer) => [offer.competitionId, offer.price, offer.unit]).sort(),
+        [[`${slugs[0]}-id`, 600, 'โปรเจกต์'], [`${slugs[1]}-id`, 0, '']]);
+      const awards = await db.select().from(mentorAwards).where(eq(mentorAwards.submissionId, submissionId));
+      assert.equal(awards.length, 5);
+      assert.equal(awards.find((a) => a.title === 'เวทีที่ยังไม่มีในระบบ')?.wantsMentor, false);
     });
 
-    await t.test('the open list carries categories and levels for grouping', async () => {
-      const list = await (await app.request('/api/consult/open-competitions')).json();
+    await t.test('the open list can include closed competitions for picking past experience', async () => {
+      const list = await (await app.request('/api/consult/open-competitions?all=1')).json();
       const item = list.items.find((row: { slug: string }) => row.slug === slugs[0]);
-      assert.ok(item && Array.isArray(item.categories) && Array.isArray(item.levels) && item.type === 'contest');
+      assert.ok(item && Array.isArray(item.categories) && item.type === 'contest');
       assert.equal(item.id, undefined);
     });
 
-    await t.test('approval copies each price; the profile shows the cheapest per minute; skipped stays empty', async () => {
+    await t.test('approval copies each price and every experience; the profile shows the lowest price', async () => {
       const decided = await post(`/admin/mentor-submissions/${submissionId}/decision`, admin.cookie, { decision: 'publish', checks: mentorChecks });
       assert.equal(decided.status, 200, await decided.clone().text());
       const [row] = await db.select().from(mentorSubmissions).where(eq(mentorSubmissions.id, submissionId));
       const choices = await db.select().from(mentorCompetitionChoices).where(eq(mentorCompetitionChoices.mentorId, row.publishedMentorId!));
       const priceOf = (slug: string) => choices.find((choice) => choice.competitionId === `${slug}-id`);
-      assert.deepEqual([priceOf(slugs[0])?.price, priceOf(slugs[0])?.minutes], [600, 60]);
-      assert.deepEqual([priceOf(slugs[2])?.price, priceOf(slugs[2])?.minutes], [null, null]);
+      assert.deepEqual([priceOf(slugs[0])?.price, priceOf(slugs[0])?.unit], [600, 'โปรเจกต์']);
+      assert.deepEqual([priceOf(slugs[1])?.price, priceOf(slugs[1])?.unit], [0, '']);
+      assert.equal(priceOf(slugs[2]), undefined);
       const [mentor] = await db.select().from(mentors).where(eq(mentors.id, row.publishedMentorId!));
-      // 600/60 = 10 บาทต่อนาที ถูกกว่า 100/30 ≈ 3.3 ไม่ได้ จึงเป็นงาน b
-      assert.deepEqual([mentor.price, mentor.minutes], [100, 30]);
+      assert.deepEqual([mentor.price, mentor.priceUnit], [0, '']);
+      // ป้าย "ชนะ" ผูกกับเวทีที่ชนะเท่านั้น
+      assert.equal(mentor.wonSlug, slugs[0]);
+      const experiences = await db.select().from(mentorExperiences).where(eq(mentorExperiences.mentorId, row.publishedMentorId!));
+      assert.equal(experiences.length, 4);
+      assert.deepEqual(experiences.filter((e) => e.competitionId).map((e) => e.result).sort(), ['finalist', 'participant', 'winner']);
     });
   } finally {
     const [row] = submissionId ? await db.select().from(mentorSubmissions).where(eq(mentorSubmissions.id, submissionId)) : [];

@@ -6,7 +6,7 @@ import { app } from '../server/app';
 import { db, client } from '../server/db/client';
 import {
   chatRooms, competitionRequests, competitions, consultations, emailLog, hirePayments, mentorCompetitionChoices, mentorPayoutAccounts,
-  mentorPayouts, mentorReviews, mentorSubmissions, mentors, sessions, users,
+  mentorExperiences, mentorPayouts, mentorReviews, mentorSubmissions, mentors, sessions, users,
 } from '../server/db/schema';
 import { testDatabase } from '../server/lib/database-safety';
 import { createSession } from '../server/lib/session';
@@ -328,15 +328,27 @@ test('hire a mentor, chat, finish and review', async (t) => {
       }
     });
 
-    await t.test('mentor zone: price per competition shows on the competition page', async () => {
+    await t.test('mentor zone: only competitions the mentor competed in; price is free or per a unit they name', async () => {
       assert.equal((await (await call('/consult/zone', student.cookie)).json()).mentor, null);
-      assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, student.cookie, 'PUT', { price: 10, minutes: 1 })).status, 403);
-      assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 10, minutes: 0 })).status, 400);
-      assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 300, minutes: 30 })).status, 200);
-      const listed = await (await call(`/consult/competitions/${otherSlug}/mentors`)).json();
-      const entry = [...listed.risingStar, ...listed.others].find((m: { id: string }) => m.id === mentorId);
-      assert.deepEqual([entry.price, entry.minutes], [300, 30]);
+      assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, student.cookie, 'PUT', { price: 10, unit: 'ชั่วโมง' })).status, 403);
+      // ยังไม่เคยแข่งเวทีนี้ (ผู้ใช้ตัดสิน 4 ต.ค. 2569: เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง)
+      assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 300, unit: 'ชั่วโมง' })).status, 403);
+      assert.equal((await (await call('/consult/zone', mentorUser.cookie)).json()).available.some((x: { slug: string }) => x.slug === otherSlug), false);
+      await db.insert(mentorExperiences).values({ id: `${prefix}-exp`, mentorId, competitionId: `${prefix}-cmp2`, name: 'เวทีสอง', result: 'participant', year: '2567' });
+      assert.equal((await (await call('/consult/zone', mentorUser.cookie)).json()).available.some((x: { slug: string }) => x.slug === otherSlug), true);
+      // ราคามากกว่า 0 ต้องบอกหน่วย
+      assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 300, unit: '' })).status, 400);
+      assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 300, unit: 'โปรเจกต์' })).status, 200);
+      let listed = await (await call(`/consult/competitions/${otherSlug}/mentors`)).json();
+      let entry = [...listed.risingStar, ...listed.others].find((m: { id: string }) => m.id === mentorId);
+      assert.deepEqual([entry.price, entry.unit, entry.minutes], [300, 'โปรเจกต์', null]);
+      // ฟรีไม่มีหน่วย
+      assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 0, unit: 'อะไรก็ได้' })).status, 200);
+      listed = await (await call(`/consult/competitions/${otherSlug}/mentors`)).json();
+      entry = [...listed.risingStar, ...listed.others].find((m: { id: string }) => m.id === mentorId);
+      assert.deepEqual([entry.price, entry.unit], [0, '']);
       assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'DELETE')).status, 200);
+      await db.delete(mentorExperiences).where(eq(mentorExperiences.mentorId, mentorId));
     });
 
     await t.test('parallel requests cannot slip past the cooldown or the request cap', async () => {
@@ -345,15 +357,17 @@ test('hire a mentor, chat, finish and review', async (t) => {
       const sends = await Promise.all(Array.from({ length: 6 }, () => call('/auth/email/verify/send', fresh.cookie, 'POST', {})));
       assert.deepEqual(sends.map((r) => r.status).sort(), [200, 429, 429, 429, 429, 429]);
       const made = await Promise.all(Array.from({ length: 14 }, (_, n) => call('/consult/zone/requests', mentorUser.cookie, 'POST',
-        { name: `งานพร้อมกัน ${n}`, url: 'https://example.test/parallel', price: 100, minutes: 30 })));
+        { name: `งานพร้อมกัน ${n}`, url: 'https://example.test/parallel', price: 100, unit: 'ชั่วโมง', result: 'participant', year: '2567', evidence: 'https://example.test/result' })));
       assert.equal(made.filter((r) => r.status === 201).length, 10);
       assert.equal(made.filter((r) => r.status === 409).length, 4);
       await db.delete(competitionRequests).where(eq(competitionRequests.mentorId, mentorId));
     });
 
     await t.test('a competition request becomes a listing only after the team approves it', async () => {
-      assert.equal((await call('/consult/zone/requests', mentorUser.cookie, 'POST', { name: 'งานใหม่', url: 'javascript:alert(1)', price: 300, minutes: 30 })).status, 400);
-      const made = await call('/consult/zone/requests', mentorUser.cookie, 'POST', { name: 'งานใหม่', url: 'https://example.test/new', details: 'รายละเอียด', price: 300, minutes: 30 });
+      assert.equal((await call('/consult/zone/requests', mentorUser.cookie, 'POST', { name: 'งานใหม่', url: 'javascript:alert(1)', price: 300, unit: 'ชั่วโมง', result: 'participant', year: '2567', evidence: 'https://example.test/result' })).status, 400);
+      // ต้องบอกผลที่ได้และหลักฐานว่าเคยแข่ง
+      assert.equal((await call('/consult/zone/requests', mentorUser.cookie, 'POST', { name: 'งานใหม่', url: 'https://example.test/new', price: 300, unit: 'ชั่วโมง' })).status, 400);
+      const made = await call('/consult/zone/requests', mentorUser.cookie, 'POST', { name: 'งานใหม่', url: 'https://example.test/new', details: 'รายละเอียด', price: 300, unit: 'ชั่วโมง', result: 'participant', year: '2567', evidence: 'https://example.test/result' });
       assert.equal(made.status, 201);
       const { id } = await made.json();
       assert.equal((await call(`/admin/competition-requests/${id}/decision`, student.cookie, 'POST', { decision: 'reject', reason: 'x' })).status, 403);
@@ -362,7 +376,10 @@ test('hire a mentor, chat, finish and review', async (t) => {
       assert.equal((await call(`/admin/competition-requests/${id}/decision`, reviewer.cookie, 'POST', { decision: 'approve', competitionSlug: otherSlug })).status, 409);
       const [choice] = await db.select().from(mentorCompetitionChoices)
         .where(and(eq(mentorCompetitionChoices.mentorId, mentorId), eq(mentorCompetitionChoices.competitionId, `${prefix}-cmp2`)));
-      assert.deepEqual([choice.choice, choice.price, choice.minutes], ['help', 300, 30]);
+      assert.deepEqual([choice.choice, choice.price, choice.unit], ['help', 300, 'ชั่วโมง']);
+      // อนุมัติแล้วได้ประสบการณ์ของเวทีนี้ด้วย
+      const [competed] = await db.select().from(mentorExperiences).where(eq(mentorExperiences.mentorId, mentorId));
+      assert.deepEqual([competed.competitionId, competed.result, competed.year], [`${prefix}-cmp2`, 'participant', '2567']);
     });
   } finally {
     await db.delete(competitionRequests).where(eq(competitionRequests.mentorId, mentorId));

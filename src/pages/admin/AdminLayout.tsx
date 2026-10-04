@@ -62,6 +62,7 @@ export function AdminLayout() {
             คำขอเพิ่มเวที{pendingRequests > 0 && <span className="admin-badge">{pendingRequests}</span>}
           </NavLink>
           <NavLink to="/admin/reviews">รีวิว</NavLink>
+          {isAdmin(user) && <NavLink to="/admin/notifications">การแจ้งเตือน</NavLink>}
           {isAdmin(user) && hiring === true && <>
             <NavLink to="/admin/payouts">โอนเงินเมนเทอร์</NavLink>
             <NavLink to="/admin/disputes">เรื่องแจ้งปัญหา</NavLink>
@@ -72,7 +73,7 @@ export function AdminLayout() {
     </header>
 
     {/* หน้าโอนเงินไม่ใช่การตัดสินเผยแพร่ ข้อความเตือนเรื่องผู้สมัครไม่เกี่ยวจึงไม่แสดงที่นี่ */}
-    {pathname !== '/admin/payouts' && <p className="admin-warning" role="note">
+    {!['/admin/payouts', '/admin/notifications'].includes(pathname) && <p className="admin-warning" role="note">
       <TriangleAlert size={16} aria-hidden="true" />
       <span>
         การตัดสินถูกบันทึกลงฐานข้อมูลจริง ตรวจสอบข้อมูลและหลักฐานให้ครบก่อนเผยแพร่

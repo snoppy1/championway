@@ -717,3 +717,21 @@ export const mentorSubmissionRelations = relations(mentorSubmissions, ({ many })
 export const mentorAwardRelations = relations(mentorAwards, ({ one }) => ({
   submission: one(mentorSubmissions, { fields: [mentorAwards.submissionId], references: [mentorSubmissions.id] }),
 }));
+
+/** การแจ้งทีมงานทางอีเมลเมื่อมีเรื่องใหม่รอตรวจ (lib/staff-notify.ts) หนึ่งแถวต่อหนึ่งเรื่อง ไม่มีแถว = ค่าเริ่มต้น (เปิด แจ้ง admin ทุกคน) */
+export const staffNotifications = pgTable('staff_notifications', {
+  kind: text('kind').primaryKey(),
+  enabled: boolean('enabled').notNull().default(true),
+  audience: text('audience').$type<'all' | 'selected'>().notNull().default('all'),
+  recipientIds: text('recipient_ids').array().notNull().default([]),
+  updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [check('staff_notifications_audience_check', sql`${t.audience} in ('all', 'selected')`)]);
+
+/** ประวัติการแจ้งทีมงาน ใช้จำกัดจำนวนอีเมล คนเดียวส่งรัว ๆ จะไม่ทำให้ทีมงานโดนอีเมลถล่ม (Astra รีวิว 5 ต.ค. 2569) */
+export const staffAlerts = pgTable('staff_alerts', {
+  id: text('id').primaryKey(),
+  kind: text('kind').notNull(),
+  actorId: text('actor_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('staff_alerts_kind_idx').on(t.kind, t.createdAt), index('staff_alerts_actor_idx').on(t.actorId, t.kind, t.createdAt)]);

@@ -8,7 +8,7 @@ import { demoTotals, insertDemoData, presentDemo, removeDemoData } from '../db/d
 import { demoToolsEnabled, env } from '../lib/env.js';
 import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
-  competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices, mentorExperiences,
+  competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices, mentorExperiences, staffNotifications,
   mentorPayoutAccounts, mentorPayouts, mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
   submissionCategories, submissionLevels, submissionRewards, users,
 } from '../db/schema.js';
@@ -19,6 +19,8 @@ import { notify } from '../lib/email.js';
 import { open } from '../lib/secret-box.js';
 import { listOverdue, releaseOverdue, resolveDispute } from '../lib/hire-money.js';
 import { hiringEnabled } from '../lib/flow.js';
+import { staffNotificationKinds, staffNotificationSettings } from '../lib/staff-notify.js';
+import type { StaffNotificationKind } from '../lib/staff-notify.js';
 import { filesOf, publicFile } from '../lib/files.js';
 import { firstIssue } from './public.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
@@ -787,6 +789,42 @@ admin.post('/reviews/:id/visibility', async (c) => {
 function requireAdmin(c: Context<AppEnv>) {
   if (c.get('user')!.role !== 'admin') throw new HTTPException(403, { message: 'เฉพาะผู้ดูแล (admin) เท่านั้น' });
 }
+
+/* ---------- แจ้งทีมงานทางอีเมล (lib/staff-notify.ts) ----------
+   admin เท่านั้นที่ตั้งได้ ผู้รับที่เลือกได้คือ admin หรือผู้ตรวจ (reviewer) เท่านั้น */
+
+const notificationBody = z.object({
+  enabled: z.boolean(),
+  audience: z.enum(['all', 'selected']),
+  recipientIds: z.array(z.string().max(100)).max(50).default([]),
+});
+
+async function staffList() {
+  return db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users)
+    .where(inArray(users.role, ['admin', 'reviewer'])).orderBy(asc(users.name));
+}
+
+admin.get('/notifications', async (c) => {
+  requireAdmin(c);
+  return c.json({ settings: await staffNotificationSettings(), staff: await staffList() });
+});
+
+admin.put('/notifications/:kind', async (c) => {
+  requireAdmin(c);
+  const kind = c.req.param('kind') as StaffNotificationKind;
+  if (!staffNotificationKinds.includes(kind)) throw new HTTPException(404, { message: 'ไม่พบการแจ้งเตือนนี้' });
+  const parsed = notificationBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const staff = new Set((await staffList()).map((person) => person.id));
+  const recipientIds = [...new Set(parsed.data.recipientIds)].filter((id) => staff.has(id));
+  if (parsed.data.enabled && parsed.data.audience === 'selected' && !recipientIds.length) {
+    throw new HTTPException(400, { message: 'เลือกผู้รับอย่างน้อยหนึ่งคน หรือเลือก "แจ้ง admin ทุกคน"' });
+  }
+  const values = { enabled: parsed.data.enabled, audience: parsed.data.audience, recipientIds, updatedBy: c.get('user')!.id, updatedAt: new Date() };
+  await db.insert(staffNotifications).values({ kind, ...values })
+    .onConflictDoUpdate({ target: staffNotifications.kind, set: values });
+  return c.json({ settings: await staffNotificationSettings() });
+});
 
 // หน้าเงินของการจ้างปิดพร้อมการจ้าง (lib/flow.ts) (Astra รีวิว 3 ต.ค. 2569)
 admin.use('/payouts/*', async (_c, next) => { if (!hiringEnabled()) throw new HTTPException(404, { message: 'ฟีเจอร์นี้ยังไม่เปิด' }); await next(); });

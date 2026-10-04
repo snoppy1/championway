@@ -14,6 +14,8 @@ import type { AppEnv } from '../lib/guards.js';
 import { requireUser } from '../lib/guards.js';
 import { newId } from '../lib/id.js';
 import { notify } from '../lib/email.js';
+import { notifyStaff } from '../lib/staff-notify.js';
+import { env } from '../lib/env.js';
 import { uploadsUsable } from '../lib/env.js';
 import { attachFiles, fileProblem, publicFile, readLocalFile, storeFile } from '../lib/files.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
@@ -281,6 +283,10 @@ publicApi.post('/submissions/competition', requireUser, async (c) => {
   await attachFiles(body.fileIds, user.id, 'competition_submission', id);
   await notify(body.contactEmail, 'ได้รับใบลงงานแข่งแล้ว',
     `ได้รับ "${body.name}" เข้าคิวตรวจแล้ว ทีมงานจะแจ้งผลภายใน 2 วันทำการ`);
+  await notifyStaff('competition_submission', user.id, `งานแข่งใหม่รอตรวจ: ${body.name}`,
+    `${body.organizerName} ส่ง "${body.name}" เข้ามาให้ตรวจ
+
+${env.appOrigin}/admin/competitions/${id}`);
   return c.json({ id }, 201);
 });
 
@@ -411,6 +417,10 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
   });
 
   await attachFiles(body.fileIds, user.id, 'mentor_submission', id);
+  await notifyStaff('mentor_application', user.id, `ใบสมัครเมนเทอร์ใหม่: ${body.firstName} ${body.lastName.slice(0, 1)}.`,
+    `${body.firstName} ${body.lastName.slice(0, 1)}. (${body.nickname}) ส่งใบสมัครเมนเทอร์ รอตรวจ
+
+${env.appOrigin}/admin/mentors/${id}`);
   await notify(body.email, 'ได้รับใบสมัครเมนเทอร์แล้ว',
     'ได้รับใบสมัครเข้าคิวตรวจแล้ว ทีมงานจะแจ้งผลทางอีเมลทุกกรณี');
   return c.json({ id }, 201);

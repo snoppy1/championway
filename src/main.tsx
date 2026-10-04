@@ -41,6 +41,7 @@ import { AdminCompetitionQueue, AdminCompetitionReview } from './pages/admin/Adm
 import { AdminMentorQueue, AdminMentorReview } from './pages/admin/AdminMentors';
 import { AdminRequestQueue } from './pages/admin/AdminRequests';
 import { AdminReviewList } from './pages/admin/AdminReviews';
+import { AdminNotifications } from './pages/admin/AdminNotifications';
 import { AdminListingForm, AdminListingList } from './pages/admin/AdminListings';
 import './styles.css';
 
@@ -89,6 +90,7 @@ const router = createBrowserRouter([{
     { path: 'mentors/:id', element: <AdminMentorReview /> },
     { path: 'requests', element: <AdminRequestQueue /> },
     { path: 'reviews', element: <AdminReviewList /> },
+    { path: 'notifications', element: <AdminNotifications /> },
     { path: 'payouts', element: <AdminPayouts /> },
     { path: 'disputes', element: <AdminDisputes /> },
   ],

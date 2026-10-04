@@ -356,3 +356,28 @@
 .admin-header .brand-name { white-space: nowrap; }
 .admin .admin-muted, .admin .request-decision small { text-wrap: pretty; }
 .payout-card[hidden] { display: none; }
+
+/* การแจ้งเตือนทางอีเมล (AdminNotifications.tsx) */
+.notify-list { display: grid; gap: 16px; }
+.notify-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.notify-head h2 { margin: 0; }
+.notify-switch { display: inline-flex; align-items: center; gap: 10px; flex: none; min-height: 44px; font-weight: 600; cursor: pointer; }
+.notify-switch input { appearance: none; position: relative; width: 44px; height: 26px; margin: 0; border-radius: 999px;
+  background: var(--line); cursor: pointer; transition: background .15s; }
+.notify-switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--card); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); transition: transform .15s; }
+.notify-switch input:checked { background: var(--purple); }
+.notify-switch input:checked::after { transform: translateX(18px); }
+.notify-switch input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.notify-audience { margin: 16px 0 0; padding: 0; border: 0; min-width: 0; }
+.notify-audience:disabled { opacity: .55; }
+.notify-audience legend { margin-bottom: 6px; font-weight: 600; }
+.notify-option { display: flex; align-items: flex-start; gap: 10px; min-height: 40px; padding: 6px 0; cursor: pointer; }
+.notify-option input { margin-top: 4px; accent-color: var(--purple); }
+.notify-people { margin: 4px 0 0 26px; padding: 0; list-style: none; }
+.notify-people .admin-muted { display: block; overflow-wrap: anywhere; }
+.notify-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.notify-foot p { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.notify-message.is-ok { margin-top: 10px; color: #1d6440; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .notify-switch input, .notify-switch input::after { transition: none; } }

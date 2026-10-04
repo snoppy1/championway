@@ -15,6 +15,7 @@ import { completeByMember, dispute, markPaid } from '../lib/hire-money.js';
 import { paymentProvider } from '../lib/payments.js';
 import { seal, secretBoxReady } from '../lib/secret-box.js';
 import { bestResult, mentorScore } from '../lib/mentor-rank.js';
+import { notifyStaff } from '../lib/staff-notify.js';
 import { newId, newToken } from '../lib/id.js';
 import { hiringEnabled } from '../lib/flow.js';
 import { env } from '../lib/env.js';
@@ -396,6 +397,10 @@ consult.post('/zone/requests', requireUser, async (c) => {
     if (count >= 10) return fail('มีคำขอรอตรวจอยู่ 10 รายการแล้ว รอทีมงานตรวจก่อน', 409);
     await tx.insert(competitionRequests).values({ id, mentorId: mentor.id, userId: user.id, ...body });
   });
+  await notifyStaff('competition_request', user.id, `เมนเทอร์ขอเพิ่มเวที: ${body.name}`,
+    `${mentor.name} ขอเป็นเมนเทอร์ของ "${body.name}" และแนบหลักฐานว่าเคยแข่งแล้ว รอตรวจ
+
+${env.appOrigin}/admin/requests`);
   return c.json({ id }, 201);
 });
 

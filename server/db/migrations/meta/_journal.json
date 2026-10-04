@@ -120,6 +120,20 @@
       "when": 1791116498053,
       "tag": "0016_curly_the_watchers",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791135885135,
+      "tag": "0017_last_silk_fever",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791136219811,
+      "tag": "0018_public_surge",
+      "breakpoints": true
     }
   ]
 }

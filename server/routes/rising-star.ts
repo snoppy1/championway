@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, gt } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { mentorSubmissions, mentors, risingStarPeriods } from '../db/schema.js';
 import type { AppEnv } from '../lib/guards.js';
@@ -25,6 +25,22 @@ const initialOf = (text: string) => text.replace(/^[เแโใไ]+/, '').slic
 type Period = { mentorId: string; startsAt: Date; endsAt: Date; source: string };
 // ช่วงศูนย์วัน (คืนเงินก่อนเริ่ม) ไม่นับ
 const overlaps = (p: Period, start: Date, end: Date) => p.endsAt > p.startsAt && p.startsAt < end && p.endsAt > start;
+
+/* แถบ "Mentor หน้าใหม่" บนหน้าแรก: เมนเทอร์ที่เผยแพร่ล่าสุดก่อน (ผู้ใช้ขอ 5 ต.ค. 2569)
+   แถวในตาราง mentors เกิดตอนทีมงานอนุมัติใบสมัคร createdAt จึงเป็นวันที่เข้าร่วม
+   ส่งแค่ชื่อกับความถนัด ไม่มีช่องทางติดต่อหรือราคา */
+const NEWEST = 10;
+
+risingStar.get('/newest', async (c) => {
+  const rows = await db.select({ id: mentors.id, name: mentors.name, avatar: mentors.avatar, bio: mentors.bio, focus: mentors.weeklyFocus })
+    .from(mentors).orderBy(desc(mentors.createdAt), mentors.id).limit(NEWEST);
+  c.header('Cache-Control', 'public, max-age=60');
+  return c.json({
+    items: rows.map((mentor) => ({
+      id: mentor.id, name: mentor.name, initial: initialOf(mentor.avatar || mentor.name), specialty: mentor.focus ?? mentor.bio,
+    })),
+  });
+});
 
 risingStar.get('/', async (c) => {
   const now = new Date();

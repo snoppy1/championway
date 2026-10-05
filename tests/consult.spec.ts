@@ -411,7 +411,7 @@ test('the header shows Mentor zone to an approved mentor and Consulting to every
   await page.goto('/');
   await openHeaderMenu(page);
   const nav = page.getByRole('navigation', { name: 'เมนูหลัก' });
-  await expect(nav.getByRole('link', { name: 'ทำเนียบ Rising Star' })).toHaveAttribute('href', '/mentors');
+  await expect(nav.getByRole('link', { name: 'สำรวจ Mentor' })).toHaveAttribute('href', '/mentors');
   await expect(nav.getByRole('link', { name: 'การปรึกษา' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'โซนเมนเทอร์' })).toHaveCount(0);
 
@@ -663,7 +663,7 @@ test('a competition nobody mentors says so and points to the Hall of Fame', asyn
   await page.goto(`/competitions/${empty.slug}#mentors`);
   await expect(page.getByRole('heading', { level: 1, name: empty.name })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ยังไม่มีเมนเทอร์เลือกเวทีนี้' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'ดูทำเนียบ Rising Star' })).toHaveAttribute('href', '/mentors');
+  await expect(page.getByRole('main').getByRole('link', { name: 'สำรวจ Mentor' })).toHaveAttribute('href', '/mentors');
 });
 
 test('an unreachable mentor list shows an error with a retry that recovers', async ({ page }) => {

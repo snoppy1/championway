@@ -193,10 +193,10 @@ test('the old mentor link redirects to the competition, where its mentors now li
   await expect(page.getByRole('tab', { name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeVisible();
 
-  // ลิงก์เปล่าตอนนี้เป็นหน้า Rising Star แล้ว ไม่พาไปหน้าแรกอีก
+  // ลิงก์เปล่าตอนนี้เป็นหน้าสำรวจ Mentor แล้ว ไม่พาไปหน้าแรกอีก
   await page.goto('/mentors');
   await expect(page).toHaveURL(/\/mentors$/);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Rising Star');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('สำรวจ Mentor');
 });
 
 test('keyboard reaches the search box and the skip link', async ({ page }) => {

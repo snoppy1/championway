@@ -167,14 +167,15 @@ function Upsell({ viewer }: { viewer: Viewer | null }) {
   const uid = useId();
   const pay = usePay();
 
+  // การ์ดนี้สำหรับเมนเทอร์เท่านั้น คนที่ยังไม่เคยเป็นเมนเทอร์ไม่เห็น (ผู้ใช้ขอ 5 ต.ค. 2569)
+  if (!viewer) return null;
   // สมาชิกอยู่แล้วไม่ต้องชวนสมัครซ้ำ บอกว่าสมาชิกหมดเมื่อไหร่และจัดการการชำระเงินได้
-  if (viewer?.active) return <MemberNote viewer={viewer} />;
+  if (viewer.active) return <MemberNote viewer={viewer} />;
 
-  const isMentor = viewer !== null;
-  const billing = viewer?.billing ?? null;
-  const text = isMentor
-    ? (viewer.rating.average !== null ? s.upsellProgress(viewer.rating.average.toFixed(1), viewer.rating.reviews, viewer.projectedRank) : s.upsellNoReviews)
-    : s.upsellGuestText;
+  const billing = viewer.billing;
+  const text = viewer.rating.average !== null
+    ? s.upsellProgress(viewer.rating.average.toFixed(1), viewer.rating.reviews, viewer.projectedRank)
+    : s.upsellNoReviews;
   return <aside className="rs-upsell" aria-labelledby={`${uid}-title`}>
     <div className="rs-upsell__head">
       <p className="rs-upsell__for">{s.upsellFor}</p>
@@ -184,7 +185,7 @@ function Upsell({ viewer }: { viewer: Viewer | null }) {
     <div className="rs-upsell__body">
       <p className="rs-upsell__lead">{text}</p>
       <ul className="rs-perks">{s.perks.map((perk) => <li key={perk}><Check aria-hidden="true" /><span>{perk}</span></li>)}</ul>
-      {isMentor && billing ? <>
+      {billing ? <>
         {billing.canSubscribe && <button type="button" className="primary-button rs-upsell__cta" aria-busy={pay.busy === 'card'}
           disabled={pay.busy !== null} onClick={() => pay.checkout('card')}>{s.payCard}</button>}
         {billing.canPrepay && <button type="button" className="ghost-button rs-upsell__cta rs-upsell__alt" aria-busy={pay.busy === 'promptpay'}
@@ -194,10 +195,8 @@ function Upsell({ viewer }: { viewer: Viewer | null }) {
         <PayError text={pay.error} />
         <p className="rs-upsell__fine">{s.payFine}</p>
       </> : <>
-        {/* ยังไม่เปิดรับเงินในสภาพแวดล้อมนี้ พาเมนเทอร์ไปโปรไฟล์ และพาคนอื่นไปสมัครเป็นเมนเทอร์ก่อน */}
-        <Link className="primary-button rs-upsell__cta" to={isMentor ? '/profile' : '/mentors/apply'}>
-          {isMentor ? s.joinCta : s.applyCta}
-        </Link>
+        {/* ยังไม่เปิดรับเงินในสภาพแวดล้อมนี้ พาเมนเทอร์ไปโปรไฟล์ */}
+        <Link className="primary-button rs-upsell__cta" to="/profile">{s.joinCta}</Link>
         <p className="rs-upsell__fine">{s.renewal}</p>
       </>}
     </div>
@@ -280,7 +279,7 @@ export function RisingStar() {
 
     {loading && <LoadingList />}
     {data && <div className="shell">
-      <div className="rs-layout">
+      <div className={data.viewer ? 'rs-layout' : 'rs-layout rs-layout--solo'}>
         <div className="rs-lists">
           <section className="rs-section" aria-labelledby="rs-ranked-title">
             <div className="rs-section-head"><h2 id="rs-ranked-title">{s.rankedTitle}</h2></div>

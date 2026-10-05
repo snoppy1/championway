@@ -1,16 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Timer, Trophy } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import {
-  activeFilterCount, daysLeft, formatDeadline, primaryCategory,
-  prizeLabel, sortOptions,
-} from '../data/competitions';
+import { activeFilterCount, daysLeft, formatDeadline, prizeLabel, sortOptions } from '../data/competitions';
 import type { Competition, Filters, SortId } from '../data/competitions';
 import { clearedFilters, readFilters, writeFilters } from '../data/filters';
 import { toggleSaved, useSavedSlugs } from '../data/saved';
 import { useApi } from '../lib/useApi';
 import { CoverArt } from '../components/CoverArt';
+import { Avatar } from '../components/mentors';
 import { FilterPanel } from '../components/FilterPanel';
 import { BookmarkSimple } from '../components/icons';
 import wordmark from '../assets/wordmark-lg.webp';
@@ -21,34 +19,53 @@ import '../journey.css';
 
 const PER_PAGE = 6;
 
-function Highlights({ onReady }: { onReady: (ready: boolean) => void }) {
+type NewMentor = { id: string; name: string; initial: string; specialty: string };
+
+/* แถบ "Mentor หน้าใหม่" แทนการแข่งขันล่าสุด (ผู้ใช้ขอ 5 ต.ค. 2569) เรียงจากคนที่ทีมงานอนุมัติล่าสุด
+   เลื่อนเองด้วยปุ่มลูกศรหรือแถบข้างล่าง ไม่เลื่อนอัตโนมัติ จึงไม่ต้องมีปุ่มหยุด */
+function NewMentors({ onReady }: { onReady: (ready: boolean) => void }) {
   const { t } = useI18n();
   const s = t.home;
-  const { data: trendingData, loading } = useApi<{ items: Competition[] }>('/competitions?sort=new&perPage=6');
+  const { data, loading } = useApi<{ items: NewMentor[] }>('/rising-star/newest');
   useEffect(() => { onReady(!loading); }, [loading, onReady]);
-  const trending = trendingData?.items ?? [];
-  /* เอารายการเมนเทอร์แนะนำออกจากหน้าแรกแล้ว เพราะการเลือกเมนเทอร์ต้องเริ่มจากเวทีที่จะลงแข่ง
-     ไม่ใช่จากอันดับความนิยมที่ไม่มีสถิติรองรับ */
-  if (!trending.length) return null;
-  return <section className="shell highlights" aria-label={s.latestTitle}>
-    {!!trending.length && <>
+  const scroller = useRef<HTMLDivElement>(null);
+  const items = data?.items ?? [];
+  if (!items.length) return null;
+
+  const step = (direction: 1 | -1) => {
+    const box = scroller.current;
+    const card = box?.querySelector<HTMLElement>('.trend-card');
+    if (!box || !card) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    box.scrollBy({ left: direction * (card.offsetWidth + 18), behavior: reduce ? 'auto' : 'smooth' });
+  };
+
+  return <section className="shell highlights" aria-labelledby="new-mentors-title">
     <div className="section-head">
       <div>
-        <h2 id="trending-title">{s.latestTitle}</h2>
-        <p>{s.latestLead}</p>
+        <h2 id="new-mentors-title">{s.newMentorsTitle}</h2>
+        <p>{s.newMentorsLead}</p>
+      </div>
+      <div className="slider-controls">
+        <button type="button" className="slider-arrow" aria-label={s.previousMentors} onClick={() => step(-1)}>
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+        <button type="button" className="slider-arrow" aria-label={s.nextMentors} onClick={() => step(1)}>
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+        <Link className="slider-all" to="/mentors">{s.allMentors}<ArrowRight size={14} aria-hidden="true" /></Link>
       </div>
     </div>
-    {/* เลื่อนเองด้วยแถบข้างล่าง ไม่เลื่อนอัตโนมัติ จึงไม่ต้องมีปุ่มหยุด
-        ต้องรับ focus ได้เพื่อให้เลื่อนด้วยลูกศรบนคีย์บอร์ดได้เหมือนกับเมาส์ */}
-    <div className="trend-scroller" tabIndex={0} role="group" aria-label={s.latestScroll}>
-      {trending.map((competition, index) => <div className="trend-card" key={competition.slug}>
-        <span className="trend-rank" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+    {/* ต้องรับ focus ได้เพื่อให้เลื่อนด้วยลูกศรบนคีย์บอร์ดได้เหมือนกับเมาส์ */}
+    <div className="trend-scroller" ref={scroller} tabIndex={0} role="group" aria-label={s.newMentorsScroll}>
+      {items.map((mentor) => <Link className="trend-card mentor-slide" key={mentor.id} to={`/mentors/${mentor.id}`}>
+        <Avatar initial={mentor.initial} />
         <div>
-          <b>{competition.name}</b>
-          <small>{t.taxonomy.categories[primaryCategory(competition)]} · {competition.org}</small>
+          <b>{mentor.name}</b>
+          <small>{mentor.specialty}</small>
         </div>
-      </div>)}
-    </div></>}
+      </Link>)}
+    </div>
   </section>;
 }
 
@@ -188,7 +205,7 @@ export function Home() {
       </div>
     </section>
 
-    <Highlights onReady={setHighlightsReady} />
+    <NewMentors onReady={setHighlightsReady} />
 
     <div className="shell search-panel">
       <form className="search-bar" role="search" onSubmit={submitSearch}>

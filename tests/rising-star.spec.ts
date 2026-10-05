@@ -15,7 +15,7 @@ const payload = (viewer: unknown) => ({ hall: emptyHall, ranked: [], others: [],
 
 test('the Hall of Fame shows three months with this month first in the page', async ({ page }) => {
   await page.goto('/mentors');
-  await expect(page.getByRole('heading', { level: 1, name: 'ทำเนียบ Rising Star' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'สำรวจ Mentor' })).toBeVisible();
 
   const months = page.locator('.rs-month');
   await expect(months).toHaveCount(3);
@@ -78,11 +78,23 @@ test('the ranked list is numbered, and non-members come after it with no rank', 
   await expect(page).toHaveURL(/\/mentors\/mentor-mind$/);
 });
 
-test('a guest is pointed to the mentor application', async ({ page }) => {
+test('someone who is not a mentor sees no Rising Star sign-up box', async ({ page }) => {
+  // การ์ดชวนสมัคร Rising Star สำหรับเมนเทอร์เท่านั้น (ผู้ใช้ขอ 5 ต.ค. 2569)
   await page.goto('/mentors');
-  const upsell = page.getByRole('complementary');
-  await expect(upsell.getByRole('heading', { name: 'ให้นักเรียนเจอคุณก่อนคนอื่น' })).toBeVisible();
-  await expect(upsell.getByRole('link', { name: 'สมัครเป็นเมนเทอร์' })).toHaveAttribute('href', '/mentors/apply');
+  await expect(page.getByRole('heading', { level: 2, name: 'Rising Star เดือนนี้' })).toBeVisible();
+  await expect(page.locator('.rs-upsell')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'สมัครเป็นเมนเทอร์' })).toHaveCount(0);
+  await expect(page.locator('.rs-layout')).toHaveClass(/rs-layout--solo/);
+});
+
+test('the home page slides through the newest mentors', async ({ page }) => {
+  const { items } = await (await page.request.get('/api/rising-star/newest')).json();
+  expect(items.length).toBeGreaterThan(0);
+  expect(Object.keys(items[0]).sort()).toEqual(['id', 'initial', 'name', 'specialty']);
+  await page.goto('/');
+  const slider = page.getByRole('group', { name: 'Mentor หน้าใหม่ เลื่อนดูด้านข้างได้' });
+  await expect(slider.getByRole('link').first()).toHaveAttribute('href', `/mentors/${items[0].id}`);
+  await expect(page.getByRole('link', { name: 'ดู Mentor ทั้งหมด' })).toHaveAttribute('href', '/mentors');
 });
 
 test('the old competition link still lands on the competition page', async ({ page }) => {

@@ -219,3 +219,10 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Sub agent: ยังไม่ได้ใช้
 - ส่งงานให้ Astra: 1 ครั้ง (เปิด session อย่างเดียว ยังไม่มีงานจริง)
 - ค้างอยู่: stash `local WIP before update 2026-09-28 (purple explore + concepts)` ยังไม่ได้ตัดสินใจว่าจะใช้หรือทิ้ง
+
+## 2026-10-05 — "สำรวจ Mentor", new hero copy, new-mentor slider
+- Nav and page title "Hall of Fame / ทำเนียบ Rising Star" → "Mentors / สำรวจ Mentor" (`nav.mentors`, `risingStar.pageTitle`); competition empty-state link follows.
+- Rising Star sign-up box on /mentors shows only to mentors (`Upsell` returns null for non-mentors; list goes full width via `rs-layout--solo`). Removed the guest "สมัครเป็นเมนเทอร์" button and its keys.
+- Home hero copy replaced with the cofounders' text (TH + EN).
+- Home slider now shows the 10 newest mentors (`GET /api/rising-star/newest`, newest `mentors.createdAt` first, name + specialty only) with prev/next arrows (hidden ≤1100px) and a "ดู Mentor ทั้งหมด" link. Replaced the latest-competitions strip.
+- Tests updated (consult, i18n, rising-star, prototype) + new guest-no-upsell and slider tests. Full browser suite 293 pass, API 87/87, build OK.

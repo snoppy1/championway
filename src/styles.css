@@ -345,6 +345,22 @@ main:focus { outline: none; }
 .trend-card b { display: block; font-size: 15px; margin-bottom: 5px; }
 .trend-card small { color: var(--muted-soft); }
 
+/* แถบ Mentor หน้าใหม่: การ์ดทั้งใบเป็นลิงก์ไปโปรไฟล์ ความถนัดตัดที่สองบรรทัดให้การ์ดสูงเท่ากัน */
+.mentor-slide { color: inherit; transition: border-color 120ms, transform 120ms; }
+.mentor-slide:hover { border-color: var(--purple-soft); transform: translateY(-2px); }
+.mentor-slide:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.mentor-slide > div { min-width: 0; }
+.mentor-slide small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.5; }
+.slider-controls { display: flex; align-items: center; gap: 8px; }
+.slider-arrow {
+  display: grid; place-items: center; width: 40px; height: 40px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--purple-deep); cursor: pointer;
+}
+.slider-arrow:hover { background: var(--purple-tint); }
+.slider-arrow:focus-visible, .slider-all:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.slider-all { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; margin-left: 6px; font-size: 13.5px; font-weight: 600; color: var(--purple-deep); }
+@media (prefers-reduced-motion: reduce) { .mentor-slide { transition: none; } .mentor-slide:hover { transform: none; } }
+
 .podium-head { margin-bottom: 44px; text-align: center; }
 .podium-head h2 { font-size: 26px; font-weight: 600; margin-bottom: 8px; }
 .podium-head p { font-size: 13px; color: var(--muted-soft); }
@@ -1099,7 +1115,9 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
   .trend-scroller { gap: 12px; margin-inline: -18px; padding-inline: 18px; scroll-padding-inline: 18px; margin-bottom: 0; }
   .trend-card { flex-basis: min(280px, 80vw); padding: 14px; }
   .trend-card b { font-size: 14.5px; line-height: 1.4; }
-  .trend-card small { display: block; line-height: 1.5; }
+  .trend-card small { line-height: 1.5; }
+  .slider-arrow { display: none; }
+  .slider-all { margin-left: 0; }
 
   .search-bar { gap: 10px; padding: 12px; border-radius: 16px; }
   .search-field { flex-basis: 100%; min-width: 0; }

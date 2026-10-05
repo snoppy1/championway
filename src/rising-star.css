@@ -167,6 +167,8 @@
 /* ---------- lists ---------- */
 
 .rs-layout { display: grid; grid-template-columns: 1fr 340px; gap: 40px; align-items: start; padding-block: var(--space-12) var(--space-18); }
+/* คนที่ยังไม่เป็นเมนเทอร์ไม่มีการ์ดชวนสมัคร รายชื่อใช้ความกว้างเต็ม */
+.rs-layout--solo { grid-template-columns: 1fr; }
 .rs-section-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-3); margin-bottom: 6px; }
 .rs-section-head h2 { font-size: var(--text-2xl); font-weight: 600; line-height: var(--leading-heading); }
 .rs-section-sub { margin-bottom: 18px; font-size: var(--text-base); color: var(--muted); }

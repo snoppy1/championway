@@ -90,7 +90,7 @@ function Header() {
         <nav className="main-nav" aria-label={t.nav.mainMenu}>
           <NavLink to="/" end>{t.nav.explore}</NavLink>
           {/* ชื่อผู้ใช้ทางขวาเป็นทางเข้าโปรไฟล์อยู่แล้ว จึงไม่ซ้ำเป็นเมนูอีกอัน แถบบนจะได้ยังอยู่บรรทัดเดียวที่ 1101px */}
-          <NavLink to="/mentors" end>{t.nav.hallOfFame}</NavLink>
+          <NavLink to="/mentors" end>{t.nav.mentors}</NavLink>
           {user && consultMe && (consultMe.mentorId
             ? <NavLink to="/mentor-zone">{t.nav.mentorZone}<UnreadBadge count={unread} /></NavLink>
             : <NavLink to="/consulting">{t.nav.consulting}<UnreadBadge count={unread} /></NavLink>)}

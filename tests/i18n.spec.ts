@@ -101,10 +101,10 @@ async function signInEnglish(page: Page, account: TestAccount, next: string) {
 }
 
 test('the home page and its filters have no Thai in English', async ({ page }) => {
-  const content = await contentFrom(page, '/api/competitions?perPage=100', '/api/competitions?sort=new&perPage=6');
+  const content = await contentFrom(page, '/api/competitions?perPage=100', '/api/rising-star/newest');
   await page.goto('/');
   await expect(page.locator('.competition-card').first()).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'Latest competitions' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'New mentors' })).toBeVisible();
   await expectNoThai(page, content);
 
   // แผงตัวกรองอยู่ในหน้าเสมอ (ปิดอยู่) เปิดแล้วต้องเห็นเป็นอังกฤษเช่นกัน
@@ -393,9 +393,9 @@ test('the hire flow, chat, consulting, mentor zone and verify pages have no Thai
 test('the Hall of Fame and the email verification pages have no Thai in English', async ({ page }) => {
   const content = await contentFrom(page, '/api/rising-star');
   await page.goto('/mentors');
-  await expect(page.getByRole('heading', { level: 1, name: 'Rising Star Hall of Fame' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Mentors' })).toBeVisible();
   await expect(page.locator('.rs-rank-row__count').first()).toContainText('reviews');
-  await expect(page.locator('.main-nav a[href="/mentors"]')).toHaveText('Hall of Fame');
+  await expect(page.locator('.main-nav a[href="/mentors"]')).toHaveText('Mentors');
   await expectNoThai(page, content);
 
   await page.goto('/verify-email');

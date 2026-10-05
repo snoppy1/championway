@@ -735,3 +735,14 @@ export const staffAlerts = pgTable('staff_alerts', {
   actorId: text('actor_id').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [index('staff_alerts_kind_idx').on(t.kind, t.createdAt), index('staff_alerts_actor_idx').on(t.actorId, t.kind, t.createdAt)]);
+
+/* ---------- กันเดารหัสผ่าน ---------- */
+
+/** การเข้าสู่ระบบที่ผิด และการสมัครสมาชิก นับต่ออีเมลและต่อ IP เพื่อจำกัดความถี่ (lib/rate-limit.ts)
+    เก็บแค่ค่าแฮชของอีเมลหรือ IP ไม่เก็บค่าจริง และลบแถวที่เก่ากว่าหนึ่งวันทิ้ง */
+export const authAttempts = pgTable('auth_attempts', {
+  id: text('id').primaryKey(),
+  kind: text('kind').notNull(),
+  keyHash: text('key_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('auth_attempts_key_idx').on(t.kind, t.keyHash, t.createdAt)]);

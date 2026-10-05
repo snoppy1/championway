@@ -25,6 +25,8 @@ const THAI_ONLY = (baseURL: string) => ({
 
 /** จอแคบเก็บเมนูไว้หลังปุ่มสามขีด เปิดก่อนถ้ามีปุ่มนี้ จอกว้างข้ามไปเอง */
 async function openHeaderMenu(page: Page) {
+  // หน้าเข้าสู่ระบบอยู่นอก Layout หลัก หลังล็อกอินหัวเว็บเพิ่งขึ้น รอให้ขึ้นก่อนค่อยดูว่าต้องกดเปิดเมนูไหม
+  await page.locator('.site-header').waitFor();
   const toggle = page.getByRole('button', { name: 'เปิดเมนู' });
   if (await toggle.isVisible()) await toggle.click();
 }

@@ -1,0 +1,86 @@
+/* หน้าเข้าสู่ระบบ / สมัครสมาชิก "กระดาษฉีกต่อกันทั้งหน้า" (pages/AuthLayout.tsx)
+   ภาพเต็มฝั่งซ้าย ขอบขวาฉีกเป็นกระดาษ ฟอร์มเป็นการ์ดติดเทปฟอยล์ทองบนพื้นกระดาษครีม
+   เทปทองตัดมาจากวงทองในภาพซุสจริง (assets/auth/tape.webp) จอแคบภาพย่อเป็นแถบบนสุด ขอบล่างฉีก */
+
+.auth-shell {
+  --auth-paper: #f3eee3;
+  --auth-caption: #fbf7ee;
+  display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; min-height: 100dvh;
+  background: var(--auth-paper); color: var(--ink);
+}
+
+/* ---------- ภาพฝั่งซ้าย ---------- */
+.auth-art { position: relative; min-width: 0; margin-right: -28px; z-index: 1; filter: drop-shadow(8px 0 14px rgb(40 20 60 / 22%)); }
+.auth-art__paper {
+  position: absolute; inset: 0; overflow: hidden;
+  clip-path: polygon(0% 0%, 97.9% 0%, 96.9% 3.3%, 98.4% 6.7%, 97.6% 10%, 99% 13.3%, 98.6% 16.7%, 96.5% 20%, 96.9% 23.3%, 97.8% 26.7%,
+    96.4% 30%, 96.2% 33.3%, 97.6% 36.7%, 98.7% 40%, 98.6% 43.3%, 99.8% 46.7%, 97.3% 50%, 97.8% 53.3%, 98% 56.7%, 97.8% 60%, 99.4% 63.3%,
+    97.8% 66.7%, 97.8% 70%, 97.1% 73.3%, 96.9% 76.7%, 99% 80%, 96.5% 83.3%, 97.1% 86.7%, 99.1% 90%, 99.4% 93.3%, 99.9% 96.7%, 99.7% 100%, 0% 100%);
+}
+.auth-art__paper img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+.auth-brand { position: absolute; top: 32px; left: 40px; display: flex; align-items: center; gap: 10px; color: var(--ink-deep, #21172d); }
+.auth-brand__mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: #fff; box-shadow: 0 6px 16px -10px rgb(33 23 45 / 50%); }
+.auth-brand__mark .brand-mark { width: 30px; height: 30px; }
+.auth-brand__name { padding: 4px 10px; border-radius: 8px; background: rgb(251 247 238 / 92%); font: 700 18px/1.3 var(--display); letter-spacing: -0.2px; }
+.auth-brand:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; border-radius: 12px; }
+
+.auth-caption { position: absolute; left: 40px; bottom: 44px; max-width: 420px; transform: rotate(-1.5deg); pointer-events: none; }
+.auth-caption__paper {
+  padding: 22px 26px 24px; background: var(--auth-caption);
+  clip-path: polygon(0% 2.5%, 4.5% 2.8%, 9.1% 0.6%, 13.6% 1.2%, 18.2% 2.2%, 22.7% 2.5%, 27.3% 0.4%, 31.8% 4.4%, 36.4% 2.9%, 40.9% 2.1%, 45.5% 1.4%,
+    50% 3.9%, 54.5% 3.3%, 59.1% 0.4%, 63.6% 2.5%, 68.2% 1.2%, 72.7% 3.4%, 77.3% 0.8%, 81.8% 2.8%, 86.4% 2.4%, 90.9% 0.9%, 95.5% 0.3%, 100% 4.7%,
+    100% 99.8%, 95.5% 95.6%, 90.9% 97.2%, 86.4% 99.8%, 81.8% 95.9%, 77.3% 97.1%, 72.7% 97.8%, 68.2% 98.4%, 63.6% 96.4%, 59.1% 95.9%, 54.5% 99.9%,
+    50% 97.2%, 45.5% 96.2%, 40.9% 97.7%, 36.4% 96.7%, 31.8% 95.8%, 27.3% 98.9%, 22.7% 96.8%, 18.2% 96.8%, 13.6% 95.4%, 9.1% 99.6%, 4.5% 96.2%, 0% 99.4%);
+  filter: drop-shadow(0 10px 20px rgb(40 20 60 / 30%));
+}
+.auth-caption__eyebrow { font-size: 11.5px; font-weight: 600; letter-spacing: 1px; color: var(--purple); }
+.auth-caption__line { margin-top: 4px; font: 600 23px/1.35 var(--display); color: var(--ink-deep, #21172d); text-wrap: pretty; }
+
+.auth-tape {
+  position: absolute; top: -12px; left: 28px; z-index: 1; width: 120px; height: 30px; transform: rotate(-6deg);
+  background: url('./assets/auth/tape.webp') center / cover; box-shadow: 0 2px 6px rgb(60 40 0 / 25%); opacity: .95; pointer-events: none;
+}
+.auth-tape--card { top: -15px; left: 50%; margin-left: -60px; transform: rotate(-4deg); }
+
+/* ---------- ฝั่งฟอร์ม ---------- */
+.auth-side { display: flex; flex-direction: column; min-width: 0; padding: 28px 56px 32px; }
+.auth-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.auth-back { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; font-size: 13.5px; font-weight: 600; color: var(--purple-deep); }
+.auth-main { flex: 1; display: flex; align-items: center; justify-content: center; padding-block: 28px 12px; outline: none; }
+.auth-shell .auth-card {
+  position: relative; width: 100%; max-width: 440px; margin: 0; padding: 30px 32px; border: 1px solid #e6dccb; border-radius: 20px; background: #fff;
+  box-shadow: 0 1px 2px rgb(28 25 23 / 4%), 0 24px 50px -30px rgb(60 30 90 / 45%);
+}
+.auth-shell .auth-card h1 { font-size: 32px; line-height: 1.35; }
+
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 24px; border: 1px solid #ddd0f4; border-radius: 13px; background: #faf7ff; }
+.auth-tabs a { display: grid; place-items: center; min-height: 40px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--purple-deep); transition: background-color 120ms; }
+.auth-tabs a:hover { background: var(--purple-tint); }
+.auth-tabs a[aria-current="page"] { background: var(--purple); color: #fff; font-weight: 700; }
+.auth-tabs a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ---------- จอแคบ: ภาพเป็นแถบบนสุด ขอบล่างฉีก ---------- */
+@media (max-width: 900px) {
+  .auth-shell { grid-template-columns: 1fr; }
+  .auth-art { height: 300px; margin: 0 0 -24px; filter: drop-shadow(0 8px 14px rgb(40 20 60 / 22%)); }
+  .auth-art__paper {
+    clip-path: polygon(0% 0%, 100% 0%, 100% 92%, 95% 95%, 90% 93%, 84% 96%, 78% 94%, 72% 97%, 66% 94%, 60% 96%, 54% 93%, 48% 96%, 42% 94%,
+      36% 97%, 30% 94%, 24% 96%, 18% 93%, 12% 96%, 6% 94%, 0% 96%);
+  }
+  .auth-art__paper img { object-position: center 30%; }
+  .auth-brand { top: 16px; left: 16px; }
+  .auth-brand__mark { width: 40px; height: 40px; }
+  .auth-caption { left: 16px; right: 16px; bottom: 40px; max-width: 340px; }
+  .auth-caption__paper { padding: 14px 18px 16px; }
+  .auth-caption__line { font-size: 18px; }
+  /* เทปย้ายไปขวา ไม่บังบรรทัดเล็กของคำบรรยาย */
+  .auth-caption .auth-tape { left: auto; right: 24px; transform: rotate(5deg); }
+  .auth-side { position: relative; z-index: 2; padding: 0 16px 32px; }
+  .auth-top { margin-top: 36px; }
+  .auth-main { padding-block: 26px 0; }
+  .auth-shell .auth-card { padding: 26px 20px; }
+  .auth-shell .auth-card h1 { font-size: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) { .auth-tabs a { transition: none; } }

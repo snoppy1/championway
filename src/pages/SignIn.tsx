@@ -50,8 +50,15 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
     }
   }
 
-  return <main id="main" tabIndex={-1} className="shell page auth-page">
+  const keepNext = params.get('next') ? `?next=${encodeURIComponent(next)}` : '';
+  return <main id="main" tabIndex={-1} className="auth-main">
     <div className="auth-card">
+      <span className="auth-tape auth-tape--card" aria-hidden="true" />
+      {/* แท็บเป็นลิงก์ไปอีกหน้า (คนละ URL) ไม่ใช่ปุ่ม ภาพฝั่งซ้ายไม่เปลี่ยนเพราะสุ่มที่ AuthLayout */}
+      <nav className="auth-tabs" aria-label={s.tabs}>
+        <Link to={`/signin${keepNext}`} aria-current={signup ? undefined : 'page'}>{s.titleIn}</Link>
+        <Link to={`/signup${keepNext}`} aria-current={signup ? 'page' : undefined}>{s.titleUp}</Link>
+      </nav>
       <p className="eyebrow">ChampionWays</p>
       <h1>{signup ? s.titleUp : s.titleIn}</h1>
       <p className="auth-lead">{signup ? s.leadUp : s.leadIn}</p>
@@ -105,7 +112,7 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
 
       <p className="auth-swap">
         {signup ? s.hasAccount : s.noAccount}
-        <Link to={`${signup ? '/signin' : '/signup'}${params.get('next') ? `?next=${encodeURIComponent(next)}` : ''}`}>
+        <Link to={`${signup ? '/signin' : '/signup'}${keepNext}`}>
           {signup ? s.titleIn : s.titleUp}<ArrowRight size={14} aria-hidden="true" />
         </Link>
       </p>

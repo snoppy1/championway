@@ -25,7 +25,7 @@ export function Wordmark() {
 
 /* ปุ่มสลับภาษา ค่าตั้งต้นคืออังกฤษ ป้ายบนปุ่มเป็นรหัสภาษา EN/TH เหมือนกันทั้งสองภาษา
    ผู้ใช้ที่อ่านภาษาปัจจุบันไม่ออกจะได้ยังหาปุ่มเจอ */
-function LangToggle() {
+export function LangToggle() {
   const { lang, setLang, t } = useI18n();
   return <div className="lang-toggle" role="group" aria-label={t.nav.language}>
     <button type="button" aria-pressed={lang === 'en'} lang="en" onClick={() => setLang('en')}>EN</button>

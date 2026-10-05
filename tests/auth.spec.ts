@@ -13,7 +13,12 @@ test('Google sign-in is visible on both auth pages and preserves the return path
   expect((await new AxeBuilder({ page }).include('main').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `artifacts/signin-${info.project.name}.png`, fullPage: true });
-  await page.locator('main').getByRole('link', { name: 'สมัครสมาชิก', exact: true }).click();
+  // แท็บสมัครสมาชิกบนการ์ด ภาพฝั่งซ้ายต้องไม่เปลี่ยนตอนสลับแท็บ
+  const art = await page.locator('.auth-shell').getAttribute('data-art');
+  expect(['apollo', 'zeus', 'athena']).toContain(art);
+  await page.getByRole('navigation', { name: 'เข้าสู่ระบบหรือสมัครสมาชิก' }).getByRole('link', { name: 'สมัครสมาชิก', exact: true }).click();
+  await expect(page).toHaveURL(/\/signup\?next=%2Fmentors%2Fapply$/);
+  await expect(page.locator('.auth-shell')).toHaveAttribute('data-art', art!);
   await expect(google).toHaveAttribute('href', '/api/auth/google?next=%2Fmentors%2Fapply&remember=0');
 });
 

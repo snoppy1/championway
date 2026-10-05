@@ -25,6 +25,7 @@ import { Profile } from './pages/Profile';
 import { ProfileEdit } from './pages/ProfileEdit';
 import { Detail, NotFound } from './pages/Detail';
 import { SignIn } from './pages/SignIn';
+import { AuthLayout } from './pages/AuthLayout';
 import { Consulting } from './pages/Consulting';
 import { MentorZone } from './pages/MentorZoneRoute';
 import { VerifyEmail } from './pages/VerifyEmail';
@@ -62,7 +63,6 @@ const router = createBrowserRouter([{
     { path: '/profile/edit', element: <ProfileEdit /> },
     { path: '/organizers', element: <Organisers /> },
     { path: '/organizers/submit', element: <OrganiserSubmit /> },
-    { path: '/signin', element: <SignIn mode="signin" /> },
     { path: '/consulting', element: <Consulting /> },
     { path: '/mentor-zone', element: <MentorZone /> },
     { path: '/verify-email', element: <VerifyEmail /> },
@@ -73,8 +73,14 @@ const router = createBrowserRouter([{
     // แชตอยู่ในหน้า Consulting (นักเรียน) และ Mentor zone (เมนเทอร์) ลิงก์ /chats เก่าพาไปที่ถูกฝั่ง
     { path: '/chats', element: <ChatsRedirect /> },
     { path: '/chats/:id', element: <ChatsRedirect /> },
-    { path: '/signup', element: <SignIn mode="signup" /> },
     { path: '*', element: <NotFound /> },
+  ],
+}, {
+  // เข้าสู่ระบบ / สมัครสมาชิกมีแถบบนและภาพของตัวเอง (AuthLayout) ภาพสุ่มครั้งเดียวต่อการเปิดหน้า สลับแท็บแล้วไม่เปลี่ยน
+  element: <AuthLayout />,
+  children: [
+    { path: '/signin', element: <SignIn mode="signin" /> },
+    { path: '/signup', element: <SignIn mode="signup" /> },
   ],
 }, {
   // หน้าจัดการอยู่นอก Layout ของหน้าบ้าน เพราะไม่ควรมีเมนูผู้ใช้ทั่วไปหรือ footer การตลาด

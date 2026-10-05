@@ -23,6 +23,8 @@ const test = base.extend<{ member: TestAccount }>({
 /* จอแคบยุบหัวเว็บเหลือแถวเดียวแล้วเก็บเมนูไว้หลังปุ่มสามขีด ชื่อผู้ใช้จึงอยู่ในแผงที่ต้องเปิดก่อน
    จอกว้างไม่มีปุ่มนี้ ตัวช่วยจึงข้ามไปเองเมื่อมองไม่เห็น เทสเดียวกันจึงใช้ได้ทุกขนาดจอ */
 async function openHeaderMenu(page: Page) {
+  // หน้าเข้าสู่ระบบอยู่นอก Layout หลัก หลังล็อกอินหัวเว็บเพิ่งขึ้น รอให้ขึ้นก่อนค่อยดูว่าต้องกดเปิดเมนูไหม
+  await page.locator('.site-header').waitFor();
   const toggle = page.getByRole('button', { name: 'เปิดเมนู' });
   if (await toggle.isVisible()) await toggle.click();
 }

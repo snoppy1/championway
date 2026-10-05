@@ -497,6 +497,13 @@ export const en = {
     noAccount: 'No account yet?',
     reviewerNote: 'Reviewer accounts are created on the server only. If you sign up yourself, you will be a regular member.',
     unreachable: 'Could not reach the server. We got no reply.',
+    backHome: 'Back to home',
+    tabs: 'Sign in or sign up',
+    art: {
+      apollo: { eyebrow: 'Apollo · god of the arts and light', line: 'Good ideas land when you are ready to catch them', alt: 'Apollo working on a MacBook under an apple tree' },
+      zeus: { eyebrow: 'Zeus · king of Olympus', line: 'Come back and claim your throne', alt: 'Zeus holding up a MacBook' },
+      athena: { eyebrow: 'Athena × Hermes · the advisors', line: 'Sharp strategy plus a great pitch wins', alt: 'Athena and Hermes looking at a MacBook together' },
+    },
   },
   home: {
     pageTitle: 'Explore competitions',

@@ -166,6 +166,13 @@ export function Layout() {
             <Link to="/organizers">{t.footer.listForFree}</Link>
             <Link to="/organizers/submit">{t.footer.suggestCompetition}</Link>
           </div>
+          <div>
+            <strong>{t.footer.legal}</strong>
+            <Link to="/terms">{t.footer.terms}</Link>
+            <Link to="/privacy">{t.footer.privacy}</Link>
+            <Link to="/refunds">{t.footer.refunds}</Link>
+            <a href="mailto:support@championways.space">{t.footer.contact}</a>
+          </div>
         </div>
       </div>
       <div className="shell footer-bottom">{t.footer.bottomLine}</div>

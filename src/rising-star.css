@@ -228,6 +228,7 @@
 .rs-perks li { display: grid; grid-template-columns: 22px 1fr; gap: var(--space-3); padding: 6px 0; font-size: var(--text-base); line-height: 1.65; }
 .rs-perks svg { width: 20px; height: 20px; margin-top: 2px; color: var(--purple); }
 .rs-upsell__fine { margin-top: var(--space-3); text-align: center; font-size: var(--text-sm); color: var(--muted); }
+.rs-upsell__fine a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .rs-upsell__cta {
   display: flex; justify-content: center; width: 100%; min-height: 48px; margin-top: 18px;
   font-size: var(--text-md);

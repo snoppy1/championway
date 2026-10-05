@@ -973,6 +973,8 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 .auth-swap { display: flex; gap: 8px; justify-content: center; align-items: center; margin-top: 18px; font-size: 13.5px; color: var(--muted); }
 .auth-swap a { display: inline-flex; align-items: center; gap: 5px; color: var(--purple-deep); font-weight: 600; }
 .auth-note { margin-top: 16px; font-size: 12.5px; color: var(--muted); text-align: center; }
+.auth-agree { margin-top: 14px; font-size: 12.5px; line-height: 1.7; color: var(--muted); text-align: center; }
+.auth-agree a { color: var(--purple-deep); text-decoration: underline; text-underline-offset: 2px; }
 
 .google-button {
   display: flex; align-items: center; justify-content: center; gap: 10px;

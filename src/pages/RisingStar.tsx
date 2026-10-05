@@ -193,7 +193,7 @@ function Upsell({ viewer }: { viewer: Viewer | null }) {
         {billing.subscription && <button type="button" className="ghost-button rs-upsell__cta rs-upsell__alt" aria-busy={pay.busy === 'portal'}
           disabled={pay.busy !== null} onClick={pay.portal}>{s.manage}</button>}
         <PayError text={pay.error} />
-        <p className="rs-upsell__fine">{s.payFine}</p>
+        <p className="rs-upsell__fine">{s.payFine} · <Link to="/refunds">{s.refundLink}</Link></p>
       </> : <>
         {/* ยังไม่เปิดรับเงินในสภาพแวดล้อมนี้ พาเมนเทอร์ไปโปรไฟล์ */}
         <Link className="primary-button rs-upsell__cta" to="/profile">{s.joinCta}</Link>

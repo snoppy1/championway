@@ -26,6 +26,7 @@ import { ProfileEdit } from './pages/ProfileEdit';
 import { Detail, NotFound } from './pages/Detail';
 import { SignIn } from './pages/SignIn';
 import { AuthLayout } from './pages/AuthLayout';
+import { Legal } from './pages/Legal';
 import { Consulting } from './pages/Consulting';
 import { MentorZone } from './pages/MentorZoneRoute';
 import { VerifyEmail } from './pages/VerifyEmail';
@@ -73,6 +74,9 @@ const router = createBrowserRouter([{
     // แชตอยู่ในหน้า Consulting (นักเรียน) และ Mentor zone (เมนเทอร์) ลิงก์ /chats เก่าพาไปที่ถูกฝั่ง
     { path: '/chats', element: <ChatsRedirect /> },
     { path: '/chats/:id', element: <ChatsRedirect /> },
+    { path: '/privacy', element: <Legal doc="privacy" /> },
+    { path: '/terms', element: <Legal doc="terms" /> },
+    { path: '/refunds', element: <Legal doc="refunds" /> },
     { path: '*', element: <NotFound /> },
   ],
 }, {

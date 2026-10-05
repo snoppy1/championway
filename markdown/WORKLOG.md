@@ -226,3 +226,10 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Home hero copy replaced with the cofounders' text (TH + EN).
 - Home slider now shows the 10 newest mentors (`GET /api/rising-star/newest`, newest `mentors.createdAt` first, name + specialty only) with prev/next arrows (hidden ≤1100px) and a "ดู Mentor ทั้งหมด" link. Replaced the latest-competitions strip.
 - Tests updated (consult, i18n, rising-star, prototype) + new guest-no-upsell and slider tests. Full browser suite 293 pass, API 87/87, build OK.
+
+## 2026-10-05 — Privacy, Terms and Refund pages
+- New `/privacy`, `/terms`, `/refunds` (TH/EN, `src/pages/Legal.tsx`, content in `src/legal/*.ts`, styles `src/legal.css`) for Stripe live activation. Owner decisions: controller Nathapat Chanin, contact support@championways.space, no refunds / cancel anytime (full refund only for double, post-cancel or wrong charges), under-20 parental consent stated in the documents only.
+- Privacy policy now covers Stripe/Rising Star; removed the "independent auditor" claim from the draft. Retention periods are promises the team must honour manually (no auto-deletion yet).
+- Links: footer "ข้อมูลทางกฎหมาย" column, sign-up agreement line, Rising Star fine print → refund policy. Mentor application consents updated to go-between mode + accepting the terms.
+- `support@championways.space` must receive mail (Resend only sends) — set up forwarding (e.g. Cloudflare Email Routing).
+- Tests: tests/legal.spec.ts; full browser suite 305 pass.

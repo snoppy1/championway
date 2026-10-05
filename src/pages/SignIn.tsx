@@ -110,6 +110,10 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
         </button>
       </form>
 
+      {signup && <p className="auth-agree">
+        {s.agreeBefore}<Link to="/terms">{s.agreeTerms}</Link>{s.agreeAnd}<Link to="/privacy">{s.agreePrivacy}</Link>{s.agreeAfter}
+      </p>}
+
       <p className="auth-swap">
         {signup ? s.hasAccount : s.noAccount}
         <Link to={`${signup ? '/signin' : '/signup'}${keepNext}`}>

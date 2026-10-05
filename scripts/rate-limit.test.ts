@@ -46,6 +46,13 @@ test('failed sign-ins and sign-ups are throttled', async (t) => {
       assert.equal((await login(ghost, 'wrong password!')).status, 429);
     });
 
+    await t.test('a burst of parallel guesses cannot get past the limit', async () => {
+      const target = `${prefix}-burst@championways.test`;
+      const statuses = await Promise.all(Array.from({ length: 20 }, () => login(target, 'wrong password!').then((r) => r.status)));
+      assert.equal(statuses.filter((status) => status === 401).length, 5);
+      assert.equal(statuses.filter((status) => status === 429).length, 15);
+    });
+
     await t.test('the stored keys are hashes, never the email itself', async () => {
       const rows = await db.select().from(authAttempts).where(like(authAttempts.keyHash, `%${prefix}%`));
       assert.equal(rows.length, 0);

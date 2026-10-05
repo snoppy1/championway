@@ -38,22 +38,36 @@ function keysOf(kind: AttemptKind, who: { email?: string; ip: string | null }) {
   });
 }
 
-/** เกินเพดานแล้วหรือยัง ตรวจก่อนทำงานหนัก (ตรวจรหัสผ่าน หรือสร้างบัญชี) */
-export async function limited(kind: AttemptKind, who: { email?: string; ip: string | null }) {
-  const now = Date.now();
-  for (const { rule, key } of keysOf(kind, who)) {
-    const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(authAttempts)
-      .where(and(eq(authAttempts.kind, kind), eq(authAttempts.keyHash, key), gt(authAttempts.createdAt, new Date(now - rule.windowMs))));
-    if (row.count >= rule.max) return true;
-  }
-  return false;
+/** จองหนึ่งครั้งก่อนทำงานหนัก (ตรวจรหัสผ่าน หรือสร้างบัญชี) คืน null ถ้าเกินเพดานแล้ว
+    นับและบันทึกในธุรกรรมเดียวใต้ล็อกตามคีย์ คำขอที่ยิงพร้อมกันเป็นพันจึงผ่านได้ไม่เกินเพดาน
+    (แบบเดิมตรวจก่อนแล้วค่อยบันทึกทีหลัง คำขอพร้อมกันผ่านการตรวจได้ทั้งหมด) */
+export async function reserve(kind: AttemptKind, who: { email?: string; ip: string | null }) {
+  const keys = keysOf(kind, who);
+  if (!keys.length) return [];
+  return db.transaction(async (tx) => {
+    // ล็อกเรียงตามคีย์เสมอ กันสองคำขอรอล็อกกันเองจนค้าง
+    for (const key of [...new Set(keys.map((item) => item.key))].sort()) {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`auth:${kind}:${key}`}))`);
+    }
+    const now = Date.now();
+    for (const { rule, key } of keys) {
+      const [row] = await tx.select({ count: sql<number>`count(*)::int` }).from(authAttempts)
+        .where(and(eq(authAttempts.kind, kind), eq(authAttempts.keyHash, key), gt(authAttempts.createdAt, new Date(now - rule.windowMs))));
+      if (row.count >= rule.max) return null;
+    }
+    const rows = keys.map(({ key }) => ({ id: newId('att'), kind, keyHash: key }));
+    await tx.insert(authAttempts).values(rows);
+    return rows.map((row) => row.id);
+  });
 }
 
-export async function record(kind: AttemptKind, who: { email?: string; ip: string | null }) {
-  const keys = keysOf(kind, who);
-  if (!keys.length) return;
-  await db.insert(authAttempts).values(keys.map(({ key }) => ({ id: newId('att'), kind, keyHash: key })));
-  // เก็บไว้ไม่เกินหนึ่งวัน เพดานยาวสุดคือหนึ่งชั่วโมง
+/** คืนครั้งที่จองไว้ ใช้เมื่อเข้าสู่ระบบสำเร็จ การเข้าสู่ระบบที่ถูกต้องไม่นับเป็นครั้งที่ผิด */
+export async function release(ids: string[]) {
+  if (ids.length) await db.delete(authAttempts).where(inArray(authAttempts.id, ids));
+}
+
+/** ลบแถวที่เก่ากว่าหนึ่งวัน (เพดานยาวสุดคือหนึ่งชั่วโมง) */
+export async function prune() {
   await db.delete(authAttempts).where(lt(authAttempts.createdAt, new Date(Date.now() - 24 * 60 * MINUTE)));
 }
 

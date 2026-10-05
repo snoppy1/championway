@@ -15,7 +15,7 @@ import { firstIssue } from './public.js';
 import { newId, newToken } from '../lib/id.js';
 import { safeNext } from '../../src/lib/safe-next.js';
 import { hashPassword, passwordProblem, verifyPassword, wasteTime } from '../lib/password.js';
-import { clearEmail, clientIp, limited, record } from '../lib/rate-limit.js';
+import { clearEmail, clientIp, prune, release, reserve } from '../lib/rate-limit.js';
 import {
   clearSessionCookie, createSession, destroyAllSessions, destroySession, pruneSessions,
   sessionIdFrom, setSessionCookie, sessionRemembers,
@@ -141,11 +141,9 @@ auth.post('/signup', async (c) => {
   const problem = passwordProblem(password);
   if (problem) throw new HTTPException(400, { message: problem });
 
-  const ip = clientIp(c);
-  if (await limited('signup', { ip })) {
+  if (!await reserve('signup', { ip: clientIp(c) })) {
     throw new HTTPException(429, { message: 'สมัครสมาชิกจากเครือข่ายนี้บ่อยเกินไป รอสักครู่แล้วลองใหม่' });
   }
-  await record('signup', { ip });
 
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
   if (existing.length) {
@@ -171,29 +169,26 @@ auth.post('/login', async (c) => {
   if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
   const { email, password } = parsed.data;
 
-  /* กันไล่เดารหัสผ่าน: ผิดเกินเพดานต่ออีเมลหรือต่อ IP ต้องรอ (lib/rate-limit.ts)
-     ตรวจก่อนตรวจรหัสผ่าน คำขอที่เกินเพดานจึงไม่ได้รู้ว่ารหัสที่ลองถูกหรือไม่ */
-  const who = { email, ip: clientIp(c) };
-  if (await limited('login_fail', who)) {
-    throw new HTTPException(429, { message: 'ลองเข้าสู่ระบบผิดหลายครั้งเกินไป รอ 15 นาทีแล้วลองใหม่' });
-  }
-  const failed = async (message: string) => {
-    await record('login_fail', who);
-    return new HTTPException(401, { message });
-  };
+  /* กันไล่เดารหัสผ่าน: ทุกครั้งที่ลองนับก่อนตรวจรหัสผ่าน (lib/rate-limit.ts) เกินเพดานต่ออีเมลหรือต่อ IP ต้องรอ
+     คำขอที่เกินเพดานจึงไม่ได้รู้ว่ารหัสที่ลองถูกหรือไม่ ถ้ารหัสถูก คืนครั้งที่นับไว้และล้างตัวนับของอีเมลนี้ */
+  const reserved = await reserve('login_fail', { email, ip: clientIp(c) });
+  if (!reserved) throw new HTTPException(429, { message: 'ลองเข้าสู่ระบบผิดหลายครั้งเกินไป รอ 15 นาทีแล้วลองใหม่' });
+  await prune();
+  const failed = (message: string) => new HTTPException(401, { message });
 
   const [found] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (!found) {
     // ใช้เวลาเท่ากับกรณีรหัสผ่านผิด ไม่ให้เวลาที่ใช้ตอบบอกว่าอีเมลนี้มีบัญชีหรือไม่
     await wasteTime();
-    throw await failed('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+    throw failed('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
   }
   if (!found.passwordHash) {
-    throw await failed('บัญชีนี้สมัครด้วย Google ให้เข้าสู่ระบบด้วย Google');
+    throw failed('บัญชีนี้สมัครด้วย Google ให้เข้าสู่ระบบด้วย Google');
   }
   if (!await verifyPassword(password, found.passwordHash)) {
-    throw await failed('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+    throw failed('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
   }
+  await release(reserved);
   await clearEmail('login_fail', email);
 
   await pruneSessions();

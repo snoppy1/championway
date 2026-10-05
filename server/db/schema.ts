@@ -746,3 +746,42 @@ export const authAttempts = pgTable('auth_attempts', {
   keyHash: text('key_hash').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [index('auth_attempts_key_idx').on(t.kind, t.keyHash, t.createdAt)]);
+
+/* ---------- ดึงงานแข่งอัตโนมัติ ---------- */
+
+/** แหล่งที่ดึงอัตโนมัติ เปิดปิดได้ในหน้าแอดมิน ยังไม่มีแถว = ปิด (lib/import/run.ts) */
+export const competitionImportSources = pgTable('competition_import_sources', {
+  id: text('id').primaryKey(),
+  enabled: boolean('enabled').notNull().default(false),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  lastFound: integer('last_found').notNull().default(0),
+  updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** ประกาศที่ดึงมาหนึ่งรายการ พร้อมร่างที่ AI กรอกให้ รอแอดมินรับหรือปฏิเสธ
+    url ไม่ซ้ำ ประกาศเดิมจึงไม่กลับเข้าคิวอีก แม้เคยถูกปฏิเสธไปแล้ว */
+export const competitionImports = pgTable('competition_imports', {
+  id: text('id').primaryKey(),
+  origin: text('origin').notNull(),
+  url: text('url'),
+  title: text('title').notNull(),
+  status: text('status').notNull().default('processing'),
+  itemKind: text('item_kind'),
+  draft: jsonb('draft'),
+  uncertain: text('uncertain').array().notNull().default([]),
+  note: text('note'),
+  error: text('error'),
+  duplicateOf: text('duplicate_of').references(() => competitions.id, { onDelete: 'set null' }),
+  competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
+  rejectReason: text('reject_reason'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  decidedBy: text('decided_by').references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex('competition_imports_url_idx').on(t.url),
+  index('competition_imports_status_idx').on(t.status, t.createdAt),
+  check('competition_imports_status_check', sql`${t.status} in ('processing', 'pending', 'skipped', 'accepted', 'rejected', 'failed')`),
+]);

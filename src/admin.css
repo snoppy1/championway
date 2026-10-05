@@ -233,7 +233,8 @@
 /* ---------- ฟอร์มกรอกเวที ---------- */
 
 .listing-form { display: grid; gap: 18px; max-width: 900px; }
-.listing-form input:not([type=checkbox]), .listing-form select, .listing-form textarea {
+.listing-form input:not([type=checkbox]), .listing-form select, .listing-form textarea,
+.import-manual input, .import-manual textarea, .import-reject input {
   display: block; width: 100%;
   min-height: 44px;
   padding: 10px 12px;
@@ -243,8 +244,8 @@
   color: var(--ink);
   font: inherit;
 }
-.listing-form textarea { resize: vertical; }
-.listing-form .admin-field dd { display: grid; gap: 5px; }
+.listing-form textarea, .import-manual textarea { resize: vertical; }
+.listing-form .admin-field dd, .import-manual .admin-field dd { display: grid; gap: 5px; }
 .listing-form .pair { grid-template-columns: 1fr 1fr; gap: 12px; }
 .listing-form label { font-weight: 600; }
 
@@ -381,3 +382,22 @@
 .notify-foot p { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
 .notify-message.is-ok { margin-top: 10px; color: #1d6440; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .notify-switch input, .notify-switch input::after { transition: none; } }
+
+/* ---------- งานแข่งที่ดึงมา (pages/admin/AdminImports.tsx) ---------- */
+.import-group { margin-top: var(--space-5); }
+.import-group__title { margin: 0; font-size: var(--text-base); }
+.import-sources { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-3); }
+.import-source { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); }
+.import-source h3 { margin: 0 0 4px; font-size: var(--text-base); }
+.import-source .notify-switch { flex: none; }
+.import-manual { margin-block: var(--space-6); max-width: 900px; }
+.import-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
+.import-uncertain { color: #6b4e08; font-size: var(--text-sm); }
+.import-row a { display: inline-flex; align-items: center; gap: 4px; }
+.import-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.import-reject { display: grid; gap: var(--space-2); width: 100%; }
+.import-reject label { display: grid; gap: 4px; font-size: var(--text-sm); font-weight: 600; }
+.import-manual label { font-weight: 600; }
+.import-banner { align-items: flex-start; margin-bottom: var(--space-5); }
+.import-banner p { margin: 0 0 4px; }
+@media (max-width: 700px) { .import-source { flex-direction: column; } }

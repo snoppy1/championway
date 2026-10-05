@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CircleAlert, Plus } from 'lucide-react';
 import {
   categories, categoryLabel, formatDate, levelLabels, regionLabels, rewardLabels, typeLabels,
@@ -10,6 +10,8 @@ import { kindKeys, kinds, themeKeys, themes } from '../../data/focus';
 import type { Kind, Theme } from '../../data/focus';
 import { ApiError, api, post } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
+import type { ImportDraft } from '../../data/imports';
+import { draftFieldLabels } from './AdminImports';
 
 /* ช่วงเริ่มต้นยังไม่มีผู้จัดมาลงงานเอง ทีมงานจึงคัดจากประกาศจริงมากรอกที่นี่
    ทุกเวทีที่สร้างทางนี้เป็น editorial และบังคับให้มีลิงก์ประกาศต้นทางเสมอ */
@@ -135,6 +137,11 @@ export function AdminListingForm() {
   const navigate = useNavigate();
   const editing = id !== 'new';
   const { data, error: loadError, loading } = useApi<{ listing: Listing }>(editing ? `/admin/listings/${id}` : null);
+  // มาจากหน้า "งานแข่งที่ดึงมา": กรอกร่างที่ AI อ่านไว้ให้ก่อน แอดมินตรวจกับประกาศต้นทางแล้วแก้
+  const [params] = useSearchParams();
+  const importId = editing ? null : params.get('import');
+  const { data: imported } = useApi<{ item: { id: string; url: string | null; status: string; draft: ImportDraft | null; uncertain: string[]; note: string | null } }>(
+    importId ? `/admin/imports/${importId}` : null);
 
   const [draft, setDraft] = useState<Draft>(blank);
   const [message, setMessage] = useState('');
@@ -159,6 +166,25 @@ export function AdminListingForm() {
       preparation: fromLines(listing.preparation),
     });
   }, [data]);
+
+  useEffect(() => {
+    const item = imported?.item;
+    const ai = item?.draft;
+    if (!item || !ai) return;
+    setDraft({
+      ...blank,
+      kind: ai.kind ?? '', themes: ai.themes,
+      name: ai.name ?? '', description: ai.description ?? '', type: ai.type ?? 'contest', org: ai.org ?? '',
+      categories: ai.categories, levels: ai.levels, rewards: ai.rewards,
+      teamMin: String(ai.teamMin ?? 1), teamMax: String(ai.teamMax ?? ai.teamMin ?? 4),
+      opensAt: ai.opensAt ?? '', closesAt: ai.closesAt ?? '', eventDate: ai.eventDate ?? '',
+      region: ai.region ?? 'online', venue: ai.venue ?? '',
+      prizeValue: ai.prizeValue === null ? '' : String(ai.prizeValue), prizeNote: ai.prizeNote ?? '',
+      fee: ai.fee === null ? '' : String(ai.fee),
+      keywords: ai.keywords.join(', '),
+      sourceUrl: item.url ?? '', registerUrl: ai.registerUrl ?? '',
+    });
+  }, [imported]);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   function toggle<T>(list: T[], value: T, key: 'categories' | 'levels' | 'rewards' | 'themes', max?: number) {
@@ -189,8 +215,8 @@ export function AdminListingForm() {
         preparation: toLines(draft.preparation),
       };
       if (editing) await api(`/admin/listings/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
-      else await post('/admin/listings', body);
-      navigate('/admin/listings');
+      else await post('/admin/listings', importId ? { ...body, importId } : body);
+      navigate(importId ? '/admin/imports' : '/admin/listings');
     } catch (failure) {
       setMessage(failure instanceof ApiError ? failure.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
@@ -210,13 +236,27 @@ export function AdminListingForm() {
     : draft.prizeNote || 'ไม่มีเงินรางวัล';
 
   return <>
-    <p className="admin-back"><Link to="/admin/listings"><ArrowLeft size={16} aria-hidden="true" />กลับไปรายการเวที</Link></p>
+    <p className="admin-back">{importId
+      ? <Link to="/admin/imports"><ArrowLeft size={16} aria-hidden="true" />กลับไปงานแข่งที่ดึงมา</Link>
+      : <Link to="/admin/listings"><ArrowLeft size={16} aria-hidden="true" />กลับไปรายการเวที</Link>}</p>
     <header className="admin-page-head">
       <h1>{editing ? 'แก้ไขเวที' : 'เพิ่มเวทีใหม่'}</h1>
       <p className="admin-muted">
         กรอกข้อเท็จจริงจากประกาศต้นทาง แต่<b>เขียนคำบรรยายใหม่เอง</b> ห้ามคัดลอกข้อความจากเว็บอื่น
       </p>
     </header>
+
+    {imported?.item && <div className="review-gate import-banner" role="note">
+      <CircleAlert size={15} aria-hidden="true" />
+      <div>
+        <p><b>ร่างนี้ AI กรอกจากประกาศ</b> ตรวจทุกช่องกับ{imported.item.url
+          ? <> <a href={imported.item.url} target="_blank" rel="noopener noreferrer">ประกาศต้นทาง</a></> : 'ประกาศต้นทาง'} ก่อนกดเพิ่มเวที
+          ช่องที่ประกาศไม่ได้บอกจะว่างไว้</p>
+        {imported.item.uncertain.length > 0 && <p>ต้องเช็กเป็นพิเศษ: {imported.item.uncertain.map((key) => draftFieldLabels[key as keyof ImportDraft] ?? key).join(' · ')}</p>}
+        {imported.item.note && <p>AI: {imported.item.note}</p>}
+        {!['pending', 'skipped'].includes(imported.item.status) && <p><b>ร่างนี้ถูกรับหรือปฏิเสธไปแล้ว</b></p>}
+      </div>
+    </div>}
 
     <form className="listing-form" onSubmit={save} noValidate>
       <section className="admin-block">

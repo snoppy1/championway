@@ -141,6 +141,13 @@
       "when": 1791214684854,
       "tag": "0019_left_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791222059985,
+      "tag": "0020_motionless_sleeper",
+      "breakpoints": true
     }
   ]
 }

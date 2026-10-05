@@ -233,3 +233,12 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Links: footer "ข้อมูลทางกฎหมาย" column, sign-up agreement line, Rising Star fine print → refund policy. Mentor application consents updated to go-between mode + accepting the terms.
 - `support@championways.space` must receive mail (Resend only sends) — set up forwarding (e.g. Cloudflare Email Routing).
 - Tests: tests/legal.spec.ts; full browser suite 305 pass.
+
+## 2026-10-06 — Security hardening + auto-import of competitions
+- Sign-in throttle (`server/lib/rate-limit.ts`, table `auth_attempts`, migration 0019): 5 failures/email or 30/IP per 15 min, 10 sign-ups/IP per hour; keys are sha256 hashes; each attempt is reserved atomically under an advisory lock (parallel bursts cannot pass). Security headers in `vercel.json` (CSP, frame-ancestors none, nosniff, Referrer-Policy, Permissions-Policy). Astra was unavailable (Codex token invalid, `gpt-6-astra` unsupported on this account) — reviewed by Claude only; found and fixed the check-then-record race. Live on Production.
+- Stripe Live set up by the owner (restricted key, webhook API 2026-09-30.dahlia, price); `/api/health` billing all true. Connect deliberately NOT enabled (Thailand: no separate charges & transfers, 10-day hold max) — escrow plan for hiring needs a different design later.
+- Auto-import (`server/lib/import/*`, page `/admin/imports`, tables `competition_import_sources` + `competition_imports`, migration 0020): RSS of YSC and Contest Thailand (each source OFF by default, admin-only toggle), plus paste link/text. Claude (`claude-sonnet-5-5`, tool-forced JSON) fills a draft; empty = unknown, uncertain fields flagged; news/results go to "skipped". "ตรวจและเพิ่มเวที" opens the listing form prefilled; saving with `importId` marks the draft accepted in the same transaction (409 if already decided). Daily run piggybacks on the remind-confirmations cron; max 6 new items per source per run.
+- SSRF guard (`safe-fetch.ts`): http(s) only, std ports, no credentials, every DNS answer and redirect checked against private/reserved ranges at connect time; 1.5 MB / 12 s limits.
+- Not included: Contester (ToS 6.2 forbids commercial reuse — owner to ask permission), EventPop auto (robots.txt disallows /events/; use paste link).
+- Needs `ANTHROPIC_API_KEY` in Vercel (Production + Preview). Note: listings require kind = hackathon/case_competition, so most Contest Thailand art/clip contests can't be listed as-is.
+- Tests: scripts/imports.test.ts, tests/imports.spec.ts; API 102, browser 311 pass.

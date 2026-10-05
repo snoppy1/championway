@@ -10,7 +10,7 @@ import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
   competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices, mentorExperiences, staffNotifications,
   mentorPayoutAccounts, mentorPayouts, mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
-  submissionCategories, submissionLevels, submissionRewards, users,
+  submissionCategories, submissionLevels, submissionRewards, users, competitionImportSources, competitionImports,
 } from '../db/schema.js';
 import type { AppEnv } from '../lib/guards.js';
 import { requireReviewer } from '../lib/guards.js';
@@ -25,6 +25,11 @@ import { filesOf, publicFile } from '../lib/files.js';
 import { firstIssue } from './public.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
+import { importSourceIds } from '../../src/data/imports.js';
+import type { ImportSourceId } from '../../src/data/imports.js';
+import { ImportNotReady, importManual, retryImport, runSources, sourceSettings } from '../lib/import/run.js';
+import { aiConfigured } from '../lib/import/extract.js';
+import { FetchRefused, checkUrl } from '../lib/import/safe-fetch.js';
 
 export const admin = new Hono<AppEnv>();
 admin.use('*', requireReviewer);
@@ -584,9 +589,12 @@ admin.get('/listings/:id', async (c) => {
 });
 
 admin.post('/listings', async (c) => {
-  const parsed = listingBody.safeParse(await c.req.json().catch(() => ({})));
+  const raw = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+  const parsed = listingBody.safeParse(raw);
   if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
   const body = parsed.data;
+  // สร้างจากร่างที่ดึงมา (หน้า "งานแข่งที่ดึงมา") ปิดร่างนั้นเป็น "รับแล้ว" ในธุรกรรมเดียวกัน
+  const importId = typeof raw.importId === 'string' ? raw.importId : null;
   const id = newId('cmp');
   const slug = await freeSlug(body.name, id);
 
@@ -600,6 +608,14 @@ admin.post('/listings', async (c) => {
     await tx.insert(competitionLevels).values(body.levels.map((level) => ({ competitionId: id, level })));
     if (body.rewards.length) {
       await tx.insert(competitionRewards).values(body.rewards.map((reward) => ({ competitionId: id, reward })));
+    }
+    if (importId) {
+      // ร่างที่ถูกรับหรือปฏิเสธไปแล้วโดยอีกคน ทั้งธุรกรรมย้อนกลับ ไม่เกิดเวทีซ้ำ
+      const [claimed] = await tx.update(competitionImports)
+        .set({ status: 'accepted', competitionId: id, decidedBy: c.get('user')!.id, decidedAt: new Date() })
+        .where(and(eq(competitionImports.id, importId), inArray(competitionImports.status, ['pending', 'skipped'])))
+        .returning({ id: competitionImports.id });
+      if (!claimed) throw new HTTPException(409, { message: 'ร่างนี้ถูกรับหรือปฏิเสธไปแล้ว' });
     }
   });
   return c.json({ id, slug }, 201);
@@ -900,5 +916,100 @@ admin.post('/disputes/:id/decision', async (c) => {
   if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
   const outcome = await resolveDispute(c.req.param('id'), parsed.data.decision, parsed.data.note, c.get('user')!.id);
   if (!outcome) throw new HTTPException(409, { message: 'งานนี้ไม่ได้อยู่ระหว่างแจ้งปัญหา หรือตัดสินไปแล้ว' });
+  return c.json({ ok: true });
+});
+
+/* ---------- งานแข่งที่ดึงมาอัตโนมัติ (lib/import/run.ts) ----------
+   ทีมตรวจทุกคนดูคิว วางลิงก์ รับ หรือปฏิเสธได้ เปิดปิดแหล่งและสั่งดึงทั้งแหล่งได้เฉพาะ admin (มีค่าใช้จ่าย AI) */
+
+const importStatuses = ['pending', 'skipped', 'accepted', 'rejected', 'failed'] as const;
+
+function importError(error: unknown): never {
+  if (error instanceof ImportNotReady) throw new HTTPException(503, { message: error.message });
+  if (error instanceof FetchRefused) throw new HTTPException(400, { message: error.message });
+  throw error;
+}
+
+admin.get('/imports', async (c) => {
+  const status = importStatuses.find((value) => value === c.req.query('status')) ?? 'pending';
+  const rows = await db.select({ row: competitionImports, dupName: competitions.name, dupSlug: competitions.slug })
+    .from(competitionImports)
+    .leftJoin(competitions, eq(competitions.id, competitionImports.duplicateOf))
+    .where(status === 'failed'
+      ? inArray(competitionImports.status, ['failed', 'processing'])
+      : eq(competitionImports.status, status))
+    .orderBy(desc(competitionImports.createdAt)).limit(100);
+  const counts = await db.select({ status: competitionImports.status, count: sql<number>`count(*)::int` })
+    .from(competitionImports).groupBy(competitionImports.status);
+  return c.json({
+    ai: aiConfigured(),
+    sources: await sourceSettings(),
+    counts: Object.fromEntries(counts.map((item) => [item.status, item.count])),
+    items: rows.map(({ row, dupName, dupSlug }) => ({
+      id: row.id, origin: row.origin, url: row.url, title: row.title, status: row.status, itemKind: row.itemKind,
+      draft: row.draft, uncertain: row.uncertain, note: row.note, error: row.error,
+      duplicateOf: row.duplicateOf && dupName ? { id: row.duplicateOf, name: dupName, slug: dupSlug } : null,
+      competitionId: row.competitionId, rejectReason: row.rejectReason,
+      createdAt: row.createdAt.toISOString(), decidedAt: row.decidedAt?.toISOString() ?? null,
+    })),
+  });
+});
+
+admin.get('/imports/:id', async (c) => {
+  const [row] = await db.select().from(competitionImports).where(eq(competitionImports.id, c.req.param('id'))).limit(1);
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบร่างนี้' });
+  return c.json({ item: { id: row.id, url: row.url, title: row.title, status: row.status, draft: row.draft, uncertain: row.uncertain, note: row.note } });
+});
+
+admin.put('/imports/sources/:id', async (c) => {
+  requireAdmin(c);
+  const id = importSourceIds.find((value) => value === c.req.param('id'));
+  if (!id) throw new HTTPException(404, { message: 'ไม่พบแหล่งนี้' });
+  const body = z.object({ enabled: z.boolean() }).safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) throw new HTTPException(400, { message: 'ส่งค่าเปิดหรือปิดมาด้วย' });
+  const userId = c.get('user')!.id;
+  await db.insert(competitionImportSources).values({ id, enabled: body.data.enabled, updatedBy: userId })
+    .onConflictDoUpdate({ target: competitionImportSources.id, set: { enabled: body.data.enabled, updatedBy: userId, updatedAt: new Date() } });
+  return c.json({ sources: await sourceSettings() });
+});
+
+admin.post('/imports/run', async (c) => {
+  requireAdmin(c);
+  const body = z.object({ source: z.enum(importSourceIds).optional() }).safeParse(await c.req.json().catch(() => ({})));
+  const only: ImportSourceId[] | undefined = body.success && body.data.source ? [body.data.source] : undefined;
+  try {
+    return c.json({ summary: await runSources(only) });
+  } catch (error) { return importError(error); }
+});
+
+admin.post('/imports/manual', async (c) => {
+  const body = z.object({
+    url: z.string().trim().max(1000).nullish(),
+    text: z.string().trim().max(30000).nullish(),
+  }).refine((value) => Boolean(value.url || value.text), { message: 'วางลิงก์หรือข้อความประกาศอย่างน้อยหนึ่งอย่าง' })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) throw new HTTPException(400, { message: firstIssue(body.error) });
+  if (body.data.text && body.data.text.length < 40) throw new HTTPException(400, { message: 'ข้อความสั้นเกินไป วางประกาศทั้งหมด' });
+  try {
+    if (body.data.url) checkUrl(body.data.url);
+    return c.json(await importManual({ url: body.data.url, text: body.data.text }, c.get('user')!.id), 201);
+  } catch (error) { return importError(error); }
+});
+
+admin.post('/imports/:id/retry', async (c) => {
+  let retried: boolean;
+  try { retried = await retryImport(c.req.param('id')); } catch (error) { return importError(error); }
+  if (!retried) throw new HTTPException(409, { message: 'ลองใหม่ได้เฉพาะรายการที่ล้มเหลวและมีลิงก์' });
+  return c.json({ ok: true });
+});
+
+admin.post('/imports/:id/reject', async (c) => {
+  const body = z.object({ reason: z.string().trim().min(1, 'บอกเหตุผลสั้น ๆ').max(300) }).safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) throw new HTTPException(400, { message: firstIssue(body.error) });
+  const [row] = await db.update(competitionImports)
+    .set({ status: 'rejected', rejectReason: body.data.reason, decidedBy: c.get('user')!.id, decidedAt: new Date() })
+    .where(and(eq(competitionImports.id, c.req.param('id')), inArray(competitionImports.status, ['pending', 'skipped', 'failed'])))
+    .returning({ id: competitionImports.id });
+  if (!row) throw new HTTPException(409, { message: 'ร่างนี้ถูกรับหรือปฏิเสธไปแล้ว' });
   return c.json({ ok: true });
 });

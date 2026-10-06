@@ -135,7 +135,8 @@ export function OrganiserSubmit() {
       if (!error && values.closesAt <= today()) error = s.errors.closeFuture;
       if (!error && values.opensAt && values.opensAt > values.closesAt) error = s.errors.opensBefore;
       need('sourceUrl');
-      if (!error && region !== 'online' && !values.venue.trim()) error = s.need(s.needs.venue);
+      // งานทั่วประเทศจัดหลายที่หรือไม่มีที่เดียว ไม่บังคับสถานที่ เหมือนงานออนไลน์
+      if (!error && region !== 'online' && region !== 'nationwide' && !values.venue.trim()) error = s.need(s.needs.venue);
       if (!error && Number(values.prizeValue || 0) === 0 && !values.prizeNote.trim()) {
         error = s.errors.prizeNote;
       }

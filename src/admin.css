@@ -401,3 +401,7 @@
 .import-banner { align-items: flex-start; margin-bottom: var(--space-5); }
 .import-banner p { margin: 0 0 4px; }
 @media (max-width: 700px) { .import-source { flex-direction: column; } }
+
+/* โปสเตอร์ในฟอร์มเวที */
+.listing-poster { width: 100%; max-width: 280px; max-height: 360px; object-fit: contain; border: 1px solid var(--line); border-radius: 12px; background: var(--purple-tint); }
+.listing-poster__remove { justify-self: start; }

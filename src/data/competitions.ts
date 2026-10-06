@@ -33,7 +33,7 @@ export const levelLabels: Record<Level, string> = th.taxonomy.levels;
 export type OpportunityType = 'contest' | 'camp' | 'workshop' | 'scholarship' | 'internship';
 export const typeLabels: Record<OpportunityType, string> = th.taxonomy.types;
 
-export type Region = 'online' | 'bangkok' | 'central' | 'north' | 'northeast' | 'east' | 'south';
+export type Region = 'online' | 'nationwide' | 'bangkok' | 'central' | 'north' | 'northeast' | 'east' | 'south';
 export const regionLabels: Record<Region, string> = th.taxonomy.regions;
 
 export type Reward = 'certificate' | 'trophy' | 'publish' | 'internship' | 'partnership';
@@ -82,6 +82,8 @@ export interface Competition {
   source: Source;
   lastVerifiedAt: string;
   registerUrl?: string;
+  /** โปสเตอร์ที่ทีมงานอัปโหลด ไม่มี = ใช้ภาพปกที่วาดจากหมวด */
+  posterUrl?: string;
   /** ห้าส่วนนี้ทีมงานเขียนเอง ผู้จัดไม่ได้กรอกมา จึงไม่บังคับ */
   overview?: string;
   audience?: string;

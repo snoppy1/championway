@@ -1213,3 +1213,58 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
   .main-nav a, .nav-soon { font-size: var(--text-base); }
   .nav-soon small { margin-left: var(--space-1); }
 }
+
+/* โปสเตอร์ที่ทีมงานอัปโหลด (components/CoverArt.tsx) บนการ์ดตัดให้เต็มกรอบ 16:9 หน้าเวทีแสดงทั้งใบไม่ตัด */
+.cover-poster { width: 100%; height: 100%; display: block; object-fit: cover; background: var(--purple-tint); }
+.cover-poster--full { height: auto; max-height: 520px; object-fit: contain; }
+
+/* ---------- หน้าเวที: รายละเอียดซ้าย เมนเทอร์ขวา (6 ต.ค. 2569 แทนแท็บเดิม) ----------
+   จอกว้าง: กล่องสรุปกับเนื้อหาอยู่คอลัมน์ซ้าย รายชื่อเมนเทอร์อยู่คอลัมน์ขวา
+   จอแคบ: กล่องสรุป → เมนเทอร์ → เนื้อหา คนที่มาหาเมนเทอร์ไม่ต้องเลื่อนผ่านเนื้อหายาวก่อน */
+.detail-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); grid-template-rows: auto 1fr;
+  grid-template-areas: "glance mentors" "article mentors"; gap: 28px 36px; margin-top: 28px; align-items: start;
+}
+.detail-glance { grid-area: glance; padding: 20px 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: var(--shadow-card); }
+.detail-glance h2 { font-size: 17px; font-weight: 600; margin-bottom: 14px; }
+.detail-glance dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 20px; }
+.detail-glance dt { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
+.detail-apply { margin-top: 18px; width: 100%; justify-content: center; }
+.detail-glance dt svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--purple); }
+.detail-glance dd { margin: 3px 0 0; font-size: 14.5px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.detail-article { grid-area: article; min-width: 0; }
+.detail-mentors {
+  grid-area: mentors; min-width: 0; container-type: inline-size; scroll-margin-top: 90px;
+  padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper, #fbf9ff);
+}
+.detail-mentors > h2 { font-size: 21px; font-weight: 600; }
+.detail-mentors .cx-lead { margin-top: 6px; }
+.detail-mentors .rs-section { margin-top: var(--space-5); }
+.detail-mentors .rs-section + .rs-section { margin-top: var(--space-6); }
+.detail-mentors .rs-section-head h3 { font-size: var(--text-lg); font-weight: 600; margin-top: 0; }
+.detail-mentors .rs-list { box-shadow: none; }
+
+/* คอลัมน์เมนเทอร์แคบกว่าหน้าเต็ม ใช้แถวแบบย่อเหมือนจอมือถือ (ปุ่มเป็นไอคอน) */
+@container (max-width: 520px) {
+  .detail-mentors .rs-row { grid-template-columns: 28px 44px 1fr 44px; gap: var(--space-3); padding: var(--space-4) 12px; }
+  .detail-mentors .rs-row .rs-avatar { --avatar-size: 44px; }
+  .detail-mentors .rs-row__action { position: relative; width: 44px; padding: 0; }
+  .detail-mentors .rs-row__action-icon { display: block; }
+  .detail-mentors .rs-row__action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .detail-mentors .rs-list--plain > .rs-row { grid-template-columns: 44px 1fr 44px; padding: var(--space-4) 0; }
+  .detail-mentors .rs-row__rank { font-size: var(--text-xl); }
+  /* แถวในคอลัมน์แคบ: ความถนัดบรรทัดเดียว จำนวนครั้งที่ปรึกษาเป็นข้อความธรรมดา ไม่ใช่กรอบที่ดูเหมือนปุ่ม */
+  .detail-mentors .rs-row__spec { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+  .detail-mentors .rs-proof--count { padding: 0; border: 0; }
+}
+
+@media (max-width: 1000px) {
+  .detail-layout { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: "glance" "mentors" "article"; }
+}
+@media (max-width: 700px) {
+  .detail-mentors { padding: 18px 14px; }
+  .detail-glance dl { grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+}
+@media (max-width: 480px) {
+  .detail-glance dl { grid-template-columns: 1fr; }
+}

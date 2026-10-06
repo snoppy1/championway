@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import { useEffect } from 'react';
+import type { ReactNode } from 'react';
 import {
   ArrowLeft, ArrowRight, Award, Building2, Calendar, Check, GraduationCap, Layers3,
   MapPin, ShieldCheck, Ticket, Trophy, Users,
@@ -10,7 +10,7 @@ import {
   primaryCategory, prizeLabel, teamLabel,
 } from '../data/competitions';
 import type { Competition } from '../data/competitions';
-import { CoverArt } from '../components/CoverArt';
+import { CompetitionCover } from '../components/CoverArt';
 import { useApi } from '../lib/useApi';
 import type { ListedMentor, RankedMentor } from '../data/consult';
 import { OtherRow, RankedRow } from '../components/mentors';
@@ -19,10 +19,9 @@ import { useHiring } from '../data/hiring';
 import '../journey.css';
 import '../consult.css';
 
-type Tab = 'details' | 'mentors';
 type MentorsPayload = { competition: { slug: string; name: string }; risingStar: RankedMentor[]; others: ListedMentor[] };
 
-/* แท็บเมนเทอร์ที่พร้อมให้ปรึกษา: สมาชิก Rising Star ของเวทีนี้เรียงตามคะแนนรีวิวเฉลี่ยของเดือนนี้ (มีเลขอันดับ)
+/* รายชื่อเมนเทอร์ที่พร้อมให้ปรึกษา (คอลัมน์ขวาของหน้าเวที): สมาชิก Rising Star ของเวทีนี้เรียงตามคะแนนรีวิวเฉลี่ยของเดือนนี้ (มีเลขอันดับ)
    แล้วเมนเทอร์ที่ไม่ได้เป็นสมาชิกต่อท้ายโดยไม่มีอันดับ ข้อมูลและการเรียงมาจาก GET /api/consult/competitions/:slug/mentors
    ถ้าไม่มีใครเลือกเวทีนี้ จะบอกตามจริง ไม่เติมรายชื่อที่ไม่เกี่ยวข้องให้หน้าดูเต็ม */
 function AvailableMentors({ slug }: { slug: string }) {
@@ -82,39 +81,24 @@ export function Detail() {
   const { t, lang } = useI18n();
   const s = t.detail;
   const { slug } = useParams();
-  const { search, hash, pathname } = useLocation();
+  const { search, hash } = useLocation();
   // เวทีที่เกี่ยวข้องคำนวณที่เซิร์ฟเวอร์จากหมวดที่ซ้อนกัน ส่งมาพร้อมกันในคำขอเดียว
   const { data, error, loading } = useApi<{ competition: Competition; related: Competition[] }>(
     slug ? `/competitions/${encodeURIComponent(slug)}` : null,
   );
   const competition = data?.competition;
 
-  /* สองแท็บ: รายละเอียด กับเมนเทอร์ที่พร้อมให้ปรึกษา แชร์ลิงก์ไปที่แท็บเมนเทอร์ได้ด้วย #mentors
-     (#event-mentors เป็นลิงก์เก่าที่ยังมีอยู่ในอีเมลและหน้าเมนเทอร์) แท็บเริ่มจาก hash แล้วเก็บเป็น state เอง
-     เปลี่ยนแท็บแก้ URL ด้วย replaceState ไม่ผ่าน router เพราะไม่อยากให้หน้าเด้งกลับไปบนสุด */
-  const fromHash = (value: string): Tab => (value === '#mentors' || value === '#event-mentors' ? 'mentors' : 'details');
-  const [tab, setTab] = useState<Tab>(() => fromHash(hash));
-  useEffect(() => { setTab(fromHash(hash)); }, [hash]);
-  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ details: null, mentors: null });
-
-  function selectTab(next: Tab, focus = false) {
-    setTab(next);
-    window.history.replaceState(window.history.state, '', `${pathname}${search}${next === 'mentors' ? '#mentors' : ''}`);
-    if (focus) tabRefs.current[next]?.focus();
-  }
-  function onTabKey(event: KeyboardEvent<HTMLButtonElement>) {
-    // มีสองแท็บ ลูกศรซ้ายและขวาจึงสลับไปอีกแท็บเหมือนกัน
-    const other: Tab = tab === 'details' ? 'mentors' : 'details';
-    const next = event.key === 'ArrowRight' || event.key === 'ArrowLeft' ? other
-      : event.key === 'Home' ? 'details' : event.key === 'End' ? 'mentors' : null;
-    if (!next) return;
-    event.preventDefault();
-    selectTab(next, true);
-  }
+  /* รายละเอียดกับเมนเทอร์อยู่หน้าเดียวกันแล้ว (ผู้ใช้ขอ 6 ต.ค. 2569 แทนแท็บเดิม)
+     ลิงก์ #mentors และ #event-mentors (ลิงก์เก่าในอีเมลและหน้าเมนเทอร์) เลื่อนลงไปที่รายชื่อเมนเทอร์
+     ต้องเลื่อนเองหลังโหลดเสร็จ เพราะตอนเปิดหน้า เนื้อหายังไม่มาเบราว์เซอร์จึงหาเป้าหมายไม่เจอ */
+  const toMentors = hash === '#mentors' || hash === '#event-mentors';
 
   useEffect(() => {
     if (competition) document.title = `${competition.name} — ChampionWays`;
   }, [competition]);
+  useEffect(() => {
+    if (competition && toMentors) document.getElementById('mentors')?.scrollIntoView();
+  }, [competition, toMentors]);
 
   if (loading) return <main id="main" tabIndex={-1} className="shell page"><p className="side-note">{s.loading}</p></main>;
   if (!competition) return <NotFound reason={error} />;
@@ -154,72 +138,61 @@ export function Detail() {
         <h1 id="competition-title">{competition.name}</h1>
         <p>{competition.description}</p>
       </div>
-      <div className="detail-cover"><CoverArt category={main} seed={`detail-${competition.slug}`} /></div>
+      <div className="detail-cover"><CompetitionCover category={main} seed={`detail-${competition.slug}`} posterUrl={competition.posterUrl} full /></div>
     </section>
 
-    <div className="cx-tabs" id="competition-tabs" role="tablist" aria-label={s.tabsLabel}>
-      {(['details', 'mentors'] as Tab[]).map((id) => <button
-        key={id} type="button" role="tab" id={`tab-${id}`} aria-controls={`panel-${id}`}
-        aria-selected={tab === id} tabIndex={tab === id ? 0 : -1}
-        ref={(element) => { tabRefs.current[id] = element; }}
-        className={tab === id ? 'tab-button cx-tab active' : 'tab-button cx-tab'}
-        onClick={() => selectTab(id)} onKeyDown={onTabKey}
-      >{id === 'details' ? s.tabDetails : s.tabMentors}</button>)}
-    </div>
+    <div className="detail-layout">
+      <section className="detail-glance" aria-labelledby="at-a-glance">
+        <h2 id="at-a-glance">{s.glanceTitle}</h2>
+        <dl>
+          <div>
+            <dt><Calendar size={16} aria-hidden="true" />{s.closesLabel}</dt>
+            <dd>{formatDeadline(competition, lang)}{left >= 0 && ` · ${t.competition.daysLeft(left)}`}</dd>
+          </div>
+          <div>
+            <dt><Trophy size={16} aria-hidden="true" />{s.prize}</dt>
+            <dd>{prizeLabel(competition, t, lang)}</dd>
+          </div>
+          {competition.rewards.length > 0 && <div>
+            <dt><Award size={16} aria-hidden="true" />{s.otherRewards}</dt>
+            <dd>{competition.rewards.map((reward) => t.taxonomy.rewards[reward]).join(' · ')}</dd>
+          </div>}
+          <div>
+            <dt><Building2 size={16} aria-hidden="true" />{s.organizer}</dt>
+            <dd>{competition.org}</dd>
+          </div>
+          <div>
+            <dt><MapPin size={16} aria-hidden="true" />{s.placeFormat}</dt>
+            <dd>{placeLabel(competition, t)}</dd>
+          </div>
+          <div>
+            <dt><Ticket size={16} aria-hidden="true" />{s.fee}</dt>
+            <dd>{feeLabel(competition, t, lang)}</dd>
+          </div>
+          <div>
+            <dt><Layers3 size={16} aria-hidden="true" />{s.categories}</dt>
+            <dd>{competition.categories.map((id) => t.taxonomy.categories[id]).join(' · ')}</dd>
+          </div>
+          <div>
+            <dt><GraduationCap size={16} aria-hidden="true" />{s.levels}</dt>
+            <dd>{competition.levels.map((level) => t.taxonomy.levels[level]).join(' / ')}</dd>
+          </div>
+          <div>
+            <dt><Users size={16} aria-hidden="true" />{s.team}</dt>
+            <dd>{teamLabel(competition, t)}</dd>
+          </div>
+        </dl>
+        {/* ปุ่มหลักของหน้า: ไปสมัครที่ผู้จัด (ลิงก์สมัคร ถ้าไม่มีใช้ประกาศต้นทาง) */}
+        {(competition.registerUrl || competition.sourceUrl) && <a className="primary-button detail-apply"
+          href={competition.registerUrl ?? competition.sourceUrl} target="_blank" rel="noreferrer noopener">
+          {competition.registerUrl ? s.applyCta : s.readSource}<ArrowRight size={16} aria-hidden="true" />
+        </a>}
+      </section>
 
-    <div role="tabpanel" id="panel-details" aria-labelledby="tab-details" hidden={tab !== 'details'}>
-    <div className="detail-grid">
-      <aside className="detail-side" aria-labelledby="at-a-glance">
-        <div className="summary-panel">
-          <h2 id="at-a-glance">{s.glanceTitle}</h2>
-          <dl>
-            <div>
-              <dt><Calendar size={16} aria-hidden="true" />{s.closesLabel}</dt>
-              <dd>{formatDeadline(competition, lang)}{left >= 0 && ` · ${t.competition.daysLeft(left)}`}</dd>
-            </div>
-            <div>
-              <dt><Trophy size={16} aria-hidden="true" />{s.prize}</dt>
-              <dd>{prizeLabel(competition, t, lang)}</dd>
-            </div>
-            {competition.rewards.length > 0 && <div>
-              <dt><Award size={16} aria-hidden="true" />{s.otherRewards}</dt>
-              <dd>{competition.rewards.map((reward) => t.taxonomy.rewards[reward]).join(' · ')}</dd>
-            </div>}
-            <div>
-              <dt><Building2 size={16} aria-hidden="true" />{s.organizer}</dt>
-              <dd>{competition.org}</dd>
-            </div>
-            <div>
-              <dt><MapPin size={16} aria-hidden="true" />{s.placeFormat}</dt>
-              <dd>{placeLabel(competition, t)}</dd>
-            </div>
-            <div>
-              <dt><Ticket size={16} aria-hidden="true" />{s.fee}</dt>
-              <dd>{feeLabel(competition, t, lang)}</dd>
-            </div>
-            <div>
-              <dt><Layers3 size={16} aria-hidden="true" />{s.categories}</dt>
-              <dd>{competition.categories.map((id) => t.taxonomy.categories[id]).join(' · ')}</dd>
-            </div>
-            <div>
-              <dt><GraduationCap size={16} aria-hidden="true" />{s.levels}</dt>
-              <dd>{competition.levels.map((level) => t.taxonomy.levels[level]).join(' / ')}</dd>
-            </div>
-            <div>
-              <dt><Users size={16} aria-hidden="true" />{s.team}</dt>
-              <dd>{teamLabel(competition, t)}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="source-panel">
-          <h2><ShieldCheck size={16} aria-hidden="true" />{s.sourceTitle}</h2>
-          <p>{s.sourceLine(t.taxonomy.sources[competition.source], formatDate(competition.lastVerifiedAt, lang))}</p>
-          {competition.sourceUrl
-            ? <p><a href={competition.sourceUrl} rel="noreferrer noopener" target="_blank">{s.openSource}<ArrowRight size={14} aria-hidden="true" /></a></p>
-            : <p className="side-note">{s.noSourceLink}</p>}
-        </div>
-
+      <aside className="detail-mentors" id="mentors" aria-labelledby="mentors-title">
+        <h2 id="mentors-title">{s.mentorsTitle}</h2>
+        <p className="cx-lead">{s.mentorsLead}</p>
+        <AvailableMentors slug={competition.slug} />
       </aside>
 
       <div className="detail-article">
@@ -227,17 +200,14 @@ export function Detail() {
           <span className="section-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
           <div><h2>{section.title}</h2>{section.body}</div>
         </section>)}
+        <div className="source-panel">
+          <h2><ShieldCheck size={16} aria-hidden="true" />{s.sourceTitle}</h2>
+          <p>{s.sourceLine(t.taxonomy.sources[competition.source], formatDate(competition.lastVerifiedAt, lang))}</p>
+          {competition.sourceUrl
+            ? <p><a href={competition.sourceUrl} rel="noreferrer noopener" target="_blank">{s.openSource}<ArrowRight size={14} aria-hidden="true" /></a></p>
+            : <p className="side-note">{s.noSourceLink}</p>}
+        </div>
       </div>
-    </div>
-
-    </div>
-
-    <div role="tabpanel" id="panel-mentors" aria-labelledby="tab-mentors" hidden={tab !== 'mentors'} className="cx-mentors-panel">
-      <div className="section-head">
-        <h2>{s.mentorsTitle}</h2>
-      </div>
-      <p className="cx-lead">{s.mentorsLead}</p>
-      <AvailableMentors slug={competition.slug} />
     </div>
 
     {related.length > 0 && <section className="related-section" aria-labelledby="related-title">
@@ -249,7 +219,7 @@ export function Detail() {
       </div>
       <div className="related-grid">
         {related.map((item) => <Link className="related-item" key={item.slug} to={`/competitions/${item.slug}${search}`}>
-          <span className="related-thumb"><CoverArt category={primaryCategory(item)} seed={`related-${item.slug}`} /></span>
+          <span className="related-thumb"><CompetitionCover category={primaryCategory(item)} seed={`related-${item.slug}`} posterUrl={item.posterUrl} /></span>
           <div>
             <span className="card-org">{item.org}</span>
             <h3>{item.name}</h3>

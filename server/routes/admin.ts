@@ -5,7 +5,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import { demoTotals, insertDemoData, presentDemo, removeDemoData } from '../db/demo-data.js';
-import { demoToolsEnabled, env } from '../lib/env.js';
+import { demoToolsEnabled, env, uploadsUsable } from '../lib/env.js';
 import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
   competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices, mentorExperiences, staffNotifications,
@@ -21,7 +21,7 @@ import { listOverdue, releaseOverdue, resolveDispute } from '../lib/hire-money.j
 import { hiringEnabled } from '../lib/flow.js';
 import { staffNotificationKinds, staffNotificationSettings } from '../lib/staff-notify.js';
 import type { StaffNotificationKind } from '../lib/staff-notify.js';
-import { filesOf, publicFile } from '../lib/files.js';
+import { fileProblem, fileUrl, filesOf, publicFile, storeFile } from '../lib/files.js';
 import { firstIssue } from './public.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
@@ -213,6 +213,10 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
   const submission = await loadCompetitionSubmission(id);
   const reviewer = c.get('user')!;
   let publishedSlug: string | null = null;
+  /* โปสเตอร์ที่ผู้จัดแนบมา (รูปบน Blob ซึ่งเปิดสาธารณะอยู่แล้ว) ใช้เป็นภาพของเวทีเลย
+     PDF หรือไฟล์ในเครื่องตอนพัฒนาไม่ใช้ หน้าเวทีจะแสดงภาพปกที่วาดจากหมวดแทน */
+  const poster = (await filesOf('competition_submission', id))
+    .find((file) => file.mime.startsWith('image/') && file.path.startsWith('https://'));
 
   await db.transaction(async (tx) => {
     const [current] = await tx.select().from(competitionSubmissions).where(eq(competitionSubmissions.id, id)).for('update');
@@ -239,6 +243,7 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
         description: submission.description,
         type: submission.type,
         org: submission.organizerName,
+        posterUrl: poster?.path ?? null,
         closesAt: submission.closesAt,
         opensAt: submission.opensAt,
         eventDate: submission.eventDate,
@@ -465,6 +470,7 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
    ห้าส่วนเนื้อหายาวกรอกได้จากที่นี่ที่เดียว ผู้จัดที่ส่งใบเข้ามาไม่ได้กรอกให้ */
 
 const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+const posterPattern = /^(\/api\/files\/fil_[A-Za-z0-9_-]+|https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\/[A-Za-z0-9_./-]+)$/;
 
 const listingBody = z.object({
   // เส้นทาง "อยากแข่งงานไหน" แสดงเฉพาะเวทีที่จัดประเภทแล้ว จึงบังคับสองช่องนี้ตั้งแต่ตอนกรอก
@@ -493,6 +499,8 @@ const listingBody = z.object({
   keywords: z.array(z.string().trim().min(1).max(40)).max(12).default([]),
   sourceUrl: z.string().trim().url('ต้องมีลิงก์ประกาศต้นทางที่เปิดได้').max(500),
   registerUrl: z.string().trim().url().max(500).nullish(),
+  // รับเฉพาะโปสเตอร์ที่อัปโหลดผ่าน /admin/listings/poster (ไฟล์ของเราเอง) ไม่รับรูปจากเว็บอื่น
+  posterUrl: z.string().trim().max(500).regex(posterPattern, 'อัปโหลดโปสเตอร์ผ่านปุ่มในฟอร์มเท่านั้น').nullish(),
   overview: z.string().trim().max(2000).nullish(),
   audience: z.string().trim().max(2000).nullish(),
   format: z.array(z.string().trim().min(1).max(300)).max(8).default([]),
@@ -544,6 +552,7 @@ function listingValues(body: ListingBody) {
     keywords: body.keywords,
     sourceUrl: body.sourceUrl,
     registerUrl: emptyToNull(body.registerUrl),
+    posterUrl: emptyToNull(body.posterUrl),
     overview: emptyToNull(body.overview),
     audience: emptyToNull(body.audience),
     format: body.format,
@@ -566,6 +575,19 @@ admin.get('/listings', async (c) => {
       categories: cats.filter((item) => item.competitionId === row.id).map((item) => item.category),
     })),
   });
+});
+
+/** อัปโหลดโปสเตอร์ก่อนบันทึกเวที ได้ URL กลับไปใส่ในฟอร์ม รูปเท่านั้น (PDF แสดงเป็นภาพปกไม่ได้) */
+admin.post('/listings/poster', async (c) => {
+  if (!uploadsUsable) throw new HTTPException(503, { message: 'ยังไม่ได้ตั้งค่าที่เก็บไฟล์ของสภาพแวดล้อมนี้ จึงยังรับไฟล์ไม่ได้' });
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) throw new HTTPException(400, { message: 'ไม่พบไฟล์ที่ส่งมา' });
+  if (!file.type.startsWith('image/')) throw new HTTPException(400, { message: 'โปสเตอร์ต้องเป็นรูป JPG, PNG หรือ WebP' });
+  const problem = fileProblem(file);
+  if (problem) throw new HTTPException(400, { message: problem });
+  const stored = await storeFile('competition_poster', c.get('user')!.id, file);
+  return c.json({ url: fileUrl(stored) }, 201);
 });
 
 admin.get('/listings/:id', async (c) => {

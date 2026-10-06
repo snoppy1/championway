@@ -71,3 +71,12 @@ export function CoverArt({ category, seed }: { category: CategoryId; seed: strin
     </svg>
   );
 }
+
+/** ภาพของเวที: โปสเตอร์ที่ทีมงานอัปโหลดถ้ามี ไม่อย่างนั้นใช้ภาพปกที่วาดจากหมวด
+    โปสเตอร์เป็นภาพประกอบ ชื่อเวทีอยู่ในหัวข้อข้างเคียงแล้ว จึงใช้ alt ว่าง */
+export function CompetitionCover({ category, seed, posterUrl, full = false }: {
+  category: CategoryId; seed: string; posterUrl?: string | null; full?: boolean;
+}) {
+  if (!posterUrl) return <CoverArt category={category} seed={seed} />;
+  return <img className={full ? 'cover-poster cover-poster--full' : 'cover-poster'} src={posterUrl} alt="" loading="lazy" decoding="async" />;
+}

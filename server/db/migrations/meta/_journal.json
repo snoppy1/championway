@@ -148,6 +148,13 @@
       "when": 1791222059985,
       "tag": "0020_motionless_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791272344945,
+      "tag": "0021_regular_rocket_raccoon",
+      "breakpoints": true
     }
   ]
 }

@@ -13,7 +13,7 @@ export const categoryEnum = pgEnum('category', [
 ]);
 export const levelEnum = pgEnum('level', ['primary', 'secondary', 'university', 'open']);
 export const opportunityTypeEnum = pgEnum('opportunity_type', ['contest', 'camp', 'workshop', 'scholarship', 'internship']);
-export const regionEnum = pgEnum('region', ['online', 'bangkok', 'central', 'north', 'northeast', 'east', 'south']);
+export const regionEnum = pgEnum('region', ['online', 'nationwide', 'bangkok', 'central', 'north', 'northeast', 'east', 'south']);
 export const rewardEnum = pgEnum('reward', ['certificate', 'trophy', 'publish', 'internship', 'partnership']);
 export const sourceEnum = pgEnum('source', ['editorial', 'organiser', 'partner']);
 export const submissionStatusEnum = pgEnum('submission_status', ['pending', 'info', 'published', 'rejected']);
@@ -85,6 +85,8 @@ export const competitions = pgTable('competitions', {
   source: sourceEnum('source').notNull(),
   lastVerifiedAt: date('last_verified_at').notNull(),
   registerUrl: text('register_url'),
+  /** โปสเตอร์ของเวที (รูปเท่านั้น) ว่าง = ใช้ภาพปกที่วาดจากหมวด */
+  posterUrl: text('poster_url'),
   /** ห้าส่วนนี้ทีมงานเขียนเอง ผู้จัดไม่ได้กรอกมา จึงว่างได้ */
   overview: text('overview'),
   audience: text('audience'),

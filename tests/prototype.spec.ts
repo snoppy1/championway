@@ -165,7 +165,7 @@ test('explore: the kind tabs and theme filters live in the URL and survive a rel
 
   // เวทีที่ยังไม่จัดประเภทต้องไม่ขึ้นหน้านี้ หน้ารายละเอียดจึงเปิดได้ทุกใบที่แสดง
   await page.locator('.competition-card .detail-link').first().click();
-  await expect(page.getByRole('tab', { name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeVisible();
   await page.goBack();
   await page.getByRole('button', { name: 'แข่งเคส', exact: true }).click();
   await expect(page).toHaveURL(/kind=case_competition/);
@@ -189,9 +189,8 @@ test('the old mentor link redirects to the competition, where its mentors now li
   // ลิงก์เก่าที่เคยแชร์ไว้ต้องยังเปิดได้ แต่พาไปที่หน้าเวทีซึ่งมีรายชื่อเมนเทอร์ของงานนั้น
   await page.goto('/mentors?competition=poster-unbound');
   await expect(page).toHaveURL(/\/competitions\/poster-unbound/);
-  // ลิงก์เก่าพามาเปิดที่แท็บเมนเทอร์เลย
-  await expect(page.getByRole('tab', { name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeVisible();
+  // ลิงก์เก่าพามาที่รายชื่อเมนเทอร์ของเวทีนั้นเลย
+  await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeInViewport();
 
   // ลิงก์เปล่าตอนนี้เป็นหน้าสำรวจ Mentor แล้ว ไม่พาไปหน้าแรกอีก
   await page.goto('/mentors');

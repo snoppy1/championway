@@ -577,9 +577,8 @@ test('Available mentors lists Rising Star members first and ranked, then everyon
     risingStar: { id: string; name: string }[]; others: { id: string; name: string }[];
   };
   await page.goto(`/competitions/${slug}#mentors`);
-  // ลิงก์ที่มี #mentors เปิดที่แท็บเมนเทอร์เลย
-  const tab = page.getByRole('tab', { name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' });
-  await expect(tab).toHaveAttribute('aria-selected', 'true');
+  // ลิงก์ที่มี #mentors เลื่อนลงไปที่รายชื่อเมนเทอร์เลย
+  await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeInViewport();
 
   const rising = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.rs-row');
   await expect(rising).toHaveCount(api.risingStar.length);
@@ -598,7 +597,7 @@ test('Available mentors lists Rising Star members first and ranked, then everyon
   await expect(others.locator('.rs-row__rank')).toHaveCount(0);
   await expect(others.locator('.rs-pill')).toHaveCount(0);
   await expect(others.locator('.rs-row__name')).toHaveText(api.others.map((mentor) => mentor.name));
-  const order = await page.locator('#panel-mentors section').evaluateAll((els) => els.map((el) => el.getAttribute('aria-labelledby')));
+  const order = await page.locator('#mentors section').evaluateAll((els) => els.map((el) => el.getAttribute('aria-labelledby')));
   expect(order).toEqual(['rising-title', 'others-title']);
 
   // ทุกคนลิงก์ไปโปรไฟล์ของตัวเอง พกเวทีไปด้วยเพื่อให้กดติดต่อเรื่องเวทีนี้ได้เลย
@@ -621,40 +620,33 @@ test('a mentor card on the competition page shows their checked result there and
   const other = page.getByRole('region', { name: 'เมนเทอร์คนอื่น ๆ' }).locator('.rs-row').first();
   await expect(other.locator('.rs-proof--participant')).toHaveText('เข้าร่วมในเวทีนี้ · 2566');
   await expect(other.locator('.rs-proof--count')).toHaveCount(0);
-  await page.locator('#panel-mentors').screenshot({ path: `artifacts/competition-mentors-proof-${test.info().project.name}.png` });
+  await page.locator('#mentors').screenshot({ path: `artifacts/competition-mentors-proof-${test.info().project.name}.png` });
 });
 
-test('the competition page tabs work with mouse, keyboard and deep links', async ({ page }) => {
+test('details and mentors share one page: details left, mentors right, mentors right after the summary on phones', async ({ page }) => {
+  // ผู้ใช้ขอ 6 ต.ค. 2569 แทนแท็บเดิม
   const slug = demoCompetitions[0].slug;
   await page.goto(`/competitions/${slug}`);
-  const details = page.getByRole('tab', { name: 'รายละเอียด' });
-  const mentors = page.getByRole('tab', { name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' });
-  await expect(page.getByRole('tablist', { name: 'ส่วนต่าง ๆ ของเวที' })).toBeVisible();
-  await expect(details).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tabpanel', { name: 'รายละเอียด' })).toBeVisible();
-  await expect(page.locator('#panel-mentors')).toBeHidden();
+  await expect(page.getByRole('tab')).toHaveCount(0);
+  const glance = page.getByRole('region', { name: 'รู้จักเวทีนี้ในหนึ่งนาที' });
+  const mentors = page.getByRole('complementary', { name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' });
+  await expect(glance).toBeVisible();
+  await expect(mentors.locator('.rs-row').first()).toBeVisible();
+  const [g, m, a] = await Promise.all([glance.boundingBox(), mentors.boundingBox(), page.locator('.detail-article').boundingBox()]);
+  if ((page.viewportSize()?.width ?? 0) > 1000) {
+    // จอกว้าง: เมนเทอร์อยู่ขวาของรายละเอียด
+    expect(m!.x).toBeGreaterThan(g!.x + g!.width - 1);
+  } else {
+    // จอแคบ: สรุป → เมนเทอร์ → เนื้อหา
+    expect(m!.y).toBeGreaterThan(g!.y);
+    expect(a!.y).toBeGreaterThan(m!.y);
+  }
+  const scroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(scroll).toBeLessThanOrEqual(0);
 
-  await mentors.click();
-  await expect(mentors).toHaveAttribute('aria-selected', 'true');
-  await expect(page).toHaveURL(/#mentors$/);
-  await expect(page.locator('#panel-details')).toBeHidden();
-  await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeVisible();
-
-  // เลื่อนด้วยลูกศร โฟกัสตามไปที่แท็บที่เลือก และ roving tabindex เหลือแท็บเดียวที่เข้าถึงด้วย Tab
-  await mentors.focus();
-  await page.keyboard.press('ArrowLeft');
-  await expect(details).toBeFocused();
-  await expect(details).toHaveAttribute('aria-selected', 'true');
-  await expect(mentors).toHaveAttribute('tabindex', '-1');
-  await expect(page).not.toHaveURL(/#mentors/);
-  await page.keyboard.press('End');
-  await expect(mentors).toBeFocused();
-
-  // ลิงก์เก่า #event-mentors ยังพาไปแท็บเมนเทอร์ ส่วนปุ่มในกล่องสรุปเอาออกแล้วตามที่ผู้ใช้สั่ง ใช้แท็บด้านบนแทน
+  // ลิงก์เก่า #event-mentors ยังพาลงไปที่รายชื่อเมนเทอร์
   await page.goto(`/competitions/${slug}#event-mentors`);
-  await expect(mentors).toHaveAttribute('aria-selected', 'true');
-  await details.click();
-  await expect(page.locator('.detail-side').getByRole('button')).toHaveCount(0);
+  await expect(mentors.getByRole('heading', { level: 2 })).toBeInViewport();
 });
 
 test('a competition nobody mentors says so and points to the Hall of Fame', async ({ page }) => {

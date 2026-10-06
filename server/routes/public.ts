@@ -116,6 +116,7 @@ export function toCompetition(record: CompetitionRecord) {
     source: record.source,
     lastVerifiedAt: record.lastVerifiedAt,
     registerUrl: record.registerUrl ?? undefined,
+    posterUrl: record.posterUrl ?? undefined,
     overview: record.overview ?? undefined,
     audience: record.audience ?? undefined,
     format: record.format,
@@ -178,15 +179,18 @@ publicApi.post('/files', requireUser, async (c) => {
   return c.json({ file: publicFile(stored) }, 201);
 });
 
-/** ไฟล์ที่เก็บในเครื่องต้องผ่าน API เพื่อให้ตรวจสิทธิ์ก่อน ของที่อยู่บน blob เปิดตรงได้ */
-publicApi.get('/files/:id', requireUser, async (c) => {
-  const user = c.get('user')!;
+/** ไฟล์ที่เก็บในเครื่องต้องผ่าน API เพื่อให้ตรวจสิทธิ์ก่อน ของที่อยู่บน blob เปิดตรงได้
+    โปสเตอร์เวทีเป็นของสาธารณะ ทุกคนเปิดได้โดยไม่ต้องเข้าสู่ระบบ ไฟล์อื่นต้องเป็นเจ้าของหรือทีมตรวจ */
+publicApi.get('/files/:id', async (c) => {
   const [row] = await db.select().from(filesTable).where(eq(filesTable.id, c.req.param('id'))).limit(1);
-  if (!row) throw new HTTPException(404, { message: 'ไม่พบไฟล์นี้' });
-
-  const reviewer = user.role === 'reviewer' || user.role === 'admin';
-  const owner = row.ownerType === 'user' && row.ownerId === user.id;
-  if (!reviewer && !owner) throw new HTTPException(403, { message: 'ไม่มีสิทธิ์เปิดไฟล์นี้' });
+  const user = c.get('user');
+  if (row?.ownerType !== 'competition_poster') {
+    if (!user) throw new HTTPException(401, { message: 'กรุณาเข้าสู่ระบบก่อน' });
+    if (!row) throw new HTTPException(404, { message: 'ไม่พบไฟล์นี้' });
+    const reviewer = user.role === 'reviewer' || user.role === 'admin';
+    const owner = row.ownerType === 'user' && row.ownerId === user.id;
+    if (!reviewer && !owner) throw new HTTPException(403, { message: 'ไม่มีสิทธิ์เปิดไฟล์นี้' });
+  }
   if (row.path.startsWith('http')) return c.redirect(row.path);
 
   return c.body(await readLocalFile(row), 200, {

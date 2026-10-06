@@ -7,7 +7,7 @@ import type { Competition, Filters, SortId } from '../data/competitions';
 import { clearedFilters, readFilters, writeFilters } from '../data/filters';
 import { toggleSaved, useSavedSlugs } from '../data/saved';
 import { useApi } from '../lib/useApi';
-import { CoverArt } from '../components/CoverArt';
+import { CompetitionCover } from '../components/CoverArt';
 import { Avatar } from '../components/mentors';
 import { FilterPanel } from '../components/FilterPanel';
 import { BookmarkSimple } from '../components/icons';
@@ -82,7 +82,7 @@ function CompetitionCard({ competition }: { competition: Competition }) {
   return <article className="competition-card">
     {competition.featured && <div className="card-featured-bar" aria-hidden="true" />}
     <div className="card-cover">
-      <CoverArt category={first} seed={competition.slug} />
+      <CompetitionCover category={first} seed={competition.slug} posterUrl={competition.posterUrl} />
       {competition.kind && <span className="kind-chip">{t.taxonomy.kinds[competition.kind]}</span>}
       {urgent && <span className="urgent-chip"><Timer size={13} aria-hidden="true" />{t.competition.closesInDays(left)}</span>}
     </div>

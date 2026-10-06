@@ -242,3 +242,10 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Not included: Contester (ToS 6.2 forbids commercial reuse — owner to ask permission), EventPop auto (robots.txt disallows /events/; use paste link).
 - Needs `ANTHROPIC_API_KEY` in Vercel (Production + Preview). Note: listings require kind = hackathon/case_competition, so most Contest Thailand art/clip contests can't be listed as-is.
 - Tests: scripts/imports.test.ts, tests/imports.spec.ts; API 102, browser 311 pass.
+
+## 2026-10-06 — Nationwide region, competition posters, one-page competition layout
+- Region `nationwide` (ทั่วประเทศ) added to the enum (migration 0021); venue optional like online.
+- Posters: `competitions.poster_url` (0021). Admin form uploads via `POST /api/admin/listings/poster` (images only, ownerType `competition_poster`, served publicly by `/api/files/:id`; other files still need permission). Listing body only accepts our own `/api/files/fil_*` or Vercel Blob URLs. Organiser submissions with an image poster on Blob carry it over on publish. `CompetitionCover` shows the poster on cards, the detail hero (full, uncropped) and related items; falls back to CoverArt.
+- Competition page: tabs removed. Left = compact "at a glance" box (+ primary "apply on organizer's page" button) and content sections; right = available mentors (container query switches mentor rows to the compact layout). Phones: glance → mentors → content. `#mentors` / `#event-mentors` still scroll to the mentor list.
+- Design-critic: FAIL → fixed CTA, cramped rows (1-line specialty, plain consult count), label size, 1-column glance <480px. Not done (pre-existing, owner to decide): hero illustration, different list markers per section, Rising Star vs other mentor row styles, "see all" collapse.
+- Tests: scripts/listing-poster.test.ts; consult/prototype specs updated. API 103, browser 311 pass.

@@ -33,7 +33,7 @@ type Listing = {
   region: Region; venue: string | null;
   prizeValue: number; prizeNote: string | null; fee: number | null;
   featured: boolean; keywords: string[];
-  sourceUrl: string; registerUrl: string | null; source: string; lastVerifiedAt: string;
+  sourceUrl: string; registerUrl: string | null; posterUrl: string | null; source: string; lastVerifiedAt: string;
   overview: string | null; audience: string | null;
   format: string[]; deliverables: string[]; preparation: string[];
 };
@@ -109,7 +109,7 @@ type Draft = {
   region: Region; venue: string;
   prizeValue: string; prizeNote: string; fee: string;
   featured: boolean; keywords: string;
-  sourceUrl: string; registerUrl: string;
+  sourceUrl: string; registerUrl: string; posterUrl: string;
   overview: string; audience: string;
   format: string; deliverables: string; preparation: string;
 };
@@ -123,7 +123,7 @@ const blank: Draft = {
   region: 'online', venue: '',
   prizeValue: '', prizeNote: '', fee: '',
   featured: false, keywords: '',
-  sourceUrl: '', registerUrl: '',
+  sourceUrl: '', registerUrl: '', posterUrl: '',
   overview: '', audience: '',
   format: '', deliverables: '', preparation: '',
 };
@@ -160,7 +160,7 @@ export function AdminListingForm() {
       prizeValue: String(listing.prizeValue), prizeNote: listing.prizeNote ?? '',
       fee: listing.fee === null ? '' : String(listing.fee),
       featured: listing.featured, keywords: listing.keywords.join(', '),
-      sourceUrl: listing.sourceUrl, registerUrl: listing.registerUrl ?? '',
+      sourceUrl: listing.sourceUrl, registerUrl: listing.registerUrl ?? '', posterUrl: listing.posterUrl ?? '',
       overview: listing.overview ?? '', audience: listing.audience ?? '',
       format: fromLines(listing.format), deliverables: fromLines(listing.deliverables),
       preparation: fromLines(listing.preparation),
@@ -186,6 +186,26 @@ export function AdminListingForm() {
     });
   }, [imported]);
 
+  const [posterBusy, setPosterBusy] = useState(false);
+  const [posterMessage, setPosterMessage] = useState('');
+  async function uploadPoster(file: File | undefined) {
+    if (!file) return;
+    setPosterBusy(true);
+    setPosterMessage('');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch('/api/admin/listings/poster', { method: 'POST', body, credentials: 'same-origin' });
+      const result = await response.json().catch(() => ({})) as { url?: string; error?: string };
+      if (!response.ok || !result.url) throw new Error(result.error ?? 'อัปโหลดโปสเตอร์ไม่สำเร็จ');
+      set('posterUrl', result.url);
+    } catch (failure) {
+      setPosterMessage(failure instanceof Error ? failure.message : 'อัปโหลดโปสเตอร์ไม่สำเร็จ');
+    } finally {
+      setPosterBusy(false);
+    }
+  }
+
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   function toggle<T>(list: T[], value: T, key: 'categories' | 'levels' | 'rewards' | 'themes', max?: number) {
     if (list.includes(value)) set(key, list.filter((item) => item !== value) as never);
@@ -209,7 +229,7 @@ export function AdminListingForm() {
         fee: draft.fee ? Number(draft.fee) : null,
         featured: draft.featured,
         keywords: draft.keywords.split(',').map((word) => word.trim()).filter(Boolean),
-        sourceUrl: draft.sourceUrl, registerUrl: draft.registerUrl || null,
+        sourceUrl: draft.sourceUrl, registerUrl: draft.registerUrl || null, posterUrl: draft.posterUrl || null,
         overview: draft.overview || null, audience: draft.audience || null,
         format: toLines(draft.format), deliverables: toLines(draft.deliverables),
         preparation: toLines(draft.preparation),
@@ -364,6 +384,15 @@ export function AdminListingForm() {
           <div className="admin-field"><dt><label htmlFor="listing-source">ลิงก์ประกาศต้นทาง *</label></dt>
             <dd><input id="listing-source" type="url" required placeholder="https://" value={draft.sourceUrl} onChange={(e) => set('sourceUrl', e.target.value)} />
               <span className="admin-muted">บังคับทุกเวที ผู้ใช้ต้องตรวจสอบเองได้</span></dd></div>
+          <div className="admin-field"><dt><label htmlFor="listing-poster">โปสเตอร์</label></dt>
+            <dd>
+              {draft.posterUrl && <img className="listing-poster" src={draft.posterUrl} alt="โปสเตอร์ที่อัปโหลดไว้" />}
+              <input id="listing-poster" type="file" accept="image/png,image/jpeg,image/webp" disabled={posterBusy}
+                onChange={(e) => { void uploadPoster(e.target.files?.[0]); e.target.value = ''; }} />
+              <span className="admin-muted" role="status">{posterBusy ? 'กำลังอัปโหลด…' : 'รูป JPG, PNG หรือ WebP ไม่เกิน 5 MB · ไม่ใส่ = ใช้ภาพปกตามหมวด'}</span>
+              {draft.posterUrl && <button type="button" className="ghost-button listing-poster__remove" onClick={() => set('posterUrl', '')}>เอาโปสเตอร์ออก</button>}
+              {posterMessage && <span className="admin-message" role="alert">{posterMessage}</span>}
+            </dd></div>
           <div className="admin-field"><dt><label htmlFor="listing-register">ลิงก์สมัคร</label></dt>
             <dd><input id="listing-register" type="url" placeholder="https://" value={draft.registerUrl} onChange={(e) => set('registerUrl', e.target.value)} /></dd></div>
           <div className="admin-field"><dt><label htmlFor="listing-keywords">คำค้นเพิ่มเติม</label></dt>

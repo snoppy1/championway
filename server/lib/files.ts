@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { put } from '@vercel/blob';
+import { HTTPException } from 'hono/http-exception';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { files } from '../db/schema.js';
@@ -32,13 +33,20 @@ export async function storeFile(ownerType: string, ownerId: string, file: File) 
 
   if (blobConfigured) {
     // addRandomSuffix ปิดไว้เพราะ id ของเราสุ่มอยู่แล้ว จะได้ตามรอยกลับมาที่แถวนี้ได้
-    const blob = await put(`submissions/${name}`, file, {
-      access: 'public',
-      token: env.blobToken,
-      addRandomSuffix: false,
-      contentType: file.type,
-    });
-    path = blob.url;
+    /* ที่เก็บตอบผิดพลาด (คีย์หมดอายุ ตั้งที่เก็บเป็น private ฯลฯ) บอกสาเหตุจาก Vercel Blob ตรง ๆ
+       ไม่ปล่อยเป็น 500 เปล่า ๆ ที่ตามหาสาเหตุไม่ได้ ข้อความของ Blob ไม่มีคีย์หรือค่าลับ */
+    try {
+      const blob = await put(`submissions/${name}`, file, {
+        access: 'public',
+        token: env.blobToken,
+        addRandomSuffix: false,
+        contentType: file.type,
+      });
+      path = blob.url;
+    } catch (error) {
+      console.error('[files] blob upload failed', error);
+      throw new HTTPException(502, { message: `ที่เก็บไฟล์ตอบผิดพลาด: ${(error instanceof Error ? error.message : String(error)).slice(0, 200)}` });
+    }
   } else {
     await mkdir(env.uploadDir, { recursive: true });
     await writeFile(join(env.uploadDir, name), Buffer.from(await file.arrayBuffer()));

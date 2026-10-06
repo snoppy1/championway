@@ -215,8 +215,7 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
   let publishedSlug: string | null = null;
   /* โปสเตอร์ที่ผู้จัดแนบมา (รูปบน Blob ซึ่งเปิดสาธารณะอยู่แล้ว) ใช้เป็นภาพของเวทีเลย
      PDF หรือไฟล์ในเครื่องตอนพัฒนาไม่ใช้ หน้าเวทีจะแสดงภาพปกที่วาดจากหมวดแทน */
-  const poster = (await filesOf('competition_submission', id))
-    .find((file) => file.mime.startsWith('image/') && file.path.startsWith('https://'));
+  const poster = (await filesOf('competition_submission', id)).find((file) => file.mime.startsWith('image/'));
 
   await db.transaction(async (tx) => {
     const [current] = await tx.select().from(competitionSubmissions).where(eq(competitionSubmissions.id, id)).for('update');
@@ -243,7 +242,7 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
         description: submission.description,
         type: submission.type,
         org: submission.organizerName,
-        posterUrl: poster?.path ?? null,
+        posterUrl: poster ? fileUrl(poster) : null,
         closesAt: submission.closesAt,
         opensAt: submission.opensAt,
         eventDate: submission.eventDate,

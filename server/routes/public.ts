@@ -17,7 +17,7 @@ import { notify } from '../lib/email.js';
 import { notifyStaff } from '../lib/staff-notify.js';
 import { env } from '../lib/env.js';
 import { uploadsUsable } from '../lib/env.js';
-import { attachFiles, fileProblem, publicFile, readLocalFile, storeFile } from '../lib/files.js';
+import { attachFiles, fileProblem, publicFile, readStoredFile, storeFile } from '../lib/files.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
 
@@ -184,17 +184,23 @@ publicApi.post('/files', requireUser, async (c) => {
 publicApi.get('/files/:id', async (c) => {
   const [row] = await db.select().from(filesTable).where(eq(filesTable.id, c.req.param('id'))).limit(1);
   const user = c.get('user');
-  if (row?.ownerType !== 'competition_poster') {
+  // โปสเตอร์ที่ทีมงานอัปโหลด หรือรูปที่ผู้จัดแนบมาแล้วกลายเป็นโปสเตอร์ของเวทีที่เผยแพร่แล้ว เปิดได้ทุกคน
+  const poster = row?.ownerType === 'competition_poster' || (row ? (await db.select({ id: competitionsTable.id }).from(competitionsTable)
+    .where(eq(competitionsTable.posterUrl, `/api/files/${row.id}`)).limit(1)).length > 0 : false);
+  if (!poster) {
     if (!user) throw new HTTPException(401, { message: 'กรุณาเข้าสู่ระบบก่อน' });
     if (!row) throw new HTTPException(404, { message: 'ไม่พบไฟล์นี้' });
     const reviewer = user.role === 'reviewer' || user.role === 'admin';
     const owner = row.ownerType === 'user' && row.ownerId === user.id;
     if (!reviewer && !owner) throw new HTTPException(403, { message: 'ไม่มีสิทธิ์เปิดไฟล์นี้' });
   }
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบไฟล์นี้' });
   if (row.path.startsWith('http')) return c.redirect(row.path);
 
-  return c.body(await readLocalFile(row), 200, {
+  return c.body(await readStoredFile(row) as ArrayBuffer, 200, {
     'content-type': row.mime,
+    // โปสเตอร์เก็บในแคชได้ ไฟล์ส่วนตัว (หลักฐาน รูปโปรไฟล์) ห้ามแคชร่วม
+    'cache-control': poster ? 'public, max-age=86400' : 'private, no-store',
     'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(row.originalName)}`,
   });
 });

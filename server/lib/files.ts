@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { put } from '@vercel/blob';
+import { get, put } from '@vercel/blob';
 import { HTTPException } from 'hono/http-exception';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
@@ -26,6 +26,10 @@ export function fileProblem(file: File) {
 
 export type StoredFile = typeof files.$inferSelect;
 
+/** ไฟล์บนที่เก็บแบบ private: path ขึ้นต้นด้วยคำนี้ตามด้วย URL ของ blob เปิดตรงไม่ได้ ต้องผ่าน API */
+const PRIVATE = 'private:';
+let storeAccess: 'public' | 'private' = 'public';
+
 export async function storeFile(ownerType: string, ownerId: string, file: File) {
   const id = newId('fil');
   const name = `${id}${extname(file.name) || ''}`;
@@ -36,13 +40,20 @@ export async function storeFile(ownerType: string, ownerId: string, file: File) 
     /* ที่เก็บตอบผิดพลาด (คีย์หมดอายุ ตั้งที่เก็บเป็น private ฯลฯ) บอกสาเหตุจาก Vercel Blob ตรง ๆ
        ไม่ปล่อยเป็น 500 เปล่า ๆ ที่ตามหาสาเหตุไม่ได้ ข้อความของ Blob ไม่มีคีย์หรือค่าลับ */
     try {
-      const blob = await put(`submissions/${name}`, file, {
-        access: 'public',
-        token: env.blobToken,
-        addRandomSuffix: false,
-        contentType: file.type,
+      const upload = (access: 'public' | 'private') => put(`submissions/${name}`, file, {
+        access, token: env.blobToken, addRandomSuffix: false, contentType: file.type,
       });
-      path = blob.url;
+      /* ที่เก็บของ Vercel Blob ตั้งเป็น public หรือ private ได้ตอนสร้าง (dev ตั้งเป็น private ไว้)
+         ลองแบบที่เคยใช้ได้ก่อน ถ้าที่เก็บบอกว่าผิดแบบ ค่อยสลับ ไฟล์ private เปิดผ่าน /api/files/:id ที่ตรวจสิทธิ์ */
+      let blob;
+      try {
+        blob = await upload(storeAccess);
+      } catch (error) {
+        if (!/(public|private) access on a (private|public) store/i.test(String(error))) throw error;
+        storeAccess = storeAccess === 'public' ? 'private' : 'public';
+        blob = await upload(storeAccess);
+      }
+      path = storeAccess === 'private' ? `${PRIVATE}${blob.url}` : blob.url;
     } catch (error) {
       console.error('[files] blob upload failed', error);
       throw new HTTPException(502, { message: `ที่เก็บไฟล์ตอบผิดพลาด: ${(error instanceof Error ? error.message : String(error)).slice(0, 200)}` });
@@ -59,12 +70,18 @@ export async function storeFile(ownerType: string, ownerId: string, file: File) 
   return row;
 }
 
-/** ที่อยู่ที่เปิดไฟล์ได้ ของนอกใช้ URL ตรง ของในเครื่องผ่าน API ที่ตรวจสิทธิ์ก่อน */
+/** ที่อยู่ที่เปิดไฟล์ได้ ของบนที่เก็บแบบ public ใช้ URL ตรง ของในเครื่องหรือแบบ private ผ่าน API ที่ตรวจสิทธิ์ก่อน */
 export function fileUrl(row: StoredFile) {
   return row.path.startsWith('http') ? row.path : `/api/files/${row.id}`;
 }
 
-export async function readLocalFile(row: StoredFile) {
+/** เนื้อไฟล์สำหรับ /api/files/:id: ไฟล์ในเครื่อง หรือดึงจากที่เก็บแบบ private (ของ public redirect ไปเปิดตรง) */
+export async function readStoredFile(row: StoredFile): Promise<ArrayBuffer | Buffer> {
+  if (row.path.startsWith(PRIVATE)) {
+    const result = await get(row.path.slice(PRIVATE.length), { access: 'private', token: env.blobToken });
+    if (!result || !result.stream) throw new Error('ไม่พบไฟล์บนที่เก็บ');
+    return new Response(result.stream).arrayBuffer();
+  }
   return readFile(join(env.uploadDir, row.path));
 }
 

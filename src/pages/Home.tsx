@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Timer, Trophy } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { activeFilterCount, daysLeft, formatDeadline, prizeLabel, sortOptions } from '../data/competitions';
+import { activeFilterCount, daysLeft, exactDeadline, formatDeadline, prizeLabel, sortOptions } from '../data/competitions';
 import type { Competition, Filters, SortId } from '../data/competitions';
 import { clearedFilters, readFilters, writeFilters } from '../data/filters';
 import { toggleSaved, useSavedSlugs } from '../data/saved';
@@ -19,7 +19,7 @@ import '../journey.css';
 
 const PER_PAGE = 6;
 
-type NewMentor = { id: string; name: string; initial: string; specialty: string };
+type NewMentor = { id: string; name: string; initial: string; specialty: string; photoUrl?: string | null };
 
 /* แถบ "Mentor หน้าใหม่" แทนการแข่งขันล่าสุด (ผู้ใช้ขอ 5 ต.ค. 2569) เรียงจากคนที่ทีมงานอนุมัติล่าสุด
    เลื่อนเองด้วยปุ่มลูกศรหรือแถบข้างล่าง ไม่เลื่อนอัตโนมัติ จึงไม่ต้องมีปุ่มหยุด */
@@ -59,7 +59,7 @@ function NewMentors({ onReady }: { onReady: (ready: boolean) => void }) {
     {/* ต้องรับ focus ได้เพื่อให้เลื่อนด้วยลูกศรบนคีย์บอร์ดได้เหมือนกับเมาส์ */}
     <div className="trend-scroller" ref={scroller} tabIndex={0} role="group" aria-label={s.newMentorsScroll}>
       {items.map((mentor) => <Link className="trend-card mentor-slide" key={mentor.id} to={`/mentors/${mentor.id}`}>
-        <Avatar initial={mentor.initial} />
+        <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
         <div>
           <b>{mentor.name}</b>
           <small>{mentor.specialty}</small>
@@ -76,7 +76,7 @@ function CompetitionCard({ competition }: { competition: Competition }) {
   const saved = useSavedSlugs();
   const isSaved = saved.includes(competition.slug);
   const left = daysLeft(competition);
-  const urgent = left >= 0 && left <= 7;
+  const urgent = left >= 0 && left <= 7 && exactDeadline(competition);
   const [first] = competition.categories;
 
   return <article className="competition-card">
@@ -94,7 +94,7 @@ function CompetitionCard({ competition }: { competition: Competition }) {
       <h3><Link to={`/competitions/${competition.slug}${search}`}>{competition.name}</Link></h3>
       <p className="card-summary">{competition.description}</p>
       <div className="card-facts">
-        <span><Calendar size={15} aria-hidden="true" />{t.competition.closes(formatDeadline(competition, lang))}</span>
+        <span><Calendar size={15} aria-hidden="true" />{t.competition.closes(formatDeadline(competition, lang, t))}</span>
         <span><Trophy size={15} aria-hidden="true" />{prizeLabel(competition, t, lang)}</span>
       </div>
       <div className="card-actions">

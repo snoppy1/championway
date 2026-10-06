@@ -6,14 +6,14 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
-  daysLeft, feeLabel, formatDate, formatDeadline, placeLabel,
+  daysLeft, exactDeadline, feeLabel, formatDate, formatDeadline, placeLabel,
   primaryCategory, prizeLabel, teamLabel,
 } from '../data/competitions';
 import type { Competition } from '../data/competitions';
 import { CompetitionCover } from '../components/CoverArt';
 import { useApi } from '../lib/useApi';
 import type { ListedMentor, RankedMentor } from '../data/consult';
-import { OtherRow, RankedRow } from '../components/mentors';
+import { MentorTile } from '../components/mentors';
 import { useI18n } from '../i18n';
 import { useHiring } from '../data/hiring';
 import '../journey.css';
@@ -48,17 +48,17 @@ function AvailableMentors({ slug }: { slug: string }) {
   </div>;
 
   return <>
+    {/* Rising Star จ่ายเพื่ออยู่ข้างบน ไม่ต้องอธิบายวิธีเรียง (ผู้ใช้ขอ 6 ต.ค. 2569) */}
     <section className="rs-section" aria-labelledby="rising-title">
       <div className="rs-section-head"><h3 id="rising-title">{s.risingTitle}</h3></div>
-      <p className="rs-section-sub">{s.risingSub}</p>
       {data.risingStar.length === 0
         ? <div className="rs-empty"><p>{s.risingEmpty}</p></div>
-        : <ol className="rs-list">{data.risingStar.map((mentor) => <RankedRow key={mentor.id} mentor={mentor} competition={slug} hire={hiring === true} />)}</ol>}
+        : <ol className="mentor-tiles">{data.risingStar.map((mentor) => <MentorTile key={mentor.id} mentor={mentor} rank={mentor.rank} competition={slug} hire={hiring === true} />)}</ol>}
     </section>
     {data.others.length > 0 && <section className="rs-section" aria-labelledby="others-title">
       <div className="rs-section-head"><h3 id="others-title">{s.othersTitle}</h3></div>
       <p className="rs-section-sub">{s.othersSub}</p>
-      <ul className="rs-list rs-list--plain">{data.others.map((mentor) => <OtherRow key={mentor.id} mentor={mentor} competition={slug} hire={hiring === true} />)}</ul>
+      <ul className="mentor-tiles">{data.others.map((mentor) => <MentorTile key={mentor.id} mentor={mentor} competition={slug} hire={hiring === true} />)}</ul>
     </section>}
   </>;
 }
@@ -147,7 +147,7 @@ export function Detail() {
         <dl>
           <div>
             <dt><Calendar size={16} aria-hidden="true" />{s.closesLabel}</dt>
-            <dd>{formatDeadline(competition, lang)}{left >= 0 && ` · ${t.competition.daysLeft(left)}`}</dd>
+            <dd>{formatDeadline(competition, lang, t)}{left >= 0 && exactDeadline(competition) && ` · ${t.competition.daysLeft(left)}`}</dd>
           </div>
           <div>
             <dt><Trophy size={16} aria-hidden="true" />{s.prize}</dt>

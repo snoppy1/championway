@@ -87,7 +87,7 @@ async function activeMemberIds(now = new Date()) {
 }
 const card = (m: typeof mentors.$inferSelect) => ({
   id: m.id, name: m.name, initial: m.avatar.replace(/^[เแโใไ]+/, '').slice(0, 1) || m.avatar.slice(0, 1),
-  specialty: m.weeklyFocus ?? m.bio, verified: m.verified,
+  specialty: m.weeklyFocus ?? m.bio, verified: m.verified, photoUrl: m.photoUrl,
 });
 
 /* ---------- ใครเป็นเมนเทอร์ และรายชื่องานที่เลือกได้ ---------- */

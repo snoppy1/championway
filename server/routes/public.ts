@@ -18,6 +18,7 @@ import { notifyStaff } from '../lib/staff-notify.js';
 import { env } from '../lib/env.js';
 import { uploadsUsable } from '../lib/env.js';
 import { attachFiles, fileProblem, publicFile, readStoredFile, storeFile } from '../lib/files.js';
+import { monthEdge } from '../lib/dates.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
 
@@ -99,6 +100,8 @@ export function toCompetition(record: CompetitionRecord) {
     org: record.org,
     closesAt: record.closesAt,
     opensAt: record.opensAt ?? undefined,
+    closesPrecision: record.closesPrecision,
+    opensPrecision: record.opensPrecision,
     eventDate: record.eventDate ?? undefined,
     region: record.region,
     venue: record.venue ?? undefined,
@@ -185,8 +188,12 @@ publicApi.get('/files/:id', async (c) => {
   const [row] = await db.select().from(filesTable).where(eq(filesTable.id, c.req.param('id'))).limit(1);
   const user = c.get('user');
   // โปสเตอร์ที่ทีมงานอัปโหลด หรือรูปที่ผู้จัดแนบมาแล้วกลายเป็นโปสเตอร์ของเวทีที่เผยแพร่แล้ว เปิดได้ทุกคน
-  const poster = row?.ownerType === 'competition_poster' || (row ? (await db.select({ id: competitionsTable.id }).from(competitionsTable)
-    .where(eq(competitionsTable.posterUrl, `/api/files/${row.id}`)).limit(1)).length > 0 : false);
+  const own = `/api/files/${row?.id}`;
+  // รูปโปรไฟล์ของเมนเทอร์ที่เผยแพร่แล้วก็เป็นของสาธารณะเหมือนโปสเตอร์
+  const poster = row?.ownerType === 'competition_poster' || (row ? (
+    (await db.select({ id: competitionsTable.id }).from(competitionsTable).where(eq(competitionsTable.posterUrl, own)).limit(1)).length > 0
+    || (await db.select({ id: mentors.id }).from(mentors).where(eq(mentors.photoUrl, own)).limit(1)).length > 0
+  ) : false);
   if (!poster) {
     if (!user) throw new HTTPException(401, { message: 'กรุณาเข้าสู่ระบบก่อน' });
     if (!row) throw new HTTPException(404, { message: 'ไม่พบไฟล์นี้' });
@@ -231,6 +238,8 @@ const competitionSubmissionBody = z.object({
   teamMax: z.number().int().min(1).max(100),
   opensAt: isoDate.optional(),
   closesAt: isoDate,
+  /** รู้แค่เดือน: เก็บเป็นวันแรก (เปิด) และวันสุดท้าย (ปิด) ของเดือน (6 ต.ค. 2569) */
+  datePrecision: z.enum(['day', 'month']).default('day'),
   eventDate: isoDate.optional(),
   region: z.enum(regionEnum.enumValues),
   venue: z.string().trim().max(200).optional(),
@@ -270,8 +279,10 @@ publicApi.post('/submissions/competition', requireUser, async (c) => {
       type: body.type,
       teamMin: body.teamMin,
       teamMax: body.teamMax,
-      opensAt: body.opensAt ?? null,
-      closesAt: body.closesAt,
+      opensAt: body.opensAt ? (body.datePrecision === 'month' ? monthEdge(body.opensAt, 'first') : body.opensAt) : null,
+      closesAt: body.datePrecision === 'month' ? monthEdge(body.closesAt, 'last') : body.closesAt,
+      opensPrecision: body.datePrecision,
+      closesPrecision: body.datePrecision,
       eventDate: body.eventDate ?? null,
       region: body.region,
       venue: body.venue ?? null,
@@ -349,10 +360,17 @@ const mentorSubmissionBody = z.object({
     result: z.enum(['winner', 'finalist', 'participant']).default('winner'),
     detail: z.string().trim().max(200).default(''),
     year: z.string().trim().min(1).max(10),
-    // ลิงก์ต้องเป็น http(s) ห้าม javascript: data: (หน้า admin อาจทำเป็นลิงก์) ค่าที่ไม่ใช่ลิงก์คือชื่อไฟล์แนบ
-    evidence: z.string().trim().min(1).max(400).refine(safeEvidence, 'ลิงก์หลักฐานต้องขึ้นต้นด้วย https://'),
+    // ลิงก์ต้องเป็น http(s) ห้าม javascript: data: (หน้า admin อาจทำเป็นลิงก์) ไม่บังคับแล้ว เพราะบังคับแนบไฟล์แทน
+    evidence: z.string().trim().max(400).refine((v) => !v || safeEvidence(v), 'ลิงก์หลักฐานต้องขึ้นต้นด้วย https://').default(''),
+    /** ไฟล์หลักฐานที่อัปโหลดผ่าน /api/files ก่อนส่งใบ บังคับทุกรายการ (ผู้ใช้ขอ 6 ต.ค. 2569) */
+    evidenceFileId: z.string().trim().min(1, 'แนบไฟล์หลักฐานของทุกเวที').max(60),
     wantsMentor: z.boolean().default(false),
+    /** ราคาของเวทีที่ยังไม่มีในระบบ (ติ๊กอยากเป็นเมนเทอร์) อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
+    offer: z.object({ price: z.number().int().min(0).max(100000), unit: z.string().trim().max(40).default('') })
+      .refine((o) => o.price === 0 || o.unit.length > 0, 'บอกด้วยว่าราคานี้คิดต่ออะไร เช่น ชั่วโมง หรือโปรเจกต์').nullish(),
   })).min(1, 'เพิ่มประสบการณ์แข่งขันอย่างน้อยหนึ่งรายการ').max(30),
+  /** รูปโปรไฟล์ที่อัปโหลดผ่าน /api/files ก่อนส่งใบ บังคับ เมนเทอร์ทุกคนมีรูปบนหน้าเวที (ผู้ใช้ขอ 6 ต.ค. 2569) */
+  photoFileId: z.string().trim().min(1, 'เพิ่มรูปโปรไฟล์').max(60),
   /** id ของไฟล์หลักฐานที่อัปโหลดไว้ก่อนหน้า */
   fileIds: z.array(z.string().max(60)).max(4).default([]),
 }).refine((v) => [v.contactEmail, v.contactLine, v.contactPhone, v.contactInstagram, v.contactLink].some(Boolean),
@@ -382,6 +400,20 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
   const missing = [...mentorFor].filter((slug) => !priced.has(slug));
   if (missing.length) throw new HTTPException(400, { message: 'ใส่ราคาของทุกเวทีที่อยากเป็นเมนเทอร์ (ฟรี หรือราคาต่ออะไร)' });
   const offers = [...mentorFor].map((slug) => ({ competitionId: idOf.get(slug)!, ...priced.get(slug)! }));
+  // เวทีที่ยังไม่มีในระบบแต่ติ๊กอยากเป็นเมนเทอร์ ต้องมีราคามาด้วย
+  const typedMentor = (award: typeof body.awards[number]) => award.wantsMentor && !(award.competitionSlug && idOf.has(award.competitionSlug));
+  if (body.awards.some((award) => typedMentor(award) && !award.offer)) {
+    throw new HTTPException(400, { message: 'ใส่ราคาของทุกเวทีที่อยากเป็นเมนเทอร์ (ฟรี หรือราคาต่ออะไร)' });
+  }
+
+  /* ไฟล์ที่อ้างต้องเป็นของผู้สมัครเอง และยังไม่ถูกผูกกับใบไหน (อัปโหลดผ่าน /api/files) รูปโปรไฟล์ต้องเป็นรูปภาพ */
+  const wanted = [...new Set([body.photoFileId, ...body.awards.map((award) => award.evidenceFileId)])];
+  const owned = await db.select({ id: filesTable.id, mime: filesTable.mime }).from(filesTable)
+    .where(and(inArray(filesTable.id, wanted), eq(filesTable.ownerType, 'user'), eq(filesTable.ownerId, user.id)));
+  if (owned.length !== wanted.length) throw new HTTPException(400, { message: 'ไฟล์แนบบางไฟล์ใช้ไม่ได้ อัปโหลดใหม่อีกครั้ง' });
+  if (!owned.find((file) => file.id === body.photoFileId)?.mime.startsWith('image/')) {
+    throw new HTTPException(400, { message: 'รูปโปรไฟล์ต้องเป็นไฟล์ JPG, PNG หรือ WebP' });
+  }
 
   await db.transaction(async (tx) => {
     await tx.insert(mentorSubmissions).values({
@@ -411,7 +443,11 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
       competitionOffers: offers,
       paidSlot: body.paidSlot ? new Date(body.paidSlot) : null,
       freeSlot: body.freeSlot ? new Date(body.freeSlot) : null,
+      photoFileId: body.photoFileId,
     });
+    // ผูกไฟล์กับใบนี้ เจ้าของเปลี่ยนจากผู้ใช้เป็นใบสมัคร เปิดดูได้เฉพาะทีมตรวจ (รูปโปรไฟล์เปิดสาธารณะหลังอนุมัติ)
+    await tx.update(filesTable).set({ ownerType: 'mentor_submission', ownerId: id })
+      .where(and(inArray(filesTable.id, wanted), eq(filesTable.ownerType, 'user'), eq(filesTable.ownerId, user.id)));
     if (body.awards.length) {
       await tx.insert(mentorAwards).values(body.awards.map((award) => ({
         id: newId('aw'),
@@ -421,9 +457,12 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
         competitionSlug: award.competitionSlug && idOf.has(award.competitionSlug) ? award.competitionSlug : null,
         year: award.year,
         evidence: award.evidence,
+        evidenceFileId: award.evidenceFileId,
         result: award.result,
         detail: award.detail,
-        wantsMentor: Boolean(award.wantsMentor && award.competitionSlug && mentorFor.has(award.competitionSlug)),
+        wantsMentor: Boolean(award.wantsMentor && ((award.competitionSlug && mentorFor.has(award.competitionSlug)) || typedMentor(award))),
+        offerPrice: typedMentor(award) ? award.offer!.price : null,
+        offerUnit: typedMentor(award) && award.offer!.price > 0 ? award.offer!.unit : '',
       })));
     }
   });

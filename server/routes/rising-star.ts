@@ -32,12 +32,12 @@ const overlaps = (p: Period, start: Date, end: Date) => p.endsAt > p.startsAt &&
 const NEWEST = 10;
 
 risingStar.get('/newest', async (c) => {
-  const rows = await db.select({ id: mentors.id, name: mentors.name, avatar: mentors.avatar, bio: mentors.bio, focus: mentors.weeklyFocus })
+  const rows = await db.select({ id: mentors.id, name: mentors.name, avatar: mentors.avatar, bio: mentors.bio, focus: mentors.weeklyFocus, photoUrl: mentors.photoUrl })
     .from(mentors).orderBy(desc(mentors.createdAt), mentors.id).limit(NEWEST);
   c.header('Cache-Control', 'public, max-age=60');
   return c.json({
     items: rows.map((mentor) => ({
-      id: mentor.id, name: mentor.name, initial: initialOf(mentor.avatar || mentor.name), specialty: mentor.focus ?? mentor.bio,
+      id: mentor.id, name: mentor.name, initial: initialOf(mentor.avatar || mentor.name), specialty: mentor.focus ?? mentor.bio, photoUrl: mentor.photoUrl,
     })),
   });
 });
@@ -50,7 +50,7 @@ risingStar.get('/', async (c) => {
   const [allMentors, periods, monthRatings] = await Promise.all([
     db.select({
       id: mentors.id, name: mentors.name, avatar: mentors.avatar, bio: mentors.bio,
-      focus: mentors.weeklyFocus, price: mentors.price, minutes: mentors.minutes, unit: mentors.priceUnit,
+      focus: mentors.weeklyFocus, price: mentors.price, minutes: mentors.minutes, unit: mentors.priceUnit, photoUrl: mentors.photoUrl,
     }).from(mentors),
     db.select({ mentorId: risingStarPeriods.mentorId, startsAt: risingStarPeriods.startsAt, endsAt: risingStarPeriods.endsAt, source: risingStarPeriods.source })
       .from(risingStarPeriods).where(gt(risingStarPeriods.endsAt, twoAgo.start)),
@@ -63,7 +63,7 @@ risingStar.get('/', async (c) => {
     const mentor = byId.get(id)!;
     return {
       id: mentor.id, name: mentor.name, initial: initialOf(mentor.avatar || mentor.name),
-      specialty: mentor.focus ?? mentor.bio, price: mentor.price, minutes: mentor.minutes, unit: mentor.unit,
+      specialty: mentor.focus ?? mentor.bio, price: mentor.price, minutes: mentor.minutes, unit: mentor.unit, photoUrl: mentor.photoUrl,
       rating: ratingJson(ratings.get(id)),
     };
   };

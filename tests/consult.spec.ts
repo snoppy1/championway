@@ -580,23 +580,24 @@ test('Available mentors lists Rising Star members first and ranked, then everyon
   // ลิงก์ที่มี #mentors เลื่อนลงไปที่รายชื่อเมนเทอร์เลย
   await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeInViewport();
 
-  const rising = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.rs-row');
+  const rising = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.mentor-tile');
   await expect(rising).toHaveCount(api.risingStar.length);
   expect(api.risingStar.length).toBeGreaterThan(1);
-  const names = await rising.locator('.rs-row__name').allTextContents();
-  expect(names.map((name) => name.replace('Rising Star', ''))).toEqual(api.risingStar.map((mentor) => mentor.name));
-  await expect(page.getByRole('region', { name: 'เมนเทอร์ Rising Star' })).toContainText('เรียงตามรีวิว จำนวนครั้งที่ให้คำปรึกษา และผลงานในเวทีนี้');
+  const names = await rising.locator('.mentor-tile__name').allTextContents();
+  expect(names).toEqual(api.risingStar.map((mentor) => mentor.name));
+  // Rising Star จ่ายเพื่ออยู่ข้างบน ไม่ต้องบอกวิธีเรียง (ผู้ใช้ขอ 6 ต.ค. 2569)
+  await expect(page.getByRole('region', { name: 'เมนเทอร์ Rising Star' })).not.toContainText('เรียงตามรีวิว');
   for (const [index, row] of (await rising.all()).entries()) {
-    await expect(row.locator('.rs-row__rank')).toContainText(`อันดับ ${index + 1}`);
-    await expect(row.locator('.rs-row__meta')).toContainText('บาท');
+    await expect(row.locator('.mentor-tile__rank')).toContainText(`อันดับ ${index + 1}`);
+    await expect(row.locator('.mentor-tile__meta')).toContainText('บาท');
     await expect(row.getByRole('link', { name: hiringOn ? /^จ้าง / : /^ดูโปรไฟล์ของ / })).toBeVisible();
   }
 
   // ที่ไม่ใช่สมาชิกอยู่ต่อท้าย ไม่มีเลขอันดับและไม่มีป้าย Rising Star
   const others = page.getByRole('region', { name: 'เมนเทอร์คนอื่น ๆ' });
-  await expect(others.locator('.rs-row__rank')).toHaveCount(0);
+  await expect(others.locator('.mentor-tile__rank')).toHaveCount(0);
   await expect(others.locator('.rs-pill')).toHaveCount(0);
-  await expect(others.locator('.rs-row__name')).toHaveText(api.others.map((mentor) => mentor.name));
+  await expect(others.locator('.mentor-tile__name')).toHaveText(api.others.map((mentor) => mentor.name));
   const order = await page.locator('#mentors section').evaluateAll((els) => els.map((el) => el.getAttribute('aria-labelledby')));
   expect(order).toEqual(['rising-title', 'others-title']);
 
@@ -614,10 +615,10 @@ test('a mentor card on the competition page shows their checked result there and
     await route.fulfill({ json });
   });
   await page.goto(`/competitions/${slug}#mentors`);
-  const first = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.rs-row').first();
+  const first = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.mentor-tile').first();
   await expect(first.locator('.rs-proof--winner')).toHaveText('ได้รางวัลในเวทีนี้ · 2567');
   await expect(first.locator('.rs-proof--count')).toHaveText('ให้คำปรึกษาแล้ว 12 ครั้ง');
-  const other = page.getByRole('region', { name: 'เมนเทอร์คนอื่น ๆ' }).locator('.rs-row').first();
+  const other = page.getByRole('region', { name: 'เมนเทอร์คนอื่น ๆ' }).locator('.mentor-tile').first();
   await expect(other.locator('.rs-proof--participant')).toHaveText('เข้าร่วมในเวทีนี้ · 2566');
   await expect(other.locator('.rs-proof--count')).toHaveCount(0);
   await page.locator('#mentors').screenshot({ path: `artifacts/competition-mentors-proof-${test.info().project.name}.png` });
@@ -631,7 +632,7 @@ test('details and mentors share one page: details left, mentors right, mentors r
   const glance = page.getByRole('region', { name: 'รู้จักเวทีนี้ในหนึ่งนาที' });
   const mentors = page.getByRole('complementary', { name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' });
   await expect(glance).toBeVisible();
-  await expect(mentors.locator('.rs-row').first()).toBeVisible();
+  await expect(mentors.locator('.mentor-tile').first()).toBeVisible();
   const [g, m, a] = await Promise.all([glance.boundingBox(), mentors.boundingBox(), page.locator('.detail-article').boundingBox()]);
   if ((page.viewportSize()?.width ?? 0) > 1000) {
     // จอกว้าง: เมนเทอร์อยู่ขวาของรายละเอียด

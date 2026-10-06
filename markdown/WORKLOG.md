@@ -249,3 +249,11 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Competition page: tabs removed. Left = compact "at a glance" box (+ primary "apply on organizer's page" button) and content sections; right = available mentors (container query switches mentor rows to the compact layout). Phones: glance → mentors → content. `#mentors` / `#event-mentors` still scroll to the mentor list.
 - Design-critic: FAIL → fixed CTA, cramped rows (1-line specialty, plain consult count), label size, 1-column glance <480px. Not done (pre-existing, owner to decide): hero illustration, different list markers per section, Rising Star vs other mentor row styles, "see all" collapse.
 - Tests: scripts/listing-poster.test.ts; consult/prototype specs updated. API 103, browser 311 pass.
+
+## 2026-10-06 — Owner's dev-review round (9 items)
+- Month-only dates (migration 0022): `opens_precision` / `closes_precision` ('day'|'month') on competitions and competition_submissions. Admin form: "รู้วันแน่นอน / รู้แค่เดือน" per date; organiser form: one "รู้แค่เดือน" checkbox. Server stores first/last day of the month (`server/lib/dates.ts`). Shown as "ประมาณเดือน…", no countdown or "closing soon" chip.
+- Competition page: columns 50/50; mentors now shown as large-photo cards, 3 per row (2 in a narrow column) — `MentorTile`; Rising Star section no longer explains its sort order.
+- Mentor application: profile photo required; evidence FILE required per competition (link optional). Files were never actually uploaded before (only file names were sent) — now uploaded via `/api/files`, attached to the submission (`photo_file_id`, `mentor_awards.evidence_file_id`), shown to reviewers (photo + per-award file link). On approval `mentors.photo_url` = `/api/files/<id>`, served publicly; `Avatar` shows photos everywhere.
+- Competitions not in the system can be ticked "อยากเป็นเมนเทอร์" with a price (`mentor_awards.offer_price/offer_unit`); on approval they become `competition_requests` in the existing "คำขอเพิ่มเวที" queue.
+- All upload limits now 4 MB (Vercel's ~4.5 MB body limit). Contact channels already required (client + server); added "*" and clearer hint. Long organizer names no longer overflow the matched-competition box.
+- Tests: scripts/fake-files.ts helper; mentor-offers/staff-notify/listing-poster/mentor-application/consult specs updated. API 103, browser 311 pass.

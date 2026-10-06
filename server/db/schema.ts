@@ -70,6 +70,9 @@ export const competitions = pgTable('competitions', {
   org: text('org').notNull(),
   closesAt: date('closes_at').notNull(),
   opensAt: date('opens_at'),
+  /** 'month' = รู้แค่เดือน (ผู้ใช้ขอ 6 ต.ค. 2569) วันที่เก็บเป็นวันแรก/วันสุดท้ายของเดือน แสดงเป็นเดือน ไม่นับถอยหลัง */
+  opensPrecision: text('opens_precision').$type<'day' | 'month'>().notNull().default('day'),
+  closesPrecision: text('closes_precision').$type<'day' | 'month'>().notNull().default('day'),
   eventDate: date('event_date'),
   region: regionEnum('region').notNull(),
   venue: text('venue'),
@@ -145,6 +148,9 @@ export const competitionSubmissions = pgTable('competition_submissions', {
   teamMax: integer('team_max').notNull(),
   opensAt: date('opens_at'),
   closesAt: date('closes_at').notNull(),
+  /** 'month' = รู้แค่เดือน (ผู้ใช้ขอ 6 ต.ค. 2569) วันที่เก็บเป็นวันแรก/วันสุดท้ายของเดือน แสดงเป็นเดือน ไม่นับถอยหลัง */
+  opensPrecision: text('opens_precision').$type<'day' | 'month'>().notNull().default('day'),
+  closesPrecision: text('closes_precision').$type<'day' | 'month'>().notNull().default('day'),
   eventDate: date('event_date'),
   region: regionEnum('region').notNull(),
   venue: text('venue'),
@@ -214,6 +220,8 @@ export const mentorSubmissions = pgTable('mentor_submissions', {
   paidSlot: timestamp('paid_slot', { withTimezone: true }),
   freeSlot: timestamp('free_slot', { withTimezone: true }),
   publishedMentorId: text('published_mentor_id'),
+  /** รูปโปรไฟล์ที่อัปโหลดตอนสมัคร (บังคับตั้งแต่ 6 ต.ค. 2569) */
+  photoFileId: text('photo_file_id').references(() => files.id, { onDelete: 'set null' }),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (table) => [index('mentor_submissions_status_idx').on(table.status, table.submittedAt)]);
 
@@ -235,6 +243,11 @@ export const mentorAwards = pgTable('mentor_awards', {
   detail: text('detail').notNull().default(''),
   /** อยากเป็นเมนเทอร์ของเวทีนี้ ติ๊กได้เฉพาะเวทีที่มีในระบบ */
   wantsMentor: boolean('wants_mentor').notNull().default(false),
+  /** ไฟล์หลักฐานที่แนบ (บังคับตั้งแต่ 6 ต.ค. 2569) เห็นเฉพาะทีมตรวจ */
+  evidenceFileId: text('evidence_file_id').references(() => files.id, { onDelete: 'set null' }),
+  /** ราคาของเวทีที่ยังไม่มีในระบบแต่ติ๊กว่าอยากเป็นเมนเทอร์ อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
+  offerPrice: integer('offer_price'),
+  offerUnit: text('offer_unit').notNull().default(''),
 }, (table) => [
   index('mentor_awards_submission_idx').on(table.submissionId),
   check('mentor_awards_result_check', sql`${table.result} in ('winner', 'finalist', 'participant')`),
@@ -283,6 +296,8 @@ export const mentors = pgTable('mentors', {
   contactPhone: text('contact_phone').notNull().default(''),
   contactInstagram: text('contact_instagram').notNull().default(''),
   contactLink: text('contact_link').notNull().default(''),
+  /** รูปโปรไฟล์จากใบสมัคร (/api/files/:id เปิดได้ทุกคน) ว่าง = ใช้ตัวอักษรแรก */
+  photoUrl: text('photo_url'),
   best: text('best').notNull(),
   cannot: text('cannot').notNull(),
   firstSlotInDays: integer('first_slot_in_days').notNull().default(1),

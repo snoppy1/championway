@@ -25,9 +25,3 @@ export const occupationValues = {
 } as const;
 export type OccupationId = keyof typeof occupationValues;
 export const occupationIds = Object.keys(occupationValues) as OccupationId[];
-
-/** หมายเหตุหลักฐานรางวัลในใบสมัครเมนเทอร์ ทีมตรวจอ่านในหน้าจัดการ (ภาษาไทย) เก็บตามที่บันทึกมาตลอด */
-export const evidenceValues = {
-  none: 'ยังไม่แนบหลักฐาน',
-  file: (name: string) => `ไฟล์แนบ: ${name}`,
-};

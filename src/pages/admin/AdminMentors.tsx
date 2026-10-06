@@ -24,6 +24,11 @@ type Award = {
   detail: string;
   wantsMentor: boolean;
   matched: { slug: string; name: string } | null;
+  /** ไฟล์หลักฐาน (บังคับตั้งแต่ 6 ต.ค. 2569) ใบเก่าไม่มี */
+  evidenceFileUrl: string | null;
+  /** ราคาของเวทีที่ยังไม่มีในระบบ อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
+  offerPrice: number | null;
+  offerUnit: string;
   /** หมวดที่ผู้ตรวจยืนยันให้ผลงานชิ้นนี้ มีน้ำหนักมากที่สุดในการจับคู่เมนเทอร์กับเวที */
   verifiedThemes: Theme[];
   verifiedAt: string | null;
@@ -99,7 +104,9 @@ type MentorSubmission = {
   contactLink: string;
   competitionIds: string[];
   /** งานที่ติ๊กพร้อมราคาของแต่ละงาน ราคาว่าง = ผู้สมัครข้ามไว้ใส่ทีหลัง */
-  offers: { slug: string; name: string; price: number | null; minutes: number | null }[];
+  offers: { slug: string; name: string; price: number | null; minutes: number | null; unit: string }[];
+  /** รูปโปรไฟล์จากใบสมัคร ขึ้นหน้าเว็บหลังอนุมัติ */
+  photoUrl: string | null;
   awards: Award[];
   files: AttachedFile[];
   events: ReviewEvent[];
@@ -186,6 +193,9 @@ export function AdminMentorReview() {
         <section className="admin-block is-public" aria-labelledby="public-title">
           <h2 id="public-title"><Eye size={16} aria-hidden="true" />ข้อมูลที่จะขึ้นหน้าเว็บ</h2>
           <dl className="admin-fields">
+            <Field label="รูปโปรไฟล์">{submission.photoUrl
+              ? <img className="admin-photo" src={submission.photoUrl} alt={`รูปโปรไฟล์ของ ${publicName}`} />
+              : 'ไม่ได้แนบ (ใบสมัครแบบเก่า)'}</Field>
             <Field label="ชื่อที่แสดง">{publicName} ({submission.nickname})</Field>
             <Field label="อาชีพและสังกัด">{submission.occupation} · {submission.organization} · {submission.role}</Field>
             <Field label="ประสบการณ์">{submission.experience}</Field>
@@ -201,7 +211,7 @@ export function AdminMentorReview() {
             <Field label="งานที่ติ๊กและราคา">{submission.offers?.length
               ? <ul className="admin-offers">{submission.offers.map((offer) => <li key={offer.slug}>
                 <Link to={`/competitions/${offer.slug}`}>{offer.name}</Link>
-                {' · '}{offer.price === null || offer.minutes === null ? 'ข้ามไว้ ใส่ราคาทีหลัง' : `${baht.format(offer.price)} บาท / ${offer.minutes} นาที`}
+                {' · '}{offer.price === null ? 'ข้ามไว้ ใส่ราคาทีหลัง' : offer.price === 0 ? 'ฟรี' : offer.unit ? `${baht.format(offer.price)} บาท ต่อ${offer.unit}` : `${baht.format(offer.price)} บาท / ${offer.minutes} นาที`}
               </li>)}</ul>
               : 'ไม่ได้ติ๊กงานใด'}</Field>
             <Field label="ผลงาน"><ExternalLink href={submission.portfolio || null} /></Field>
@@ -229,13 +239,18 @@ export function AdminMentorReview() {
               <dl className="admin-fields">
                 <Field label="ผลที่ได้">{resultLabel[award.result]}{award.detail ? ` · ${award.detail}` : ''}</Field>
                 <Field label="ปี">{award.year}</Field>
-                <Field label="อยากเป็นเมนเทอร์ของเวทีนี้">{award.wantsMentor ? 'ใช่' : 'ไม่'}</Field>
+                <Field label="อยากเป็นเมนเทอร์ของเวทีนี้">{!award.wantsMentor ? 'ไม่'
+                  : award.matched ? 'ใช่'
+                  : `ใช่ · เวทียังไม่มีในระบบ อนุมัติแล้วจะเป็นคำขอเพิ่มเวที (${award.offerPrice ? `${baht.format(award.offerPrice)} บาท ต่อ${award.offerUnit}` : 'ฟรี'})`}</Field>
                 <Field label="เวทีในระบบ">
                   {award.matched
                     ? <Link to={`/competitions/${award.matched.slug}`}>{award.matched.name}</Link>
                     : <span className="award-unmatched">ไม่พบเวทีนี้ในระบบ ต้องตรวจด้วยมือ</span>}
                 </Field>
-                <Field label="หลักฐานที่แนบ">{award.evidence}</Field>
+                <Field label="ไฟล์หลักฐาน">{award.evidenceFileUrl
+                  ? <a href={award.evidenceFileUrl} target="_blank" rel="noopener noreferrer">เปิดไฟล์หลักฐาน</a>
+                  : 'ไม่ได้แนบไฟล์'}</Field>
+                <Field label="ลิงก์ประกาศผล">{/^https?:\/\//i.test(award.evidence) ? <ExternalLink href={award.evidence} /> : award.evidence || 'ไม่ได้ใส่'}</Field>
                 <VerifyAward award={award} onDone={reload} />
               </dl>
             </li>)}

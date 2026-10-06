@@ -4,7 +4,7 @@ import type { Messages } from '../i18n/en';
 /* ชนิดข้อมูลที่ /api/consult/* ตอบกลับ ใช้ร่วมกันทุกหน้าที่เกี่ยวกับการติดต่อเมนเทอร์ */
 
 export type Rating = { average: number | null; reviews: number };
-export type MentorCard = { id: string; name: string; initial: string; specialty: string; verified: boolean };
+export type MentorCard = { id: string; name: string; initial: string; specialty: string; verified: boolean; photoUrl?: string | null };
 /** เมนเทอร์ในรายชื่อ พร้อมราคาและคะแนนเดือนนี้ ราคาเป็น null ได้ถ้าเมนเทอร์ยังไม่ตั้ง */
 export type ListedMentor = MentorCard & {
   price: number | null; minutes: number | null; unit?: string; rating: Rating;

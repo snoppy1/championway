@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, ClipboardCheck, Eye, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
-  categoryIds, levelLabels, regionLabels, rewardLabels, typeLabels,
+  categoryIds, formatMonth, levelLabels, regionLabels, rewardLabels, typeLabels,
 } from '../data/competitions';
 import type { CategoryId, Level, OpportunityType, Region, Reward } from '../data/competitions';
 import { kindKeys, themeKeys } from '../data/focus';
@@ -46,7 +46,7 @@ export function OrganiserSubmit() {
   const { t, lang } = useI18n();
   const s = t.organiserSubmit;
   const { user, loading: authLoading } = useAuth();
-  const dateLabel = (value: string) => formatInputDate(value, lang);
+  const dateLabel = (value: string) => (monthOnly && value ? formatMonth(value, lang) : formatInputDate(value, lang));
   const [stage, setStage] = useState(0);
   const [values, setValues] = useState(empty);
   const [type, setType] = useState<OpportunityType>('contest');
@@ -55,6 +55,8 @@ export function OrganiserSubmit() {
   const [chosenThemes, setChosenThemes] = useState<Theme[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [region, setRegion] = useState<Region>('online');
+  // ยังไม่ประกาศวันแน่นอน รู้แค่เดือน (6 ต.ค. 2569) ใช้กับทั้งวันเปิดและปิดรับ
+  const [monthOnly, setMonthOnly] = useState(false);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [poster, setPoster] = useState<File>();
   const [posterUrl, setPosterUrl] = useState('');
@@ -132,7 +134,7 @@ export function OrganiserSubmit() {
     }
     if (stage === 2) {
       need('closesAt');
-      if (!error && values.closesAt <= today()) error = s.errors.closeFuture;
+      if (!error && (monthOnly ? values.closesAt.slice(0, 7) < today().slice(0, 7) : values.closesAt <= today())) error = s.errors.closeFuture;
       if (!error && values.opensAt && values.opensAt > values.closesAt) error = s.errors.opensBefore;
       need('sourceUrl');
       // งานทั่วประเทศจัดหลายที่หรือไม่มีที่เดียว ไม่บังคับสถานที่ เหมือนงานออนไลน์
@@ -176,8 +178,9 @@ export function OrganiserSubmit() {
         kind: kind || undefined, themes: chosenThemes,
         categories: chosenCategories, levels, rewards,
         teamMin: Number(values.teamMin), teamMax: Number(values.teamMax),
-        opensAt: values.opensAt || undefined,
-        closesAt: values.closesAt,
+        opensAt: values.opensAt ? (monthOnly ? `${values.opensAt.slice(0, 7)}-01` : values.opensAt) : undefined,
+        closesAt: monthOnly ? `${values.closesAt.slice(0, 7)}-01` : values.closesAt,
+        datePrecision: monthOnly ? 'month' : 'day',
         eventDate: values.eventDate || undefined,
         region, venue: values.venue.trim() || undefined,
         prizeValue: Number(values.prizeValue || 0),
@@ -378,13 +381,24 @@ export function OrganiserSubmit() {
               <p className="muted">{s.stage2Lead}</p></div>
 
             {group(s.datesGroup, <>
+              <label className="check month-only">
+                <input type="checkbox" checked={monthOnly} onChange={(e) => {
+                  const next = e.target.checked;
+                  setMonthOnly(next);
+                  // สลับแล้วแปลงค่าเดิมให้ใช้ต่อได้ (วันที่ → เดือนของวันนั้น, เดือน → วันที่ 1)
+                  for (const key of ['opensAt', 'closesAt'] as const) {
+                    if (values[key]) set(key, next ? values[key].slice(0, 7) : `${values[key].slice(0, 7)}-01`);
+                  }
+                }} />
+                <span>{s.monthOnly}<small>{s.monthOnlyHint}</small></span>
+              </label>
               <div className="grid">
                 <label>{s.opensAt}
-                  <input type="date" value={values.opensAt} onChange={(e) => set('opensAt', e.target.value)} />
+                  <input type={monthOnly ? 'month' : 'date'} value={values.opensAt} onChange={(e) => set('opensAt', e.target.value)} />
                   <small>{s.opensAtHint}</small>
                 </label>
                 <label>{s.closesAt}
-                  <input type="date" required min={today()} value={values.closesAt} onChange={(e) => set('closesAt', e.target.value)} />
+                  <input type={monthOnly ? 'month' : 'date'} required min={monthOnly ? today().slice(0, 7) : today()} value={values.closesAt} onChange={(e) => set('closesAt', e.target.value)} />
                 </label>
               </div>
               <label>{s.eventDate}

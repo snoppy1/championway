@@ -1222,7 +1222,8 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
    จอกว้าง: กล่องสรุปกับเนื้อหาอยู่คอลัมน์ซ้าย รายชื่อเมนเทอร์อยู่คอลัมน์ขวา
    จอแคบ: กล่องสรุป → เมนเทอร์ → เนื้อหา คนที่มาหาเมนเทอร์ไม่ต้องเลื่อนผ่านเนื้อหายาวก่อน */
 .detail-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); grid-template-rows: auto 1fr;
+  /* สองฝั่งกว้างเท่ากัน (ผู้ใช้ขอ 6 ต.ค. 2569) */
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr;
   grid-template-areas: "glance mentors" "article mentors"; gap: 28px 36px; margin-top: 28px; align-items: start;
 }
 .detail-glance { grid-area: glance; padding: 20px 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: var(--shadow-card); }
@@ -1244,25 +1245,41 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 .detail-mentors .rs-section-head h3 { font-size: var(--text-lg); font-weight: 600; margin-top: 0; }
 .detail-mentors .rs-list { box-shadow: none; }
 
-/* คอลัมน์เมนเทอร์แคบกว่าหน้าเต็ม ใช้แถวแบบย่อเหมือนจอมือถือ (ปุ่มเป็นไอคอน) */
-@container (max-width: 520px) {
-  .detail-mentors .rs-row { grid-template-columns: 28px 44px 1fr 44px; gap: var(--space-3); padding: var(--space-4) 12px; }
-  .detail-mentors .rs-row .rs-avatar { --avatar-size: 44px; }
-  .detail-mentors .rs-row__action { position: relative; width: 44px; padding: 0; }
-  .detail-mentors .rs-row__action-icon { display: block; }
-  .detail-mentors .rs-row__action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .detail-mentors .rs-list--plain > .rs-row { grid-template-columns: 44px 1fr 44px; padding: var(--space-4) 0; }
-  .detail-mentors .rs-row__rank { font-size: var(--text-xl); }
-  /* แถวในคอลัมน์แคบ: ความถนัดบรรทัดเดียว จำนวนครั้งที่ปรึกษาเป็นข้อความธรรมดา ไม่ใช่กรอบที่ดูเหมือนปุ่ม */
-  .detail-mentors .rs-row__spec { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
-  .detail-mentors .rs-proof--count { padding: 0; border: 0; }
+/* การ์ดเมนเทอร์รูปใหญ่ (components/mentors.tsx MentorTile) 3 ใบต่อแถว คอลัมน์แคบลงเหลือ 2 */
+.mentor-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@container (max-width: 470px) { .mentor-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mentor-tile { min-width: 0; }
+.mentor-tile__link {
+  display: flex; flex-direction: column; height: 100%; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--ink);
+  transition: border-color 120ms, box-shadow 120ms, transform 120ms;
 }
+.mentor-tile__link:hover { border-color: var(--purple-soft); box-shadow: var(--shadow-card); transform: translateY(-2px); }
+.mentor-tile__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.mentor-tile--star .mentor-tile__link { border-color: var(--gold-line, #ecd892); }
+.mentor-tile__photo { position: relative; display: block; aspect-ratio: 1 / 1; background: var(--purple-tint); }
+.mentor-tile__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mentor-tile__initial { display: grid; place-items: center; width: 100%; height: 100%; font: 600 44px/1 var(--display); color: var(--purple-deep); }
+.mentor-tile__rank {
+  position: absolute; top: 8px; left: 8px; display: grid; place-items: center; min-width: 30px; height: 30px; padding-inline: 8px;
+  border-radius: 999px; background: var(--purple); color: #fff; font: 700 14px/1 var(--display); box-shadow: 0 2px 6px rgb(33 23 45 / 25%);
+}
+.mentor-tile__body { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px 12px 14px; min-width: 0; }
+.mentor-tile__name { font: 600 15.5px/1.35 var(--display); overflow-wrap: anywhere; }
+.mentor-tile__spec { font-size: 13px; line-height: 1.5; color: var(--muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.mentor-tile .rs-row__proof { margin: 0; }
+.mentor-tile .rs-proof--count { padding: 0; border: 0; }
+.mentor-tile .rs-proof--count svg { display: none; }
+.mentor-tile__meta { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 13px; color: var(--muted); }
+.mentor-tile__meta > span:last-child { color: var(--ink); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .mentor-tile__link { transition: none; } .mentor-tile__link:hover { transform: none; } }
 
 @media (max-width: 1000px) {
   .detail-layout { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: "glance" "mentors" "article"; }
 }
 @media (max-width: 700px) {
   .detail-mentors { padding: 18px 14px; }
+  .mentor-tiles { gap: 10px; }
   .detail-glance dl { grid-template-columns: 1fr 1fr; gap: 12px 14px; }
 }
 @media (max-width: 480px) {

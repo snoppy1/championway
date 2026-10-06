@@ -155,6 +155,13 @@
       "when": 1791272344945,
       "tag": "0021_regular_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791288179863,
+      "tag": "0022_bizarre_freak",
+      "breakpoints": true
     }
   ]
 }

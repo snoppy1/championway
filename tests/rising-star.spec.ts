@@ -90,7 +90,7 @@ test('someone who is not a mentor sees no Rising Star sign-up box', async ({ pag
 test('the home page slides through the newest mentors', async ({ page }) => {
   const { items } = await (await page.request.get('/api/rising-star/newest')).json();
   expect(items.length).toBeGreaterThan(0);
-  expect(Object.keys(items[0]).sort()).toEqual(['id', 'initial', 'name', 'specialty']);
+  expect(Object.keys(items[0]).sort()).toEqual(['id', 'initial', 'name', 'photoUrl', 'specialty']);
   await page.goto('/');
   const slider = page.getByRole('group', { name: 'Mentor หน้าใหม่ เลื่อนดูด้านข้างได้' });
   await expect(slider.getByRole('link').first()).toHaveAttribute('href', `/mentors/${items[0].id}`);

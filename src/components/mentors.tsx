@@ -16,8 +16,11 @@ export function RisingStarPill() {
   return <span className="rs-pill"><StarIcon />{t.risingStar.pill}</span>;
 }
 
-export function Avatar({ initial, plain = false }: { initial: string; plain?: boolean }) {
-  return <span className={plain ? 'rs-avatar rs-avatar--plain' : 'rs-avatar'} aria-hidden="true">{initial}</span>;
+/** รูปวงกลมของเมนเทอร์: รูปโปรไฟล์ถ้ามี (บังคับตั้งแต่ 6 ต.ค. 2569) ไม่อย่างนั้นตัวอักษรแรก */
+export function Avatar({ initial, plain = false, photoUrl }: { initial: string; plain?: boolean; photoUrl?: string | null }) {
+  const className = plain ? 'rs-avatar rs-avatar--plain' : 'rs-avatar';
+  if (photoUrl) return <img className={`${className} rs-avatar--photo`} src={photoUrl} alt="" loading="lazy" decoding="async" />;
+  return <span className={className} aria-hidden="true">{initial}</span>;
 }
 
 /** "★ 4.8 · 12 reviews" ดาวเป็นภาพประดับ โปรแกรมอ่านหน้าจออ่านว่า "Rating 4.8 · 12 reviews" */
@@ -70,7 +73,7 @@ export function RankedRow({ mentor, competition, hire }: { mentor: RankedMentor;
   const s = t.risingStar;
   return <li className="rs-row">
     <span className="rs-row__rank"><span aria-hidden="true">{mentor.rank}</span><span className="sr-only">{s.rank(mentor.rank)}</span></span>
-    <Avatar initial={mentor.initial} />
+    <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
     <div>
       <p className="rs-row__name">{mentor.name}<RisingStarPill /></p>
       <p className="rs-row__spec">{mentor.specialty}</p>
@@ -82,12 +85,39 @@ export function RankedRow({ mentor, competition, hire }: { mentor: RankedMentor;
 
 export function OtherRow({ mentor, competition, hire }: { mentor: ListedMentor; competition?: string; hire?: boolean }) {
   return <li className="rs-row">
-    <Avatar initial={mentor.initial} plain />
+    <Avatar initial={mentor.initial} plain photoUrl={mentor.photoUrl} />
     <div>
       <p className="rs-row__name">{mentor.name}</p>
       <p className="rs-row__spec">{mentor.specialty}</p>
       <Meta mentor={mentor} />
     </div>
     <ProfileLink mentor={mentor} competition={competition} hire={hire} />
+  </li>;
+}
+
+/* การ์ดเมนเทอร์แบบรูปใหญ่ในหน้าเวที เรียงเป็นตาราง 3 ใบต่อแถว (ผู้ใช้ขอ 6 ต.ค. 2569)
+   ทั้งใบเป็นลิงก์ไปโปรไฟล์ พกเวทีไปด้วย รูปไม่มีให้ใช้ตัวอักษรแรกเต็มกรอบแทน */
+export function MentorTile({ mentor, rank, competition, hire }: {
+  mentor: ListedMentor; rank?: number; competition: string; hire?: boolean;
+}) {
+  const { t } = useI18n();
+  const s = t.risingStar;
+  const to = `/mentors/${mentor.id}?competition=${encodeURIComponent(competition)}`;
+  return <li className={rank ? 'mentor-tile mentor-tile--star' : 'mentor-tile'}>
+    <Link className="mentor-tile__link" to={to} aria-label={hire ? s.hireAria(mentor.name) : s.viewProfileOf(mentor.name)}>
+      <span className="mentor-tile__photo">
+        {mentor.photoUrl
+          ? <img src={mentor.photoUrl} alt="" loading="lazy" decoding="async" />
+          : <span className="mentor-tile__initial" aria-hidden="true">{mentor.initial}</span>}
+        {rank && <span className="mentor-tile__rank"><span aria-hidden="true">{rank}</span><span className="sr-only">{s.rank(rank)}</span></span>}
+      </span>
+      <span className="mentor-tile__body">
+        <span className="mentor-tile__name">{mentor.name}</span>
+        {rank && <RisingStarPill />}
+        <span className="mentor-tile__spec">{mentor.specialty}</span>
+        <Proof mentor={mentor} />
+        <span className="mentor-tile__meta"><Rating rating={mentor.rating} /><span>{t.price.line(mentor.price, mentor.minutes, mentor.unit)}</span></span>
+      </span>
+    </Link>
   </li>;
 }

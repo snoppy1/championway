@@ -7,7 +7,8 @@ import type { Price } from '../data/consult';
 
 /* ใบสมัครเมนเทอร์ (ผู้ใช้ตัดสิน 4 ต.ค. 2569 กับทีม)
    ขั้น 2: ประสบการณ์แข่งขันกี่รายการก็ได้ แต่ละรายการบอกเวที ผล ปี หลักฐาน และติ๊กว่าอยากเป็นเมนเทอร์ของเวทีนั้นไหม
-           เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง (ผลอะไรก็ได้) และต้องเป็นเวทีที่มีในระบบ
+           เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง (ผลอะไรก็ได้) เวทีที่ยังไม่มีในระบบก็ติ๊กได้ ทีมงานเพิ่มให้หลังอนุมัติ (6 ต.ค. 2569)
+           ไฟล์หลักฐานบังคับทุกรายการ ลิงก์ประกาศผลไม่บังคับ (ผู้ใช้ขอ 6 ต.ค. 2569)
    ขั้น 3: ราคาของเวทีที่ติ๊กไว้ เลือก "ฟรี" หรือ "[ราคา] บาท ต่อ [หน่วยที่พิมพ์เอง]"
    ปัญหาของแต่ละช่องแสดงใต้ช่องนั้นในการ์ด ไม่ใช่ข้อความรวมข้อเดียว (design-critic 4 ต.ค. 2569) */
 
@@ -27,7 +28,7 @@ export const matchCompetition = (known: KnownCompetition[], name: string) =>
 export { priceProblem };
 export type { Price };
 
-export type ExperienceProblem = 'name' | 'result' | 'year' | 'proof' | 'file';
+export type ExperienceProblem = 'name' | 'result' | 'year' | 'proof' | 'url' | 'file';
 const evidenceTypes = ['application/pdf', 'image/jpeg', 'image/png'];
 /** อะไรในการ์ดนี้ยังไม่ครบหรือไม่ถูก ว่าง = ครบแล้ว */
 export function experienceProblems(item: Experience): ExperienceProblem[] {
@@ -36,9 +37,9 @@ export function experienceProblems(item: Experience): ExperienceProblem[] {
   if (!item.name.trim()) problems.push('name');
   if (!item.result) problems.push('result');
   if (!/^\d{4}$/.test(item.year) || Number(item.year) < 2500 || Number(item.year) > thisYear) problems.push('year');
-  if (!item.url.trim() && !item.file) problems.push('proof');
-  else if (item.url.trim() && !/^https?:\/\//i.test(item.url.trim())) problems.push('proof');
-  if (item.file && (item.file.size > 10 * 1024 * 1024 || !evidenceTypes.includes(item.file.type))) problems.push('file');
+  if (!item.file) problems.push('proof');
+  if (item.url.trim() && !/^https?:\/\//i.test(item.url.trim())) problems.push('url');
+  if (item.file && (item.file.size > 4 * 1024 * 1024 || !evidenceTypes.includes(item.file.type))) problems.push('file');
   return problems;
 }
 
@@ -100,7 +101,7 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
         <span className="exp-summary__text">
           <strong>{item.name}</strong>
           <span>{[item.result && t.taxonomy.results[item.result], item.year].filter(Boolean).join(' · ')}</span>
-          {item.mentor && inSystem && <span className="exp-summary__tag">{s.mentorTag}</span>}
+          {item.mentor && <span className="exp-summary__tag">{s.mentorTag}</span>}
         </span>
         <span className="exp-summary__actions">
           <button className="plain" type="button" aria-label={s.editAria(item.name)} onClick={() => onChange({ open: true })}>{s.edit}</button>
@@ -120,7 +121,7 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
         aria-invalid={has('name') || undefined} aria-describedby={`${uid}-name-hint${has('name') ? ` ${uid}-name-error` : ''}`}
         onChange={(event) => {
           const found = match(event.target.value);
-          onChange({ name: event.target.value, slug: found?.slug ?? null, mentor: found ? item.mentor : false });
+          onChange({ name: event.target.value, slug: found?.slug ?? null });
         }} />
     </label>
     {has('name') && <FieldError id={`${uid}-name-error`} text={s.errors.name} />}
@@ -147,23 +148,25 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
         {has('year') && <FieldError id={`${uid}-year-error`} text={s.errors.year(year)} />}
       </div>
     </div>
-    <label className="exp-gap">{s.url}<input type="url" value={item.url} placeholder="https://..."
-      aria-invalid={has('proof') || undefined} aria-describedby={has('proof') ? `${uid}-proof-error` : undefined}
-      onChange={(event) => onChange({ url: event.target.value })} /></label>
-    <div className="exp-file">
+    <div className="exp-file exp-gap">
       <span className="exp-label" id={`${uid}-file-label`}>{s.file}</span>
       <label className="exp-file__button">
         <Paperclip aria-hidden="true" size={16} />{item.file ? s.fileChange : s.fileChoose}
-        <input type="file" accept=".pdf,.jpg,.jpeg,.png" aria-labelledby={`${uid}-file-label`} aria-describedby={`${uid}-file-hint`}
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" aria-labelledby={`${uid}-file-label`}
+          aria-invalid={has('proof') || has('file') || undefined}
+          aria-describedby={`${uid}-file-hint${has('proof') || has('file') ? ` ${uid}-file-error` : ''}`}
           onChange={(event) => onChange({ file: event.target.files?.[0] })} />
       </label>
       <span className="exp-file__name">{item.file ? item.file.name : s.fileNone}</span>
       <small id={`${uid}-file-hint`}>{s.fileHint}</small>
     </div>
-    {has('proof') && <FieldError id={`${uid}-proof-error`} text={item.url.trim() ? s.errors.badUrl : s.errors.proof} />}
-    {has('file') && <FieldError id={`${uid}-file-error`} text={s.errors.file} />}
-    <label className={`check exp-mentor${inSystem ? '' : ' is-disabled'}`}>
-      <input type="checkbox" checked={item.mentor} disabled={!inSystem} onChange={(event) => onChange({ mentor: event.target.checked })} />
+    {(has('proof') || has('file')) && <FieldError id={`${uid}-file-error`} text={has('proof') ? s.errors.proof : s.errors.file} />}
+    <label className="exp-gap">{s.url}<input type="url" value={item.url} placeholder="https://..."
+      aria-invalid={has('url') || undefined} aria-describedby={has('url') ? `${uid}-url-error` : undefined}
+      onChange={(event) => onChange({ url: event.target.value })} /></label>
+    {has('url') && <FieldError id={`${uid}-url-error`} text={s.errors.badUrl} />}
+    <label className="check exp-mentor">
+      <input type="checkbox" checked={item.mentor} disabled={!item.name.trim()} onChange={(event) => onChange({ mentor: event.target.checked })} />
       <span><strong>{s.mentor}</strong><small>{inSystem ? s.mentorHint : s.mentorNeedsSystem}</small></span>
     </label>
     <button type="button" className="exp-done" onClick={onDone}>{s.done}</button>

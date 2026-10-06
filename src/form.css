@@ -231,5 +231,8 @@
 .cw-form .exp-info{margin:-6px 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 .cw-form .exp-info__name{margin:0;font-weight:600;color:#2C2235}
 .cw-form .exp-info__facts{margin:2px 0 6px;font-size:13px;color:var(--muted-soft);line-height:1.6}
+.cw-form .exp-info{min-width:0;overflow-wrap:anywhere}
+/* ข้อสั้นไม่ตัดกลางคำ ข้อยาว (ชื่อผู้จัดยาว ๆ) ต้องตัดบรรทัดได้ ไม่งั้นล้นกรอบ (ผู้ใช้เจอ 6 ต.ค. 2569) */
 .cw-form .exp-info__facts span{white-space:nowrap}
+.cw-form .exp-info__facts span:first-child{white-space:normal}
 .cw-form .exp-info__link{display:inline-flex;align-items:center;gap:6px;min-height:32px;font-size:13px;font-weight:500;color:var(--purple-deep)}

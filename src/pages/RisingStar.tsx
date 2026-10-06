@@ -79,7 +79,7 @@ function MonthPanel({ data, kind }: { data: HallMonth; kind: Kind }) {
 
     {!winner ? <p className="rs-month__empty">{isNow ? s.emptyNow : s.emptyPast}</p> : <>
       <div className="rs-winner">
-        <span className="rs-avatar-wrap"><Avatar initial={winner.initial} /><Medal rank={1} /></span>
+        <span className="rs-avatar-wrap"><Avatar initial={winner.initial} photoUrl={winner.photoUrl} /><Medal rank={1} /></span>
         <div className="rs-winner__who">
           <p className="rs-winner__name"><Link className="rs-namelink" to={`/mentors/${winner.id}`}>{winner.name}</Link></p>
           <p className="rs-winner__spec" title={winner.specialty}>{winner.specialty}</p>
@@ -89,7 +89,7 @@ function MonthPanel({ data, kind }: { data: HallMonth; kind: Kind }) {
       {rest.length > 0 && <ol className={isNow ? 'rs-rank-list' : 'rs-rank-list rs-fold__body'} id={restId} hidden={!isNow && !open}>
         {rest.map((mentor) => <li className="rs-rank-row" key={mentor.id}>
           <Medal rank={mentor.rank} small />
-          <Avatar initial={mentor.initial} />
+          <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
           <span className="rs-rank-row__name"><Link className="rs-namelink" to={`/mentors/${mentor.id}`}>{mentor.name}</Link></span>
           <span className="rs-rank-row__count"><Rating rating={mentor.rating} /></span>
         </li>)}

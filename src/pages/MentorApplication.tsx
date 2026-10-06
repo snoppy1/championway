@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, ClipboardCheck, Eye, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { evidenceValues, occupationValues, topicIds, topicValues } from '../data/stored-values';
+import { occupationValues, topicIds, topicValues } from '../data/stored-values';
 import type { OccupationId, TopicId } from '../data/stored-values';
 import { occupationLabel } from '../data/profile';
 import { useAuth } from '../data/auth';
@@ -54,11 +54,14 @@ export function MentorApplication() {
     const list = knownList.data.items;
     setExperiences((current) => current.map((item) => {
       const slug = matchCompetition(list, item.name)?.slug ?? null;
-      return slug === item.slug ? item : { ...item, slug, mentor: slug ? item.mentor : false };
+      return slug === item.slug ? item : { ...item, slug };
     }));
   }, [knownList.data]);
-  // เวทีที่ติ๊กว่าอยากเป็นเมนเทอร์ ไม่ซ้ำกัน ตามลำดับที่ใส่
-  const mentorFor = [...new Map(experiences.filter((item) => item.mentor && item.slug).map((item) => [item.slug!, known.find((row) => row.slug === item.slug)?.name ?? item.name])).entries()];
+  /* เวทีที่ติ๊กว่าอยากเป็นเมนเทอร์ ไม่ซ้ำกัน ตามลำดับที่ใส่ เวทีในระบบใช้ slug เป็นคีย์ราคา
+     เวทีที่ยังไม่มีในระบบใช้ new-<id ของการ์ด> และส่งราคาไปกับรายการนั้น อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
+  const priceKey = (item: Experience) => item.slug ?? `new-${item.id}`;
+  const mentorFor = [...new Map(experiences.filter((item) => item.mentor && item.name.trim())
+    .map((item) => [priceKey(item), known.find((row) => row.slug === item.slug)?.name ?? item.name.trim()])).entries()];
   const [message, setMessage] = useState('');
   const [complete, setComplete] = useState(false);
   const [sending, setSending] = useState(false);
@@ -70,7 +73,7 @@ export function MentorApplication() {
 
   useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
   useEffect(() => {
-    if (!portrait || !['image/jpeg', 'image/png', 'image/webp'].includes(portrait.type) || portrait.size > 5 * 1024 * 1024) { setPortraitUrl(''); return; }
+    if (!portrait || !['image/jpeg', 'image/png', 'image/webp'].includes(portrait.type) || portrait.size > 4 * 1024 * 1024) { setPortraitUrl(''); return; }
     const url = URL.createObjectURL(portrait);
     setPortraitUrl(url);
     return () => URL.revokeObjectURL(url);
@@ -131,7 +134,9 @@ export function MentorApplication() {
     }
     let error = '';
     let missingConsent: ConsentKey | undefined;
-    if (stage === 0 && portrait && (!['image/png', 'image/jpeg', 'image/webp'].includes(portrait.type) || portrait.size > 5 * 1024 * 1024)) error = s.errors.portrait;
+    // รูปโปรไฟล์บังคับ เมนเทอร์ทุกคนมีรูปบนหน้าเวที (ผู้ใช้ขอ 6 ต.ค. 2569)
+    if (stage === 0 && !portrait) error = s.errors.portraitMissing;
+    else if (stage === 0 && (!['image/png', 'image/jpeg', 'image/webp'].includes(portrait!.type) || portrait!.size > 4 * 1024 * 1024)) error = s.errors.portrait;
     if (stage === 1) {
       // เป็นเมนเทอร์ได้ต้องเคยแข่ง จึงต้องมีประสบการณ์อย่างน้อยหนึ่งรายการ ปัญหาแสดงใต้ช่องในการ์ดนั้น
       const bad = experiences.filter((item) => experienceProblems(item).length);
@@ -165,33 +170,51 @@ export function MentorApplication() {
     return !error;
   }
 
+  /** อัปโหลดไฟล์ไปที่เก็บก่อน ได้ id กลับมาแนบไปกับใบสมัคร */
+  async function upload(file: File) {
+    const body = new FormData();
+    body.append('file', file);
+    const response = await fetch('/api/files', { method: 'POST', body, credentials: 'same-origin' });
+    const result = await response.json().catch(() => ({})) as { file?: { id: string }; error?: string };
+    if (!response.ok || !result.file) throw new ApiError(response.status, result.error ?? s.errors.upload(file.name));
+    return result.file.id;
+  }
+
   async function submitApplication() {
     setSending(true);
     setMessage('');
     try {
+      const photoFileId = await upload(portrait!);
+      const evidenceIds: string[] = [];
+      for (const item of experiences) evidenceIds.push(await upload(item.file!));
       await post('/submissions/mentor', {
+        photoFileId,
         firstName: values.first, lastName: values.last, nickname: values.nickname,
         email: values.email, occupation: values.occupation, organization: values.organization,
         role: values.role, experience: values.experience, portfolio: values.portfolio,
         best: values.best, cannot: values.cannot,
         contactEmail: values.contactEmail, contactLine: values.contactLine, contactPhone: values.contactPhone,
         contactInstagram: values.contactInstagram, contactLink: values.contactLink,
-        offers: mentorFor.map(([slug]) => {
+        offers: mentorFor.filter(([key]) => !key.startsWith('new-')).map(([slug]) => {
           const price = prices[slug];
           return price.mode === 'free' ? { slug, price: 0, unit: '' } : { slug, price: Number(price.price), unit: price.unit.trim() };
         }),
         // ฐานข้อมูลเก็บความถนัดเป็นข้อความไทยตามเดิม ไม่ว่าผู้ใช้เลือกภาษาไหน
         topics: selectedTopics.map((id) => topicValues[id]),
-        awards: experiences.map((item) => ({
-          title: item.name.trim(),
-          competitionSlug: item.slug,
-          result: item.result,
-          detail: item.detail.trim(),
-          year: item.year,
-          wantsMentor: item.mentor && Boolean(item.slug),
-          // ไฟล์ยังไม่ถูกอัปโหลด บันทึกชื่อไฟล์ไว้ให้คนตรวจรู้ว่าต้องขออะไรเพิ่ม
-          evidence: item.url || (item.file ? evidenceValues.file(item.file.name) : evidenceValues.none),
-        })),
+        awards: experiences.map((item, index) => {
+          const typedPrice = item.mentor && !item.slug ? prices[priceKey(item)] : undefined;
+          return {
+            title: item.name.trim(),
+            competitionSlug: item.slug,
+            result: item.result,
+            detail: item.detail.trim(),
+            year: item.year,
+            wantsMentor: item.mentor,
+            evidence: item.url.trim(),
+            evidenceFileId: evidenceIds[index],
+            offer: typedPrice ? { price: typedPrice.mode === 'free' ? 0 : Number(typedPrice.price), unit: typedPrice.mode === 'free' ? '' : typedPrice.unit.trim() } : null,
+          };
+        }),
       });
       setComplete(true);
     } catch (error) {
@@ -308,7 +331,7 @@ export function MentorApplication() {
               {experiences.map((item) => <div className="review" key={item.id}>
                 <strong>{item.name}</strong>
                 <p>{[item.result && t.taxonomy.results[item.result], item.detail, item.year].filter(Boolean).join(' · ')}</p>
-                <small>{s.reviewAwaiting(item.file?.name || item.url)}{item.mentor && item.slug ? ` · ${s.reviewWantsMentor}` : ''}</small>
+                <small>{s.reviewAwaiting(item.file?.name || item.url)}{item.mentor ? ` · ${s.reviewWantsMentor}` : ''}</small>
               </div>)}
               {values.portfolio && <div className="review"><small>{s.reviewPortfolio}</small>{values.portfolio}</div>}
             </>)}

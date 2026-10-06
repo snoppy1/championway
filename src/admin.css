@@ -405,3 +405,10 @@
 /* โปสเตอร์ในฟอร์มเวที */
 .listing-poster { width: 100%; max-width: 280px; max-height: 360px; object-fit: contain; border: 1px solid var(--line); border-radius: 12px; background: var(--purple-tint); }
 .listing-poster__remove { justify-self: start; }
+
+/* วันเปิด/ปิดรับ: เลือกความแน่นอน แล้วช่องวันที่หรือเดือน */
+.listing-form .date-or-month { grid-template-columns: minmax(150px, 190px) 1fr; }
+@media (max-width: 560px) { .listing-form .date-or-month { grid-template-columns: 1fr; } }
+
+/* รูปโปรไฟล์ผู้สมัครเมนเทอร์ */
+.admin-photo { width: 120px; height: 120px; object-fit: cover; border-radius: 14px; border: 1px solid var(--line); }

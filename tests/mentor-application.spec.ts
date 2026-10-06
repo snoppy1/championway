@@ -13,6 +13,9 @@ let applicant: TestAccount;
 test.beforeAll(async () => { applicant = await createAccount('member'); });
 test.afterAll(async () => { await removeAccount(applicant); });
 
+const PHOTO = { name: 'me.png', mimeType: 'image/png', buffer: Buffer.from('89504e470d0a1a0a', 'hex') };
+const PROOF = { name: 'proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 proof') };
+
 async function fillIdentity(page: Page) {
   await page.getByLabel('ชื่อจริง *', { exact: true }).fill('มาลี');
   await page.getByLabel('นามสกุล *', { exact: false }).fill('นามสกุลทดสอบ');
@@ -21,6 +24,8 @@ async function fillIdentity(page: Page) {
   await page.getByRole('combobox', { name: 'สถานะ *', exact: true }).selectOption('นักศึกษา');
   await page.getByLabel('มหาวิทยาลัยหรือที่ทำงาน *', { exact: true }).fill('มหาวิทยาลัยตัวอย่าง');
   await page.getByLabel('คณะและชั้นปี หรือตำแหน่งงาน *', { exact: true }).fill('บริหารธุรกิจ ปี 4');
+  // รูปโปรไฟล์บังคับ (6 ต.ค. 2569)
+  await page.locator('#apply-portrait').setInputFiles(PHOTO);
 }
 
 async function next(page: Page) { await page.getByRole('button', { name: 'ถัดไป', exact: true }).click(); }
@@ -31,7 +36,8 @@ async function addExperience(page: Page, name: string, options: { result?: strin
   await card.getByLabel('ชื่อเวที *', { exact: true }).fill(name);
   await card.locator('.offer-mode__option').filter({ hasText: options.result ?? 'เข้าร่วม' }).click();
   await card.getByLabel('ปี พ.ศ. *', { exact: true }).fill('2567');
-  await card.getByLabel('ลิงก์ประกาศผล หรือหลักฐานว่าเคยเข้าร่วม', { exact: true }).fill('https://example.com/result');
+  // ไฟล์หลักฐานบังคับ ลิงก์ประกาศผลไม่บังคับ (6 ต.ค. 2569)
+  await card.locator('input[type=file]').setInputFiles(PROOF);
   if (options.mentor) await card.getByRole('checkbox', { name: /อยากเป็นเมนเทอร์ของเวทีนี้/ }).check();
   return card;
 }
@@ -72,7 +78,7 @@ test('the apply link now lives in the profile, and a direct URL refresh works', 
   await expect(page).toHaveURL(/\/profile$/);
 });
 
-test('all four steps, private preview, no upload, back navigation and completion', async ({ page }) => {
+test('all four steps, private preview, uploads, back navigation and completion', async ({ page }) => {
   await signIn(page, applicant, '/mentors/apply');
   const writes: string[] = [];
   page.on('request', (request) => { if (['POST', 'PUT', 'PATCH'].includes(request.method())) writes.push(request.url()); });
@@ -93,11 +99,10 @@ test('all four steps, private preview, no upload, back navigation and completion
   await acceptAll(page);
   await page.getByRole('button', { name: 'ส่งใบสมัคร', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
-  await expect(page.getByText(/ไฟล์ที่เลือกยังไม่ถูกอัปโหลด/)).toBeVisible();
-  // ใบสมัครต้องถูกส่งครั้งเดียว และต้องไม่มีการอัปโหลดไฟล์ไปที่ไหนในรอบนี้
+  await expect(page.getByText(/ได้รับรูปโปรไฟล์และไฟล์หลักฐานของคุณแล้ว/)).toBeVisible();
+  // อัปโหลดรูปโปรไฟล์และไฟล์หลักฐานก่อน แล้วส่งใบสมัครครั้งเดียว
   const apiWrites = writes.filter((url) => url.includes('/api/'));
-  expect(apiWrites, apiWrites.join(' | ')).toHaveLength(1);
-  expect(apiWrites[0]).toContain('/api/submissions/mentor');
+  expect(apiWrites.map((url) => new URL(url).pathname), apiWrites.join(' | ')).toEqual(['/api/files', '/api/files', '/api/submissions/mentor']);
   await page.getByRole('button', { name: 'กลับไปตรวจใบสมัคร', exact: true }).click();
   await expect(profile).toContainText('พี่มายด์ น.');
   await page.reload();
@@ -135,10 +140,10 @@ test('only competitions you competed in can be mentored, each priced as free or 
   const [first, second] = list.items;
   await fillIdentity(page); await next(page);
   await page.locator('#apply-experience').fill('เคยแข่งหลายเวที');
-  // เวทีที่ไม่มีในระบบเก็บเป็นประสบการณ์ได้ แต่ติ๊กเป็นเมนเทอร์ไม่ได้
-  const typed = await addExperience(page, 'เวทีเล็ก ๆ นอกระบบ');
-  await expect(typed.getByRole('checkbox', { name: /อยากเป็นเมนเทอร์ของเวทีนี้/ })).toBeDisabled();
+  // เวทีที่ยังไม่มีในระบบก็ติ๊กเป็นเมนเทอร์ได้ ทีมงานจะเพิ่มเวทีให้หลังอนุมัติ (6 ต.ค. 2569)
+  const typed = await addExperience(page, 'เวทีเล็ก ๆ นอกระบบ', { mentor: true });
   await expect(typed).toContainText('ยังไม่มีใน ChampionWays');
+  await expect(typed).toContainText('ทีมงานจะเพิ่มให้หลังตรวจใบสมัคร');
   const known = await addExperience(page, first.name, { result: 'ได้รางวัล', mentor: true });
   await expect(known).toContainText('มีใน ChampionWays');
   // จับคู่ได้แล้วเห็นรายละเอียดเวทีและลิงก์ไปหน้าเวที เพื่อให้แน่ใจว่าเลือกถูกเวที
@@ -152,10 +157,10 @@ test('only competitions you competed in can be mentored, each priced as free or 
   await page.getByRole('checkbox', { name: 'ตีโจทย์และหาไอเดีย', exact: true }).check();
   await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
   await page.locator('#apply-contactInstagram').fill('mentor.ig');
-  // ไม่มีส่วนเลือกเวทีและไม่มีช่องนาทีแล้ว ราคามีเฉพาะเวทีที่ติ๊กไว้
+  // ไม่มีส่วนเลือกเวทีและไม่มีช่องนาทีแล้ว ราคามีเฉพาะเวทีที่ติ๊กไว้ (รวมเวทีนอกระบบ)
   await expect(page.locator('#apply-price')).toHaveCount(0);
   const cards = page.locator('#cw-apply .offers-list .offer');
-  await expect(cards).toHaveCount(2);
+  await expect(cards).toHaveCount(3);
   await next(page);
   await expect(page.getByRole('alert')).toContainText('ยังไม่ได้ตั้งราคา');
   await cards.nth(0).locator('.offer-mode__option').filter({ hasText: 'ตั้งราคา' }).click();
@@ -164,6 +169,7 @@ test('only competitions you competed in can be mentored, each priced as free or 
   await expect(cards.nth(0)).toContainText('บอกหน่วย เช่น ชั่วโมง');
   await cards.nth(0).getByLabel('คิดต่ออะไร').fill('โปรเจกต์');
   await cards.nth(1).locator('.offer-mode__option').filter({ hasText: 'ฟรี' }).click();
+  await cards.nth(2).locator('.offer-mode__option').filter({ hasText: 'ฟรี' }).click();
   await next(page);
 
   await expect(page.locator('#cw-apply .review-offers')).toContainText('500 บาท / โปรเจกต์');
@@ -174,9 +180,14 @@ test('only competitions you competed in can be mentored, each priced as free or 
   const body = (await sent).postDataJSON();
   expect(body.price).toBeUndefined();
   expect(body.awards).toHaveLength(3);
-  expect(body.awards.filter((award: { wantsMentor: boolean }) => award.wantsMentor)).toHaveLength(2);
+  expect(body.awards.filter((award: { wantsMentor: boolean }) => award.wantsMentor)).toHaveLength(3);
+  expect(body.photoFileId).toMatch(/^fil_/);
+  expect(body.awards.every((award: { evidenceFileId: string }) => /^fil_/.test(award.evidenceFileId))).toBe(true);
+  // เวทีนอกระบบส่งราคาไปกับรายการนั้น อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที
+  // การ์ดราคาเรียงตามลำดับประสบการณ์ เวทีนอกระบบเป็นใบแรก (500 บาท ต่อโปรเจกต์)
+  expect(body.awards[0]).toMatchObject({ competitionSlug: null, wantsMentor: true, offer: { price: 500, unit: 'โปรเจกต์' } });
   expect(body.offers).toEqual([
-    expect.objectContaining({ price: 500, unit: 'โปรเจกต์' }),
+    expect.objectContaining({ price: 0, unit: '' }),
     expect.objectContaining({ price: 0, unit: '' }),
   ]);
   await expect(page.getByRole('heading', { name: 'ส่งใบสมัครแล้ว' })).toBeVisible();
@@ -208,11 +219,11 @@ test('experiences are unlimited, show what is missing under each field, fold whe
   await expect(page.getByRole('alert').first()).toContainText('ยังกรอกไม่ครบ');
   await expect(card).toContainText('เลือกผลที่ได้');
   await expect(card).toContainText('ใส่ปี พ.ศ.');
-  await expect(card).toContainText('ใส่ลิงก์ประกาศผล หรือแนบไฟล์');
+  await expect(card).toContainText('แนบไฟล์หลักฐาน');
   await card.locator('.offer-mode__option').filter({ hasText: 'เข้ารอบชิง' }).click();
   await card.getByLabel('ปี พ.ศ. *', { exact: true }).fill('2568');
   await card.locator('input[type=file]').setInputFiles({ name: 'invalid.txt', mimeType: 'text/plain', buffer: Buffer.from('sample') });
-  await expect(card).toContainText('ใช้ไฟล์ PDF, JPG หรือ PNG ไม่เกิน 10 MB');
+  await expect(card).toContainText('ใช้ไฟล์ PDF, JPG หรือ PNG ไม่เกิน 4 MB');
   await card.locator('input[type=file]').setInputFiles({ name: 'award.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 sample') });
   await expect(card).toContainText('award.pdf');
   // กดเสร็จแล้วพับเหลือบรรทัดเดียว
@@ -236,11 +247,15 @@ test('profile file type and size are checked before proceeding', async ({ page }
   await page.goto('/mentors/apply'); await fillIdentity(page);
   await page.locator('#apply-portrait').setInputFiles({ name: 'not-an-image.pdf', mimeType: 'application/pdf', buffer: Buffer.from('sample') });
   await next(page);
-  await expect(page.getByRole('alert')).toHaveText('เลือกรูป JPG, PNG หรือ WebP ไม่เกิน 5 MB');
-  await page.locator('#apply-portrait').setInputFiles({ name: 'too-large.png', mimeType: 'image/png', buffer: Buffer.alloc(5 * 1024 * 1024 + 1) });
+  await expect(page.getByRole('alert')).toHaveText('เลือกรูป JPG, PNG หรือ WebP ไม่เกิน 4 MB');
+  await page.locator('#apply-portrait').setInputFiles({ name: 'too-large.png', mimeType: 'image/png', buffer: Buffer.alloc(4 * 1024 * 1024 + 1) });
   await next(page);
-  await expect(page.getByRole('alert')).toHaveText('เลือกรูป JPG, PNG หรือ WebP ไม่เกิน 5 MB');
+  await expect(page.getByRole('alert')).toHaveText('เลือกรูป JPG, PNG หรือ WebP ไม่เกิน 4 MB');
+  // รูปโปรไฟล์บังคับ
   await page.locator('#apply-portrait').setInputFiles([]);
+  await next(page);
+  await expect(page.getByRole('alert')).toHaveText('เพิ่มรูปโปรไฟล์ นักเรียนจะเห็นรูปนี้ในหน้าเวที');
+  await page.locator('#apply-portrait').setInputFiles(PHOTO);
   await next(page);
   await expect(page.getByRole('heading', { name: 'ให้ประสบการณ์เล่าแทนคุณ' })).toBeVisible();
 });

@@ -23,6 +23,7 @@
   line-height: 1;
 }
 .rs-avatar--plain { background: var(--avatar-plain-bg); color: var(--avatar-plain-ink); }
+.rs-avatar--photo { object-fit: cover; }
 .rs-avatar-wrap { position: relative; display: inline-flex; flex: none; }
 
 .rs-medal {

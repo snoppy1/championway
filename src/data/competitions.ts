@@ -59,6 +59,9 @@ export interface Competition {
   /** วันปิดรับแบบ ISO ข้อมูลตัวอย่างใช้ inDays() เพื่อไม่ให้นับถอยหลังหมดอายุ */
   closesAt: string;
   opensAt?: string;
+  /** 'month' = ผู้จัดยังไม่ประกาศวันแน่นอน รู้แค่เดือน closesAt เป็นวันสุดท้ายของเดือน (6 ต.ค. 2569) */
+  closesPrecision?: 'day' | 'month';
+  opensPrecision?: 'day' | 'month';
   eventDate?: string;
   region: Region;
   /** ชื่อสถานที่ ไม่ใส่เมื่อ region เป็น online */
@@ -119,9 +122,21 @@ export function formatDate(iso: string, lang: Lang = 'th') {
   return formatDateIn(`${iso}T12:00:00`, lang);
 }
 
-export function formatDeadline(competition: Competition, lang: Lang = 'th') {
-  return formatDate(competition.closesAt, lang);
+/** "ตุลาคม 2569" / "October 2026" สำหรับวันที่ที่รู้แค่เดือน */
+export function formatMonth(iso: string, lang: Lang = 'th') {
+  return new Intl.DateTimeFormat(lang === 'th' ? 'th-TH' : 'en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    .format(new Date(`${iso.slice(0, 7)}-15T00:00:00Z`));
 }
+
+/** วันปิดรับที่แสดง: รู้แค่เดือนแสดงเป็น "ประมาณตุลาคม 2569" */
+export function formatDeadline(competition: Competition, lang: Lang = 'th', t: Messages = th) {
+  return competition.closesPrecision === 'month'
+    ? t.competition.aroundMonth(formatMonth(competition.closesAt, lang))
+    : formatDate(competition.closesAt, lang);
+}
+
+/** นับถอยหลังได้เฉพาะวันปิดที่แน่นอน วันที่รู้แค่เดือนไม่บอก "อีก X วัน" และไม่ติดป้ายใกล้ปิด */
+export const exactDeadline = (competition: Competition) => competition.closesPrecision !== 'month';
 
 /** ป้ายขนาดทีมคำนวณจาก teamMin และ teamMax เพื่อไม่ให้มีข้อความซ้ำกับตัวเลข */
 export function teamLabel(competition: Competition, t: Messages = th) {

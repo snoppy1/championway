@@ -17,6 +17,11 @@ import { draftFieldLabels } from './AdminImports';
    ทุกเวทีที่สร้างทางนี้เป็น editorial และบังคับให้มีลิงก์ประกาศต้นทางเสมอ */
 
 const STALE_AFTER_DAYS = 30;
+/* วันเปิดและปิดรับ: รู้วันแน่นอน หรือรู้แค่เดือน (ผู้ใช้ขอ 6 ต.ค. 2569 บางงานประกาศวันไม่แน่นอนในแต่ละปี)
+   รู้แค่เดือนใช้ช่อง type="month" (YYYY-MM) เซิร์ฟเวอร์เก็บเป็นวันแรก/วันสุดท้ายของเดือน */
+type Precision = 'day' | 'month';
+const fromStored = (iso: string | null, precision: Precision) => (iso ? (precision === 'month' ? iso.slice(0, 7) : iso) : '');
+const toSend = (value: string, precision: Precision) => (value ? (precision === 'month' ? `${value.slice(0, 7)}-01` : value) : null);
 const typeIds = Object.keys(typeLabels) as OpportunityType[];
 const levelIds = Object.keys(levelLabels) as Level[];
 const regionIds = Object.keys(regionLabels) as Region[];
@@ -30,6 +35,7 @@ type Listing = {
   categories: CategoryId[]; levels: Level[]; rewards: Reward[];
   teamMin: number; teamMax: number;
   opensAt: string | null; closesAt: string; eventDate: string | null;
+  opensPrecision: Precision; closesPrecision: Precision;
   region: Region; venue: string | null;
   prizeValue: number; prizeNote: string | null; fee: number | null;
   featured: boolean; keywords: string[];
@@ -106,6 +112,7 @@ type Draft = {
   categories: CategoryId[]; levels: Level[]; rewards: Reward[];
   teamMin: string; teamMax: string;
   opensAt: string; closesAt: string; eventDate: string;
+  opensPrecision: Precision; closesPrecision: Precision;
   region: Region; venue: string;
   prizeValue: string; prizeNote: string; fee: string;
   featured: boolean; keywords: string;
@@ -120,6 +127,7 @@ const blank: Draft = {
   categories: [], levels: [], rewards: [],
   teamMin: '1', teamMax: '4',
   opensAt: '', closesAt: '', eventDate: '',
+  opensPrecision: 'day', closesPrecision: 'day',
   region: 'online', venue: '',
   prizeValue: '', prizeNote: '', fee: '',
   featured: false, keywords: '',
@@ -131,6 +139,26 @@ const blank: Draft = {
 /** บรรทัดละข้อ อ่านง่ายกว่าให้กรอกเป็น JSON และตรงกับที่แสดงบนหน้ารายละเอียด */
 const toLines = (value: string) => value.split('\n').map((line) => line.trim()).filter(Boolean);
 const fromLines = (value: string[]) => value.join('\n');
+
+/** ช่องวันที่ที่สลับเป็นเดือนได้ สลับแล้วแปลงค่าเดิมให้ (วันที่ → เดือนของวันนั้น, เดือน → วันที่ 1) */
+function DateOrMonth({ id, label, value, precision, required, onChange }: {
+  id: string; label: string; value: string; precision: Precision; required?: boolean;
+  onChange: (value: string, precision: Precision) => void;
+}) {
+  return <div className="admin-field"><dt><label htmlFor={id}>{label}</label></dt>
+    <dd className="date-or-month">
+      <select aria-label={`${label.replace(' *', '')}: ความแน่นอนของวันที่`} value={precision}
+        onChange={(e) => {
+          const next = e.target.value as Precision;
+          onChange(value ? (next === 'month' ? value.slice(0, 7) : `${value.slice(0, 7)}-01`) : '', next);
+        }}>
+        <option value="day">รู้วันแน่นอน</option>
+        <option value="month">รู้แค่เดือน</option>
+      </select>
+      <input id={id} type={precision === 'month' ? 'month' : 'date'} required={required} value={value}
+        onChange={(e) => onChange(e.target.value, precision)} />
+    </dd></div>;
+}
 
 export function AdminListingForm() {
   const { id } = useParams();
@@ -155,7 +183,8 @@ export function AdminListingForm() {
       name: listing.name, description: listing.description, type: listing.type, org: listing.org,
       categories: listing.categories, levels: listing.levels, rewards: listing.rewards,
       teamMin: String(listing.teamMin), teamMax: String(listing.teamMax),
-      opensAt: listing.opensAt ?? '', closesAt: listing.closesAt, eventDate: listing.eventDate ?? '',
+      opensAt: fromStored(listing.opensAt, listing.opensPrecision), closesAt: fromStored(listing.closesAt, listing.closesPrecision),
+      eventDate: listing.eventDate ?? '', opensPrecision: listing.opensPrecision, closesPrecision: listing.closesPrecision,
       region: listing.region, venue: listing.venue ?? '',
       prizeValue: String(listing.prizeValue), prizeNote: listing.prizeNote ?? '',
       fee: listing.fee === null ? '' : String(listing.fee),
@@ -223,7 +252,8 @@ export function AdminListingForm() {
         name: draft.name, description: draft.description, type: draft.type, org: draft.org,
         categories: draft.categories, levels: draft.levels, rewards: draft.rewards,
         teamMin: Number(draft.teamMin), teamMax: Number(draft.teamMax),
-        opensAt: draft.opensAt || null, closesAt: draft.closesAt, eventDate: draft.eventDate || null,
+        opensAt: toSend(draft.opensAt, draft.opensPrecision), closesAt: toSend(draft.closesAt, draft.closesPrecision) ?? '',
+        opensPrecision: draft.opensPrecision, closesPrecision: draft.closesPrecision, eventDate: draft.eventDate || null,
         region: draft.region, venue: draft.venue || null,
         prizeValue: Number(draft.prizeValue || 0), prizeNote: draft.prizeNote || null,
         fee: draft.fee ? Number(draft.fee) : null,
@@ -346,10 +376,10 @@ export function AdminListingForm() {
       <section className="admin-block">
         <h2>วันเวลา สถานที่ และรางวัล</h2>
         <dl className="admin-fields">
-          <div className="admin-field"><dt><label htmlFor="listing-opens">เปิดรับ</label></dt>
-            <dd><input id="listing-opens" type="date" value={draft.opensAt} onChange={(e) => set('opensAt', e.target.value)} /></dd></div>
-          <div className="admin-field"><dt><label htmlFor="listing-closes">ปิดรับ *</label></dt>
-            <dd><input id="listing-closes" type="date" required value={draft.closesAt} onChange={(e) => set('closesAt', e.target.value)} /></dd></div>
+          <DateOrMonth id="listing-opens" label="เปิดรับ" value={draft.opensAt} precision={draft.opensPrecision}
+            onChange={(value, precision) => setDraft((current) => ({ ...current, opensAt: value, opensPrecision: precision }))} />
+          <DateOrMonth id="listing-closes" label="ปิดรับ *" required value={draft.closesAt} precision={draft.closesPrecision}
+            onChange={(value, precision) => setDraft((current) => ({ ...current, closesAt: value, closesPrecision: precision }))} />
           <div className="admin-field"><dt><label htmlFor="listing-event">วันจัดงาน</label></dt>
             <dd><input id="listing-event" type="date" value={draft.eventDate} onChange={(e) => set('eventDate', e.target.value)} /></dd></div>
           <div className="admin-field"><dt><label htmlFor="listing-region">รูปแบบ</label></dt>
@@ -389,7 +419,7 @@ export function AdminListingForm() {
               {draft.posterUrl && <img className="listing-poster" src={draft.posterUrl} alt="โปสเตอร์ที่อัปโหลดไว้" />}
               <input id="listing-poster" type="file" accept="image/png,image/jpeg,image/webp" disabled={posterBusy}
                 onChange={(e) => { void uploadPoster(e.target.files?.[0]); e.target.value = ''; }} />
-              <span className="admin-muted" role="status">{posterBusy ? 'กำลังอัปโหลด…' : 'รูป JPG, PNG หรือ WebP ไม่เกิน 5 MB · ไม่ใส่ = ใช้ภาพปกตามหมวด'}</span>
+              <span className="admin-muted" role="status">{posterBusy ? 'กำลังอัปโหลด…' : 'รูป JPG, PNG หรือ WebP ไม่เกิน 4 MB · ไม่ใส่ = ใช้ภาพปกตามหมวด'}</span>
               {draft.posterUrl && <button type="button" className="ghost-button listing-poster__remove" onClick={() => set('posterUrl', '')}>เอาโปสเตอร์ออก</button>}
               {posterMessage && <span className="admin-message" role="alert">{posterMessage}</span>}
             </dd></div>

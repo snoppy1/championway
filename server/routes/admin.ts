@@ -22,6 +22,7 @@ import { hiringEnabled } from '../lib/flow.js';
 import { staffNotificationKinds, staffNotificationSettings } from '../lib/staff-notify.js';
 import type { StaffNotificationKind } from '../lib/staff-notify.js';
 import { fileProblem, fileUrl, filesOf, publicFile, storeFile } from '../lib/files.js';
+import { monthEdge } from '../lib/dates.js';
 import { firstIssue } from './public.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
@@ -245,6 +246,8 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
         posterUrl: poster ? fileUrl(poster) : null,
         closesAt: submission.closesAt,
         opensAt: submission.opensAt,
+        closesPrecision: submission.closesPrecision,
+        opensPrecision: submission.opensPrecision,
         eventDate: submission.eventDate,
         region: submission.region,
         venue: submission.venue,
@@ -346,7 +349,9 @@ async function loadMentorSubmission(id: string) {
     awards: awards.map((award) => ({
       ...award,
       matched: known.find((item) => item.slug === award.competitionSlug) ?? null,
+      evidenceFileUrl: award.evidenceFileId ? `/api/files/${award.evidenceFileId}` : null,
     })),
+    photoUrl: row.photoFileId ? `/api/files/${row.photoFileId}` : null,
     files: (await filesOf('mentor_submission', id)).map(publicFile),
     events,
   };
@@ -411,6 +416,8 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
         best: submission.best,
         cannot: submission.cannot,
         verified: Boolean(verifiedAward),
+        // รูปจากใบสมัครกลายเป็นรูปบนหน้าเวทีและโปรไฟล์ (/api/files เปิดสาธารณะเมื่อเป็นรูปของเมนเทอร์)
+        photoUrl: submission.photoFileId ? `/api/files/${submission.photoFileId}` : null,
       });
       /* งานที่ติ๊กไว้ตอนสมัครกลายเป็นงานที่รับปรึกษา ใช้ราคาของงานนั้นจากใบสมัคร แก้ทีหลังได้ใน Mentor zone
          เฉพาะเวทีที่มีประสบการณ์แข่งในใบนี้ ใบแบบเก่าที่ติ๊กเวทีโดยไม่มีหลักฐานว่าเคยแข่งจะไม่ได้เวทีนั้น (Astra รีวิว 4 ต.ค. 2569) */
@@ -433,6 +440,17 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
           id: newId('exp'), mentorId: mentorId!, competitionId: award.matched?.id ?? null,
           name: award.matched?.name ?? award.title, result: award.result, year: award.year, detail: award.detail,
         }))).onConflictDoNothing();
+      }
+      /* เวทีที่ยังไม่มีในระบบแต่ติ๊กอยากเป็นเมนเทอร์ (พร้อมราคา) กลายเป็นคำขอเพิ่มเวทีในคิวเดียวกับ Mentor zone
+         ทีมสร้างเวทีแล้วอนุมัติคำขอ เมนเทอร์ก็ได้เวทีนั้นพร้อมราคาที่ใส่ไว้ (ผู้ใช้ขอ 6 ต.ค. 2569) */
+      const typed = submission.awards.filter((award) => award.wantsMentor && !award.matched && award.offerPrice !== null);
+      if (typed.length && submission.userId) {
+        await tx.insert(competitionRequests).values(typed.map((award) => ({
+          id: newId('creq'), mentorId: mentorId!, userId: submission.userId!, name: award.title,
+          url: /^https?:\/\//i.test(award.evidence) ? award.evidence : '', details: award.detail,
+          price: award.offerPrice!, unit: award.offerUnit, result: award.result, year: award.year,
+          evidence: award.evidence || (award.evidenceFileId ? `ไฟล์แนบในใบสมัครเมนเทอร์ (/api/files/${award.evidenceFileId})` : ''),
+        })));
       }
       await tx.update(mentorSubmissions)
         .set({ status: 'published', publishedMentorId: mentorId })
@@ -488,6 +506,9 @@ const listingBody = z.object({
   teamMax: z.number().int().min(1).max(100),
   opensAt: z.string().regex(isoDay).nullish(),
   closesAt: z.string().regex(isoDay, 'กรอกวันปิดรับ'),
+  // รู้แค่เดือน: ส่งวันไหนของเดือนก็ได้ เซิร์ฟเวอร์เก็บเป็นวันแรก (เปิด) และวันสุดท้าย (ปิด) ของเดือนนั้น
+  opensPrecision: z.enum(['day', 'month']).default('day'),
+  closesPrecision: z.enum(['day', 'month']).default('day'),
   eventDate: z.string().regex(isoDay).nullish(),
   region: z.enum(regionEnum.enumValues),
   venue: z.string().trim().max(200).nullish(),
@@ -530,6 +551,7 @@ async function freeSlug(name: string, fallback: string, ignoreId?: string) {
 }
 
 function listingValues(body: ListingBody) {
+  const opensAt = emptyToNull(body.opensAt);
   return {
     kind: body.kind,
     themes: body.themes,
@@ -537,8 +559,10 @@ function listingValues(body: ListingBody) {
     description: body.description,
     type: body.type,
     org: body.org,
-    closesAt: body.closesAt,
-    opensAt: emptyToNull(body.opensAt),
+    closesAt: body.closesPrecision === 'month' ? monthEdge(body.closesAt, 'last') : body.closesAt,
+    opensAt: opensAt && body.opensPrecision === 'month' ? monthEdge(opensAt, 'first') : opensAt,
+    closesPrecision: body.closesPrecision,
+    opensPrecision: body.opensPrecision,
     eventDate: emptyToNull(body.eventDate),
     region: body.region,
     venue: emptyToNull(body.venue),

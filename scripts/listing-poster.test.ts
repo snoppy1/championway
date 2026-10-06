@@ -53,6 +53,13 @@ test('admins upload a poster that anyone can see, and listings only accept our o
     const page = await (await app.request(`/api/competitions/${slug}`)).json();
     assert.deepEqual([page.competition.posterUrl, page.competition.region], [url, 'nationwide']);
 
+    // รู้แค่เดือน: เก็บวันสุดท้ายของเดือนเป็นวันปิด วันแรกเป็นวันเปิด และบอกหน้าเว็บว่าเป็นเดือน
+    const monthly = await post({ ...listing, name: `${prefix} งานรู้แค่เดือน`, closesAt: '2099-02-10', closesPrecision: 'month', opensAt: '2099-01-20', opensPrecision: 'month' });
+    assert.equal(monthly.status, 201, await monthly.clone().text());
+    const month = await (await app.request(`/api/competitions/${(await monthly.json()).slug}`)).json();
+    assert.deepEqual([month.competition.closesAt, month.competition.closesPrecision, month.competition.opensAt, month.competition.opensPrecision],
+      ['2099-02-28', 'month', '2099-01-01', 'month']);
+
     // ไฟล์อื่นยังต้องมีสิทธิ์ (ไฟล์ส่วนตัวของสมาชิก)
     const own = new FormData();
     own.append('file', png());

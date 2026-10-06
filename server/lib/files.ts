@@ -14,12 +14,13 @@ import { newId } from './id.js';
    คอลัมน์ path เก็บได้ทั้งชื่อไฟล์ในเครื่องและ URL ของที่เก็บภายนอก จึงไม่ต้องแก้ตาราง
    ตอนสลับที่เก็บ ตัวที่ขึ้นต้นด้วย http คือของภายนอก นอกนั้นคือไฟล์ในเครื่อง */
 
-const MAX_BYTES = 5 * 1024 * 1024;
+// Vercel รับ body ได้ราว 4.5 MB ไฟล์ที่ใหญ่กว่านี้ไปไม่ถึงเซิร์ฟเวอร์ จึงจำกัดที่ 4 MB ทุกช่องอัปโหลด
+const MAX_BYTES = 4 * 1024 * 1024;
 const ALLOWED = new Set(['image/png', 'image/jpeg', 'image/webp', 'application/pdf']);
 
 export function fileProblem(file: File) {
   if (!ALLOWED.has(file.type)) return 'รับเฉพาะไฟล์ JPG, PNG, WebP หรือ PDF';
-  if (file.size > MAX_BYTES) return 'ไฟล์ต้องไม่เกิน 5 MB';
+  if (file.size > MAX_BYTES) return 'ไฟล์ต้องไม่เกิน 4 MB';
   if (file.size === 0) return 'ไฟล์ว่างเปล่า';
   return '';
 }

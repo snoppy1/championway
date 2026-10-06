@@ -5,11 +5,12 @@ import { eq, inArray } from 'drizzle-orm';
 import { app } from '../server/app';
 import { db, client } from '../server/db/client';
 import {
-  competitions, emailLog, mentorAwards, mentorCompetitionChoices, mentorExperiences, mentorSubmissions, mentors, reviewEvents, sessions, users,
+  competitionRequests, competitions, emailLog, mentorAwards, mentorCompetitionChoices, mentorExperiences, mentorSubmissions, mentors, reviewEvents, sessions, users,
 } from '../server/db/schema';
 import { testDatabase } from '../server/lib/database-safety';
 import { createSession } from '../server/lib/session';
 import { mentorChecks } from '../server/routes/admin';
+import { fakeUploads, withUploads } from './fake-files';
 
 /* ใบสมัครเมนเทอร์ไม่มีราคากลางแล้ว ราคาอยู่กับแต่ละงานที่ติ๊ก หรือข้ามไว้ใส่ใน Mentor zone (ผู้ใช้ตัดสิน 4 ต.ค. 2569)
    ตอนอนุมัติ ราคาของแต่ละงานต้องไปอยู่ในงานที่รับปรึกษา และราคาบนโปรไฟล์คืองานที่ถูกที่สุด */
@@ -24,8 +25,10 @@ async function account(role: 'member' | 'admin' = 'member') {
   userIds.push(id);
   return { id, cookie: `cw_session=${(await createSession(id)).id}` };
 }
-const post = (path: string, cookie: string, body: unknown) => app.request(`/api${path}`, {
-  method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body),
+// ใบสมัครต้องแนบรูปโปรไฟล์และไฟล์หลักฐาน (scripts/fake-files.ts) ส่ง raw: true เพื่อทดสอบใบที่ไม่แนบ
+const post = async (path: string, cookie: string, body: unknown, raw = false) => app.request(`/api${path}`, {
+  method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+  body: JSON.stringify(!raw && path === '/submissions/mentor' ? await withUploads(cookie, body as { awards: object[] }) : body),
 });
 const award = (slug: string, wantsMentor: boolean, result = 'participant') => ({
   title: slug, competitionSlug: slug, result, detail: '', year: '2567', evidence: 'https://example.test/proof', wantsMentor,
@@ -61,6 +64,16 @@ test('per-competition prices from the application become the mentor\'s offers on
       // อักขระควบคุมที่เบราว์เซอร์ตัดทิ้ง (java<TAB>script:) ก็ไม่ผ่าน
       const sneaky = { ...award(slugs[0], false), evidence: 'java	script:alert(1)' };
       assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [sneaky] })).status, 400);
+      // รูปโปรไฟล์และไฟล์หลักฐานบังคับ (6 ต.ค. 2569) และต้องเป็นไฟล์ที่ผู้สมัครอัปโหลดเอง
+      const [mine] = await fakeUploads(applicant.id, 1);
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [{ ...award(slugs[0], false), evidenceFileId: mine }] }, true)).status, 400);
+      const [theirs] = await fakeUploads(admin.id, 1);
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, photoFileId: mine, awards: [{ ...award(slugs[0], false), evidenceFileId: theirs }] }, true)).status, 400);
+      const [pdf] = await fakeUploads(applicant.id, 1, 'application/pdf');
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, photoFileId: pdf, awards: [{ ...award(slugs[0], false), evidenceFileId: mine }] }, true)).status, 400);
+      // เวทีนอกระบบที่ติ๊กเป็นเมนเทอร์ต้องมีราคา
+      const typedNoPrice = { title: 'เวทีใหม่ไม่มีราคา', competitionSlug: null, result: 'participant', year: '2566', evidence: '', wantsMentor: true };
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [typedNoPrice] })).status, 400);
     });
 
     await t.test('only competitions you competed in and ticked get a price; typed competitions are kept as experience', async () => {
@@ -70,7 +83,8 @@ test('per-competition prices from the application become the mentor\'s offers on
           award(slugs[0], true, 'winner'), award(slugs[1], true, 'participant'), award(slugs[2], false, 'finalist'),
           // ใส่เวทีเดิมปีเดิมซ้ำ ได้ประสบการณ์แถวเดียว
           award(slugs[2], false, 'finalist'),
-          { title: 'เวทีที่ยังไม่มีในระบบ', competitionSlug: null, result: 'participant', year: '2565', evidence: 'https://example.test/x', wantsMentor: true },
+          { title: 'เวทีที่ยังไม่มีในระบบ', competitionSlug: null, result: 'participant', year: '2565', evidence: 'https://example.test/x', wantsMentor: true,
+            offer: { price: 300, unit: 'ชั่วโมง' } },
         ],
         offers: [
           { slug: slugs[0], price: 600, unit: 'โปรเจกต์' },
@@ -86,7 +100,10 @@ test('per-competition prices from the application become the mentor\'s offers on
         [[`${slugs[0]}-id`, 600, 'โปรเจกต์'], [`${slugs[1]}-id`, 0, '']]);
       const awards = await db.select().from(mentorAwards).where(eq(mentorAwards.submissionId, submissionId));
       assert.equal(awards.length, 5);
-      assert.equal(awards.find((a) => a.title === 'เวทีที่ยังไม่มีในระบบ')?.wantsMentor, false);
+      const typed = awards.find((a) => a.title === 'เวทีที่ยังไม่มีในระบบ');
+      assert.deepEqual([typed?.wantsMentor, typed?.offerPrice, typed?.offerUnit], [true, 300, 'ชั่วโมง']);
+      assert.ok(awards.every((a) => a.evidenceFileId));
+      assert.ok(row.photoFileId);
     });
 
     await t.test('the open list can include closed competitions for picking past experience', async () => {
@@ -109,6 +126,11 @@ test('per-competition prices from the application become the mentor\'s offers on
       assert.deepEqual([mentor.price, mentor.priceUnit], [0, '']);
       // ป้าย "ชนะ" ผูกกับเวทีที่ชนะเท่านั้น
       assert.equal(mentor.wonSlug, slugs[0]);
+      // รูปจากใบสมัครกลายเป็นรูปของเมนเทอร์ และเปิดได้โดยไม่ต้องเข้าสู่ระบบ
+      assert.equal(mentor.photoUrl, `/api/files/${row.photoFileId}`);
+      // เวทีนอกระบบที่ติ๊กไว้กลายเป็นคำขอเพิ่มเวทีพร้อมราคา
+      const requests = await db.select().from(competitionRequests).where(eq(competitionRequests.mentorId, row.publishedMentorId!));
+      assert.deepEqual(requests.map((r) => [r.name, r.price, r.unit, r.status]), [['เวทีที่ยังไม่มีในระบบ', 300, 'ชั่วโมง', 'pending']]);
       const experiences = await db.select().from(mentorExperiences).where(eq(mentorExperiences.mentorId, row.publishedMentorId!));
       assert.equal(experiences.length, 4);
       assert.deepEqual(experiences.filter((e) => e.competitionId).map((e) => e.result).sort(), ['finalist', 'participant', 'winner']);

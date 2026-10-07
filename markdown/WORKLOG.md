@@ -277,3 +277,10 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - `MentorTile` (components/mentors.tsx): name one line, specialty reserves two lines, result chip shortened to "ได้รางวัล · 2567" (full text in title), rating + price pinned to the bottom so cards in a row line up.
 - Removed i18n detail keys risingTitle/risingSub/risingEmpty/othersTitle/othersSub. The /mentors (Rising Star) page keeps its ranked/others sections.
 - Answered: approved mentors already add competitions via Mentor zone → "ขอเพิ่มเวที" (name, link, result, year, evidence link, price) → admin approves.
+
+## 2026-10-07 — Equal slider cards, A4 posters, mentor photo on profile
+
+- Home "Mentor หน้าใหม่" cards are all 290px: `min-width: 0`, name ellipsis, specialty wraps anywhere and reserves two lines (an unbroken "dddd…" used to widen the card).
+- Competition card covers are an A4 portrait frame (210/297) with the image absolutely positioned and `object-fit: cover`. Cause of uneven cards: `aspect-ratio` lets taller content grow the box.
+- Mentor profile, Mentor zone, contact pages now pass `photoUrl` to `Avatar` (the profile showed the initial even though the home slider showed the photo).
+- Tests in tests/rising-star.spec.ts; full browser run 322 passed apart from one flaky profile test, since fixed to serve a fixed response.

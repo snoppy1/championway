@@ -18,7 +18,7 @@ import '../consult.css';
 
 type Item = {
   id: string; status: ContactStatus; createdAt: string; claimedAt: string | null; completedAt: string | null;
-  mentor: { id: string; name: string; initial: string; specialty: string; verified: boolean };
+  mentor: { id: string; name: string; initial: string; specialty: string; verified: boolean; photoUrl?: string | null };
   competition: { slug: string; name: string } | null;
   review: { stars: number } | null;
 };
@@ -83,7 +83,7 @@ export function ContactConsulting() {
             : item.status === 'completed' ? s.stampCompleted(formatDate(item.completedAt ?? item.createdAt, lang)) : null;
         const link = <Link className="cx-link cx-link--text" to={to} aria-label={s.viewMentorOf(item.mentor.name)}>{s.viewMentor}</Link>;
         return <li className="panel cx-consult" key={item.id} id={`hire-${item.id}`}>
-          <Avatar initial={item.mentor.initial} plain />
+          <Avatar initial={item.mentor.initial} plain photoUrl={item.mentor.photoUrl} />
           <div className="cx-consult__body">
             <div className="cx-consult__title">
               <h2><Link to={to} aria-label={s.viewMentorOf(item.mentor.name)}>{item.mentor.name}</Link></h2>

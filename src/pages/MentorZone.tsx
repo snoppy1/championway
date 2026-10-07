@@ -736,7 +736,7 @@ export function HireMentorZone() {
 
     {data && mentor && <>
       <section className="cx-me" aria-label={mentor.name}>
-        <Avatar initial={mentor.initial} plain={!mentor.risingStar} />
+        <Avatar initial={mentor.initial} plain={!mentor.risingStar} photoUrl={mentor.photoUrl} />
         <div>
           <p className="cx-me__name">{mentor.name}{mentor.risingStar && <RisingStarPill />}</p>
           <p className="cx-hint">{s.ratingThisMonth}: <Rating rating={mentor.rating} /></p>

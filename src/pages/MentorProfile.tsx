@@ -249,7 +249,7 @@ export function MentorProfile() {
     </p>
 
     <header className="cx-hero">
-      <span className="rs-avatar-wrap"><Avatar initial={mentor.initial} plain={!mentor.risingStar} /></span>
+      <span className="rs-avatar-wrap"><Avatar initial={mentor.initial} plain={!mentor.risingStar} photoUrl={mentor.photoUrl} /></span>
       <div className="cx-hero__who">
         <h1>{mentor.name}</h1>
         <p className="cx-badges">

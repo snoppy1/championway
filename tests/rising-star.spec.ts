@@ -97,6 +97,58 @@ test('the home page slides through the newest mentors', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'ดู Mentor ทั้งหมด' })).toHaveAttribute('href', '/mentors');
 });
 
+/* ผู้ใช้ขอ 7 ต.ค. 2569: การ์ดเมนเทอร์หน้าใหม่กว้างเท่ากัน โปสเตอร์ทุกใบกรอบ A4 เท่ากัน รูปเมนเทอร์ขึ้นในหน้าโปรไฟล์ */
+const tallPoster = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="1200"><rect width="200" height="1200" fill="#c33"/></svg>')}`;
+const widePoster = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400"><rect width="1600" height="400" fill="#36c"/></svg>')}`;
+
+test('every new-mentor card is the same size, even with a very long unbroken specialty', async ({ page }) => {
+  await page.route('**/api/rising-star/newest', async (route) => {
+    const json = await (await route.fetch()).json();
+    json.items = [
+      { ...json.items[0], id: 'long-1', specialty: 'd'.repeat(90) },
+      { ...json.items[0], id: 'long-2', specialty: 'สั้น' },
+      { ...json.items[0], id: 'long-3', name: 'ชื่อยาวมากมากมากมากมากมากมากมากมากมากมาก', specialty: 'สองบรรทัด '.repeat(12) },
+    ];
+    await route.fulfill({ json });
+  });
+  await page.goto('/');
+  const cards = page.getByRole('group', { name: 'Mentor หน้าใหม่ เลื่อนดูด้านข้างได้' }).locator('.mentor-slide');
+  await expect(cards).toHaveCount(3);
+  const boxes = await cards.evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
+  expect(new Set(boxes.map(([w]) => w)).size).toBe(1);
+  expect(new Set(boxes.map(([, h]) => h)).size).toBe(1);
+});
+
+test('competition card covers are all the same A4 frame, whatever the poster shape', async ({ page }) => {
+  await page.route('**/api/competitions?*', async (route) => {
+    const json = await (await route.fetch()).json();
+    json.items = json.items.map((item: object, index: number) => ({ ...item, posterUrl: [tallPoster, widePoster, null][index % 3] }));
+    await route.fulfill({ json });
+  });
+  await page.goto('/');
+  const covers = page.locator('.competition-card .card-cover');
+  await expect(covers.nth(2)).toBeVisible();
+  const boxes = await covers.evaluateAll((els) => els.slice(0, 6).map((el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }));
+  for (const [width, height] of boxes) expect(Math.abs(height / width - 297 / 210)).toBeLessThan(0.02);
+  // ภาพไม่ล้นกรอบ
+  const poster = await covers.first().locator('img').boundingBox();
+  const frame = await covers.first().boundingBox();
+  expect(Math.abs(poster!.height - frame!.height)).toBeLessThanOrEqual(1);
+});
+
+test('the mentor profile shows the mentor photo, as the home slider does', async ({ page }) => {
+  // คนเก่าสุดในรายการเป็นข้อมูลตัวอย่างที่ไม่หายระหว่างเทส (เทสอื่นสร้างแล้วลบเมนเทอร์ชั่วคราวพร้อมกัน)
+  const { items } = await (await page.request.get('/api/rising-star/newest')).json() as { items: { id: string }[] };
+  const mentor = items.at(-1)!;
+  const photo = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><circle cx="40" cy="40" r="40" fill="#555"/></svg>')}`;
+  // อ่านข้อมูลจริงก่อนแล้วตอบแบบตายตัว: ตอนเครื่องช้า หน้าอาจยกเลิกคำขอแรก route.fetch จึงอ่านคำตอบที่ทิ้งไปแล้ว
+  const json = await (await page.request.get(`/api/consult/mentors/${mentor.id}`)).json();
+  json.mentor.photoUrl = photo;
+  await page.route(`**/api/consult/mentors/${mentor.id}`, (route) => route.fulfill({ json }));
+  await page.goto(`/mentors/${mentor.id}`);
+  await expect(page.locator('.cx-hero img.rs-avatar--photo')).toHaveAttribute('src', photo);
+});
+
 test('the old competition link still lands on the competition page', async ({ page }) => {
   await page.goto('/mentors?competition=some-competition');
   await expect(page).toHaveURL(/\/competitions\/some-competition#event-mentors$/);

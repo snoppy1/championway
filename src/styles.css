@@ -351,8 +351,11 @@ main:focus { outline: none; }
 .mentor-slide { color: inherit; transition: border-color 120ms, transform 120ms; }
 .mentor-slide:hover { border-color: var(--purple-soft); transform: translateY(-2px); }
 .mentor-slide:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
-.mentor-slide > div { min-width: 0; }
-.mentor-slide small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.5; }
+/* การ์ดกว้างเท่ากันทุกใบ ข้อความยาวที่ไม่มีช่องว่างก็ตัดบรรทัดได้ ไม่ดันการ์ดให้กว้าง (ผู้ใช้ขอ 7 ต.ค. 2569) */
+.mentor-slide { min-width: 0; min-height: 110px; }
+.mentor-slide > div { flex: 1; min-width: 0; }
+.mentor-slide b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mentor-slide small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; line-height: 1.5; min-height: 3em; }
 .slider-controls { display: flex; align-items: center; gap: 8px; }
 .slider-arrow {
   display: grid; place-items: center; width: 40px; height: 40px;
@@ -523,11 +526,15 @@ main:focus { outline: none; }
 .competition-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lift); }
 .card-featured-bar { height: 3px; background: linear-gradient(90deg, #6d28d9 0%, #b99aef 45%, #f5d95c 100%); }
 
+/* ทุกการ์ดใช้กรอบ A4 แนวตั้งเท่ากัน (ผู้ใช้ขอ 7 ต.ค. 2569) ภาพที่สัดส่วนไม่ตรงถูกตัดให้เต็มกรอบ
+   ภาพวางแบบ absolute เพราะ aspect-ratio ยอมให้เนื้อหาที่สูงกว่าดันกรอบให้สูงตาม (โปสเตอร์ยาวเลยทำการ์ดสูงไม่เท่ากัน) */
 .card-cover {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 210 / 297;
+  overflow: hidden;
   border-bottom: 1px solid #eee8f5;
 }
+.card-cover > .cover-art, .card-cover > .cover-poster { position: absolute; inset: 0; }
 .cover-art { width: 100%; height: 100%; display: block; }
 .urgent-chip {
   position: absolute; top: 12px; right: 12px;
@@ -1216,7 +1223,7 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
   .nav-soon small { margin-left: var(--space-1); }
 }
 
-/* โปสเตอร์ที่ทีมงานอัปโหลด (components/CoverArt.tsx) บนการ์ดตัดให้เต็มกรอบ 16:9 หน้าเวทีแสดงทั้งใบไม่ตัด */
+/* โปสเตอร์ที่ทีมงานอัปโหลด (components/CoverArt.tsx) บนการ์ดตัดให้เต็มกรอบ A4 หน้าเวทีแสดงทั้งใบไม่ตัด */
 .cover-poster { width: 100%; height: 100%; display: block; object-fit: cover; background: var(--purple-tint); }
 .cover-poster--full { height: auto; max-height: 520px; object-fit: contain; }
 
@@ -1272,7 +1279,7 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 .mentor-tile__body { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 12px 12px 14px; min-width: 0; }
 .mentor-tile__name { font: 600 15px/1.35 var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mentor-tile__spec {
-  font-size: 12.5px; line-height: 1.5; min-height: 3em; color: var(--muted);
+  font-size: 12.5px; line-height: 1.5; min-height: 3em; color: var(--muted); overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .mentor-tile__facts { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; max-width: 100%; }

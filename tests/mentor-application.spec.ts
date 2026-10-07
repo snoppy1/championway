@@ -3,6 +3,11 @@ import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createAccount, removeAccount, signIn } from './helpers';
 import type { TestAccount } from './helpers';
+import { eq, inArray } from 'drizzle-orm';
+import { db } from '../server/db/client';
+import { files, mentorAwards, mentorSubmissions, reviewEvents } from '../server/db/schema';
+import { newId } from '../server/lib/id';
+import { fakeUploads } from '../scripts/fake-files';
 
 /* จ้างพักไว้ (เซิร์ฟเวอร์ของเทสไม่ตั้ง HIRING_ENABLED) ถ้อยคำของช่องยอมรับสองข้อกับตัวอย่างโปรไฟล์จึงเป็นของโหมดตัวกลาง
    เปิดจ้างกลับแล้วใช้ถ้อยคำเดิม ส่วนช่องทางติดต่ออย่างน้อยหนึ่งช่องบังคับทั้งสองโหมด */
@@ -109,7 +114,7 @@ test('all four steps, private preview, uploads, back navigation and completion',
   await expect(page.locator('#apply-first')).toHaveValue('');
 });
 
-test('required identity, evidence and exactly two topics', async ({ page }) => {
+test('required identity, evidence, up to four topics plus a typed "other"', async ({ page }) => {
   await page.goto('/mentors/apply');
   await next(page);
   await expect(page.locator('#apply-first')).toBeFocused();
@@ -121,16 +126,28 @@ test('required identity, evidence and exactly two topics', async ({ page }) => {
   await expect(page.getByRole('alert')).toHaveText('เพิ่มเวทีที่เคยแข่งอย่างน้อยหนึ่งรายการ เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง');
   await addExperience(page, 'เวทีตัวอย่าง'); await next(page);
   await fillService(page);
-  await page.getByRole('checkbox', { name: 'พัฒนาต้นแบบ', exact: true }).click();
-  await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(2);
-  await expect(page.getByRole('alert')).toHaveText('เลือกได้สูงสุด 2 หัวข้อ');
-  // ความถนัดต้องสองหัวข้อพอดี
-  await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).uncheck();
+  // เลือกจากรายการได้สูงสุดสี่ข้อ (7 ต.ค. 2569)
+  await page.getByRole('checkbox', { name: 'พัฒนาต้นแบบ', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'ออกแบบสไลด์', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'วางแผนและแบ่งงาน', exact: true }).click();
+  await expect(page.locator('#cw-apply .topics input:checked')).toHaveCount(4);
+  await expect(page.getByRole('alert')).toHaveText('เลือกจากรายการได้สูงสุด 4 หัวข้อ');
+  // "อื่นๆ" ไม่นับรวมสี่ข้อ ติ๊กแล้วต้องพิมพ์ว่าช่วยอะไร
+  await page.getByRole('checkbox', { name: 'อื่นๆ', exact: true }).check();
   await next(page);
-  await expect(page.getByRole('alert')).toHaveText('เลือกความถนัดให้ครบ 2 หัวข้อ');
-  await page.getByRole('checkbox', { name: 'Pitching และตอบคำถาม', exact: true }).check();
+  await expect(page.getByRole('alert')).toHaveText('พิมพ์ความถนัดอื่นๆ ที่ช่วยได้ หรือเอาติ๊ก “อื่นๆ” ออก');
+  await page.getByLabel('ความถนัดอื่นๆ ที่ช่วยได้').fill('เขียนแผนธุรกิจ');
+  // ต้องมีความถนัดอย่างน้อยหนึ่งข้อ
+  for (const name of ['ตีโจทย์และหาไอเดีย', 'Pitching และตอบคำถาม', 'พัฒนาต้นแบบ', 'ออกแบบสไลด์', 'อื่นๆ']) {
+    await page.getByRole('checkbox', { name, exact: true }).uncheck();
+  }
+  await next(page);
+  await expect(page.getByRole('alert')).toHaveText('เลือกความถนัดอย่างน้อย 1 หัวข้อ');
+  await page.getByRole('checkbox', { name: 'อื่นๆ', exact: true }).check();
+  await expect(page.getByLabel('ความถนัดอื่นๆ ที่ช่วยได้')).toHaveValue('เขียนแผนธุรกิจ');
   await next(page);
   await expect(page.getByRole('heading', { name: 'ตรวจทานก่อนส่งใบสมัคร' })).toBeVisible();
+  await expect(page.locator('#cw-apply .profile')).toContainText('เขียนแผนธุรกิจ');
 });
 
 test('only competitions you competed in can be mentored, each priced as free or per a unit you name', async ({ page }) => {
@@ -182,7 +199,7 @@ test('only competitions you competed in can be mentored, each priced as free or 
   expect(body.awards).toHaveLength(3);
   expect(body.awards.filter((award: { wantsMentor: boolean }) => award.wantsMentor)).toHaveLength(3);
   expect(body.photoFileId).toMatch(/^fil_/);
-  expect(body.awards.every((award: { evidenceFileId: string }) => /^fil_/.test(award.evidenceFileId))).toBe(true);
+  expect(body.awards.every((award: { evidenceFileIds: string[] }) => award.evidenceFileIds.length === 1 && /^fil_/.test(award.evidenceFileIds[0]))).toBe(true);
   // เวทีนอกระบบส่งราคาไปกับรายการนั้น อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที
   // การ์ดราคาเรียงตามลำดับประสบการณ์ เวทีนอกระบบเป็นใบแรก (500 บาท ต่อโปรเจกต์)
   expect(body.awards[0]).toMatchObject({ competitionSlug: null, wantsMentor: true, offer: { price: 500, unit: 'โปรเจกต์' } });
@@ -224,8 +241,21 @@ test('experiences are unlimited, show what is missing under each field, fold whe
   await card.getByLabel('ปี พ.ศ. *', { exact: true }).fill('2568');
   await card.locator('input[type=file]').setInputFiles({ name: 'invalid.txt', mimeType: 'text/plain', buffer: Buffer.from('sample') });
   await expect(card).toContainText('ใช้ไฟล์ PDF, JPG หรือ PNG ไม่เกิน 4 MB');
-  await card.locator('input[type=file]').setInputFiles({ name: 'award.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 sample') });
-  await expect(card).toContainText('award.pdf');
+  await card.getByRole('button', { name: 'ลบไฟล์ invalid.txt' }).click();
+  // แนบได้หลายไฟล์ (7 ต.ค. 2569) เลือกพร้อมกันหรือเพิ่มทีละไฟล์ก็ได้ สูงสุดห้าไฟล์
+  await card.locator('input[type=file]').setInputFiles([
+    { name: 'award.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 sample') },
+    { name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from('89504e470d0a1a0a', 'hex') },
+  ]);
+  await expect(card.locator('.exp-file__list li')).toHaveCount(2);
+  await expect(card).not.toContainText('ใช้ไฟล์ PDF, JPG หรือ PNG ไม่เกิน 4 MB');
+  await card.locator('input[type=file]').setInputFiles(['a', 'b', 'c', 'd'].map((name) => ({ name: `${name}.pdf`, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') })));
+  await expect(card.locator('.exp-file__list li')).toHaveCount(5);
+  await expect(card.getByText('แนบไฟล์เพิ่ม')).toHaveCount(0);
+  // เลือกเกินห้าไฟล์ เก็บแค่ห้าไฟล์แรก
+  await expect(card.getByText('d.pdf', { exact: true })).toHaveCount(0);
+  await card.getByRole('button', { name: 'ลบไฟล์ c.pdf' }).click();
+  await expect(card.getByText('แนบไฟล์เพิ่ม')).toBeVisible();
   // กดเสร็จแล้วพับเหลือบรรทัดเดียว
   await card.getByRole('button', { name: 'เสร็จ', exact: true }).click();
   await expect(card).toContainText('Venture Ignite');
@@ -314,4 +344,68 @@ test('application visual QA and accessibility for every step', async ({ page }, 
     if (stage === 2) { await fillService(page); await next(page); }
   }
   expect(errors).toEqual([]);
+});
+
+test('after the team asks for more information, the applicant edits the application from the profile and sends it back', async ({ page }) => {
+  // บัญชีแยก ใบของบัญชีหลักในเทสอื่นจะได้ไม่ปนกัน
+  const owner = await createAccount('member');
+  const reviewer = await createAccount('admin');
+  try {
+    const [photo, proof] = await fakeUploads(owner.id, 2);
+    const id = newId('ms');
+    await db.insert(mentorSubmissions).values({
+      id, userId: owner.id, status: 'info', firstName: 'ใบ', lastName: 'ขอเพิ่ม', nickname: 'พี่ใบ', email: owner.email, phone: '',
+      occupation: 'ทำงานแล้ว', organization: 'บริษัทตัวอย่าง', role: 'นักออกแบบ', experience: 'เคยแข่งออกแบบ', best: 'ช่วยวางเรื่องสไลด์',
+      cannot: 'ไม่ทำสไลด์แทน', topics: ['ออกแบบสไลด์', 'เขียนแผนธุรกิจ'], contactLine: 'bai.line', photoFileId: photo,
+    });
+    await db.update(files).set({ ownerType: 'mentor_submission', ownerId: id }).where(inArray(files.id, [photo, proof]));
+    await db.insert(mentorAwards).values({ id: newId('aw'), submissionId: id, title: 'เวทีออกแบบตัวอย่าง', year: '2567', evidence: '', result: 'winner', evidenceFileIds: [proof] });
+    await db.insert(reviewEvents).values({ id: newId('rev'), target: 'mentor', targetId: id, decision: 'info', note: 'ขอเกียรติบัตรที่เห็นชื่อชัด ๆ', reviewedBy: reviewer.id });
+
+    await signIn(page, owner, '/profile');
+    await expect(page.getByText('ทีมงานขอ: ขอเกียรติบัตรที่เห็นชื่อชัด ๆ')).toBeVisible();
+    await page.getByRole('link', { name: 'แก้ไขใบสมัคร' }).click();
+    await expect(page).toHaveURL((url) => url.pathname === '/mentors/apply' && url.searchParams.get('edit') === id);
+    await expect(page.getByRole('heading', { name: 'ทีมงานขอข้อมูลเพิ่ม' })).toBeVisible();
+    await expect(page.locator('.application-request__note')).toHaveText('ขอเกียรติบัตรที่เห็นชื่อชัด ๆ');
+    // ค่าจากใบเดิม รูปเดิมใช้ต่อได้โดยไม่ต้องเลือกใหม่
+    await expect(page.locator('#apply-nickname')).toHaveValue('พี่ใบ');
+    await expect(page.locator('.portrait-current img')).toBeVisible();
+    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    expect(axe.violations).toEqual([]);
+    await next(page);
+    // ไฟล์เดิมอยู่ในการ์ด แนบเพิ่มได้
+    const card = page.locator('#cw-apply .exp').first();
+    await card.getByRole('button', { name: /^แก้ไข/ }).click();
+    await expect(card.locator('.exp-file__list li')).toHaveCount(1);
+    await card.locator('input[type=file]').setInputFiles(PROOF);
+    await expect(card.locator('.exp-file__list li')).toHaveCount(2);
+    await next(page);
+    // ความถนัดอื่นๆ ที่พิมพ์ไว้กลับมาในช่องเดิม
+    await expect(page.getByRole('checkbox', { name: 'ออกแบบสไลด์', exact: true })).toBeChecked();
+    await expect(page.getByLabel('ความถนัดอื่นๆ ที่ช่วยได้')).toHaveValue('เขียนแผนธุรกิจ');
+    await next(page);
+    await acceptAll(page);
+    const sent = page.waitForRequest((request) => request.url().endsWith(`/api/submissions/mentor/${id}`) && request.method() === 'PUT');
+    await page.getByRole('button', { name: 'ส่งใบที่แก้แล้ว', exact: true }).click();
+    const body = (await sent).postDataJSON();
+    expect(body.photoFileId).toBe(photo);
+    expect(body.awards[0].evidenceFileIds).toHaveLength(2);
+    expect(body.awards[0].evidenceFileIds[0]).toBe(proof);
+    await expect(page.getByRole('heading', { name: 'ส่งใบที่แก้แล้ว' })).toBeVisible();
+    const [row] = await db.select().from(mentorSubmissions).where(eq(mentorSubmissions.id, id));
+    expect(row.status).toBe('pending');
+    await page.goto('/profile');
+    await expect(page.getByRole('link', { name: 'แก้ไขใบสมัคร' })).toHaveCount(0);
+  } finally {
+    const ids = (await db.select({ id: mentorSubmissions.id }).from(mentorSubmissions).where(eq(mentorSubmissions.userId, owner.id))).map((row) => row.id);
+    if (ids.length) {
+      await db.delete(reviewEvents).where(inArray(reviewEvents.targetId, ids));
+      await db.delete(files).where(inArray(files.ownerId, ids));
+      await db.delete(mentorSubmissions).where(inArray(mentorSubmissions.id, ids));
+    }
+    await db.delete(files).where(eq(files.ownerId, owner.id));
+    await removeAccount(owner);
+    await removeAccount(reviewer);
+  }
 });

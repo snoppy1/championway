@@ -57,6 +57,9 @@
 .journey-page h3 { margin-top: 14px; font-size: 15px; font-weight: 600; }
 .plain-list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
 .plain-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.application-info { flex-basis: 100%; display: grid; justify-items: start; gap: 10px; margin-top: 4px; padding: 12px 14px; border-left: 3px solid #C2410C; border-radius: 8px; background: #FFF7F2; }
+.application-info p { margin: 0; white-space: pre-line; }
+.application-info .primary-button { display: inline-flex; align-items: center; gap: 8px; }
 .reason-list { margin: 8px 0; padding-left: 18px; font-size: 13.5px; color: var(--muted); }
 
 .profile-head {

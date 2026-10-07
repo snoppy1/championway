@@ -257,3 +257,11 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Competitions not in the system can be ticked "อยากเป็นเมนเทอร์" with a price (`mentor_awards.offer_price/offer_unit`); on approval they become `competition_requests` in the existing "คำขอเพิ่มเวที" queue.
 - All upload limits now 4 MB (Vercel's ~4.5 MB body limit). Contact channels already required (client + server); added "*" and clearer hint. Long organizer names no longer overflow the matched-competition box.
 - Tests: scripts/fake-files.ts helper; mentor-offers/staff-notify/listing-poster/mentor-application/consult specs updated. API 103, browser 311 pass.
+
+## 2026-10-07 — Owner's round: topics, multiple evidence files, edit after "more info", icon alignment
+- Strengths: up to 4 from the list + optional "อื่นๆ" free text (stored as typed text at the end of `topics`); at least one required. Server enforces ≤4 standard + ≤1 other.
+- Evidence: up to 5 files per competition (`mentor_awards.evidence_file_ids text[]`, migrations 0023 add+backfill, 0024 drop `evidence_file_id`). Multi-select + per-file remove; admin shows each file link.
+- Edit after "ทีมงานขอข้อมูลเพิ่ม": profile shows the reviewer's note + "แก้ไขใบสมัคร" → `/mentors/apply?edit=<id>` prefilled (existing photo/files reused). `GET/PUT /api/submissions/mentor/:id` (owner only, status `info` only, row locked on save) → back to `pending`, staff notified. Applicants can open files attached to their own application.
+- Icons: audited every button/link with an icon on guest, mentor and admin pages (3 viewports); only `.ghost-button` was off (display:block) → base class is now inline-flex centered. Re-audit clean.
+- Tests: scripts/mentor-edit.test.ts; mentor-application spec updated + edit-flow test. API 104, browser 314 pass.
+- Production needs migrations 0021–0024 before main is pushed.

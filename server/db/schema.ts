@@ -243,9 +243,8 @@ export const mentorAwards = pgTable('mentor_awards', {
   detail: text('detail').notNull().default(''),
   /** อยากเป็นเมนเทอร์ของเวทีนี้ ติ๊กได้เฉพาะเวทีที่มีในระบบ */
   wantsMentor: boolean('wants_mentor').notNull().default(false),
-  /** ไฟล์หลักฐานที่แนบ (บังคับตั้งแต่ 6 ต.ค. 2569) เห็นเฉพาะทีมตรวจ */
-  evidenceFileId: text('evidence_file_id').references(() => files.id, { onDelete: 'set null' }),
-  /** ราคาของเวทีที่ยังไม่มีในระบบแต่ติ๊กว่าอยากเป็นเมนเทอร์ อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
+  /** ไฟล์หลักฐานที่แนบ อย่างน้อยหนึ่งไฟล์ สูงสุดห้าไฟล์ (บังคับตั้งแต่ 6 ต.ค. 2569 หลายไฟล์ตั้งแต่ 7 ต.ค.) เห็นเฉพาะทีมตรวจ */
+  evidenceFileIds: text('evidence_file_ids').array().notNull().default([]),  /** ราคาของเวทีที่ยังไม่มีในระบบแต่ติ๊กว่าอยากเป็นเมนเทอร์ อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
   offerPrice: integer('offer_price'),
   offerUnit: text('offer_unit').notNull().default(''),
 }, (table) => [

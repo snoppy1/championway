@@ -1,5 +1,5 @@
 import { Fragment, useId } from 'react';
-import { AlertCircle, Check, CircleCheck, ExternalLink, Info, Paperclip } from 'lucide-react';
+import { AlertCircle, Check, CircleCheck, ExternalLink, FileText, Info, Paperclip, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { formatInputDate } from '../i18n/format';
 import { priceProblem } from '../data/consult';
@@ -8,14 +8,17 @@ import type { Price } from '../data/consult';
 /* ใบสมัครเมนเทอร์ (ผู้ใช้ตัดสิน 4 ต.ค. 2569 กับทีม)
    ขั้น 2: ประสบการณ์แข่งขันกี่รายการก็ได้ แต่ละรายการบอกเวที ผล ปี หลักฐาน และติ๊กว่าอยากเป็นเมนเทอร์ของเวทีนั้นไหม
            เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง (ผลอะไรก็ได้) เวทีที่ยังไม่มีในระบบก็ติ๊กได้ ทีมงานเพิ่มให้หลังอนุมัติ (6 ต.ค. 2569)
-           ไฟล์หลักฐานบังคับทุกรายการ ลิงก์ประกาศผลไม่บังคับ (ผู้ใช้ขอ 6 ต.ค. 2569)
+           ไฟล์หลักฐานบังคับทุกรายการ ลิงก์ประกาศผลไม่บังคับ (ผู้ใช้ขอ 6 ต.ค. 2569) แนบได้สูงสุดห้าไฟล์ (7 ต.ค.)
    ขั้น 3: ราคาของเวทีที่ติ๊กไว้ เลือก "ฟรี" หรือ "[ราคา] บาท ต่อ [หน่วยที่พิมพ์เอง]"
    ปัญหาของแต่ละช่องแสดงใต้ช่องนั้นในการ์ด ไม่ใช่ข้อความรวมข้อเดียว (design-critic 4 ต.ค. 2569) */
 
 export type Result = 'winner' | 'finalist' | 'participant';
 export const results: Result[] = ['winner', 'finalist', 'participant'];
+/** ไฟล์หลักฐานหนึ่งไฟล์ ไฟล์ใหม่ยังไม่ได้อัปโหลด (มี file) ไฟล์ที่แนบไว้ในใบเดิมตอนแก้ใบ (มี id) */
+export type Proof = { key: string; name: string; file?: File; id?: string };
+export const maxProofs = 5;
 export type Experience = {
-  id: number; name: string; slug: string | null; result: Result | ''; detail: string; year: string; url: string; file?: File; mentor: boolean;
+  id: number; name: string; slug: string | null; result: Result | ''; detail: string; year: string; url: string; proofs: Proof[]; mentor: boolean;
   /** การ์ดที่กรอกครบแล้วพับเหลือบรรทัดเดียว หน้าจะได้ไม่ยาวเกินเมื่อมีหลายเวที */
   open: boolean;
 };
@@ -37,9 +40,9 @@ export function experienceProblems(item: Experience): ExperienceProblem[] {
   if (!item.name.trim()) problems.push('name');
   if (!item.result) problems.push('result');
   if (!/^\d{4}$/.test(item.year) || Number(item.year) < 2500 || Number(item.year) > thisYear) problems.push('year');
-  if (!item.file) problems.push('proof');
+  if (!item.proofs.length) problems.push('proof');
   if (item.url.trim() && !/^https?:\/\//i.test(item.url.trim())) problems.push('url');
-  if (item.file && (item.file.size > 4 * 1024 * 1024 || !evidenceTypes.includes(item.file.type))) problems.push('file');
+  if (item.proofs.some(({ file }) => file && (file.size > 4 * 1024 * 1024 || !evidenceTypes.includes(file.type)))) problems.push('file');
   return problems;
 }
 
@@ -76,6 +79,8 @@ function CompetitionInfo({ competition }: { competition: KnownCompetition }) {
     </a>
   </div>;
 }
+
+let nextProof = 0;
 
 function FieldError({ id, text }: { id: string; text: string }) {
   return <p className="offer-error exp-error" id={id}><AlertCircle aria-hidden="true" size={16} />{text}</p>;
@@ -150,14 +155,27 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
     </div>
     <div className="exp-file exp-gap">
       <span className="exp-label" id={`${uid}-file-label`}>{s.file}</span>
-      <label className="exp-file__button">
-        <Paperclip aria-hidden="true" size={16} />{item.file ? s.fileChange : s.fileChoose}
-        <input type="file" accept=".pdf,.jpg,.jpeg,.png" aria-labelledby={`${uid}-file-label`}
+      {item.proofs.length > 0 && <ul className="exp-file__list">
+        {item.proofs.map((proof) => <li key={proof.key} className={proof.file && (proof.file.size > 4 * 1024 * 1024 || !evidenceTypes.includes(proof.file.type)) ? 'is-invalid' : undefined}>
+          <FileText aria-hidden="true" size={16} />
+          <span className="exp-file__name">{proof.name}</span>
+          <button type="button" className="exp-file__remove" aria-label={s.fileRemove(proof.name)}
+            onClick={() => onChange({ proofs: item.proofs.filter((row) => row.key !== proof.key) })}><X aria-hidden="true" size={16} /></button>
+        </li>)}
+      </ul>}
+      {item.proofs.length < maxProofs && <label className="exp-file__button">
+        <Paperclip aria-hidden="true" size={16} />{item.proofs.length ? s.fileAdd : s.fileChoose}
+        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" aria-labelledby={`${uid}-file-label`}
           aria-invalid={has('proof') || has('file') || undefined}
           aria-describedby={`${uid}-file-hint${has('proof') || has('file') ? ` ${uid}-file-error` : ''}`}
-          onChange={(event) => onChange({ file: event.target.files?.[0] })} />
-      </label>
-      <span className="exp-file__name">{item.file ? item.file.name : s.fileNone}</span>
+          onChange={(event) => {
+            const picked = [...(event.target.files ?? [])].map((file) => ({ key: `new-${++nextProof}`, name: file.name, file }));
+            // เลือกไฟล์เดิมซ้ำได้อีกครั้งหลังลบออก
+            event.target.value = '';
+            onChange({ proofs: [...item.proofs, ...picked].slice(0, maxProofs) });
+          }} />
+      </label>}
+      {!item.proofs.length && <span className="exp-file__name">{s.fileNone}</span>}
       <small id={`${uid}-file-hint`}>{s.fileHint}</small>
     </div>
     {(has('proof') || has('file')) && <FieldError id={`${uid}-file-error`} text={has('proof') ? s.errors.proof : s.errors.file} />}

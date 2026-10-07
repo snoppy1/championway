@@ -66,11 +66,11 @@ test('per-competition prices from the application become the mentor\'s offers on
       assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [sneaky] })).status, 400);
       // รูปโปรไฟล์และไฟล์หลักฐานบังคับ (6 ต.ค. 2569) และต้องเป็นไฟล์ที่ผู้สมัครอัปโหลดเอง
       const [mine] = await fakeUploads(applicant.id, 1);
-      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [{ ...award(slugs[0], false), evidenceFileId: mine }] }, true)).status, 400);
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [{ ...award(slugs[0], false), evidenceFileIds: [mine] }] }, true)).status, 400);
       const [theirs] = await fakeUploads(admin.id, 1);
-      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, photoFileId: mine, awards: [{ ...award(slugs[0], false), evidenceFileId: theirs }] }, true)).status, 400);
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, photoFileId: mine, awards: [{ ...award(slugs[0], false), evidenceFileIds: [theirs] }] }, true)).status, 400);
       const [pdf] = await fakeUploads(applicant.id, 1, 'application/pdf');
-      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, photoFileId: pdf, awards: [{ ...award(slugs[0], false), evidenceFileId: mine }] }, true)).status, 400);
+      assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, photoFileId: pdf, awards: [{ ...award(slugs[0], false), evidenceFileIds: [mine] }] }, true)).status, 400);
       // เวทีนอกระบบที่ติ๊กเป็นเมนเทอร์ต้องมีราคา
       const typedNoPrice = { title: 'เวทีใหม่ไม่มีราคา', competitionSlug: null, result: 'participant', year: '2566', evidence: '', wantsMentor: true };
       assert.equal((await post('/submissions/mentor', applicant.cookie, { ...base, awards: [typedNoPrice] })).status, 400);
@@ -102,7 +102,7 @@ test('per-competition prices from the application become the mentor\'s offers on
       assert.equal(awards.length, 5);
       const typed = awards.find((a) => a.title === 'เวทีที่ยังไม่มีในระบบ');
       assert.deepEqual([typed?.wantsMentor, typed?.offerPrice, typed?.offerUnit], [true, 300, 'ชั่วโมง']);
-      assert.ok(awards.every((a) => a.evidenceFileId));
+      assert.ok(awards.every((a) => a.evidenceFileIds.length === 1));
       assert.ok(row.photoFileId);
     });
 

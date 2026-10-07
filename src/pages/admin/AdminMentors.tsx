@@ -24,8 +24,8 @@ type Award = {
   detail: string;
   wantsMentor: boolean;
   matched: { slug: string; name: string } | null;
-  /** ไฟล์หลักฐาน (บังคับตั้งแต่ 6 ต.ค. 2569) ใบเก่าไม่มี */
-  evidenceFileUrl: string | null;
+  /** ไฟล์หลักฐาน (บังคับตั้งแต่ 6 ต.ค. 2569 หลายไฟล์ได้ตั้งแต่ 7 ต.ค.) ใบเก่าไม่มี */
+  evidenceFileUrls: string[];
   /** ราคาของเวทีที่ยังไม่มีในระบบ อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
   offerPrice: number | null;
   offerUnit: string;
@@ -247,8 +247,9 @@ export function AdminMentorReview() {
                     ? <Link to={`/competitions/${award.matched.slug}`}>{award.matched.name}</Link>
                     : <span className="award-unmatched">ไม่พบเวทีนี้ในระบบ ต้องตรวจด้วยมือ</span>}
                 </Field>
-                <Field label="ไฟล์หลักฐาน">{award.evidenceFileUrl
-                  ? <a href={award.evidenceFileUrl} target="_blank" rel="noopener noreferrer">เปิดไฟล์หลักฐาน</a>
+                <Field label="ไฟล์หลักฐาน">{award.evidenceFileUrls.length
+                  ? <span className="award-files">{award.evidenceFileUrls.map((url, index) => <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                    {award.evidenceFileUrls.length > 1 ? `เปิดไฟล์หลักฐาน ${index + 1}` : 'เปิดไฟล์หลักฐาน'}</a>)}</span>
                   : 'ไม่ได้แนบไฟล์'}</Field>
                 <Field label="ลิงก์ประกาศผล">{/^https?:\/\//i.test(award.evidence) ? <ExternalLink href={award.evidence} /> : award.evidence || 'ไม่ได้ใส่'}</Field>
                 <VerifyAward award={award} onDone={reload} />

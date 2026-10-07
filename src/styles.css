@@ -235,7 +235,9 @@ main:focus { outline: none; }
 }
 .primary-button:not(:disabled):hover { box-shadow: 0 12px 24px -8px rgb(109 40 217 / 75%); }
 
+/* ไอคอนกับตัวหนังสือในปุ่มอยู่กึ่งกลางแนวเดียวกันเสมอ (ผู้ใช้ขอ 7 ต.ค. 2569) */
 .ghost-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 10px 16px;
   border: 1px solid #ddd0f4;
   border-radius: var(--radius);

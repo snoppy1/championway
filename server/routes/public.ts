@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import {
   categoryEnum, competitionSubmissions, competitions as competitionsTable, files as filesTable,
-  levelEnum, mentorAwards, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, rewardEnum,
+  levelEnum, mentorAwards, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
   submissionCategories, submissionLevels, submissionRewards,
 } from '../db/schema.js';
 import { competitionOptions, findCompetitionBySlug, listCompetitions, relatedCompetitions } from '../db/queries.js';
@@ -20,6 +20,7 @@ import { uploadsUsable } from '../lib/env.js';
 import { attachFiles, fileProblem, publicFile, readStoredFile, storeFile } from '../lib/files.js';
 import { monthEdge } from '../lib/dates.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
+import { topicValues } from '../../src/data/stored-values.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
 
 export const publicApi = new Hono<AppEnv>();
@@ -198,7 +199,10 @@ publicApi.get('/files/:id', async (c) => {
     if (!user) throw new HTTPException(401, { message: 'กรุณาเข้าสู่ระบบก่อน' });
     if (!row) throw new HTTPException(404, { message: 'ไม่พบไฟล์นี้' });
     const reviewer = user.role === 'reviewer' || user.role === 'admin';
-    const owner = row.ownerType === 'user' && row.ownerId === user.id;
+    // ผู้สมัครเปิดไฟล์ที่แนบกับใบสมัครเมนเทอร์ของตัวเองได้ (ต้องเห็นตอนแก้ใบที่ทีมงานขอข้อมูลเพิ่ม)
+    const owner = (row.ownerType === 'user' && row.ownerId === user.id) || (row.ownerType === 'mentor_submission'
+      && (await db.select({ id: mentorSubmissions.id }).from(mentorSubmissions)
+        .where(and(eq(mentorSubmissions.id, row.ownerId), eq(mentorSubmissions.userId, user.id))).limit(1)).length > 0);
     if (!reviewer && !owner) throw new HTTPException(403, { message: 'ไม่มีสิทธิ์เปิดไฟล์นี้' });
   }
   if (!row) throw new HTTPException(404, { message: 'ไม่พบไฟล์นี้' });
@@ -213,6 +217,8 @@ publicApi.get('/files/:id', async (c) => {
 });
 
 /* ---------- รับใบที่ส่งเข้ามา ---------- */
+
+const standardTopics = new Set<string>(Object.values(topicValues));
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ไม่ถูกต้อง');
 
@@ -335,8 +341,12 @@ const mentorSubmissionBody = z.object({
   portfolio: z.string().trim().max(500).default(''),
   best: z.string().trim().min(1).max(1000),
   cannot: z.string().trim().min(1).max(1000),
-  // หน้าเว็บบังคับเลือกความถนัดสองข้อพอดี ฝั่งเซิร์ฟเวอร์ต้องบังคับซ้ำ
-  topics: z.array(z.string().trim().min(1).max(80)).length(2, 'เลือกความถนัดสองข้อ'),
+  /* ความถนัด (ผู้ใช้ขอ 7 ต.ค. 2569): เลือกจากรายการได้ไม่เกินสี่ข้อ บวก "อื่นๆ" ที่พิมพ์เองได้อีกหนึ่งข้อ รวมแล้วต้องมีอย่างน้อยหนึ่งข้อ
+     ข้อที่พิมพ์เองเก็บเป็นข้อความตามที่พิมพ์ อยู่ท้ายรายการ */
+  topics: z.array(z.string().trim().min(1).max(80)).min(1, 'เลือกความถนัดอย่างน้อยหนึ่งข้อ').max(5)
+    .transform((list) => [...new Set(list)])
+    .refine((list) => list.filter((topic) => standardTopics.has(topic)).length <= 4, 'เลือกความถนัดจากรายการได้ไม่เกินสี่ข้อ')
+    .refine((list) => list.filter((topic) => !standardTopics.has(topic)).length <= 1, 'ความถนัดอื่นๆ ใส่ได้หนึ่งข้อ'),
   /* ช่องทางติดต่อที่นักเรียนเห็นหลังกด Contact Mentor ต้องมีอย่างน้อยหนึ่งช่อง (ตรวจใน refine ด้านล่าง) */
   contactEmail: z.string().trim().max(200).refine((v) => !v || z.string().email().safeParse(v).success, 'อีเมลติดต่อไม่ถูกต้อง').default(''),
   contactLine: z.string().trim().max(100).default(''),
@@ -362,8 +372,8 @@ const mentorSubmissionBody = z.object({
     year: z.string().trim().min(1).max(10),
     // ลิงก์ต้องเป็น http(s) ห้าม javascript: data: (หน้า admin อาจทำเป็นลิงก์) ไม่บังคับแล้ว เพราะบังคับแนบไฟล์แทน
     evidence: z.string().trim().max(400).refine((v) => !v || safeEvidence(v), 'ลิงก์หลักฐานต้องขึ้นต้นด้วย https://').default(''),
-    /** ไฟล์หลักฐานที่อัปโหลดผ่าน /api/files ก่อนส่งใบ บังคับทุกรายการ (ผู้ใช้ขอ 6 ต.ค. 2569) */
-    evidenceFileId: z.string().trim().min(1, 'แนบไฟล์หลักฐานของทุกเวที').max(60),
+    /** ไฟล์หลักฐานที่อัปโหลดผ่าน /api/files ก่อนส่งใบ บังคับทุกรายการ (ผู้ใช้ขอ 6 ต.ค. 2569) แนบได้สูงสุดห้าไฟล์ (7 ต.ค.) */
+    evidenceFileIds: z.array(z.string().trim().min(1).max(60)).min(1, 'แนบไฟล์หลักฐานของทุกเวที').max(5, 'แนบไฟล์หลักฐานได้ไม่เกินห้าไฟล์ต่อเวที'),
     wantsMentor: z.boolean().default(false),
     /** ราคาของเวทีที่ยังไม่มีในระบบ (ติ๊กอยากเป็นเมนเทอร์) อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
     offer: z.object({ price: z.number().int().min(0).max(100000), unit: z.string().trim().max(40).default('') })
@@ -376,12 +386,11 @@ const mentorSubmissionBody = z.object({
 }).refine((v) => [v.contactEmail, v.contactLine, v.contactPhone, v.contactInstagram, v.contactLink].some(Boolean),
   { message: 'ใส่ช่องทางติดต่ออย่างน้อยหนึ่งช่อง', path: ['contactEmail'] });
 
-publicApi.post('/submissions/mentor', requireUser, async (c) => {
-  const parsed = mentorSubmissionBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
-  const body = parsed.data;
-  const user = c.get('user')!;
-  const id = newId('ms');
+type MentorBody = z.infer<typeof mentorSubmissionBody>;
+
+/** ตรวจเวที ราคา และไฟล์ของใบสมัครเมนเทอร์ ใช้ทั้งตอนส่งใบใหม่และตอนแก้ใบที่ทีมงานขอข้อมูลเพิ่ม
+    ไฟล์ที่อ้างต้องเป็นของผู้สมัครเอง (อัปโหลดผ่าน /api/files) หรือผูกกับใบนี้อยู่แล้ว (ตอนแก้ใบ) */
+async function prepareMentorSubmission(body: MentorBody, userId: string, existingId?: string) {
   /* เวทีที่อ้างต้องมีในระบบจริง ถึงจะติ๊กเป็นเมนเทอร์ได้ และตั้งราคาได้เฉพาะเวทีที่ติ๊กไว้ในประสบการณ์
      (เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง) ราคาของเวทีอื่นที่ส่งมาถูกทิ้ง */
   const claimed = [...new Set(body.awards.map((award) => award.competitionSlug).filter((slug): slug is string => Boolean(slug)))];
@@ -401,70 +410,89 @@ publicApi.post('/submissions/mentor', requireUser, async (c) => {
   if (missing.length) throw new HTTPException(400, { message: 'ใส่ราคาของทุกเวทีที่อยากเป็นเมนเทอร์ (ฟรี หรือราคาต่ออะไร)' });
   const offers = [...mentorFor].map((slug) => ({ competitionId: idOf.get(slug)!, ...priced.get(slug)! }));
   // เวทีที่ยังไม่มีในระบบแต่ติ๊กอยากเป็นเมนเทอร์ ต้องมีราคามาด้วย
-  const typedMentor = (award: typeof body.awards[number]) => award.wantsMentor && !(award.competitionSlug && idOf.has(award.competitionSlug));
+  const typedMentor = (award: MentorBody['awards'][number]) => award.wantsMentor && !(award.competitionSlug && idOf.has(award.competitionSlug));
   if (body.awards.some((award) => typedMentor(award) && !award.offer)) {
     throw new HTTPException(400, { message: 'ใส่ราคาของทุกเวทีที่อยากเป็นเมนเทอร์ (ฟรี หรือราคาต่ออะไร)' });
   }
 
-  /* ไฟล์ที่อ้างต้องเป็นของผู้สมัครเอง และยังไม่ถูกผูกกับใบไหน (อัปโหลดผ่าน /api/files) รูปโปรไฟล์ต้องเป็นรูปภาพ */
-  const wanted = [...new Set([body.photoFileId, ...body.awards.map((award) => award.evidenceFileId)])];
+  /* ไฟล์ที่อ้างต้องเป็นของผู้สมัครเอง และยังไม่ถูกผูกกับใบไหน หรือผูกกับใบที่กำลังแก้อยู่ รูปโปรไฟล์ต้องเป็นรูปภาพ */
+  const wanted = [...new Set([body.photoFileId, ...body.awards.flatMap((award) => award.evidenceFileIds)])];
+  const mine = and(eq(filesTable.ownerType, 'user'), eq(filesTable.ownerId, userId));
   const owned = await db.select({ id: filesTable.id, mime: filesTable.mime }).from(filesTable)
-    .where(and(inArray(filesTable.id, wanted), eq(filesTable.ownerType, 'user'), eq(filesTable.ownerId, user.id)));
+    .where(and(inArray(filesTable.id, wanted), existingId
+      ? or(mine, and(eq(filesTable.ownerType, 'mentor_submission'), eq(filesTable.ownerId, existingId)))
+      : mine));
   if (owned.length !== wanted.length) throw new HTTPException(400, { message: 'ไฟล์แนบบางไฟล์ใช้ไม่ได้ อัปโหลดใหม่อีกครั้ง' });
   if (!owned.find((file) => file.id === body.photoFileId)?.mime.startsWith('image/')) {
     throw new HTTPException(400, { message: 'รูปโปรไฟล์ต้องเป็นไฟล์ JPG, PNG หรือ WebP' });
   }
+  return { idOf, mentorFor, offers, typedMentor, wanted };
+}
+
+type Prepared = Awaited<ReturnType<typeof prepareMentorSubmission>>;
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** ทุกช่องของใบที่ผู้สมัครกรอกเองและแก้ได้ */
+const mentorFields = (body: MentorBody, prepared: Prepared) => ({
+  firstName: body.firstName,
+  lastName: body.lastName,
+  nickname: body.nickname,
+  email: body.email,
+  phone: body.phone,
+  occupation: body.occupation,
+  organization: body.organization,
+  role: body.role,
+  experience: body.experience,
+  portfolio: body.portfolio,
+  best: body.best,
+  cannot: body.cannot,
+  topics: body.topics,
+  contactEmail: body.contactEmail,
+  contactLine: body.contactLine,
+  contactPhone: body.contactPhone,
+  contactInstagram: body.contactInstagram,
+  contactLink: body.contactLink,
+  competitionIds: prepared.offers.map((offer) => offer.competitionId),
+  competitionOffers: prepared.offers,
+  paidSlot: body.paidSlot ? new Date(body.paidSlot) : null,
+  freeSlot: body.freeSlot ? new Date(body.freeSlot) : null,
+  photoFileId: body.photoFileId,
+});
+
+/** ผูกไฟล์กับใบ แล้วเขียนประสบการณ์แข่งขันของใบนี้ เจ้าของไฟล์เปลี่ยนจากผู้ใช้เป็นใบสมัคร
+    เปิดดูได้เฉพาะทีมตรวจกับผู้สมัคร (รูปโปรไฟล์เปิดสาธารณะหลังอนุมัติ) */
+async function writeMentorAwards(tx: Tx, id: string, userId: string, body: MentorBody, prepared: Prepared) {
+  await tx.update(filesTable).set({ ownerType: 'mentor_submission', ownerId: id })
+    .where(and(inArray(filesTable.id, prepared.wanted), eq(filesTable.ownerType, 'user'), eq(filesTable.ownerId, userId)));
+  await tx.insert(mentorAwards).values(body.awards.map((award) => ({
+    id: newId('aw'),
+    submissionId: id,
+    title: award.title,
+    // เก็บ slug เฉพาะเวทีที่มีในระบบ ชื่อที่พิมพ์เองอยู่ใน title
+    competitionSlug: award.competitionSlug && prepared.idOf.has(award.competitionSlug) ? award.competitionSlug : null,
+    year: award.year,
+    evidence: award.evidence,
+    evidenceFileIds: [...new Set(award.evidenceFileIds)],
+    result: award.result,
+    detail: award.detail,
+    wantsMentor: Boolean(award.wantsMentor
+      && ((award.competitionSlug && prepared.mentorFor.has(award.competitionSlug)) || prepared.typedMentor(award))),
+    offerPrice: prepared.typedMentor(award) ? award.offer!.price : null,
+    offerUnit: prepared.typedMentor(award) && award.offer!.price > 0 ? award.offer!.unit : '',
+  })));
+}
+
+publicApi.post('/submissions/mentor', requireUser, async (c) => {
+  const parsed = mentorSubmissionBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const body = parsed.data;
+  const user = c.get('user')!;
+  const id = newId('ms');
+  const prepared = await prepareMentorSubmission(body, user.id);
 
   await db.transaction(async (tx) => {
-    await tx.insert(mentorSubmissions).values({
-      id,
-      userId: user.id,
-      firstName: body.firstName,
-      lastName: body.lastName,
-      nickname: body.nickname,
-      email: body.email,
-      phone: body.phone,
-      occupation: body.occupation,
-      organization: body.organization,
-      role: body.role,
-      experience: body.experience,
-      portfolio: body.portfolio,
-      best: body.best,
-      cannot: body.cannot,
-      topics: body.topics,
-      price: null,
-      minutes: null,
-      contactEmail: body.contactEmail,
-      contactLine: body.contactLine,
-      contactPhone: body.contactPhone,
-      contactInstagram: body.contactInstagram,
-      contactLink: body.contactLink,
-      competitionIds: offers.map((offer) => offer.competitionId),
-      competitionOffers: offers,
-      paidSlot: body.paidSlot ? new Date(body.paidSlot) : null,
-      freeSlot: body.freeSlot ? new Date(body.freeSlot) : null,
-      photoFileId: body.photoFileId,
-    });
-    // ผูกไฟล์กับใบนี้ เจ้าของเปลี่ยนจากผู้ใช้เป็นใบสมัคร เปิดดูได้เฉพาะทีมตรวจ (รูปโปรไฟล์เปิดสาธารณะหลังอนุมัติ)
-    await tx.update(filesTable).set({ ownerType: 'mentor_submission', ownerId: id })
-      .where(and(inArray(filesTable.id, wanted), eq(filesTable.ownerType, 'user'), eq(filesTable.ownerId, user.id)));
-    if (body.awards.length) {
-      await tx.insert(mentorAwards).values(body.awards.map((award) => ({
-        id: newId('aw'),
-        submissionId: id,
-        title: award.title,
-        // เก็บ slug เฉพาะเวทีที่มีในระบบ ชื่อที่พิมพ์เองอยู่ใน title
-        competitionSlug: award.competitionSlug && idOf.has(award.competitionSlug) ? award.competitionSlug : null,
-        year: award.year,
-        evidence: award.evidence,
-        evidenceFileId: award.evidenceFileId,
-        result: award.result,
-        detail: award.detail,
-        wantsMentor: Boolean(award.wantsMentor && ((award.competitionSlug && mentorFor.has(award.competitionSlug)) || typedMentor(award))),
-        offerPrice: typedMentor(award) ? award.offer!.price : null,
-        offerUnit: typedMentor(award) && award.offer!.price > 0 ? award.offer!.unit : '',
-      })));
-    }
+    await tx.insert(mentorSubmissions).values({ id, userId: user.id, price: null, minutes: null, ...mentorFields(body, prepared) });
+    await writeMentorAwards(tx, id, user.id, body, prepared);
   });
 
   await attachFiles(body.fileIds, user.id, 'mentor_submission', id);
@@ -475,6 +503,85 @@ ${env.appOrigin}/admin/mentors/${id}`);
   await notify(body.email, 'ได้รับใบสมัครเมนเทอร์แล้ว',
     'ได้รับใบสมัครเข้าคิวตรวจแล้ว ทีมงานจะแจ้งผลทางอีเมลทุกกรณี');
   return c.json({ id }, 201);
+});
+
+/* ---------- แก้ใบสมัครเมนเทอร์หลังทีมงานขอข้อมูลเพิ่ม (ผู้ใช้ขอ 7 ต.ค. 2569) ----------
+   แก้ได้เฉพาะเจ้าของใบ และเฉพาะตอนสถานะ "ขอข้อมูลเพิ่ม" ส่งแล้วใบกลับเข้าคิวรอตรวจ */
+
+const notEditable = () => new HTTPException(409, { message: 'ใบนี้แก้ไม่ได้แล้ว แก้ได้เฉพาะตอนที่ทีมงานขอข้อมูลเพิ่ม' });
+
+async function editableMentorSubmission(id: string, userId: string) {
+  const [row] = await db.select().from(mentorSubmissions)
+    .where(and(eq(mentorSubmissions.id, id), eq(mentorSubmissions.userId, userId))).limit(1);
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบใบสมัครนี้' });
+  if (row.status !== 'info') throw notEditable();
+  return row;
+}
+
+publicApi.get('/submissions/mentor/:id', requireUser, async (c) => {
+  const row = await editableMentorSubmission(c.req.param('id'), c.get('user')!.id);
+  const [awards, [request], attached] = await Promise.all([
+    db.select().from(mentorAwards).where(eq(mentorAwards.submissionId, row.id)),
+    db.select({ note: reviewEvents.note }).from(reviewEvents)
+      .where(and(eq(reviewEvents.target, 'mentor'), eq(reviewEvents.targetId, row.id), eq(reviewEvents.decision, 'info')))
+      .orderBy(desc(reviewEvents.createdAt)).limit(1),
+    db.select({ id: filesTable.id, name: filesTable.originalName, mime: filesTable.mime, size: filesTable.size }).from(filesTable)
+      .where(and(eq(filesTable.ownerType, 'mentor_submission'), eq(filesTable.ownerId, row.id))),
+  ]);
+  const file = (fileId: string | null) => attached.find((item) => item.id === fileId) ?? null;
+  // ราคาของเวทีในระบบเก็บในใบ ส่วนเวทีที่ยังไม่มีในระบบเก็บในรายการประสบการณ์
+  const slugOf = row.competitionOffers.length
+    ? new Map((await db.select({ id: competitionsTable.id, slug: competitionsTable.slug }).from(competitionsTable)
+      .where(inArray(competitionsTable.id, row.competitionOffers.map((offer) => offer.competitionId)))).map((item) => [item.id, item.slug]))
+    : new Map<string, string>();
+  return c.json({
+    note: request?.note ?? '',
+    submission: {
+      firstName: row.firstName, lastName: row.lastName, nickname: row.nickname, email: row.email,
+      occupation: row.occupation, organization: row.organization, role: row.role, experience: row.experience,
+      portfolio: row.portfolio, best: row.best, cannot: row.cannot, topics: row.topics,
+      contactEmail: row.contactEmail, contactLine: row.contactLine, contactPhone: row.contactPhone,
+      contactInstagram: row.contactInstagram, contactLink: row.contactLink,
+      photo: file(row.photoFileId),
+      offers: row.competitionOffers.flatMap((offer) => {
+        const slug = slugOf.get(offer.competitionId);
+        return slug ? [{ slug, price: offer.price ?? 0, unit: offer.unit ?? '' }] : [];
+      }),
+      awards: awards.map((award) => ({
+        title: award.title, competitionSlug: award.competitionSlug, result: award.result, detail: award.detail, year: award.year,
+        evidence: award.evidence, wantsMentor: award.wantsMentor, offerPrice: award.offerPrice, offerUnit: award.offerUnit,
+        files: award.evidenceFileIds.flatMap((fileId) => file(fileId) ?? []),
+      })),
+    },
+  });
+});
+
+publicApi.put('/submissions/mentor/:id', requireUser, async (c) => {
+  const parsed = mentorSubmissionBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const body = parsed.data;
+  const user = c.get('user')!;
+  const { id } = await editableMentorSubmission(c.req.param('id'), user.id);
+  const prepared = await prepareMentorSubmission(body, user.id, id);
+
+  await db.transaction(async (tx) => {
+    // ล็อกใบไว้ก่อน ถ้าทีมงานตัดสินใบนี้ไปพร้อมกัน ฝั่งที่มาทีหลังจะเห็นสถานะใหม่
+    const [locked] = await tx.select({ status: mentorSubmissions.status }).from(mentorSubmissions)
+      .where(eq(mentorSubmissions.id, id)).for('update');
+    if (locked?.status !== 'info') throw notEditable();
+    await tx.update(mentorSubmissions).set({ ...mentorFields(body, prepared), status: 'pending', submittedAt: new Date() })
+      .where(eq(mentorSubmissions.id, id));
+    await tx.delete(mentorAwards).where(eq(mentorAwards.submissionId, id));
+    await writeMentorAwards(tx, id, user.id, body, prepared);
+  });
+
+  await notifyStaff('mentor_application', user.id, `ใบสมัครเมนเทอร์ส่งกลับมาแล้ว: ${body.firstName} ${body.lastName.slice(0, 1)}.`,
+    `${body.firstName} ${body.lastName.slice(0, 1)}. (${body.nickname}) แก้ใบสมัครตามที่ขอข้อมูลเพิ่มแล้ว รอตรวจอีกครั้ง
+
+${env.appOrigin}/admin/mentors/${id}`);
+  await notify(body.email, 'ได้รับใบสมัครเมนเทอร์ที่แก้แล้ว',
+    'ได้รับใบสมัครที่แก้แล้ว ใบกลับเข้าคิวตรวจอีกครั้ง ทีมงานจะแจ้งผลทางอีเมลทุกกรณี');
+  return c.json({ id });
 });
 
 /** ใบที่ผู้ใช้คนนี้ส่งเข้ามา เพื่อให้ตามสถานะของตัวเองได้ */

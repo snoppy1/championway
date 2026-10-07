@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { KeyRound, MessagesSquare, Pencil, ShieldCheck, UserRound } from 'lucide-react';
+import { KeyRound, MessagesSquare, Pencil, PencilLine, ShieldCheck, UserRound } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { api, post, ApiError } from '../lib/api';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
@@ -28,7 +28,7 @@ type Mentor = {
 };
 type Profile = {
   user: { id: string; name: string; email: string; role: string };
-  applications: { id: string; status: string; submittedAt: string }[];
+  applications: { id: string; status: string; submittedAt: string; note: string }[];
   mentor: Mentor | null;
 };
 
@@ -140,6 +140,11 @@ export function Profile() {
             {data.applications.map((item) => <li key={item.id}>
               <b>{s.applicationStatus[item.status] ?? item.status}</b>
               <small className="muted">{s.submittedOn(formatDateTime(item.submittedAt, lang))}</small>
+              {/* ทีมงานขอข้อมูลเพิ่ม: บอกว่าขออะไร และเปิดใบเดิมให้แก้แล้วส่งกลับ (ผู้ใช้ขอ 7 ต.ค. 2569) */}
+              {item.status === 'info' && <div className="application-info">
+                {item.note && <p><b>{s.infoRequest}</b> {item.note}</p>}
+                <Link className="primary-button" to={`/mentors/apply?edit=${encodeURIComponent(item.id)}`}><PencilLine size={16} aria-hidden="true" />{s.editApplication}</Link>
+              </div>}
             </li>)}
           </ul> : <>
             <p className="muted">{s.applyInvite}</p>

@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { mentorAwards, mentorCompetitionChoices, mentorMatchAudit, mentors, mentorSubmissions } from '../db/schema.js';
+import { mentorAwards, mentorCompetitionChoices, mentorMatchAudit, mentors, mentorSubmissions, reviewEvents } from '../db/schema.js';
 import { requireUser, requireReviewer, type AppEnv } from '../lib/guards.js';
 import { env } from '../lib/env.js';
 import { scoreThemes, RULE_VERSION } from '../../src/data/focus.js';
@@ -51,7 +51,11 @@ async function mentorInfo(row: Awaited<ReturnType<typeof approved>>[number]) {
 
 journey.get('/profile',requireUser, async c=>{
   const user=c.get('user')!;
-  const applications=await db.select({id:mentorSubmissions.id,status:mentorSubmissions.status,submittedAt:mentorSubmissions.submittedAt}).from(mentorSubmissions).where(eq(mentorSubmissions.userId,user.id));
+  const rows=await db.select({id:mentorSubmissions.id,status:mentorSubmissions.status,submittedAt:mentorSubmissions.submittedAt}).from(mentorSubmissions).where(eq(mentorSubmissions.userId,user.id));
+  // ใบที่ทีมงานขอข้อมูลเพิ่ม แนบข้อความที่ขอล่าสุดไปด้วย ผู้สมัครจะได้รู้ว่าต้องแก้อะไร (ผู้ใช้ขอ 7 ต.ค. 2569)
+  const asked=rows.some(r=>r.status==='info')?await db.select({targetId:reviewEvents.targetId,note:reviewEvents.note}).from(reviewEvents)
+    .where(and(eq(reviewEvents.target,'mentor'),eq(reviewEvents.decision,'info'),inArray(reviewEvents.targetId,rows.filter(r=>r.status==='info').map(r=>r.id)))).orderBy(desc(reviewEvents.createdAt)):[];
+  const applications=rows.map(r=>({...r,note:r.status==='info'?asked.find(e=>e.targetId===r.id)?.note??'':''}));
   const row=(await approved()).find(r=>r.submission.userId===user.id);
   const choices=row?await db.select().from(mentorCompetitionChoices).where(eq(mentorCompetitionChoices.mentorId,row.mentor.id)):[];
   return c.json({user,applications,mentor:row?{...await mentorInfo(row),confirmedThemes:row.mentor.confirmedThemes,disabledThemes:row.mentor.disabledThemes}:null,choices});

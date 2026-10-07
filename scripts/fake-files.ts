@@ -22,5 +22,5 @@ export async function userOfCookie(cookie: string) {
 export async function withUploads<T extends { awards: object[] }>(cookie: string, body: T) {
   const userId = await userOfCookie(cookie);
   const [photoFileId, ...evidence] = await fakeUploads(userId, body.awards.length + 1);
-  return { ...body, photoFileId, awards: body.awards.map((award, index) => ({ evidenceFileId: evidence[index], ...award })) };
+  return { ...body, photoFileId, awards: body.awards.map((award, index) => ({ evidenceFileIds: [evidence[index]], ...award })) };
 }

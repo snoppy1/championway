@@ -349,7 +349,7 @@ async function loadMentorSubmission(id: string) {
     awards: awards.map((award) => ({
       ...award,
       matched: known.find((item) => item.slug === award.competitionSlug) ?? null,
-      evidenceFileUrl: award.evidenceFileId ? `/api/files/${award.evidenceFileId}` : null,
+      evidenceFileUrls: award.evidenceFileIds.map((fileId) => `/api/files/${fileId}`),
     })),
     photoUrl: row.photoFileId ? `/api/files/${row.photoFileId}` : null,
     files: (await filesOf('mentor_submission', id)).map(publicFile),
@@ -449,7 +449,8 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
           id: newId('creq'), mentorId: mentorId!, userId: submission.userId!, name: award.title,
           url: /^https?:\/\//i.test(award.evidence) ? award.evidence : '', details: award.detail,
           price: award.offerPrice!, unit: award.offerUnit, result: award.result, year: award.year,
-          evidence: award.evidence || (award.evidenceFileId ? `ไฟล์แนบในใบสมัครเมนเทอร์ (/api/files/${award.evidenceFileId})` : ''),
+          evidence: award.evidence || (award.evidenceFileIds.length
+            ? `ไฟล์แนบในใบสมัครเมนเทอร์ (${award.evidenceFileIds.map((fileId) => `/api/files/${fileId}`).join(', ')})` : ''),
         })));
       }
       await tx.update(mentorSubmissions)

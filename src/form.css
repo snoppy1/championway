@@ -92,6 +92,13 @@
 .cw-form .topic input{margin-top:0}
 .cw-form .topic:hover{border-color:#B896DF}
 .cw-form .topic:has(:checked){background:var(--purple-tint);border-color:#B896DF}
+.cw-form .topic-other{margin:12px 0 0}
+.cw-form .portrait-current{display:flex;align-items:center;gap:12px;margin:-8px 0 18px;font-size:13px;color:var(--muted)}
+.cw-form .portrait-current img{flex:none;width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)}
+.cw-form .application-request{margin:0 0 24px;padding:16px 18px;border:1px solid #E8B4A0;border-left:4px solid #C2410C;border-radius:12px;background:#FFF7F2}
+.cw-form .application-request h2{margin:0 0 6px;font-size:16px;color:#9A3412}
+.cw-form .application-request__note{margin:0 0 8px;white-space:pre-line;color:var(--ink)}
+.cw-form .application-request .muted{margin:0;font-size:13px}
 
 /* The per-person figure sits beside the price so both are read together. */
 .cw-form .price-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:end}
@@ -184,6 +191,13 @@
 .cw-form .exp-file__button input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .cw-form .exp-file__button:has(input:focus-visible){outline:2px solid var(--focus-ring);outline-offset:2px}
 .cw-form .exp-file__name{font-size:13px;color:var(--muted-soft);overflow-wrap:anywhere}
+.cw-form .exp-file__list{flex-basis:100%;list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.cw-form .exp-file__list li{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 4px 4px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.cw-form .exp-file__list li.is-invalid{border-color:#b42318}
+.cw-form .exp-file__list svg{flex:none;color:var(--muted-soft)}
+.cw-form .exp-file__list .exp-file__name{flex:1;min-width:0;color:var(--ink)}
+.cw-form .exp-file__remove{flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted)}
+.cw-form .exp-file__remove:hover{background:var(--surface-2,#f3effa);color:#b42318}
 .cw-form .exp-mentor.is-disabled small{color:#5F5568}
 .cw-form .exp-done{display:block;margin:14px 0 0 auto;min-height:44px;padding:8px 20px;font-weight:600}
 .cw-form .exp--folded{padding:10px 12px 10px 16px}

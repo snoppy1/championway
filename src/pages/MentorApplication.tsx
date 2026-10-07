@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, ClipboardCheck, Eye, ShieldCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { occupationValues, topicIds, topicValues } from '../data/stored-values';
 import type { OccupationId, TopicId } from '../data/stored-values';
 import { occupationLabel } from '../data/profile';
 import { useAuth } from '../data/auth';
-import { ApiError, post } from '../lib/api';
+import { ApiError, api, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { isWebLink } from '../data/consult';
 import { ExperienceCard, PriceCard, experienceProblems, matchCompetition, priceProblem } from '../components/ApplyExperience';
-import type { Experience, KnownCompetition, Price } from '../components/ApplyExperience';
+import type { Experience, KnownCompetition, Price, Result } from '../components/ApplyExperience';
 import { useI18n } from '../i18n';
 import '../form.css';
 
@@ -27,6 +27,22 @@ type ConsentKey = 'accuracy' | 'guidanceOnly' | 'replies' | 'noJudging' | 'payme
 /** Every box starts unticked and all of them are required before the sample submit. */
 const consentKeys: ConsentKey[] = ['accuracy', 'guidanceOnly', 'replies', 'noJudging', 'payment'];
 const noConsent: Record<ConsentKey, boolean> = { accuracy: false, guidanceOnly: false, replies: false, noJudging: false, payment: false };
+/** ความถนัด (ผู้ใช้ขอ 7 ต.ค. 2569): เลือกจากรายการได้ไม่เกินสี่ข้อ บวก "อื่นๆ" ที่พิมพ์เองได้อีกหนึ่งข้อ */
+const maxTopics = 4;
+const topicOf = new Map<string, TopicId>(topicIds.map((id) => [topicValues[id], id]));
+
+type StoredFile = { id: string; name: string };
+/** ใบเดิมที่ทีมงานขอข้อมูลเพิ่ม (GET /api/submissions/mentor/:id) ใช้เติมฟอร์มตอนแก้ใบ */
+type EditableApplication = {
+  note: string;
+  submission: Record<Exclude<Field, 'first' | 'last'>, string> & {
+    firstName: string; lastName: string; topics: string[]; photo: StoredFile | null;
+    offers: { slug: string; price: number; unit: string }[];
+    awards: { title: string; competitionSlug: string | null; result: Result; detail: string; year: string; evidence: string;
+      wantsMentor: boolean; offerPrice: number | null; offerUnit: string; files: StoredFile[] }[];
+  };
+};
+const priceOf = (price: number, unit: string): Price => (price === 0 ? { mode: 'free', price: '', unit: '' } : { mode: 'paid', price: String(price), unit });
 
 export function MentorApplication() {
   const { t } = useI18n();
@@ -41,6 +57,8 @@ export function MentorApplication() {
   const [portrait, setPortrait] = useState<File>();
   const [portraitUrl, setPortraitUrl] = useState('');
   const [selectedTopics, setSelectedTopics] = useState<TopicId[]>([]);
+  const [otherOn, setOtherOn] = useState(false);
+  const [otherTopic, setOtherTopic] = useState('');
   const [consent, setConsent] = useState(noConsent);
   const [prices, setPrices] = useState<Record<string, Price>>({});
   const [showPriceErrors, setShowPriceErrors] = useState(false);
@@ -53,7 +71,7 @@ export function MentorApplication() {
     if (!knownList.data) return;
     const list = knownList.data.items;
     setExperiences((current) => current.map((item) => {
-      const slug = matchCompetition(list, item.name)?.slug ?? null;
+      const slug = matchCompetition(list, item.name)?.slug ?? (list.some((row) => row.slug === item.slug) ? item.slug : null);
       return slug === item.slug ? item : { ...item, slug };
     }));
   }, [knownList.data]);
@@ -66,6 +84,36 @@ export function MentorApplication() {
   const [complete, setComplete] = useState(false);
   const [sending, setSending] = useState(false);
   const { user, loading: authLoading } = useAuth();
+  /* แก้ใบที่ทีมงานขอข้อมูลเพิ่ม (?edit=<id>) ฟอร์มเดิมทุกขั้น เติมค่าจากใบเดิม ไฟล์เดิมใช้ต่อได้โดยไม่ต้องอัปโหลดใหม่ */
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+  const editing = useApi<EditableApplication>(editId && user ? `/submissions/mentor/${encodeURIComponent(editId)}` : null);
+  const [existingPhoto, setExistingPhoto] = useState<StoredFile | null>(null);
+  const prefilled = useRef(false);
+  useEffect(() => {
+    const data = editing.data?.submission;
+    if (!data || prefilled.current) return;
+    prefilled.current = true;
+    const { firstName, lastName, ...rest } = data;
+    setValues(Object.fromEntries((Object.keys(empty) as Field[]).map((key) => [key,
+      key === 'first' ? firstName : key === 'last' ? lastName : rest[key] ?? ''])) as Record<Field, string>);
+    setExistingPhoto(data.photo);
+    const rows = data.awards.map((award) => ({
+      id: ++nextExperience.current, name: award.title, slug: award.competitionSlug, result: award.result, detail: award.detail,
+      year: award.year, url: award.evidence, mentor: award.wantsMentor, open: false,
+      proofs: award.files.map((file) => ({ key: file.id, id: file.id, name: file.name })),
+    }));
+    setExperiences(rows);
+    setPrices({
+      ...Object.fromEntries(data.offers.map((offer) => [offer.slug, priceOf(offer.price, offer.unit)])),
+      ...Object.fromEntries(data.awards.flatMap((award, index) => award.wantsMentor && !award.competitionSlug && award.offerPrice !== null
+        ? [[`new-${rows[index].id}`, priceOf(award.offerPrice, award.offerUnit)]] : [])),
+    });
+    setSelectedTopics(data.topics.flatMap((topic) => topicOf.get(topic) ?? []));
+    const other = data.topics.find((topic) => !topicOf.has(topic));
+    setOtherOn(Boolean(other));
+    setOtherTopic(other ?? '');
+  }, [editing.data]);
   const formRef = useRef<HTMLFormElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const previousStage = useRef(stage);
@@ -105,7 +153,7 @@ export function MentorApplication() {
     // การ์ดที่กรอกครบแล้วพับเก็บ เหลือการ์ดใหม่ใบเดียวที่กางอยู่
     setExperiences((current) => [
       ...current.map((item) => (item.open && !experienceProblems(item).length ? { ...item, open: false } : item)),
-      { id: ++nextExperience.current, name: '', slug: null, result: '', detail: '', year: '', url: '', mentor: false, open: true },
+      { id: ++nextExperience.current, name: '', slug: null, result: '', detail: '', year: '', url: '', proofs: [], mentor: false, open: true },
     ]);
   };
   const finishExperience = (item: Experience) => {
@@ -135,8 +183,8 @@ export function MentorApplication() {
     let error = '';
     let missingConsent: ConsentKey | undefined;
     // รูปโปรไฟล์บังคับ เมนเทอร์ทุกคนมีรูปบนหน้าเวที (ผู้ใช้ขอ 6 ต.ค. 2569)
-    if (stage === 0 && !portrait) error = s.errors.portraitMissing;
-    else if (stage === 0 && (!['image/png', 'image/jpeg', 'image/webp'].includes(portrait!.type) || portrait!.size > 4 * 1024 * 1024)) error = s.errors.portrait;
+    if (stage === 0 && !portrait && !existingPhoto) error = s.errors.portraitMissing;
+    else if (stage === 0 && portrait && (!['image/png', 'image/jpeg', 'image/webp'].includes(portrait!.type) || portrait!.size > 4 * 1024 * 1024)) error = s.errors.portrait;
     if (stage === 1) {
       // เป็นเมนเทอร์ได้ต้องเคยแข่ง จึงต้องมีประสบการณ์อย่างน้อยหนึ่งรายการ ปัญหาแสดงใต้ช่องในการ์ดนั้น
       const bad = experiences.filter((item) => experienceProblems(item).length);
@@ -149,7 +197,8 @@ export function MentorApplication() {
       }
     }
     if (stage === 2) {
-      if (selectedTopics.length !== 2) error = s.errors.pickTwo;
+      if (otherOn && !otherTopic.trim()) error = s.errors.otherMissing;
+      else if (!selectedTopics.length && !otherOn) error = s.errors.pickTopic;
       else if (![values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].some((value) => value.trim())) error = s.errors.needContact;
       else if (values.contactLink.trim() && !isWebLink(values.contactLink)) error = s.errors.badLink;
       // ทุกเวทีที่ติ๊กไว้ต้องเลือกฟรี หรือใส่ราคากับหน่วยให้ครบ
@@ -184,10 +233,15 @@ export function MentorApplication() {
     setSending(true);
     setMessage('');
     try {
-      const photoFileId = await upload(portrait!);
-      const evidenceIds: string[] = [];
-      for (const item of experiences) evidenceIds.push(await upload(item.file!));
-      await post('/submissions/mentor', {
+      const photoFileId = portrait ? await upload(portrait) : existingPhoto!.id;
+      // ไฟล์เดิมของใบ (ตอนแก้ใบ) ใช้ id เดิม ไฟล์ใหม่อัปโหลดทีละไฟล์
+      const evidenceIds: string[][] = [];
+      for (const item of experiences) {
+        const ids: string[] = [];
+        for (const proof of item.proofs) ids.push(proof.id ?? await upload(proof.file!));
+        evidenceIds.push(ids);
+      }
+      const payload = {
         photoFileId,
         firstName: values.first, lastName: values.last, nickname: values.nickname,
         email: values.email, occupation: values.occupation, organization: values.organization,
@@ -200,7 +254,7 @@ export function MentorApplication() {
           return price.mode === 'free' ? { slug, price: 0, unit: '' } : { slug, price: Number(price.price), unit: price.unit.trim() };
         }),
         // ฐานข้อมูลเก็บความถนัดเป็นข้อความไทยตามเดิม ไม่ว่าผู้ใช้เลือกภาษาไหน
-        topics: selectedTopics.map((id) => topicValues[id]),
+        topics: [...selectedTopics.map((id) => topicValues[id]), ...(otherOn && otherTopic.trim() ? [otherTopic.trim()] : [])],
         awards: experiences.map((item, index) => {
           const typedPrice = item.mentor && !item.slug ? prices[priceKey(item)] : undefined;
           return {
@@ -211,11 +265,13 @@ export function MentorApplication() {
             year: item.year,
             wantsMentor: item.mentor,
             evidence: item.url.trim(),
-            evidenceFileId: evidenceIds[index],
+            evidenceFileIds: evidenceIds[index],
             offer: typedPrice ? { price: typedPrice.mode === 'free' ? 0 : Number(typedPrice.price), unit: typedPrice.mode === 'free' ? '' : typedPrice.unit.trim() } : null,
           };
         }),
-      });
+      };
+      if (editId) await api(`/submissions/mentor/${encodeURIComponent(editId)}`, { method: 'PUT', body: JSON.stringify(payload) });
+      else await post('/submissions/mentor', payload);
       setComplete(true);
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : s.errors.sendFailed);
@@ -235,6 +291,8 @@ export function MentorApplication() {
     void submitApplication();
   }
 
+  const topicLabels = [...selectedTopics.map((topic) => t.taxonomy.topics[topic]), ...(otherOn && otherTopic.trim() ? [otherTopic.trim()] : [])];
+
   const group = (title: string, children: ReactNode, hint?: string, aside?: ReactNode) => <section className="group">
     <div className="group-head"><h3>{title}</h3>{aside}</div>
     {hint && <p className="muted group-hint">{hint}</p>}
@@ -253,12 +311,19 @@ export function MentorApplication() {
 
   return <main id="main" tabIndex={-1}><div id="cw-apply" className="cw-form">
     <section className="hero">
-      <div className="application-hero-inner"><Link className="application-back" to="/profile"><ArrowLeft size={16} aria-hidden="true" />{s.backToProfile}</Link><span className="tag">{s.eyebrow}</span><h1>{s.titleFirst}<br />{s.titleSecond}</h1><p className="muted">{s.lead}</p><p className="application-prototype">{s.reviewNote}</p></div>
+      <div className="application-hero-inner"><Link className="application-back" to="/profile"><ArrowLeft size={16} aria-hidden="true" />{s.backToProfile}</Link><span className="tag">{editId ? s.editEyebrow : s.eyebrow}</span><h1>{s.titleFirst}<br />{s.titleSecond}</h1><p className="muted">{s.lead}</p><p className="application-prototype">{s.reviewNote}</p></div>
     </section>
     <div className="layout">
       <aside aria-label={s.stepsLabel}><ol className="steps">{s.steps.map((step, index) => <li key={step} className={`step ${index === stage ? 'current' : index < stage ? 'done' : ''}`} aria-current={index === stage ? 'step' : undefined}><b>{index + 1}</b>{step}</li>)}</ol><div className="aside-note"><ShieldCheck aria-hidden="true" /><h3>{s.asideReviewTitle}</h3><p className="muted">{s.asideReviewText}</p></div><div className="aside-note"><Eye aria-hidden="true" /><h3>{s.asideSeeTitle}</h3><p className="muted">{s.asideSeeText}</p></div></aside>
       <div className="sheet" ref={sheetRef}>
-        <form ref={formRef} onSubmit={next} hidden={complete} noValidate onInput={(event) => { if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) event.target.setCustomValidity(''); }}>
+        {editId && user && (editing.loading ? <p className="note" role="status">{s.editLoading}</p>
+          : editing.error ? <p className="note application-edit-error" role="alert">{s.editLoadFailed}</p>
+          : editing.data && <section className="application-request" aria-labelledby="application-request-title">
+            <h2 id="application-request-title">{s.editRequestTitle}</h2>
+            {editing.data.note && <p className="application-request__note">{editing.data.note}</p>}
+            <p className="muted">{s.editRequestHint}</p>
+          </section>)}
+        <form ref={formRef} onSubmit={next} hidden={complete || Boolean(editId && user && !editing.data)} noValidate onInput={(event) => { if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) event.target.setCustomValidity(''); }}>
           <fieldset data-stage="0" hidden={stage !== 0} disabled={stage !== 0}>
             <legend className="sr-only">{s.steps[0]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage0Title}</h2><p className="muted">{s.stage0Lead}</p></div>
             <div className="grid">{field('first', s.firstName, { required: true, maxLength: 50, autoComplete: 'given-name' })}{field('last', s.lastName, { required: true, maxLength: 60, autoComplete: 'family-name' }, s.lastNameHint)}</div>
@@ -267,6 +332,7 @@ export function MentorApplication() {
             <div className="grid"><label htmlFor="apply-occupation">{s.occupation}<select id="apply-occupation" required value={values.occupation} onChange={(event) => set('occupation', event.target.value)}><option value="">{s.occupationPlaceholder}</option>{applicantStatuses.map((id) => <option key={id} value={occupationValues[id]}>{t.taxonomy.occupations[id]}</option>)}</select></label>{field('organization', s.organization, { required: true, maxLength: 100 })}</div>
             {field('role', s.role, { required: true, maxLength: 100, placeholder: s.rolePlaceholder })}
             <label htmlFor="apply-portrait">{s.portrait}<input id="apply-portrait" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { reviewAgain(); setPortrait(event.target.files?.[0]); }} /><small>{s.portraitHint}</small></label>
+            {existingPhoto && !portrait && <p className="portrait-current"><img src={`/api/files/${existingPhoto.id}`} alt={s.portraitAlt} />{s.portraitCurrent}</p>}
           </fieldset>
 
           <fieldset data-stage="1" hidden={stage !== 1} disabled={stage !== 1}>
@@ -293,9 +359,15 @@ export function MentorApplication() {
               {field('best', s.best, { required: true, maxLength: 120, placeholder: s.bestPlaceholder }, s.bestHint)}
               {field('cannot', s.cannot, { required: true, maxLength: 120, placeholder: s.cannotPlaceholder }, s.cannotHint)}
             </>)}
-            {group(s.strengthsGroup, <div className="topics" role="group" aria-labelledby="topic-label">
-              {topicIds.map((topic) => <label className="check topic" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={(event) => { if (event.target.checked && selectedTopics.length === 2) { setMessage(s.errors.maxTopics); return; } reviewAgain(); setSelectedTopics(event.target.checked ? [...selectedTopics, topic] : selectedTopics.filter((item) => item !== topic)); setMessage(''); }} /><span>{t.taxonomy.topics[topic]}</span></label>)}
-            </div>, s.strengthsHint, <span className="count" id="topic-label" aria-live="polite">{s.strengthsCount(selectedTopics.length)}</span>)}
+            {group(s.strengthsGroup, <>
+              <div className="topics" role="group" aria-labelledby="topic-label">
+                {topicIds.map((topic) => <label className="check topic" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={(event) => { if (event.target.checked && selectedTopics.length === maxTopics) { setMessage(s.errors.maxTopics); return; } reviewAgain(); setSelectedTopics(event.target.checked ? [...selectedTopics, topic] : selectedTopics.filter((item) => item !== topic)); setMessage(''); }} /><span>{t.taxonomy.topics[topic]}</span></label>)}
+                <label className="check topic"><input type="checkbox" checked={otherOn} onChange={(event) => { reviewAgain(); setOtherOn(event.target.checked); setMessage(''); }} /><span>{s.otherTopic}</span></label>
+              </div>
+              {otherOn && <label className="topic-other" htmlFor="apply-other-topic">{s.otherTopicLabel}
+                <input id="apply-other-topic" maxLength={80} value={otherTopic} placeholder={s.otherTopicPlaceholder}
+                  onChange={(event) => { reviewAgain(); setOtherTopic(event.target.value); }} /></label>}
+            </>, s.strengthsHint, <span className="count" id="topic-label" aria-live="polite">{s.strengthsCount(selectedTopics.length)}</span>)}
             {group(s.contactsGroup, <div className="grid">
               {field('contactEmail', s.contactEmail, { type: 'email', maxLength: 200, autoComplete: 'off' })}
               {field('contactLine', s.contactLine, { maxLength: 100, autoComplete: 'off' })}
@@ -313,12 +385,12 @@ export function MentorApplication() {
           <fieldset data-stage="3" hidden={stage !== 3} disabled={stage !== 3}>
             <legend className="sr-only">{s.steps[3]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage3Title}</h2><p className="muted">{s.stage3Lead}</p></div>
             {group(s.previewGroup, <div className="profile">
-              {portraitUrl ? <img className="avatar" src={portraitUrl} alt={s.portraitAlt} /> : <div className="avatar" aria-hidden="true">{values.first.slice(0, 1)}</div>}
+              {portraitUrl || existingPhoto ? <img className="avatar" src={portraitUrl || `/api/files/${existingPhoto!.id}`} alt={s.portraitAlt} /> : <div className="avatar" aria-hidden="true">{values.first.slice(0, 1)}</div>}
               <h4>{values.nickname} {values.last.trim().slice(0, 1)}.</h4>
               <p className="muted">{values.role} · {values.organization}</p>
               <p><strong>{s.bestLabel}</strong> {values.best}</p>
               <p><strong>{s.cannotLabel}</strong> {values.cannot}</p>
-              <p>{selectedTopics.map((topic) => <span className="tag" key={topic}>{t.taxonomy.topics[topic]}</span>)}</p>
+              <p>{topicLabels.map((label) => <span className="tag" key={label}>{label}</span>)}</p>
               <small>{s.previewFooter}</small>
             </div>, s.previewHint)}
             {reviewGroup(s.reviewApplicant, 0, <>
@@ -331,12 +403,12 @@ export function MentorApplication() {
               {experiences.map((item) => <div className="review" key={item.id}>
                 <strong>{item.name}</strong>
                 <p>{[item.result && t.taxonomy.results[item.result], item.detail, item.year].filter(Boolean).join(' · ')}</p>
-                <small>{s.reviewAwaiting(item.file?.name || item.url)}{item.mentor ? ` · ${s.reviewWantsMentor}` : ''}</small>
+                <small>{s.reviewAwaiting(item.proofs.map((proof) => proof.name).join(', ') || item.url)}{item.mentor ? ` · ${s.reviewWantsMentor}` : ''}</small>
               </div>)}
               {values.portfolio && <div className="review"><small>{s.reviewPortfolio}</small>{values.portfolio}</div>}
             </>)}
             {reviewGroup(s.strengthsGroup, 2, <>
-              <div className="review"><small>{s.reviewStrengths}</small>{selectedTopics.map((topic) => t.taxonomy.topics[topic]).join(' · ')}</div>
+              <div className="review"><small>{s.reviewStrengths}</small>{topicLabels.join(' · ')}</div>
               <div className="review"><small>{s.reviewContacts}</small>{[values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].filter((value) => value.trim()).join(' · ')}</div>
               <div className="review"><small>{s.reviewCompetitions}</small>{mentorFor.length
                 ? <ul className="review-offers">{mentorFor.map(([slug, name]) => <li key={slug}>
@@ -352,11 +424,11 @@ export function MentorApplication() {
             </>, s.consentHint)}
           </fieldset>
           {!authLoading && !user && <p className="note" role="status">
-            {s.signInBefore}<Link to="/signin?next=/mentors/apply">{s.signInLink}</Link>{s.signInAfter}
+            {s.signInBefore}<Link to={`/signin?next=${encodeURIComponent(editId ? `/mentors/apply?edit=${editId}` : '/mentors/apply')}`}>{s.signInLink}</Link>{s.signInAfter}
           </p>}
-          <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>{s.back}</button>}<span className="muted">{s.stepOf(stage + 1)}</span><button className="primary" type="submit" disabled={sending}>{stage === 3 ? (sending ? s.submitting : s.submit) : s.next}{stage < 3 && <ArrowRight aria-hidden="true" />}</button></div>
+          <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>{s.back}</button>}<span className="muted">{s.stepOf(stage + 1)}</span><button className="primary" type="submit" disabled={sending}>{stage === 3 ? (sending ? s.submitting : editId ? s.editSubmit : s.submit) : s.next}{stage < 3 && <ArrowRight aria-hidden="true" />}</button></div>
         </form>
-        {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>{s.doneTitle}</h2><p>{s.doneText}</p><div className="note">{s.doneNote}</div><p className="muted">{s.doneStatuses}</p><button type="button" onClick={() => setComplete(false)}>{s.doneBack}</button><Link className="application-return" to="/profile">{s.doneProfile}</Link></div>}
+        {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>{editId ? s.editDoneTitle : s.doneTitle}</h2><p>{editId ? s.editDoneText : s.doneText}</p><div className="note">{s.doneNote}</div><p className="muted">{s.doneStatuses}</p><button type="button" onClick={() => setComplete(false)}>{s.doneBack}</button><Link className="application-return" to="/profile">{s.doneProfile}</Link></div>}
       </div>
     </div>
     <p className="application-local-note">{s.localNote}</p>

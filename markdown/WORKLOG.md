@@ -270,3 +270,10 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 - Admin import showed only "AI ตอบ HTTP 400". `aiError` in `server/lib/import/extract.ts` now reads the API error body: low credit → Thai hint to top up Anthropic Billing; 401 → bad key; otherwise status + the API message (200 chars).
 - Likely cause on dev: Anthropic account has no credit. After topping up, press "ลองอ่านใหม่" on failed items.
+
+## 2026-10-07 — Competition page mentor cards: one list, star badge, compact proof
+
+- Detail page mentors are one grid: Rising Star members first (server order) with a gold star top-right of the photo; the "เมนเทอร์ Rising Star" / "เมนเทอร์คนอื่น ๆ" headings, rank numbers and pill are gone. Link name ends "· Rising Star" for screen readers.
+- `MentorTile` (components/mentors.tsx): name one line, specialty reserves two lines, result chip shortened to "ได้รางวัล · 2567" (full text in title), rating + price pinned to the bottom so cards in a row line up.
+- Removed i18n detail keys risingTitle/risingSub/risingEmpty/othersTitle/othersSub. The /mentors (Rising Star) page keeps its ranked/others sections.
+- Answered: approved mentors already add competitions via Mentor zone → "ขอเพิ่มเวที" (name, link, result, year, evidence link, price) → admin approves.

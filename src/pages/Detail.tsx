@@ -21,8 +21,8 @@ import '../consult.css';
 
 type MentorsPayload = { competition: { slug: string; name: string }; risingStar: RankedMentor[]; others: ListedMentor[] };
 
-/* รายชื่อเมนเทอร์ที่พร้อมให้ปรึกษา (คอลัมน์ขวาของหน้าเวที): สมาชิก Rising Star ของเวทีนี้เรียงตามคะแนนรีวิวเฉลี่ยของเดือนนี้ (มีเลขอันดับ)
-   แล้วเมนเทอร์ที่ไม่ได้เป็นสมาชิกต่อท้ายโดยไม่มีอันดับ ข้อมูลและการเรียงมาจาก GET /api/consult/competitions/:slug/mentors
+/* รายชื่อเมนเทอร์ที่พร้อมให้ปรึกษา (คอลัมน์ขวาของหน้าเวที): สมาชิก Rising Star ของเวทีนี้ขึ้นก่อน (มีดาว)
+   แล้วเมนเทอร์ที่ไม่ได้เป็นสมาชิกต่อท้าย ข้อมูลและการเรียงมาจาก GET /api/consult/competitions/:slug/mentors
    ถ้าไม่มีใครเลือกเวทีนี้ จะบอกตามจริง ไม่เติมรายชื่อที่ไม่เกี่ยวข้องให้หน้าดูเต็ม */
 function AvailableMentors({ slug }: { slug: string }) {
   const { t } = useI18n();
@@ -41,26 +41,17 @@ function AvailableMentors({ slug }: { slug: string }) {
     <button type="button" className="ghost-button cx-button" onClick={reload}>{s.mentorsRetry}</button>
   </div>;
   if (!data) return null;
-  if (!data.risingStar.length && !data.others.length) return <div className="cx-state">
+  const mentors = [...data.risingStar.map((mentor) => ({ mentor, star: true })), ...data.others.map((mentor) => ({ mentor, star: false }))];
+  if (!mentors.length) return <div className="cx-state">
     <h3>{s.mentorsEmpty}</h3>
     <p>{s.mentorsEmptyText}</p>
     <Link className="ghost-button cx-button" to="/mentors">{s.mentorsEmptyLink}</Link>
   </div>;
 
-  return <>
-    {/* Rising Star จ่ายเพื่ออยู่ข้างบน ไม่ต้องอธิบายวิธีเรียง (ผู้ใช้ขอ 6 ต.ค. 2569) */}
-    <section className="rs-section" aria-labelledby="rising-title">
-      <div className="rs-section-head"><h3 id="rising-title">{s.risingTitle}</h3></div>
-      {data.risingStar.length === 0
-        ? <div className="rs-empty"><p>{s.risingEmpty}</p></div>
-        : <ol className="mentor-tiles">{data.risingStar.map((mentor) => <MentorTile key={mentor.id} mentor={mentor} rank={mentor.rank} competition={slug} hire={hiring === true} />)}</ol>}
-    </section>
-    {data.others.length > 0 && <section className="rs-section" aria-labelledby="others-title">
-      <div className="rs-section-head"><h3 id="others-title">{s.othersTitle}</h3></div>
-      <p className="rs-section-sub">{s.othersSub}</p>
-      <ul className="mentor-tiles">{data.others.map((mentor) => <MentorTile key={mentor.id} mentor={mentor} competition={slug} hire={hiring === true} />)}</ul>
-    </section>}
-  </>;
+  /* รายการเดียว ไม่แยกหัวข้อ (ผู้ใช้ขอ 7 ต.ค. 2569): Rising Star ขึ้นก่อนตามลำดับที่เซิร์ฟเวอร์จัด มีดาวมุมขวาบน แล้วต่อด้วยคนอื่น */
+  return <ul className="mentor-tiles">
+    {mentors.map(({ mentor, star }) => <MentorTile key={mentor.id} mentor={mentor} star={star} competition={slug} hire={hiring === true} />)}
+  </ul>;
 }
 
 export function NotFound({ reason }: { reason?: string }) {

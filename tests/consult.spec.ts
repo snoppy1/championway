@@ -570,7 +570,7 @@ test('a mentor with a published profile reaches the Mentor zone from their profi
 
 /* ---------- แท็บเมนเทอร์ที่พร้อมให้ปรึกษาในหน้าเวที ---------- */
 
-test('Available mentors lists Rising Star members first and ranked, then everyone else, in the order the server scores them', async ({ page }) => {
+test('Available mentors is one list: Rising Star members first with a star, then everyone else, in the order the server scores them', async ({ page }) => {
   const slug = demoCompetitions[0].slug;
   // ลำดับคำนวณที่เซิร์ฟเวอร์ (รีวิวทั้งหมด + ครั้งที่ปรึกษาสำเร็จ + ผลงานในเวทีนี้ ดู scripts/mentor-rank.test.ts) หน้าเว็บต้องแสดงตามนั้น
   const api = await (await page.request.get(`/api/consult/competitions/${slug}/mentors`)).json() as {
@@ -580,29 +580,30 @@ test('Available mentors lists Rising Star members first and ranked, then everyon
   // ลิงก์ที่มี #mentors เลื่อนลงไปที่รายชื่อเมนเทอร์เลย
   await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ที่พร้อมให้ปรึกษา' })).toBeInViewport();
 
-  const rising = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.mentor-tile');
-  await expect(rising).toHaveCount(api.risingStar.length);
+  // ไม่แยกหัวข้อ Rising Star / คนอื่น ๆ และไม่มีเลขอันดับ (ผู้ใช้ขอ 7 ต.ค. 2569)
+  const mentors = page.locator('#mentors');
+  await expect(mentors.getByRole('heading', { name: 'เมนเทอร์ Rising Star' })).toHaveCount(0);
+  await expect(mentors.getByRole('heading', { name: 'เมนเทอร์คนอื่น ๆ' })).toHaveCount(0);
+  await expect(mentors.locator('.mentor-tiles')).toHaveCount(1);
+  await expect(mentors.locator('.mentor-tile__rank, .rs-pill')).toHaveCount(0);
   expect(api.risingStar.length).toBeGreaterThan(1);
-  const names = await rising.locator('.mentor-tile__name').allTextContents();
-  expect(names).toEqual(api.risingStar.map((mentor) => mentor.name));
-  // Rising Star จ่ายเพื่ออยู่ข้างบน ไม่ต้องบอกวิธีเรียง (ผู้ใช้ขอ 6 ต.ค. 2569)
-  await expect(page.getByRole('region', { name: 'เมนเทอร์ Rising Star' })).not.toContainText('เรียงตามรีวิว');
-  for (const [index, row] of (await rising.all()).entries()) {
-    await expect(row.locator('.mentor-tile__rank')).toContainText(`อันดับ ${index + 1}`);
-    await expect(row.locator('.mentor-tile__meta')).toContainText('บาท');
-    await expect(row.getByRole('link', { name: hiringOn ? /^จ้าง / : /^ดูโปรไฟล์ของ / })).toBeVisible();
+  await expect(mentors.locator('.mentor-tile__name')).toHaveText([...api.risingStar, ...api.others].map((mentor) => mentor.name));
+  const tiles = await mentors.locator('.mentor-tile').all();
+  for (const [index, tile] of tiles.entries()) {
+    const star = index < api.risingStar.length;
+    await expect(tile.locator('.mentor-tile__star')).toHaveCount(star ? 1 : 0);
+    await expect(tile.locator('.mentor-tile__meta')).toContainText('บาท');
+    const link = tile.getByRole('link', { name: hiringOn ? /^จ้าง / : /^ดูโปรไฟล์ของ / });
+    if (star) await expect(link).toHaveAccessibleName(/· Rising Star$/); else await expect(link).not.toHaveAccessibleName(/Rising Star/);
   }
-
-  // ที่ไม่ใช่สมาชิกอยู่ต่อท้าย ไม่มีเลขอันดับและไม่มีป้าย Rising Star
-  const others = page.getByRole('region', { name: 'เมนเทอร์คนอื่น ๆ' });
-  await expect(others.locator('.mentor-tile__rank')).toHaveCount(0);
-  await expect(others.locator('.rs-pill')).toHaveCount(0);
-  await expect(others.locator('.mentor-tile__name')).toHaveText(api.others.map((mentor) => mentor.name));
-  const order = await page.locator('#mentors section').evaluateAll((els) => els.map((el) => el.getAttribute('aria-labelledby')));
-  expect(order).toEqual(['rising-title', 'others-title']);
+  // ดาวอยู่มุมขวาบนของรูป
+  const photo = await tiles[0].locator('.mentor-tile__photo').boundingBox();
+  const badge = await tiles[0].locator('.mentor-tile__star').boundingBox();
+  expect(badge!.x + badge!.width).toBeGreaterThan(photo!.x + photo!.width - 20);
+  expect(badge!.y).toBeLessThan(photo!.y + 20);
 
   // ทุกคนลิงก์ไปโปรไฟล์ของตัวเอง พกเวทีไปด้วยเพื่อให้กดติดต่อเรื่องเวทีนี้ได้เลย
-  await rising.first().getByRole('link', { name: hiringOn ? /^จ้าง / : /^ดูโปรไฟล์ของ / }).click();
+  await tiles[0].getByRole('link').click();
   await expect(page).toHaveURL(new RegExp(`/mentors/${api.risingStar[0].id}\\?competition=${slug}$`));
 });
 
@@ -615,12 +616,27 @@ test('a mentor card on the competition page shows their checked result there and
     await route.fulfill({ json });
   });
   await page.goto(`/competitions/${slug}#mentors`);
-  const first = page.getByRole('region', { name: 'เมนเทอร์ Rising Star' }).locator('.mentor-tile').first();
-  await expect(first.locator('.rs-proof--winner')).toHaveText('ได้รางวัลในเวทีนี้ · 2567');
-  await expect(first.locator('.rs-proof--count')).toHaveText('ให้คำปรึกษาแล้ว 12 ครั้ง');
-  const other = page.getByRole('region', { name: 'เมนเทอร์คนอื่น ๆ' }).locator('.mentor-tile').first();
-  await expect(other.locator('.rs-proof--participant')).toHaveText('เข้าร่วมในเวทีนี้ · 2566');
-  await expect(other.locator('.rs-proof--count')).toHaveCount(0);
+  const tiles = page.locator('#mentors .mentor-tile');
+  const first = tiles.first();
+  // ป้ายผลงานย่อให้อยู่บรรทัดเดียว (ผู้ใช้ขอ 7 ต.ค. 2569) คำเต็มอยู่ใน title
+  await expect(first.locator('.mentor-tile__result--winner')).toHaveText('ได้รางวัล · 2567');
+  await expect(first.locator('.mentor-tile__result--winner')).toHaveAttribute('title', 'ได้รางวัลในเวทีนี้ · 2567');
+  await expect(first.locator('.mentor-tile__count')).toHaveText('ให้คำปรึกษาแล้ว 12 ครั้ง');
+  const other = page.locator('#mentors .mentor-tile:not(.mentor-tile--star)').first();
+  await expect(other.locator('.mentor-tile__result--participant')).toHaveText('เข้าร่วม · 2566');
+  await expect(other.locator('.mentor-tile__count')).toHaveCount(0);
+  // ทุกบรรทัดในการ์ดสูงเท่ากัน ป้ายไม่ตกบรรทัด เส้นคะแนนของการ์ดในแถวเดียวกันตรงกัน
+  for (const tile of await tiles.all()) {
+    for (const part of await tile.locator('.mentor-tile__name, .mentor-tile__result').all()) {
+      expect((await part.boundingBox())!.height).toBeLessThan(26);
+    }
+  }
+  const metas = await tiles.locator('.mentor-tile__meta').evaluateAll((els) => els.map((el) => el.getBoundingClientRect()).map((r) => [Math.round(r.top), Math.round(r.bottom)]));
+  const cards = await tiles.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+  cards.forEach((top, index) => {
+    const peer = cards.findIndex((value) => value === top);
+    expect(Math.abs(metas[index][0] - metas[peer][0])).toBeLessThanOrEqual(1);
+  });
   await page.locator('#mentors').screenshot({ path: `artifacts/competition-mentors-proof-${test.info().project.name}.png` });
 });
 
@@ -666,7 +682,7 @@ test('an unreachable mentor list shows an error with a retry that recovers', asy
   await expect(page.getByRole('alert').filter({ hasText: 'โหลดรายชื่อเมนเทอร์ของเวทีนี้ไม่สำเร็จ' })).toBeVisible();
   fail = false;
   await page.getByRole('button', { name: 'ลองใหม่' }).click();
-  await expect(page.getByRole('region', { name: 'เมนเทอร์ Rising Star' })).toBeVisible();
+  await expect(page.locator('#mentors .mentor-tile').first()).toBeVisible();
 });
 
 /* ---------- คุณภาพหน้า ---------- */

@@ -96,26 +96,37 @@ export function OtherRow({ mentor, competition, hire }: { mentor: ListedMentor; 
 }
 
 /* การ์ดเมนเทอร์แบบรูปใหญ่ในหน้าเวที เรียงเป็นตาราง 3 ใบต่อแถว (ผู้ใช้ขอ 6 ต.ค. 2569)
-   ทั้งใบเป็นลิงก์ไปโปรไฟล์ พกเวทีไปด้วย รูปไม่มีให้ใช้ตัวอักษรแรกเต็มกรอบแทน */
-export function MentorTile({ mentor, rank, competition, hire }: {
-  mentor: ListedMentor; rank?: number; competition: string; hire?: boolean;
+   ทั้งใบเป็นลิงก์ไปโปรไฟล์ พกเวทีไปด้วย รูปไม่มีให้ใช้ตัวอักษรแรกเต็มกรอบแทน
+   โครงเดียวกันทุกใบ (ผู้ใช้ขอ 7 ต.ค. 2569 การ์ดอัดกัน ไม่สมมาตร): ชื่อบรรทัดเดียว ความถนัดจองสองบรรทัด
+   ผลงานย่อเหลือ "ได้รางวัล · 2567" บรรทัดเดียว (อยู่ในหน้าเวทีอยู่แล้ว) คะแนนกับราคาชิดล่างทุกใบ
+   Rising Star มีดาวมุมขวาบนของรูป ไม่มีเลขอันดับและป้าย */
+export function MentorTile({ mentor, star, competition, hire }: {
+  mentor: ListedMentor; star?: boolean; competition: string; hire?: boolean;
 }) {
   const { t } = useI18n();
   const s = t.risingStar;
   const to = `/mentors/${mentor.id}?competition=${encodeURIComponent(competition)}`;
-  return <li className={rank ? 'mentor-tile mentor-tile--star' : 'mentor-tile'}>
-    <Link className="mentor-tile__link" to={to} aria-label={hire ? s.hireAria(mentor.name) : s.viewProfileOf(mentor.name)}>
+  const experience = mentor.experience;
+  const Icon = experience ? resultIcon[experience.result] : null;
+  const label = hire ? s.hireAria(mentor.name) : s.viewProfileOf(mentor.name);
+  return <li className={star ? 'mentor-tile mentor-tile--star' : 'mentor-tile'}>
+    <Link className="mentor-tile__link" to={to} aria-label={star ? `${label} · ${s.pill}` : label}>
       <span className="mentor-tile__photo">
         {mentor.photoUrl
           ? <img src={mentor.photoUrl} alt="" loading="lazy" decoding="async" />
           : <span className="mentor-tile__initial" aria-hidden="true">{mentor.initial}</span>}
-        {rank && <span className="mentor-tile__rank"><span aria-hidden="true">{rank}</span><span className="sr-only">{s.rank(rank)}</span></span>}
+        {star && <span className="mentor-tile__star" title={s.pill}><StarIcon /></span>}
       </span>
       <span className="mentor-tile__body">
         <span className="mentor-tile__name">{mentor.name}</span>
-        {rank && <RisingStarPill />}
         <span className="mentor-tile__spec">{mentor.specialty}</span>
-        <Proof mentor={mentor} />
+        {(experience || Boolean(mentor.consultations)) && <span className="mentor-tile__facts">
+          {experience && Icon && <span className={`mentor-tile__result mentor-tile__result--${experience.result}`}
+            title={s.proof(t.taxonomy.results[experience.result], experience.year)}>
+            <Icon aria-hidden="true" size={12} />{t.taxonomy.results[experience.result]} · {experience.year}
+          </span>}
+          {Boolean(mentor.consultations) && <span className="mentor-tile__count">{s.consultations(mentor.consultations!)}</span>}
+        </span>}
         <span className="mentor-tile__meta"><Rating rating={mentor.rating} /><span>{t.price.line(mentor.price, mentor.minutes, mentor.unit)}</span></span>
       </span>
     </Link>

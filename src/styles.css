@@ -1262,17 +1262,32 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 .mentor-tile__photo { position: relative; display: block; aspect-ratio: 1 / 1; background: var(--purple-tint); }
 .mentor-tile__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mentor-tile__initial { display: grid; place-items: center; width: 100%; height: 100%; font: 600 44px/1 var(--display); color: var(--purple-deep); }
-.mentor-tile__rank {
-  position: absolute; top: 8px; left: 8px; display: grid; place-items: center; min-width: 30px; height: 30px; padding-inline: 8px;
-  border-radius: 999px; background: var(--purple); color: #fff; font: 700 14px/1 var(--display); box-shadow: 0 2px 6px rgb(33 23 45 / 25%);
+/* ดาว Rising Star มุมขวาบนของรูป */
+.mentor-tile__star {
+  position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 28px; height: 28px;
+  border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-tint); box-shadow: 0 2px 6px rgb(33 23 45 / 18%);
 }
-.mentor-tile__body { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px 12px 14px; min-width: 0; }
-.mentor-tile__name { font: 600 15.5px/1.35 var(--display); overflow-wrap: anywhere; }
-.mentor-tile__spec { font-size: 13px; line-height: 1.5; color: var(--muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.mentor-tile .rs-row__proof { margin: 0; }
-.mentor-tile .rs-proof--count { padding: 0; border: 0; }
-.mentor-tile .rs-proof--count svg { display: none; }
-.mentor-tile__meta { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 13px; color: var(--muted); }
+.mentor-tile__star svg { width: 15px; height: 15px; fill: var(--gold-star); }
+/* ทุกบรรทัดมีความสูงตายตัว การ์ดในแถวเดียวกันจึงตรงกันทุกบรรทัด คะแนนกับราคาชิดล่าง */
+.mentor-tile__body { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 12px 12px 14px; min-width: 0; }
+.mentor-tile__name { font: 600 15px/1.35 var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mentor-tile__spec {
+  font-size: 12.5px; line-height: 1.5; min-height: 3em; color: var(--muted);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.mentor-tile__facts { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; max-width: 100%; }
+.mentor-tile__result, .mentor-tile__count { max-width: 100%; font-size: 12px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mentor-tile__result {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px;
+  border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-weight: 600;
+}
+.mentor-tile__result svg { flex: none; }
+.mentor-tile__result--winner { border-color: var(--gold-line); background: var(--gold-tint); color: var(--gold-ink); }
+.mentor-tile__result--winner svg { color: var(--gold-star); }
+.mentor-tile__result--finalist { color: var(--purple-deep); }
+.mentor-tile__count { color: var(--muted); }
+.mentor-tile__meta { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--muted); }
+.mentor-tile__meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mentor-tile__meta > span:last-child { color: var(--ink); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .mentor-tile__link { transition: none; } .mentor-tile__link:hover { transform: none; } }
 

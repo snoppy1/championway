@@ -7,7 +7,7 @@ import { db, client } from '../server/db/client';
 import { competitionImportSources, competitionImports, competitions, sessions, users } from '../server/db/schema';
 import { testDatabase } from '../server/lib/database-safety';
 import { createSession } from '../server/lib/session';
-import { cleanDraft, setExtractor } from '../server/lib/import/extract';
+import { aiError, cleanDraft, setExtractor } from '../server/lib/import/extract';
 import { htmlToText, normalizeUrl, parseRss } from '../server/lib/import/parse';
 import { FetchRefused, checkUrl, isBlockedAddress, safeFetch } from '../server/lib/import/safe-fetch';
 import type { ImportDraft } from '../src/data/imports';
@@ -47,7 +47,7 @@ test('links that point inside the network are refused before any request', async
   await assert.rejects(safeFetch('http://localhost/'), FetchRefused);
 });
 
-test('feeds and pages become plain text, and the AI answer is cleaned', () => {
+test('feeds and pages become plain text, and the AI answer is cleaned', async () => {
   const items = parseRss(`<rss><channel><item><title><![CDATA[ประกวด A &amp; B]]></title><link>https://x.test/a/</link>
     <pubDate>Mon, 05 Oct 2026 14:59:30 +0000</pubDate><category><![CDATA[ประกวด]]></category></item>
     <item><title>no link</title><link>javascript:alert(1)</link></item></channel></rss>`);
@@ -60,6 +60,12 @@ test('feeds and pages become plain text, and the AI answer is cleaned', () => {
   const cleaned = cleanDraft({ name: 'งาน', type: 'party', kind: 'hackathon', categories: ['technology', 'nope', 'technology'], closesAt: '2026-13-40', prizeValue: -5, registerUrl: 'javascript:x', teamMin: 2 });
   assert.deepEqual([cleaned.type, cleaned.kind, cleaned.categories, cleaned.closesAt, cleaned.prizeValue, cleaned.registerUrl, cleaned.teamMin],
     [null, 'hackathon', ['technology'], null, null, null, 2]);
+  // แอดมินต้องเห็นว่า AI ปฏิเสธเพราะอะไร ไม่ใช่แค่ HTTP 400 (7 ต.ค. 2569)
+  const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
+  assert.match(await aiError(reply(400, { error: { message: 'Your credit balance is too low to access the Anthropic API.' } })), /เครดิต/);
+  assert.match(await aiError(reply(401, { error: { message: 'invalid x-api-key' } })), /ไม่ถูกต้อง/);
+  assert.equal(await aiError(reply(400, { error: { message: 'tools.0: bad schema' } })), 'AI ตอบ HTTP 400: tools.0: bad schema');
+  assert.equal(await aiError(new Response('oops', { status: 500 })), 'AI ตอบ HTTP 500');
 });
 
 test('drafts are queued, reviewed, accepted once into a listing, or rejected', async (t) => {

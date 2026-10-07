@@ -93,6 +93,15 @@ export function cleanDraft(raw: Record<string, unknown>): ImportDraft {
   };
 }
 
+/** บอกแอดมินว่า AI ปฏิเสธเพราะอะไร (เดิมเห็นแค่ "HTTP 400" แก้ไม่ถูก) ข้อความ error ของ API ไม่มีคีย์อยู่ในนั้น */
+export async function aiError(response: Response) {
+  const body = await response.json().catch(() => null) as { error?: { message?: unknown } } | null;
+  const message = typeof body?.error?.message === 'string' ? body.error.message.replace(/\s+/g, ' ').trim() : '';
+  if (/credit balance/i.test(message)) return 'AI ใช้ไม่ได้: เครดิต Anthropic หมดหรือยังไม่ได้เติม (เติมที่ console.anthropic.com → Billing แล้วกดลองอ่านใหม่)';
+  if (response.status === 401) return 'AI ใช้ไม่ได้: ANTHROPIC_API_KEY ไม่ถูกต้อง';
+  return `AI ตอบ HTTP ${response.status}${message ? `: ${message.slice(0, 200)}` : ''}`;
+}
+
 /** เรียก Claude หนึ่งครั้งต่อประกาศ ทดสอบแทนที่ได้ด้วย setExtractor (เทสไม่ออกอินเทอร์เน็ต) */
 async function callClaude(input: { url: string | null; title: string; text: string }): Promise<Extraction> {
   const key = process.env.ANTHROPIC_API_KEY;
@@ -111,7 +120,7 @@ async function callClaude(input: { url: string | null; title: string; text: stri
     }),
     signal: AbortSignal.timeout(90_000),
   });
-  if (!response.ok) throw new ExtractionFailed(`AI ตอบ HTTP ${response.status}`);
+  if (!response.ok) throw new ExtractionFailed(await aiError(response));
   const result = await response.json() as { content?: Array<{ type: string; input?: Record<string, unknown> }> };
   const input_ = result.content?.find((block) => block.type === 'tool_use')?.input;
   if (!input_) throw new ExtractionFailed('AI ไม่ได้ส่งร่างกลับมา');

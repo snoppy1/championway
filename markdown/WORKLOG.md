@@ -265,3 +265,8 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Icons: audited every button/link with an icon on guest, mentor and admin pages (3 viewports); only `.ghost-button` was off (display:block) → base class is now inline-flex centered. Re-audit clean.
 - Tests: scripts/mentor-edit.test.ts; mentor-application spec updated + edit-flow test. API 104, browser 314 pass.
 - Production needs migrations 0021–0024 before main is pushed.
+
+## 2026-10-07 — Import failures show the AI's reason
+
+- Admin import showed only "AI ตอบ HTTP 400". `aiError` in `server/lib/import/extract.ts` now reads the API error body: low credit → Thai hint to top up Anthropic Billing; 401 → bad key; otherwise status + the API message (200 chars).
+- Likely cause on dev: Anthropic account has no credit. After topping up, press "ลองอ่านใหม่" on failed items.

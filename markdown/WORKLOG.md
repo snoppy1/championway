@@ -284,3 +284,7 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Competition card covers are an A4 portrait frame (210/297) with the image absolutely positioned and `object-fit: cover`. Cause of uneven cards: `aspect-ratio` lets taller content grow the box.
 - Mentor profile, Mentor zone, contact pages now pass `photoUrl` to `Avatar` (the profile showed the initial even though the home slider showed the photo).
 - Tests in tests/rising-star.spec.ts; full browser run 322 passed apart from one flaky profile test, since fixed to serve a fixed response.
+
+## 2026-10-07 — Import AI: drop forced tool_choice
+
+- The real 400 (shown after the error-message fix): `tool_choice: type "tool" and "any" are not supported for this model` (claude-sonnet-5-5). Switched to `tool_choice: auto` with a system rule to always answer via `save_draft`. Not verified against the live API from here (no key locally); admin retries one failed item on dev to confirm.

@@ -95,6 +95,8 @@
 .status-pill.is-info { background: var(--purple-tint); color: var(--purple-deep); }
 .status-pill.is-published { background: #e4f3ea; color: #1d6440; }
 .status-pill.is-rejected { background: #fdecea; color: #a3341f; }
+.status-pill.is-mentor { background: var(--gold-tint, #fff6d8); color: var(--gold-ink, #6b4e08); border: 1px solid var(--gold-line, #ecd892); }
+.queue-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ---------- หน้าตรวจรายใบ ---------- */
 

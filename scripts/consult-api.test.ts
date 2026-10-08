@@ -333,9 +333,12 @@ test('hire a mentor, chat, finish and review', async (t) => {
       assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, student.cookie, 'PUT', { price: 10, unit: 'ชั่วโมง' })).status, 403);
       // ยังไม่เคยแข่งเวทีนี้ (ผู้ใช้ตัดสิน 4 ต.ค. 2569: เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง)
       assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 300, unit: 'ชั่วโมง' })).status, 403);
-      assert.equal((await (await call('/consult/zone', mentorUser.cookie)).json()).available.some((x: { slug: string }) => x.slug === otherSlug), false);
+      // เวทีที่เปิดรับทุกเวทีเลือกได้ (9 ต.ค. 2569) แต่ verified บอกว่าเพิ่มได้ทันทีหรือต้องส่งหลักฐานก่อน
+      const verifiedOf = async () => (await (await call('/consult/zone', mentorUser.cookie)).json()).available
+        .find((x: { slug: string }) => x.slug === otherSlug)?.verified;
+      assert.equal(await verifiedOf(), false);
       await db.insert(mentorExperiences).values({ id: `${prefix}-exp`, mentorId, competitionId: `${prefix}-cmp2`, name: 'เวทีสอง', result: 'participant', year: '2567' });
-      assert.equal((await (await call('/consult/zone', mentorUser.cookie)).json()).available.some((x: { slug: string }) => x.slug === otherSlug), true);
+      assert.equal(await verifiedOf(), true);
       // ราคามากกว่า 0 ต้องบอกหน่วย
       assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 300, unit: '' })).status, 400);
       assert.equal((await call(`/consult/zone/competitions/${otherSlug}`, mentorUser.cookie, 'PUT', { price: 300, unit: 'โปรเจกต์' })).status, 200);

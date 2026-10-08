@@ -52,6 +52,8 @@ export type MentorFixture = {
   competition: { id: string; slug: string; name: string };
   /** เวทีที่เปิดรับสมัครอยู่ แต่เมนเทอร์ยังไม่ได้เลือก ใช้ทดสอบการเพิ่มเวทีใน Mentor zone */
   spare: { id: string; slug: string; name: string };
+  /** เวทีที่เปิดรับอยู่แต่เมนเทอร์ยังไม่มีผลงานที่ตรวจแล้ว ต้องส่งหลักฐานก่อน (9 ต.ค. 2569) */
+  other: { id: string; slug: string; name: string };
   name: string;
   cleanup: () => Promise<void>;
 };
@@ -69,7 +71,7 @@ export async function createMentorFixture(options: { thai?: boolean } = {}): Pro
   const closesAt = new Date(Date.now() + 45 * 86_400_000).toISOString().slice(0, 10);
   const makeCompetition = async (suffix: string) => {
     const slug = `${prefix}-${suffix}`;
-    const label = thai ? (suffix === 'main' ? 'การแข่งขันแผนธุรกิจนักศึกษา 2569' : 'Hackathon เพื่อสังคม 2569') : `Test Competition ${prefix} ${suffix}`;
+    const label = thai ? (suffix === 'main' ? 'การแข่งขันแผนธุรกิจนักศึกษา 2569' : suffix === 'spare' ? 'Hackathon เพื่อสังคม 2569' : 'ประกวดนวัตกรรมเยาวชน 2569') : `Test Competition ${prefix} ${suffix}`;
     const row = { id: `${prefix}-c-${suffix}`, slug, name: label };
     /* ตั้งใจไม่ใส่ kind กับหมวด เวทีจึงไม่ขึ้นหน้าแรกและหน้ารายละเอียด เทสที่นับการ์ดในหน้าแรกจะไม่เห็นเวทีของเทสนี้
        (เทสรันขนานกัน) ส่วนหน้าเวทีและแท็บเมนเทอร์ทดสอบกับเวทีตัวอย่างของ seed แทน */
@@ -84,6 +86,7 @@ export async function createMentorFixture(options: { thai?: boolean } = {}): Pro
   };
   const competition = await makeCompetition('main');
   const spare = await makeCompetition('spare');
+  const other = await makeCompetition('other');
   await db.insert(mentors).values({
     id: mentorId, name, avatar: thai ? 'ธ' : 'T', bio: thai ? 'ที่ปรึกษาแผนธุรกิจและการนำเสนอ' : 'Helps teams plan.',
     replyTime: '1 day', topics: [],
@@ -107,7 +110,7 @@ export async function createMentorFixture(options: { thai?: boolean } = {}): Pro
   })));
 
   return {
-    mentorId, owner, competition, spare, name,
+    mentorId, owner, competition, spare, other, name,
     cleanup: async () => {
       await db.delete(competitionRequests).where(eq(competitionRequests.mentorId, mentorId));
       await db.delete(mentorSubmissions).where(eq(mentorSubmissions.id, `${prefix}-ms`));

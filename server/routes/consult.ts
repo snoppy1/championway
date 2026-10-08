@@ -7,8 +7,9 @@ import { db } from '../db/client.js';
 import {
   competitionCategories, competitionLevels, mentorExperiences,
   competitionRequests, competitions, consultationConfirmTokens, consultations, hirePayments, mentorCompetitionChoices, mentorPayoutAccounts, mentorPayouts,
-  mentorReviews, mentors, mentorSubmissions, risingStarPeriods, users,
+  mentorReviews, mentors, mentorSubmissions, risingStarPeriods, users, competitionSubmissions, files, reviewEvents,
 } from '../db/schema.js';
+import { attachFiles } from '../lib/files.js';
 import { requireUser, type AppEnv } from '../lib/guards.js';
 import { unreadByRoom } from './chat.js';
 import { completeByMember, dispute, markPaid } from '../lib/hire-money.js';
@@ -288,15 +289,23 @@ consult.get('/zone', requireUser, async (c) => {
   if (!mentor) return c.json({ mentor: null });
   const now = new Date();
   const month = bangkokMonth(now, 0);
-  const [chosen, open, requests, pending, monthly, members] = await Promise.all([
+  const [chosen, open, requests, sent, pending, monthly, members] = await Promise.all([
     db.select({ slug: competitions.slug, name: competitions.name, closesAt: competitions.closesAt, price: mentorCompetitionChoices.price, minutes: mentorCompetitionChoices.minutes, unit: mentorCompetitionChoices.unit })
       .from(mentorCompetitionChoices).innerJoin(competitions, eq(competitions.id, mentorCompetitionChoices.competitionId))
       .where(and(eq(mentorCompetitionChoices.mentorId, mentor.id), eq(mentorCompetitionChoices.choice, 'help'))),
-    // เพิ่มได้เฉพาะเวทีที่เคยแข่งเอง (ประสบการณ์ที่ผ่านการตรวจแล้ว) เวทีอื่นต้องส่งคำขอพร้อมหลักฐาน
-    db.selectDistinct({ slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt, description: competitions.description, sourceUrl: competitions.sourceUrl })
-      .from(mentorExperiences).innerJoin(competitions, eq(competitions.id, mentorExperiences.competitionId))
-      .where(eq(mentorExperiences.mentorId, mentor.id)).orderBy(competitions.closesAt),
+    /* เลือกได้ทุกเวทีที่ยังเปิดรับ (ผู้ใช้ขอ 9 ต.ค. 2569) บวกเวทีที่เคยแข่งแล้วแม้ปิดรับไปแล้ว
+       เวทีที่ตรวจประสบการณ์แล้ว (verified) เพิ่มได้ทันที เวทีอื่นต้องส่งหลักฐานให้ทีมงานตรวจก่อน */
+    db.select({ slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt, description: competitions.description, sourceUrl: competitions.sourceUrl,
+      // ชื่อคอลัมน์เขียนเต็มพร้อมชื่อตาราง drizzle ไม่ใส่ชื่อตารางให้ใน sql ดิบ ในซับคิวรี "id" จะไปชี้ตารางข้างใน
+      verified: sql<boolean>`exists (select 1 from mentor_experiences me where me.mentor_id = ${mentor.id} and me.competition_id = competitions.id)`,
+      claimPending: sql<boolean>`exists (select 1 from competition_requests cr where cr.mentor_id = ${mentor.id} and cr.competition_id = competitions.id and cr.status = 'pending')`,
+    }).from(competitions)
+      .where(sql`competitions.closes_at >= (now() at time zone 'Asia/Bangkok')::date
+        or exists (select 1 from mentor_experiences me where me.mentor_id = ${mentor.id} and me.competition_id = competitions.id)`)
+      .orderBy(competitions.closesAt),
     db.select().from(competitionRequests).where(eq(competitionRequests.mentorId, mentor.id)).orderBy(desc(competitionRequests.createdAt)),
+    // ใบเพิ่มเวทีใหม่ที่เมนเทอร์ส่งผ่านฟอร์มเต็ม (เข้าคิวงานแข่งของแอดมิน)
+    db.select().from(competitionSubmissions).where(eq(competitionSubmissions.mentorId, mentor.id)).orderBy(desc(competitionSubmissions.submittedAt)),
     db.select({ hire: consultations, student: users.name, competitionName: competitions.name, competitionSlug: competitions.slug })
       .from(consultations).innerJoin(users, eq(users.id, consultations.userId))
       .leftJoin(competitions, eq(competitions.id, consultations.competitionId))
@@ -306,6 +315,12 @@ consult.get('/zone', requireUser, async (c) => {
     activeMemberIds(now),
   ]);
   const unread = await unreadByRoom(user.id);
+  // เหตุผลล่าสุดของใบที่ไม่ผ่านหรือถูกขอข้อมูลเพิ่ม
+  const sentNotes = sent.length ? await db.select({ targetId: reviewEvents.targetId, note: reviewEvents.note }).from(reviewEvents)
+    .where(and(eq(reviewEvents.target, 'competition'), inArray(reviewEvents.targetId, sent.map((row) => row.id))))
+    .orderBy(desc(reviewEvents.createdAt)) : [];
+  const noteOf = (id: string) => sentNotes.find((row) => row.targetId === id)?.note ?? '';
+  const sentStatus = { pending: 'pending', info: 'pending', published: 'approved', rejected: 'rejected' } as const;
   const [account] = await db.select().from(mentorPayoutAccounts).where(eq(mentorPayoutAccounts.mentorId, mentor.id));
   const payouts = await db.select({ hireId: mentorPayouts.hireId, status: mentorPayouts.status, amount: mentorPayouts.amount, paidAt: mentorPayouts.paidAt, note: mentorPayouts.note })
     .from(mentorPayouts).where(eq(mentorPayouts.mentorId, mentor.id));
@@ -321,7 +336,11 @@ consult.get('/zone', requireUser, async (c) => {
     payoutAccount: account ? { accountName: account.accountName, bankCode: account.bankCode, last4: account.accountLast4, status: account.status } : null,
     competitions: chosen,
     available: open,
-    requests: requests.map((r) => ({ id: r.id, name: r.name, url: r.url, details: r.details, price: r.price, minutes: r.minutes, unit: r.unit, status: r.status, reason: r.reason, createdAt: r.createdAt })),
+    requests: [
+      ...requests.map((r) => ({ id: r.id, name: r.name, url: r.url, details: r.details, price: r.price, minutes: r.minutes, unit: r.unit, status: r.status, reason: r.reason, createdAt: r.createdAt })),
+      ...sent.map((r) => ({ id: r.id, name: r.name, url: r.sourceUrl, details: '', price: r.mentorPrice ?? 0, minutes: null, unit: r.mentorUnit,
+        status: sentStatus[r.status], reason: r.status === 'rejected' || r.status === 'info' ? noteOf(r.id) : '', createdAt: r.submittedAt })),
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     hires: pending.map(({ hire, student, competitionName, competitionSlug }) => ({
       id: hire.id, status: hire.status, createdAt: hire.createdAt, acceptedAt: hire.acceptedAt, completedAt: hire.completedAt,
       minutes: hire.minutes, price: hire.price, preferredAt: hire.preferredAt, note: hire.note, reason: hire.reason,
@@ -375,6 +394,67 @@ consult.delete('/zone/competitions/:slug', requireUser, async (c) => {
       .where(and(eq(mentorCompetitionChoices.mentorId, mentor.id), eq(mentorCompetitionChoices.competitionId, event.id)));
   });
   return c.json({ ok: true });
+});
+
+/* สถานะของเมนเทอร์กับเวทีหนึ่ง ใช้บนหน้าเวที (ผู้ใช้ขอ 9 ต.ค. 2569): รับปรึกษาอยู่ เพิ่มได้ทันที รอตรวจหลักฐาน หรือต้องส่งหลักฐาน */
+consult.get('/zone/competitions/:slug', requireUser, async (c) => {
+  const mentor = await ownMentor(c.get('user')!.id);
+  if (!mentor) return c.json({ mentor: false });
+  const [event] = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.slug, c.req.param('slug'))).limit(1);
+  if (!event) return fail('ไม่พบงานแข่งนี้', 404);
+  const [[choice], [competed], [claim]] = await Promise.all([
+    db.select().from(mentorCompetitionChoices).where(and(eq(mentorCompetitionChoices.mentorId, mentor.id),
+      eq(mentorCompetitionChoices.competitionId, event.id), eq(mentorCompetitionChoices.choice, 'help'))).limit(1),
+    db.select({ id: mentorExperiences.id }).from(mentorExperiences)
+      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id))).limit(1),
+    db.select({ id: competitionRequests.id }).from(competitionRequests).where(and(eq(competitionRequests.mentorId, mentor.id),
+      eq(competitionRequests.competitionId, event.id), eq(competitionRequests.status, 'pending'))).limit(1),
+  ]);
+  const state = choice ? 'helping' : competed ? 'eligible' : claim ? 'pending' : 'none';
+  return c.json({ mentor: true, state, price: choice?.price ?? null, unit: choice?.unit ?? '' });
+});
+
+/* เคยแข่งเวทีที่มีในระบบแล้ว แต่ยังไม่มีประสบการณ์ที่ตรวจแล้ว: ส่งผล ปี ไฟล์หลักฐาน และราคา ให้ทีมงานตรวจ
+   ใช้คิวคำขอเวทีเดิม แต่ผูกเวทีไว้แล้ว อนุมัติได้โดยไม่ต้องเลือกเวที */
+consult.post('/zone/claims', requireUser, async (c) => {
+  const user = c.get('user')!;
+  const mentor = await requireOwnMentor(user.id);
+  const price = await parse(c, priceBody);
+  const body = await parse(c, z.object({
+    slug: z.string().trim().min(1, 'เลือกเวที').max(200),
+    result: z.enum(['winner', 'finalist', 'participant'], { message: 'เลือกผลที่ได้จากเวทีนี้' }),
+    year: z.string().trim().regex(/^\d{4}$/, 'ใส่ปี พ.ศ. 4 หลัก'),
+    evidenceFileIds: z.array(z.string().max(60)).min(1, 'แนบไฟล์หลักฐานว่าเคยแข่งเวทีนี้อย่างน้อย 1 ไฟล์').max(5),
+  }));
+  const [event] = await db.select({ id: competitions.id, name: competitions.name, sourceUrl: competitions.sourceUrl })
+    .from(competitions).where(eq(competitions.slug, body.slug)).limit(1);
+  if (!event) return fail('ไม่พบงานแข่งนี้', 404);
+  const usable = await db.select({ id: files.id }).from(files)
+    .where(and(inArray(files.id, body.evidenceFileIds), eq(files.ownerType, 'user'), eq(files.ownerId, user.id)));
+  if (!usable.length) return fail('อัปโหลดไฟล์หลักฐานใหม่อีกครั้ง');
+  const id = newId('creq');
+  await db.transaction(async (tx) => {
+    await tx.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentor.id)).for('update');
+    const [competed] = await tx.select({ id: mentorExperiences.id }).from(mentorExperiences)
+      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id))).limit(1);
+    if (competed) return fail('เวทีนี้ตรวจแล้ว กดรับปรึกษาได้เลย', 409);
+    const [waiting] = await tx.select({ id: competitionRequests.id }).from(competitionRequests).where(and(eq(competitionRequests.mentorId, mentor.id),
+      eq(competitionRequests.competitionId, event.id), eq(competitionRequests.status, 'pending'))).limit(1);
+    if (waiting) return fail('ส่งหลักฐานของเวทีนี้แล้ว รอทีมงานตรวจ', 409);
+    const [{ count }] = await tx.select({ count: sql<number>`count(*)::int` }).from(competitionRequests)
+      .where(and(eq(competitionRequests.mentorId, mentor.id), eq(competitionRequests.status, 'pending')));
+    if (count >= 10) return fail('มีคำขอรอตรวจอยู่ 10 รายการแล้ว รอทีมงานตรวจก่อน', 409);
+    await tx.insert(competitionRequests).values({
+      id, mentorId: mentor.id, userId: user.id, name: event.name, url: event.sourceUrl, details: '', competitionId: event.id,
+      result: body.result, year: body.year, evidence: '', ...price,
+    });
+  });
+  await attachFiles(body.evidenceFileIds, user.id, 'competition_request_evidence', id);
+  await notifyStaff('competition_request', user.id, `เมนเทอร์ขอรับปรึกษา: ${event.name}`,
+    `${mentor.name} ขอรับปรึกษา "${event.name}" และแนบหลักฐานว่าเคยแข่งแล้ว รอตรวจ
+
+${env.appOrigin}/admin/requests`);
+  return c.json({ id }, 201);
 });
 
 consult.post('/zone/requests', requireUser, async (c) => {

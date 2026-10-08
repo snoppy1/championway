@@ -6,6 +6,8 @@ import { useAuth } from '../data/auth';
 import { api, ApiError, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { consultError, isWebLink, priceDraft, pricePayload, priceProblem } from '../data/consult';
+import { PriceFields, samePrice as same } from '../components/PriceFields';
+import { ClaimForm } from '../components/MentorClaim';
 import type { Price } from '../data/consult';
 import { bankCodes } from '../data/consult';
 import type { MentorCard, MentorHire, PayoutAccount, Rating as RatingValue } from '../data/consult';
@@ -24,7 +26,11 @@ import '../consult.css';
    สิทธิ์ทั้งหมดตัดสินที่เซิร์ฟเวอร์ หน้านี้แค่ซ่อนสิ่งที่คนที่ไม่ใช่เมนเทอร์ใช้ไม่ได้ */
 
 export type Chosen = { slug: string; name: string; closesAt: string; price: number | null; minutes: number | null; unit: string };
-export type Open = { slug: string; name: string; org: string; closesAt: string; description: string; sourceUrl: string | null };
+/** เวทีที่เลือกได้: verified = ทีมงานตรวจผลงานของเมนเทอร์ในเวทีนี้แล้ว เพิ่มได้ทันที ไม่อย่างนั้นต้องส่งหลักฐาน */
+export type Open = {
+  slug: string; name: string; org: string; closesAt: string; description: string; sourceUrl: string | null;
+  verified: boolean; claimPending: boolean;
+};
 export type Request = {
   id: string; name: string; url: string; details: string; price: number; minutes: number | null; unit: string;
   status: 'pending' | 'approved' | 'rejected'; reason: string; createdAt: string;
@@ -338,37 +344,6 @@ function PayoutPanel({ account, reload }: { account: PayoutAccount | null; reloa
 
 /* ---------- ราคาต่อเวที ---------- */
 
-/* ราคาของแต่ละเวที: ฟรี หรือบาทต่อหน่วยที่เมนเทอร์พิมพ์เอง (ต่อชั่วโมง ต่อโปรเจกต์) ไม่มีจำนวนนาทีแล้ว */
-function PriceFields({ idPrefix, value, disabled, label, onChange }: {
-  idPrefix: string; value: Price; disabled: boolean; label: string; onChange: (next: Price) => void;
-}) {
-  const { t } = useI18n();
-  const p = t.price;
-  return <div className="cx-price">
-    <div className="cx-price__mode" role="radiogroup" aria-label={label}>
-      {(['free', 'paid'] as const).map((mode) => <label key={mode} className={`cx-price__option${value.mode === mode ? ' is-on' : ''}`}>
-        <input type="radio" name={`${idPrefix}-mode`} checked={value.mode === mode} disabled={disabled} onChange={() => onChange({ ...value, mode })} />
-        <span>{mode === 'free' ? p.free : p.paid}</span>
-      </label>)}
-    </div>
-    {value.mode === 'paid' && <div className="cx-price-fields">
-      <div className="cx-field">
-        <label htmlFor={`${idPrefix}-price`}>{p.thb}</label>
-        <input id={`${idPrefix}-price`} inputMode="numeric" pattern="[0-9]*" autoComplete="off" value={value.price} disabled={disabled}
-          onChange={(event) => onChange({ ...value, price: event.target.value.replace(/[^0-9]/g, '') })} />
-      </div>
-      <div className="cx-field">
-        <label htmlFor={`${idPrefix}-unit`}>{p.unit}</label>
-        <input id={`${idPrefix}-unit`} maxLength={40} autoComplete="off" placeholder={p.unitPlaceholder} value={value.unit} disabled={disabled}
-          onChange={(event) => onChange({ ...value, unit: event.target.value })} />
-      </div>
-    </div>}
-  </div>;
-}
-
-const same = (a: Price, b: Price) => a.mode === b.mode && (a.mode !== 'paid' || (a.price === b.price && a.unit.trim() === b.unit.trim()));
-
-
 function ChosenRow({ item, onChanged }: { item: Chosen; onChanged: (message: string) => void }) {
   const { t, lang } = useI18n();
   const s = t.mentorZone;
@@ -444,18 +419,18 @@ export function CompetitionsSection({ chosen, available, requests, reload }: {
 }) {
   const { t, lang } = useI18n();
   const s = t.mentorZone;
+  const c = t.mentorClaim;
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
   const [message, setMessage] = useState('');
-  const [requesting, setRequesting] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   const done = (note: string) => { setMessage(note); reload(); titleRef.current?.focus(); };
   const taken = new Set(chosen.map((item) => item.slug));
   const needle = query.trim().toLowerCase();
-  const matches = available.filter((item) => !taken.has(item.slug)
-    && (!needle || item.name.toLowerCase().includes(needle) || item.org.toLowerCase().includes(needle)));
-  const open = available.filter((item) => !taken.has(item.slug));
+  // เวทีที่ตรวจผลงานแล้วขึ้นก่อน (เพิ่มได้ทันที) แล้วตามด้วยเวทีอื่นที่ต้องส่งหลักฐาน
+  const open = available.filter((item) => !taken.has(item.slug)).sort((a, b) => Number(b.verified) - Number(a.verified));
+  const matches = open.filter((item) => !needle || item.name.toLowerCase().includes(needle) || item.org.toLowerCase().includes(needle));
 
   return <>
     <section className="panel cx-section" aria-labelledby="my-competitions-title">
@@ -466,26 +441,23 @@ export function CompetitionsSection({ chosen, available, requests, reload }: {
     </section>
 
     <section className="panel cx-section" aria-labelledby="add-competition-title">
-      <h2 id="add-competition-title">{s.addTitle}</h2>
-      {open.length === 0 ? <p className="cx-empty">{s.addEmpty}</p> : <>
+      <h2 id="add-competition-title">{c.listTitle}</h2>
+      <p className="cx-lead">{c.listLead}</p>
+      {open.length === 0 ? <p className="cx-empty">{c.empty}</p> : <>
         <div className="search-field cx-search">
           <Search size={18} aria-hidden="true" />
-          <label className="sr-only" htmlFor="zone-search">{s.search}</label>
-          <input id="zone-search" type="search" value={query} autoComplete="off" placeholder={s.searchPlaceholder}
+          <label className="sr-only" htmlFor="zone-search">{c.search}</label>
+          <input id="zone-search" type="search" value={query} autoComplete="off" placeholder={c.searchPlaceholder}
             onChange={(event) => { setQuery(event.target.value); setLimit(PAGE); }} />
         </div>
-        {matches.length === 0 ? <p className="cx-empty">{s.searchNone}</p> : <ul className="cx-list cx-list--stack">
+        {matches.length === 0 ? <p className="cx-empty">{c.searchNone}</p> : <ul className="cx-list cx-list--stack">
           {matches.slice(0, limit).map((item) => <AddRow key={item.slug} item={item} lang={lang} onAdded={done} />)}
         </ul>}
         {matches.length > limit && <p><button type="button" className="ghost-button cx-button" onClick={() => setLimit(limit + PAGE)}>
           {s.showMore(matches.length - limit)}</button></p>}
       </>}
-      {/* ฟอร์มขอเพิ่มเวทีซ่อนอยู่หลังลิงก์ใต้ช่องค้นหา ส่วนใหญ่หาเวทีเจอจากรายการ จึงไม่ต้องกางฟอร์มยาวไว้ก่อน */}
-      <p><button type="button" className="link-button cx-link" aria-expanded={requesting} aria-controls="request-form"
-        onClick={() => setRequesting((value) => !value)}>{s.requestToggle}</button></p>
-      <div id="request-form" hidden={!requesting}>
-        <RequestForm reload={reload} />
-      </div>
+      {/* เวทีที่ยังไม่มีในระบบ: ฟอร์มเต็มแบบเดียวกับผู้จัด (โปสเตอร์ วันที่ รางวัล) เข้าคิวงานแข่งของแอดมินพร้อมป้าย Mentor request */}
+      <p><Link className="cx-link cx-link--text" to="/mentor-zone/new-competition">{c.newCompetition}</Link></p>
     </section>
 
     {requests.length > 0 && <RequestList requests={requests} />}
@@ -497,6 +469,7 @@ function AddRow({ item, lang, onAdded }: {
 }) {
   const { t } = useI18n();
   const s = t.mentorZone;
+  const c = t.mentorClaim;
   const uid = useId();
   const [picking, setPicking] = useState(false);
   const [price, setPrice] = useState<Price>(priceDraft(null));
@@ -504,6 +477,7 @@ function AddRow({ item, lang, onAdded }: {
   const [message, setMessage] = useState('');
   const priceRef = useRef<HTMLDivElement>(null);
   const openRef = useRef<HTMLButtonElement>(null);
+  const close = () => { setPicking(false); requestAnimationFrame(() => openRef.current?.focus()); };
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -523,7 +497,10 @@ function AddRow({ item, lang, onAdded }: {
   return <li className="cx-competition">
     <div className="cx-competition__top">
       <div className="cx-competition__head">
-        <p className="cx-list__title">{item.name}</p>
+        <p className="cx-list__title">{item.name}
+          {item.verified && <span className="cx-pill cx-pill--req-approved">{c.checked}</span>}
+          {item.claimPending && <span className="cx-pill cx-pill--req-pending">{c.pending}</span>}
+        </p>
         <p className="cx-hint">{s.organizer(item.org)} · {s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))}</p>
         <details className="cx-details">
           <summary>{s.details}</summary>
@@ -531,110 +508,27 @@ function AddRow({ item, lang, onAdded }: {
           {item.sourceUrl && isWebLink(item.sourceUrl) && <p><a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">
             {s.openSource}<ExternalLink size={14} aria-hidden="true" /></a></p>}
         </details>
+        {/* ดูหน้าเวทีเต็มในแท็บใหม่ ฟอร์มที่กรอกค้างไว้ในหน้านี้ไม่หาย */}
+        <p><a className="cx-link cx-link--text" href={`/competitions/${encodeURIComponent(item.slug)}`} target="_blank" rel="noopener"
+          aria-label={c.viewAria(item.name)}>{c.view}<ExternalLink size={14} aria-hidden="true" /></a></p>
       </div>
-      {!picking && <button type="button" ref={openRef} className="ghost-button cx-button" aria-label={s.addAria(item.name)}
-        onClick={() => { setPicking(true); requestAnimationFrame(() => priceRef.current?.querySelector('input')?.focus()); }}>{s.add}</button>}
+      {!picking && !item.claimPending && <button type="button" ref={openRef} className="ghost-button cx-button"
+        aria-label={item.verified ? s.addAria(item.name) : c.sendEvidenceAria(item.name)}
+        onClick={() => { setPicking(true); requestAnimationFrame(() => priceRef.current?.querySelector('input')?.focus()); }}>
+        {item.verified ? s.add : c.sendEvidence}</button>}
     </div>
     {/* ราคาถามหลังเลือกเวทีแล้วเท่านั้น ในแถวเดียวกัน ไม่ต้องมีการ์ดกรอกราคาซ้ำทุกเวที */}
-    {picking && <form className="cx-competition__form" onSubmit={(event) => { void add(event); }} noValidate>
+    {picking && item.verified && <form className="cx-competition__form" onSubmit={(event) => { void add(event); }} noValidate>
       <div ref={priceRef}>
         <PriceFields idPrefix={uid} value={price} disabled={busy} label={t.price.modeLabel(item.name)}
           onChange={(next) => { setPrice(next); setMessage(''); }} />
       </div>
       <button className="primary-button cx-button" disabled={busy}>{busy ? s.saving : s.addConfirm}</button>
-      <button type="button" className="link-button cx-link cx-link--quiet" disabled={busy}
-        onClick={() => { setPicking(false); requestAnimationFrame(() => openRef.current?.focus()); }}>{s.addCancel}</button>
+      <button type="button" className="link-button cx-link cx-link--quiet" disabled={busy} onClick={close}>{s.addCancel}</button>
       <p className="cx-message cx-message--error cx-competition__message" role="alert">{message}</p>
     </form>}
+    {picking && !item.verified && <div ref={priceRef}><ClaimForm slug={item.slug} name={item.name} onSent={onAdded} onCancel={close} /></div>}
   </li>;
-}
-
-/* ---------- ขอเพิ่มเวทีใหม่ ---------- */
-
-function RequestForm({ reload }: { reload: Reload }) {
-  const { t } = useI18n();
-  const s = t.mentorZone;
-  const [name, setName] = useState('');
-  const [url, setUrl] = useState('');
-  const [details, setDetails] = useState('');
-  const [result, setResult] = useState('');
-  const [year, setYear] = useState('');
-  const [evidence, setEvidence] = useState('');
-  const [price, setPrice] = useState<Price>(priceDraft(null));
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [failed, setFailed] = useState(false);
-  const nameRef = useRef<HTMLInputElement>(null);
-  const urlRef = useRef<HTMLInputElement>(null);
-
-  const fail = (note: string, focus?: HTMLElement | null) => { setFailed(true); setMessage(note); focus?.focus(); };
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const problem = priceProblem(price);
-    if (!name.trim()) return fail(s.reqNeedName, nameRef.current);
-    if (!isWebLink(url)) return fail(s.reqBadUrl, urlRef.current);
-    // เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง จึงต้องบอกผล ปี และหลักฐาน
-    if (!result) return fail(s.reqNeedResult, document.getElementById('req-result'));
-    if (!/^\d{4}$/.test(year.trim())) return fail(s.reqNeedYear, document.getElementById('req-year'));
-    if (!isWebLink(evidence)) return fail(s.reqBadEvidence, document.getElementById('req-evidence'));
-    if (problem) return fail(t.price.errors[problem]);
-    setBusy(true);
-    setMessage('');
-    setFailed(false);
-    try {
-      await post('/consult/zone/requests', {
-        name: name.trim(), url: url.trim(), details: details.trim(), result, year: year.trim(), evidence: evidence.trim(), ...pricePayload(price),
-      });
-      setName(''); setUrl(''); setDetails(''); setResult(''); setYear(''); setEvidence(''); setPrice(priceDraft(null));
-      setMessage(s.reqSent);
-      reload();
-    } catch (failure) {
-      // 409 ของฟอร์มนี้แปลว่ามีคำขอรอตรวจครบ 10 รายการแล้ว
-      fail(failure instanceof ApiError && failure.status === 409 ? s.reqLimit : consultError(failure, t, 'mentor'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return <section className="cx-request-form" aria-labelledby="request-title">
-    <h3 id="request-title">{s.requestTitle}</h3>
-    <p className="cx-lead">{s.requestLead}</p>
-    <form className="cx-form" onSubmit={(event) => { void submit(event); }} noValidate>
-      <div className="cx-field">
-        <label htmlFor="req-name">{s.reqName}</label>
-        <input id="req-name" ref={nameRef} maxLength={200} value={name} disabled={busy} onChange={(event) => setName(event.target.value)} />
-      </div>
-      <div className="cx-field">
-        <label htmlFor="req-url">{s.reqUrl}</label>
-        <input id="req-url" ref={urlRef} type="url" maxLength={500} placeholder="https://" value={url} disabled={busy} onChange={(event) => setUrl(event.target.value)} />
-      </div>
-      <div className="cx-field">
-        <label htmlFor="req-details">{s.reqDetails}</label>
-        <textarea id="req-details" rows={3} maxLength={2000} value={details} disabled={busy} onChange={(event) => setDetails(event.target.value)} />
-      </div>
-      <div className="cx-price-fields">
-        <div className="cx-field">
-          <label htmlFor="req-result">{s.reqResult}</label>
-          <select id="req-result" value={result} disabled={busy} onChange={(event) => setResult(event.target.value)}>
-            <option value="">{s.reqResultPick}</option>
-            {(['winner', 'finalist', 'participant'] as const).map((value) => <option key={value} value={value}>{t.taxonomy.results[value]}</option>)}
-          </select>
-        </div>
-        <div className="cx-field">
-          <label htmlFor="req-year">{s.reqYear}</label>
-          <input id="req-year" inputMode="numeric" maxLength={4} value={year} disabled={busy} onChange={(event) => setYear(event.target.value.replace(/[^0-9]/g, ''))} />
-        </div>
-      </div>
-      <div className="cx-field">
-        <label htmlFor="req-evidence">{s.reqEvidence}</label>
-        <input id="req-evidence" type="url" maxLength={500} placeholder="https://" value={evidence} disabled={busy} onChange={(event) => setEvidence(event.target.value)} />
-      </div>
-      <PriceFields idPrefix="req" value={price} disabled={busy} label={s.reqPrice} onChange={setPrice} />
-      <p className={failed ? 'cx-message cx-message--error' : 'cx-message cx-message--ok'} role={failed ? 'alert' : 'status'}>{message}</p>
-      <button className="primary-button cx-button" disabled={busy}>{busy ? s.reqSending : s.reqSubmit}</button>
-    </form>
-  </section>;
 }
 
 function RequestList({ requests }: { requests: Request[] }) {
@@ -694,6 +588,8 @@ export function HireMentorZone() {
      ลิงก์ลึกชนะค่าเริ่มต้น: #hire-<id> ไปแท็บคำขอถ้างานยังรออยู่ ไม่อย่างนั้นไปแท็บแชต #room-<id> ไปแท็บแชตเสมอ */
   useEffect(() => {
     if (!hires) return;
+    // มาจากกล่องรับปรึกษาบนหน้าเวที
+    if (hash === '#competitions') { setTab('competitions'); return; }
     const match = /^#(room|hire)-(.+)$/.exec(hash);
     if (match) {
       const found = hires.find((hire) => (match[1] === 'room' ? hire.roomId : hire.id) === match[2]);

@@ -176,6 +176,13 @@
       "when": 1791358218326,
       "tag": "0024_drop_single_evidence_file",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791480573646,
+      "tag": "0025_mentor_competition_submissions",
+      "breakpoints": true
     }
   ]
 }

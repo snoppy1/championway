@@ -10,6 +10,12 @@ import { kindKeys, themeKeys } from '../data/focus';
 import type { Kind, Theme } from '../data/focus';
 import { useAuth } from '../data/auth';
 import { ApiError, post } from '../lib/api';
+import { useApi } from '../lib/useApi';
+import { priceDraft, pricePayload, priceProblem } from '../data/consult';
+import type { Price } from '../data/consult';
+import { PriceFields } from '../components/PriceFields';
+import { EvidencePicker, badEvidence, results, uploadFile, yearProblem } from '../components/MentorClaim';
+import type { PickedFile, Result } from '../components/MentorClaim';
 import { CoverArt } from '../components/CoverArt';
 import { useI18n } from '../i18n';
 import { formatInputDate, formatNumber } from '../i18n/format';
@@ -28,11 +34,12 @@ const empty: Record<Field, string> = {
   sourceUrl: '', registerUrl: '',
 };
 
-type ConsentKey = 'authority' | 'accuracy' | 'rights' | 'review' | 'free';
+type ConsentKey = 'authority' | 'accuracy' | 'rights' | 'review' | 'free' | 'competed';
 /** ทุกช่องเริ่มต้นไม่ถูกเลือก และบังคับติ๊กครบก่อนส่ง */
-const consentKeys: ConsentKey[] = ['authority', 'accuracy', 'rights', 'review', 'free'];
+const organizerConsent: ConsentKey[] = ['authority', 'accuracy', 'rights', 'review', 'free'];
+const mentorConsent: ConsentKey[] = ['competed', 'accuracy', 'review'];
 const noConsent: Record<ConsentKey, boolean> = {
-  authority: false, accuracy: false, rights: false, review: false, free: false,
+  authority: false, accuracy: false, rights: false, review: false, free: false, competed: false,
 };
 
 const typeIds = Object.keys(typeLabels) as OpportunityType[];
@@ -42,10 +49,22 @@ const rewardIds = Object.keys(rewardLabels) as Reward[];
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function OrganiserSubmit() {
+/* ฟอร์มเดียวกันสองแบบ: ผู้จัดลงงานของตัวเอง (/organizers/submit)
+   และเมนเทอร์ขอเพิ่มเวทีที่เคยแข่งแต่ยังไม่มีในระบบ (/mentor-zone/new-competition ผู้ใช้ขอ 9 ต.ค. 2569)
+   แบบเมนเทอร์: ขั้นแรกเป็นผลงาน (ผล ปี ไฟล์หลักฐาน ราคา) แทนข้อมูลผู้ติดต่อ ใบเข้าคิวงานแข่งของแอดมินพร้อมป้าย Mentor request */
+export function OrganiserSubmit({ mode = 'organizer' }: { mode?: 'organizer' | 'mentor' }) {
   const { t, lang } = useI18n();
   const s = t.organiserSubmit;
+  const m = t.mentorSubmit;
+  const c = t.mentorClaim;
+  const mentorMode = mode === 'mentor';
+  const consentKeys = mentorMode ? mentorConsent : organizerConsent;
   const { user, loading: authLoading } = useAuth();
+  const { data: me } = useApi<{ mentorId: string | null }>(mentorMode && user ? '/consult/me' : null);
+  const [result, setResult] = useState<Result | ''>('');
+  const [year, setYear] = useState('');
+  const [evidence, setEvidence] = useState<PickedFile[]>([]);
+  const [price, setPrice] = useState<Price>(priceDraft(null));
   const dateLabel = (value: string) => (monthOnly && value ? formatMonth(value, lang) : formatInputDate(value, lang));
   const [stage, setStage] = useState(0);
   const [values, setValues] = useState(empty);
@@ -70,7 +89,8 @@ export function OrganiserSubmit() {
   const previousStage = useRef(stage);
   const previousDone = useRef(doneId);
 
-  useEffect(() => { document.title = `${s.pageTitle} — ChampionWays`; }, [s.pageTitle]);
+  const pageTitle = mentorMode ? m.pageTitle : s.pageTitle;
+  useEffect(() => { document.title = `${pageTitle} — ChampionWays`; }, [pageTitle]);
 
   useEffect(() => {
     if (!poster) { setPosterUrl(''); return; }
@@ -111,7 +131,16 @@ export function OrganiserSubmit() {
     let missingConsent: ConsentKey | undefined;
     const need = (field: keyof typeof s.needs) => { if (!error && !values[field].trim()) error = s.need(s.needs[field]); };
 
-    if (stage === 0) {
+    if (stage === 0 && mentorMode) {
+      need('organizerName');
+      if (!error && !result) error = c.errors.result;
+      if (!error && yearProblem(year)) error = c.errors.year;
+      if (!error && !evidence.length) error = c.errors.files;
+      if (!error && evidence.some(({ file }) => badEvidence(file))) error = c.errors.fileBad;
+      const problem = priceProblem(price);
+      if (!error && problem) error = t.price.errors[problem];
+    }
+    if (stage === 0 && !mentorMode) {
       need('organizerName');
       need('contactName');
       need('contactRole');
@@ -170,10 +199,16 @@ export function OrganiserSubmit() {
         fileIds.push(((await uploaded.json()) as { file: { id: string } }).file.id);
       }
 
-      const { id } = await post<{ id: string }>('/submissions/competition', {
-        organizerName: values.organizerName, contactName: values.contactName,
-        contactRole: values.contactRole, contactEmail: values.contactEmail,
-        contactPhone: values.contactPhone, organizerUrl: values.organizerUrl,
+      const evidenceFileIds: string[] = [];
+      if (mentorMode) for (const { file } of evidence) evidenceFileIds.push(await uploadFile(file, c.errors.upload));
+
+      const { id } = await post<{ id: string }>(mentorMode ? '/submissions/competition/mentor' : '/submissions/competition', {
+        organizerName: values.organizerName,
+        ...(mentorMode ? { result, year, evidenceFileIds, ...pricePayload(price) } : {
+          contactName: values.contactName,
+          contactRole: values.contactRole, contactEmail: values.contactEmail,
+          contactPhone: values.contactPhone, organizerUrl: values.organizerUrl,
+        }),
         name: values.name, description: values.description, type,
         kind: kind || undefined, themes: chosenThemes,
         categories: chosenCategories, levels, rewards,
@@ -192,7 +227,8 @@ export function OrganiserSubmit() {
       });
       setDoneId(id);
     } catch (error) {
-      setMessage(error instanceof ApiError ? error.message : s.errors.sendFailed);
+      setMessage(mentorMode && error instanceof ApiError && error.status === 409 ? m.limit
+        : error instanceof ApiError ? error.message : s.errors.sendFailed);
     } finally {
       setSending(false);
     }
@@ -238,17 +274,17 @@ export function OrganiserSubmit() {
   return <main id="main" tabIndex={-1}><div id="cw-submit" className="cw-form">
     <section className="hero">
       <div className="application-hero-inner">
-        <Link className="application-back" to="/organizers"><ArrowLeft aria-hidden="true" />{s.backToOrganisers}</Link>
-        <p><span className="tag">{s.tag}</span></p>
-        <h1>{s.title}</h1>
-        <p className="muted">{s.lead}</p>
+        <Link className="application-back" to={mentorMode ? '/mentor-zone#competitions' : '/organizers'}><ArrowLeft aria-hidden="true" />{mentorMode ? m.back : s.backToOrganisers}</Link>
+        <p><span className="tag">{mentorMode ? m.tag : s.tag}</span></p>
+        <h1>{mentorMode ? m.pageTitle : s.title}</h1>
+        <p className="muted">{mentorMode ? m.lead : s.lead}</p>
       </div>
     </section>
 
     <div className="layout">
       <aside aria-label={s.stepsLabel}>
         <ol className="steps">
-          {s.steps.map((step, index) => (
+          {(mentorMode ? m.steps : s.steps).map((step, index) => (
             <li key={step} className={`step ${index === stage ? 'current' : index < stage ? 'done' : ''}`}
               aria-current={index === stage ? 'step' : undefined}>
               <b>{index + 1}</b>{step}
@@ -257,19 +293,44 @@ export function OrganiserSubmit() {
         </ol>
         <div className="aside-note">
           <ShieldCheck aria-hidden="true" />
-          <h3>{s.asideReviewTitle}</h3>
-          <p className="muted">{s.asideReviewText}</p>
+          <h3>{mentorMode ? m.asideTitle : s.asideReviewTitle}</h3>
+          <p className="muted">{mentorMode ? m.asideText : s.asideReviewText}</p>
         </div>
-        <div className="aside-note">
+        {!mentorMode && <div className="aside-note">
           <Eye aria-hidden="true" />
           <h3>{s.asideContactTitle}</h3>
           <p className="muted">{s.asideContactText}</p>
-        </div>
+        </div>}
       </aside>
 
       <div className="sheet" ref={sheetRef}>
         {!doneId && <form ref={formRef} onSubmit={next} noValidate>
-          <fieldset data-stage="0" hidden={stage !== 0} disabled={stage !== 0}>
+          {mentorMode && <fieldset data-stage="0" hidden={stage !== 0} disabled={stage !== 0}>
+            <div className="intro"><h2 tabIndex={-1}>{m.stage0Title}</h2>
+              <p className="muted">{m.stage0Lead}</p></div>
+            {group(m.resultGroup, <>
+              <label>{m.organizerName}
+                <input required value={values.organizerName} onChange={(e) => set('organizerName', e.target.value)} maxLength={200} />
+                <small>{m.organizerNameHint}</small>
+              </label>
+              <div className="grid">
+                <label>{c.result}
+                  <select value={result} onChange={(e) => { reviewAgain(); setMessage(''); setResult(e.target.value as Result); }}>
+                    <option value="">{c.resultPick}</option>
+                    {results.map((value) => <option key={value} value={value}>{t.taxonomy.results[value]}</option>)}
+                  </select>
+                </label>
+                <label>{c.year}
+                  <input inputMode="numeric" maxLength={4} placeholder={c.yearPlaceholder} value={year}
+                    onChange={(e) => { reviewAgain(); setMessage(''); setYear(e.target.value.replace(/[^0-9]/g, '')); }} />
+                </label>
+              </div>
+              <EvidencePicker files={evidence} onChange={(next) => { reviewAgain(); setMessage(''); setEvidence(next); }} />
+            </>)}
+            {group(c.price, <PriceFields idPrefix="mentor-price" value={price} disabled={false} label={c.price}
+              onChange={(next) => { reviewAgain(); setMessage(''); setPrice(next); }} />)}
+          </fieldset>}
+          {!mentorMode && <fieldset data-stage="0" hidden={stage !== 0} disabled={stage !== 0}>
             <div className="intro"><h2 tabIndex={-1}>{s.stage0Title}</h2>
               <p className="muted">{s.stage0Lead}</p></div>
             {group(s.orgGroup, <>
@@ -299,7 +360,7 @@ export function OrganiserSubmit() {
                 <input type="url" required placeholder="https://" value={values.organizerUrl} onChange={(e) => set('organizerUrl', e.target.value)} />
               </label>
             </>, s.orgHint)}
-          </fieldset>
+          </fieldset>}
 
           <fieldset data-stage="1" hidden={stage !== 1} disabled={stage !== 1}>
             <div className="intro"><h2 tabIndex={-1}>{s.stage1Title}</h2>
@@ -495,7 +556,12 @@ export function OrganiserSubmit() {
               </div>
             </article>)}
 
-            {reviewGroup(s.reviewOrganizer, 0, <>
+            {mentorMode ? reviewGroup(m.reviewMentor, 0, <>
+              {row(s.reviewOrganization, values.organizerName)}
+              {row(m.reviewResult, result ? `${t.taxonomy.results[result]} · ${year}` : '')}
+              {row(m.reviewEvidence, evidence.map(({ file }) => file.name).join(' · '))}
+              {row(m.reviewPrice, priceProblem(price) ? '' : price.mode === 'free' ? t.price.free : t.price.line(Number(price.price), null, price.unit.trim()))}
+            </>) : reviewGroup(s.reviewOrganizer, 0, <>
               {row(s.reviewOrganization, values.organizerName)}
               {row(s.reviewContact, `${values.contactName} · ${values.contactRole}`)}
               {row(s.reviewPrivate, `${values.contactEmail} · ${values.contactPhone}`)}
@@ -528,15 +594,16 @@ export function OrganiserSubmit() {
                 <label className={`check consent-check${key === 'free' ? ' consent-payment' : ''}`} key={key}>
                   <input id={`consent-${key}`} type="checkbox" checked={consent[key]}
                     onChange={() => setConsent((c) => ({ ...c, [key]: !c[key] }))} />
-                  <span>{s.consent[key]}</span>
+                  <span>{key === 'competed' ? m.consent.competed : mentorMode && (key === 'accuracy' || key === 'review') ? m.consent[key] : s.consent[key as Exclude<ConsentKey, 'competed'>]}</span>
                 </label>
               ))}
             </div>)}
           </fieldset>
 
           {!authLoading && !user && <p className="note" role="status">
-            {s.signInBefore}<Link to="/signin?next=/organizers/submit">{s.signInLink}</Link>{s.signInAfter}
+            {s.signInBefore}<Link to={`/signin?next=${mentorMode ? '/mentor-zone/new-competition' : '/organizers/submit'}`}>{s.signInLink}</Link>{s.signInAfter}
           </p>}
+          {mentorMode && me && !me.mentorId && <p className="note" role="status">{m.notMentor}</p>}
           <p className="application-message" role="alert">{message}</p>
           <div className="actions">
             {stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>{s.back}</button>}
@@ -550,11 +617,13 @@ export function OrganiserSubmit() {
 
         {doneId && <div className="application-complete">
           <ClipboardCheck className="finish-icon" aria-hidden="true" />
-          <h2 tabIndex={-1}>{s.doneTitle}</h2>
-          <p>{s.doneText(doneId)}</p>
-          <div className="note">{s.doneNote}</div>
-          <p className="muted">{s.doneStatuses}</p>
-          <Link className="application-return" to="/">{s.doneHome}</Link>
+          <h2 tabIndex={-1}>{mentorMode ? m.doneTitle : s.doneTitle}</h2>
+          {mentorMode ? <p>{m.doneText}</p> : <>
+            <p>{s.doneText(doneId)}</p>
+            <div className="note">{s.doneNote}</div>
+            <p className="muted">{s.doneStatuses}</p>
+          </>}
+          <Link className="application-return" to={mentorMode ? '/mentor-zone#competitions' : '/'}>{mentorMode ? m.doneBack : s.doneHome}</Link>
         </div>}
       </div>
     </div>

@@ -222,18 +222,13 @@ const standardTopics = new Set<string>(Object.values(topicValues));
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ไม่ถูกต้อง');
 
-const competitionSubmissionBody = z.object({
+const competitionFields = z.object({
   // ผู้จัดรู้ดีที่สุดว่างานของตัวเองเป็นแบบไหน จึงให้กรอกมาตั้งแต่ต้น ผู้ตรวจแก้ได้ภายหลัง
   kind: z.enum(kindKeys as [Kind, ...Kind[]], { message: 'เลือกประเภทงาน' }),
   themes: z.array(z.enum(themeKeys as [Theme, ...Theme[]]))
     .min(1, 'เลือกหมวดอย่างน้อยหนึ่งหมวด').max(4)
     .transform((list) => [...new Set(list)]),
   organizerName: z.string().trim().min(1).max(200),
-  contactName: z.string().trim().min(1).max(120),
-  contactRole: z.string().trim().min(1).max(120),
-  contactEmail: z.string().trim().toLowerCase().email().max(200),
-  contactPhone: z.string().trim().min(1).max(40),
-  organizerUrl: z.string().trim().url('ลิงก์เว็บหรือเพจไม่ถูกต้อง').max(500),
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(400),
   type: z.enum(opportunityTypeEnum.enumValues),
@@ -257,29 +252,41 @@ const competitionSubmissionBody = z.object({
   registerUrl: z.string().trim().url().max(500).optional(),
   /** id ของไฟล์ที่อัปโหลดไว้ก่อนหน้า เช่นโปสเตอร์ของงาน */
   fileIds: z.array(z.string().max(60)).max(3).default([]),
-}).refine((value) => value.teamMax >= value.teamMin, {
-  message: 'ขนาดทีมสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด', path: ['teamMax'],
 });
+const teamOrder = (value: { teamMin: number; teamMax: number }) => value.teamMax >= value.teamMin;
+const teamOrderIssue = { message: 'ขนาดทีมสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด', path: ['teamMax'] };
+const competitionSubmissionBody = competitionFields.extend({
+  contactName: z.string().trim().min(1).max(120),
+  contactRole: z.string().trim().min(1).max(120),
+  contactEmail: z.string().trim().toLowerCase().email().max(200),
+  contactPhone: z.string().trim().min(1).max(40),
+  organizerUrl: z.string().trim().url('ลิงก์เว็บหรือเพจไม่ถูกต้อง').max(500),
+}).refine(teamOrder, teamOrderIssue);
+/* เมนเทอร์ขอเพิ่มเวทีที่เคยแข่งแต่ยังไม่มีในระบบ (ผู้ใช้ขอ 9 ต.ค. 2569) ใช้ฟอร์มเดียวกับผู้จัด
+   แทนข้อมูลผู้ติดต่อด้วยผลที่ได้ ปี ไฟล์หลักฐาน และราคา ผู้ติดต่อคือตัวเมนเทอร์เอง */
+const mentorCompetitionBody = competitionFields.extend({
+  result: z.enum(['winner', 'finalist', 'participant'], { message: 'เลือกผลที่ได้จากเวทีนี้' }),
+  year: z.string().trim().regex(/^\d{4}$/, 'ใส่ปี พ.ศ. 4 หลัก'),
+  evidenceFileIds: z.array(z.string().max(60)).min(1, 'แนบไฟล์หลักฐานว่าเคยแข่งเวทีนี้อย่างน้อย 1 ไฟล์').max(5),
+  price: z.number().int().min(0, 'ราคาต้องไม่ติดลบ').max(100000),
+  unit: z.string().trim().max(40).default(''),
+}).refine(teamOrder, teamOrderIssue)
+  .refine((v) => v.price === 0 || v.unit.length > 0, 'บอกด้วยว่าราคานี้คิดต่ออะไร เช่น ชั่วโมง หรือโปรเจกต์');
 
-publicApi.post('/submissions/competition', requireUser, async (c) => {
-  const parsed = competitionSubmissionBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
-  const body = parsed.data;
-  const user = c.get('user')!;
-  const id = newId('cs');
+type CompetitionFields = z.infer<typeof competitionFields>;
+type Contact = Pick<typeof competitionSubmissions.$inferInsert, 'contactName' | 'contactRole' | 'contactEmail' | 'contactPhone' | 'organizerUrl'>;
+type MentorClaim = Pick<typeof competitionSubmissions.$inferInsert, 'mentorId' | 'mentorResult' | 'mentorYear' | 'mentorPrice' | 'mentorUnit'>;
 
+async function insertCompetitionSubmission(id: string, userId: string, body: CompetitionFields, contact: Contact, mentor?: MentorClaim) {
   await db.transaction(async (tx) => {
     await tx.insert(competitionSubmissions).values({
       id,
       kind: body.kind,
       themes: body.themes,
-      userId: user.id,
+      userId,
       organizerName: body.organizerName,
-      contactName: body.contactName,
-      contactRole: body.contactRole,
-      contactEmail: body.contactEmail,
-      contactPhone: body.contactPhone,
-      organizerUrl: body.organizerUrl,
+      ...contact,
+      ...mentor,
       name: body.name,
       description: body.description,
       type: body.type,
@@ -306,12 +313,61 @@ publicApi.post('/submissions/competition', requireUser, async (c) => {
       await tx.insert(submissionRewards).values(body.rewards.map((reward) => ({ submissionId: id, reward })));
     }
   });
+}
+
+publicApi.post('/submissions/competition', requireUser, async (c) => {
+  const parsed = competitionSubmissionBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const body = parsed.data;
+  const user = c.get('user')!;
+  const id = newId('cs');
+
+  await insertCompetitionSubmission(id, user.id, body, {
+    contactName: body.contactName, contactRole: body.contactRole, contactEmail: body.contactEmail,
+    contactPhone: body.contactPhone, organizerUrl: body.organizerUrl,
+  });
 
   await attachFiles(body.fileIds, user.id, 'competition_submission', id);
   await notify(body.contactEmail, 'ได้รับใบลงงานแข่งแล้ว',
     `ได้รับ "${body.name}" เข้าคิวตรวจแล้ว ทีมงานจะแจ้งผลภายใน 2 วันทำการ`);
   await notifyStaff('competition_submission', user.id, `งานแข่งใหม่รอตรวจ: ${body.name}`,
     `${body.organizerName} ส่ง "${body.name}" เข้ามาให้ตรวจ
+
+${env.appOrigin}/admin/competitions/${id}`);
+  return c.json({ id }, 201);
+});
+
+publicApi.post('/submissions/competition/mentor', requireUser, async (c) => {
+  const parsed = mentorCompetitionBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const body = parsed.data;
+  const user = c.get('user')!;
+  const [own] = await db.select({ mentor: mentors }).from(mentors)
+    .innerJoin(mentorSubmissions, and(eq(mentorSubmissions.publishedMentorId, mentors.id), eq(mentorSubmissions.status, 'published')))
+    .where(eq(mentorSubmissions.userId, user.id)).limit(1);
+  if (!own) throw new HTTPException(403, { message: 'ต้องเป็นเมนเทอร์ที่ผ่านอนุมัติ' });
+  // กันส่งรัว: ใบของเมนเทอร์ที่รอตรวจได้ไม่เกิน 10 ใบ (เพดานเดียวกับคำขอเวที)
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(competitionSubmissions)
+    .where(and(eq(competitionSubmissions.mentorId, own.mentor.id), inArray(competitionSubmissions.status, ['pending', 'info'])));
+  if (count >= 10) throw new HTTPException(409, { message: 'มีคำขอรอตรวจอยู่ 10 รายการแล้ว รอทีมงานตรวจก่อน' });
+  // ไฟล์หลักฐานต้องเป็นของผู้ส่งที่ยังไม่ผูกกับใบไหน ตรวจก่อนบันทึกใบ จะได้ไม่มีใบที่ไม่มีหลักฐาน
+  const usable = await db.select({ id: filesTable.id }).from(filesTable)
+    .where(and(inArray(filesTable.id, body.evidenceFileIds), eq(filesTable.ownerType, 'user'), eq(filesTable.ownerId, user.id)));
+  if (!usable.length) throw new HTTPException(400, { message: 'อัปโหลดไฟล์หลักฐานใหม่อีกครั้ง' });
+  const id = newId('cs');
+  await insertCompetitionSubmission(id, user.id, body, {
+    contactName: own.mentor.name, contactRole: 'Mentor', contactEmail: user.email, contactPhone: '', organizerUrl: body.sourceUrl,
+  }, {
+    mentorId: own.mentor.id, mentorResult: body.result, mentorYear: body.year,
+    mentorPrice: body.price, mentorUnit: body.price === 0 ? '' : body.unit,
+  });
+  // โปสเตอร์ผูกเป็นไฟล์ของใบ (ใช้เป็นภาพเวทีตอนเผยแพร่) หลักฐานแยกเจ้าของ ไม่ให้กลายเป็นโปสเตอร์
+  await attachFiles(body.fileIds, user.id, 'competition_submission', id);
+  await attachFiles(body.evidenceFileIds, user.id, 'competition_submission_evidence', id);
+  await notify(user.email, 'ได้รับคำขอเพิ่มเวทีแล้ว',
+    `ได้รับ "${body.name}" เข้าคิวตรวจแล้ว ทีมงานจะตรวจหลักฐาน เพิ่มเวที และใส่ชื่อคุณเป็นเมนเทอร์ของเวทีนี้`);
+  await notifyStaff('competition_submission', user.id, `เมนเทอร์ขอเพิ่มเวที: ${body.name}`,
+    `${own.mentor.name} ขอเพิ่ม "${body.name}" พร้อมหลักฐานว่าเคยแข่ง
 
 ${env.appOrigin}/admin/competitions/${id}`);
   return c.json({ id }, 201);

@@ -178,7 +178,11 @@ export function ContactMentorZone() {
   const waiting = data?.confirmations ?? [];
 
   // ลิงก์จากอีเมล (#confirm-<id>) เปิดแท็บยืนยันเสมอ แม้เปิดหน้าไว้อยู่แล้ว
-  useEffect(() => { if (hash.startsWith('#confirm-')) setTab('confirm'); }, [hash]);
+  useEffect(() => {
+    if (hash.startsWith('#confirm-')) setTab('confirm');
+    // มาจากกล่องรับปรึกษาบนหน้าเวที
+    else if (hash === '#competitions') setTab('competitions');
+  }, [hash]);
 
   if (authLoading) return <main id="main" tabIndex={-1} className="shell page cx-page"><p className="side-note" role="status">{s.loading}</p></main>;
   // เก็บ #confirm-… ไว้ใน next ด้วย เข้าสู่ระบบเสร็จจะได้กลับมาที่คำขอจากอีเมลได้

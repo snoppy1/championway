@@ -294,3 +294,15 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - `MentorTile` photo frame is 4:3 (was 1:1), image absolutely positioned with `object-fit: cover` (focus slightly above center), so every photo is the same size and the cards are shorter.
 - Space between the lead and the cards (`.detail-mentors .cx-lead` bottom margin).
 - Go-between lead: "Mentor ผู้มีประสบการณ์แข่งจริงจากเวทีนี้ พร้อมช่วยทีมคุณแล้ว!" / "Mentors who really competed in this competition, ready to help your team!".
+
+## 2026-10-09 — Mentors: mentor a competition from its page, evidence claims, full form for unlisted competitions
+
+- Owner's decisions: keep the rule (mentor only competitions with a checked result); unlisted competitions go through the full organiser-style form into the existing competition queue with a "Mentor request" tag.
+- Competition page (`components/MentorOffer.tsx`, mentors only): helping → change price; checked result → set price and appear at once (PUT `/consult/zone/competitions/:slug`); otherwise → send result, year, evidence files (1–5) and price (`components/MentorClaim.tsx` → POST `/consult/zone/claims`, a `competition_requests` row with `competition_id` preset, files owned as `competition_request_evidence`); pending → status only. State from GET `/consult/zone/competitions/:slug`. Mentor list reloads after a change.
+- Mentor zone "เพิ่มเวทีที่รับปรึกษา": every open competition (plus closed ones with a checked result), `verified`/`claimPending` flags, checked ones first, "ดูข้อมูลงาน" opens the competition page in a new tab. Old inline name/link request form removed; link goes to `/mentor-zone/new-competition`.
+- `/mentor-zone/new-competition` = `OrganiserSubmit mode="mentor"`: step 1 is organizer name + result, year, evidence files, price; 3 consents. POST `/api/submissions/competition/mentor` (approved mentors, ≤10 waiting). Migration **0025** adds `competition_submissions.mentor_id/mentor_result/mentor_year/mentor_price/mentor_unit`; evidence owned as `competition_submission_evidence` (never used as the poster).
+- Admin: queue pill "Mentor request"; review page shows the mentor, claimed result, price and evidence files, plus a 7th check (evidence). Publishing a mentor submission sets source `editorial` and adds the mentor's checked experience + `help` choice at the requested price. Request queue shows evidence files; requests with a preset competition approve with one button (no slug).
+- Mentor zone "คำขอของฉัน" now also lists the mentor's full-form submissions (pending/info → รอตรวจ, published → อนุมัติ, rejected with the reviewer's note).
+- `PriceFields` moved to `components/PriceFields.tsx`. Zone `#competitions` hash opens the competitions tab.
+- Tests: scripts/mentor-claims.test.ts (API), tests/mentor-offer.spec.ts (page box, claim → admin approve, full form → publish), consult zone test rewritten, fixture gains an unchecked `other` competition. scripts/e2e-dev.mts step 9 uses the new form.
+- Production needs migrations 0021–0025 before main is pushed.

@@ -163,6 +163,14 @@ export const competitionSubmissions = pgTable('competition_submissions', {
   publishedCompetitionId: text('published_competition_id').references(() => competitions.id, { onDelete: 'set null' }),
   /** ว่างได้สำหรับใบที่ทีมงานกรอกแทนผู้จัด */
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  /* ใบที่เมนเทอร์ส่ง (ผู้ใช้ขอ 9 ต.ค. 2569): เวทีที่เคยแข่งแต่ยังไม่มีในระบบ ผลที่อ้าง ปี และราคา
+     ไฟล์หลักฐานผูกเป็น owner 'competition_submission_evidence' (ไม่ปนกับโปสเตอร์)
+     เผยแพร่แล้วเมนเทอร์คนนี้ได้ประสบการณ์ที่ตรวจแล้วและรับปรึกษาเวทีนั้นทันที */
+  mentorId: text('mentor_id').references(() => mentors.id, { onDelete: 'set null' }),
+  mentorResult: text('mentor_result').$type<'winner' | 'finalist' | 'participant'>(),
+  mentorYear: text('mentor_year').notNull().default(''),
+  mentorPrice: integer('mentor_price'),
+  mentorUnit: text('mentor_unit').notNull().default(''),
 }, (table) => [index('competition_submissions_status_idx').on(table.status, table.submittedAt)]);
 
 export const submissionCategories = pgTable('submission_categories', {

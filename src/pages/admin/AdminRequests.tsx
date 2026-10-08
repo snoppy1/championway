@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Check, X } from 'lucide-react';
+import { ArrowUpRight, Check, Paperclip, X } from 'lucide-react';
 import { formatDate } from '../../data/competitions';
 import { ApiError, post } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
@@ -16,6 +16,7 @@ type Request = {
   result: 'winner' | 'finalist' | 'participant' | null; year: string; evidence: string;
   status: Status; reason: string; createdAt: string; decidedAt: string | null;
   mentorName: string; competitionSlug: string | null;
+  evidenceFiles?: { id: string; url: string; originalName: string }[];
 };
 type Option = { id: string; slug: string; name: string };
 const resultLabel = { winner: 'ชนะ/ได้รางวัล', finalist: 'เข้ารอบสุดท้าย', participant: 'เข้าร่วมแข่งขัน' } as const;
@@ -34,7 +35,7 @@ function Decision({ request, options, onDone }: { request: Request; options: Opt
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
-  async function send(body: { decision: 'approve'; competitionSlug: string } | { decision: 'reject'; reason: string }) {
+  async function send(body: { decision: 'approve'; competitionSlug?: string } | { decision: 'reject'; reason: string }) {
     setBusy(true);
     setMessage('');
     try {
@@ -48,6 +49,8 @@ function Decision({ request, options, onDone }: { request: Request; options: Opt
 
   function approve(event: FormEvent) {
     event.preventDefault();
+    // คำขอที่ส่งจากหน้าเวทีหรือ Mentor zone ผูกเวทีมาแล้ว ตรวจหลักฐานแล้วอนุมัติได้เลย
+    if (request.competitionSlug) { void send({ decision: 'approve' }); return; }
     if (!slug.trim()) { setMessage('ใส่ slug ของเวทีที่จะผูกกับคำขอนี้'); return; }
     void send({ decision: 'approve', competitionSlug: slug.trim() });
   }
@@ -58,7 +61,10 @@ function Decision({ request, options, onDone }: { request: Request; options: Opt
   }
 
   return <div className="request-decision">
-    <form onSubmit={approve} noValidate>
+    {request.competitionSlug ? <form onSubmit={approve} noValidate>
+      <p className="admin-muted">เวทีนี้มีในระบบแล้ว: <Link to={`/competitions/${request.competitionSlug}`}>{request.competitionSlug}</Link></p>
+      <button className="primary-button" disabled={busy}><Check size={16} aria-hidden="true" />หลักฐานถูกต้อง อนุมัติ</button>
+    </form> : <form onSubmit={approve} noValidate>
       <label htmlFor={`slug-${request.id}`}>slug ของเวทีในระบบ</label>
       <small className="admin-muted">
         ยังไม่มีเวทีนี้ในระบบ? <Link to="/admin/listings">สร้างเวทีก่อนจากหน้าเวทีบนหน้าเว็บ</Link> แล้วกลับมาใส่ slug ของเวทีนั้น
@@ -69,7 +75,7 @@ function Decision({ request, options, onDone }: { request: Request; options: Opt
         {options.map((option) => <option key={option.id} value={option.slug}>{option.name}</option>)}
       </datalist>
       <button className="primary-button" disabled={busy}><Check size={16} aria-hidden="true" />ผูกกับเวทีและอนุมัติ</button>
-    </form>
+    </form>}
     <form onSubmit={reject} noValidate>
       <label htmlFor={`reason-${request.id}`}>เหตุผลที่ไม่อนุมัติ</label>
       <small className="admin-muted">บังคับกรอก ส่งให้เมนเทอร์ทางอีเมล เขียนให้เขาแก้ต่อได้</small>
@@ -91,7 +97,8 @@ export function AdminRequestQueue() {
     <header className="admin-page-head">
       <h1>คำขอเพิ่มเวทีจากเมนเทอร์</h1>
       <p className="admin-muted">
-        เมนเทอร์ขอเพิ่มเวทีที่ยังไม่มีในระบบ อนุมัติแล้วเมนเทอร์จะถูกใส่เป็นผู้รับปรึกษาเวทีนั้นพร้อมราคาที่ขอไว้
+        เมนเทอร์ขอรับปรึกษาเวทีที่ยังไม่ได้ตรวจผลงาน ตรวจหลักฐานแล้วอนุมัติ เมนเทอร์จะถูกใส่เป็นผู้รับปรึกษาเวทีนั้นพร้อมราคาที่ขอไว้
+        (เวทีที่ยังไม่มีในระบบ เมนเทอร์ส่งผ่านฟอร์มเต็มและอยู่ใน <Link to="/admin/competitions">คิวงานแข่ง</Link> พร้อมป้าย Mentor request)
       </p>
     </header>
 
@@ -116,9 +123,14 @@ export function AdminRequestQueue() {
           </p>
           {/* เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่ง ผู้ตรวจต้องดูหลักฐานก่อนอนุมัติ (คำขอเก่าไม่มีส่วนนี้) */}
           {item.result && <p className="admin-muted">
-            ผลที่อ้าง: {resultLabel[item.result]} · ปี {item.year} · หลักฐาน {/^https?:\/\//i.test(item.evidence)
-              ? <a href={item.evidence} target="_blank" rel="noreferrer noopener">เปิดลิงก์<ArrowUpRight size={14} aria-hidden="true" /></a> : item.evidence}
+            ผลที่อ้าง: {resultLabel[item.result]} · ปี {item.year}{item.evidence && <> · หลักฐาน {/^https?:\/\//i.test(item.evidence)
+              ? <a href={item.evidence} target="_blank" rel="noreferrer noopener">เปิดลิงก์<ArrowUpRight size={14} aria-hidden="true" /></a> : item.evidence}</>}
           </p>}
+          {item.evidenceFiles && item.evidenceFiles.length > 0 && <ul className="file-list" aria-label="ไฟล์หลักฐาน">
+            {item.evidenceFiles.map((file) => <li key={file.id}>
+              <a href={file.url} target="_blank" rel="noreferrer noopener"><Paperclip size={15} aria-hidden="true" />{file.originalName}</a>
+            </li>)}
+          </ul>}
           {item.details && <p className="request-details">{item.details}</p>}
           {item.status === 'approved' && item.competitionSlug && <p className="admin-muted">
             ผูกกับเวที <Link to={`/competitions/${item.competitionSlug}`}>{item.competitionSlug}</Link>

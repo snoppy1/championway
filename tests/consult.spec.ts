@@ -476,12 +476,16 @@ test('the Mentor zone is for approved mentors, and a mentor can manage prices an
   await row.getByRole('button', { name: /^บันทึกราคาของ/ }).click();
   await expect(row).toContainText('ฟรี');
 
-  // เพิ่มได้เฉพาะเวทีที่เคยแข่ง แล้วเอาออก
-  const add = page.getByRole('region', { name: 'เวทีที่คุณเคยแข่ง' });
-  await add.getByLabel('ค้นหาเวทีของคุณ').fill(fixture.spare.name);
+  // เลือกได้ทุกเวทีที่เปิดรับ: เวทีที่ตรวจผลงานแล้วเพิ่มได้ทันที แล้วเอาออก (ผู้ใช้ขอ 9 ต.ค. 2569)
+  const add = page.getByRole('region', { name: 'เพิ่มเวทีที่รับปรึกษา' });
+  await add.getByLabel('ค้นหาเวที').fill(fixture.spare.name);
   const candidate = add.locator('.cx-competition').filter({ hasText: fixture.spare.name });
+  await expect(candidate).toContainText('ตรวจผลงานแล้ว');
   await candidate.getByText('รายละเอียด').click();
   await expect(candidate).toContainText('A competition made for a test.');
+  // ดูหน้าเวทีเต็มได้ในแท็บใหม่
+  await expect(candidate.getByRole('link', { name: `ดูข้อมูล ${fixture.spare.name} (เปิดแท็บใหม่)` }))
+    .toHaveAttribute('href', `/competitions/${fixture.spare.slug}`);
   // ถามราคาหลังเลือกเวทีเท่านั้น และต้องเลือกฟรีหรือตั้งราคาก่อน
   await expect(candidate.getByLabel('ราคา (บาท)')).toHaveCount(0);
   await candidate.getByRole('button', { name: `เพิ่ม ${fixture.spare.name}` }).click();
@@ -494,34 +498,38 @@ test('the Mentor zone is for approved mentors, and a mentor can manage prices an
   await expect(mine.getByText(`เอา ${fixture.spare.name} ออกจากรายการของคุณหรือไม่`).first()).toBeVisible();
   await mine.getByRole('button', { name: 'ใช่ เอาออก' }).click();
   await expect(mine.locator('.cx-competition').filter({ hasText: fixture.spare.name })).toHaveCount(0);
-  await add.getByLabel('ค้นหาเวทีของคุณ').fill('zzz-no-such-competition');
-  await expect(add.getByText('ไม่พบเวทีของคุณที่ตรงกับคำค้น')).toBeVisible();
+  await add.getByLabel('ค้นหาเวที').fill('zzz-no-such-competition');
+  await expect(add.getByText('ไม่พบเวทีที่ตรงกับคำค้น')).toBeVisible();
 
-  // ขอเพิ่มเวทีที่เคยแข่ง: ตรวจฟอร์มก่อนส่ง (ต้องมีผล ปี หลักฐาน และราคา) แล้วเห็นสถานะรอทีมงาน
-  const request = page.getByRole('region', { name: 'เพิ่มเวทีที่คุณเคยแข่ง' });
-  await expect(request).toBeHidden();
-  await add.getByRole('button', { name: 'เคยแข่งเวทีที่ไม่อยู่ในรายการนี้? ส่งให้ทีมตรวจ' }).click();
-  await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
-  await expect(request.getByRole('alert')).toContainText('กรอกชื่อเวที');
-  await request.getByLabel('ชื่อเวที').fill('Brand New Cup');
-  await request.getByLabel('ลิงก์ประกาศ').fill('ftp://nope');
-  await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
-  await expect(request.getByRole('alert')).toContainText('ขึ้นต้นด้วย https://');
-  await request.getByLabel('ลิงก์ประกาศ').fill('https://example.test/brand-new-cup');
-  await request.getByLabel('รายละเอียด (ไม่บังคับ)').fill('Open to all students.');
-  await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
-  await expect(request.getByRole('alert')).toContainText('เลือกผลที่ได้จากเวทีนี้');
-  await request.getByLabel('ผลที่ได้').selectOption('finalist');
-  await request.getByLabel('ปี พ.ศ.').fill('2567');
-  await request.getByLabel('ลิงก์ที่แสดงว่าคุณเคยแข่ง').fill('https://example.test/brand-new-cup/results');
-  await request.locator('.cx-price__option').filter({ hasText: 'ตั้งราคา' }).click();
-  await request.getByLabel('ราคา (บาท)').fill('500');
-  await request.getByLabel('คิดต่ออะไร').fill('ชั่วโมง');
-  await request.getByRole('button', { name: 'ส่งคำขอ' }).click();
-  await expect(request.getByRole('status')).toContainText('ส่งคำขอแล้ว');
-  const submitted = page.locator('.cx-request').filter({ hasText: 'Brand New Cup' });
+  // เวทีที่ยังไม่มีผลงานที่ตรวจแล้ว: ส่งผล ปี ไฟล์หลักฐาน และราคา ให้ทีมงานตรวจ แล้วเห็นสถานะรอตรวจ
+  await add.getByLabel('ค้นหาเวที').fill(fixture.other.name);
+  const unchecked = add.locator('.cx-competition').filter({ hasText: fixture.other.name });
+  await expect(unchecked).not.toContainText('ตรวจผลงานแล้ว');
+  await unchecked.getByRole('button', { name: `ส่งหลักฐานของ ${fixture.other.name}` }).click();
+  const claim = unchecked.getByRole('form', { name: `ผลงานของคุณใน ${fixture.other.name}` });
+  await claim.getByRole('button', { name: 'ส่งให้ทีมงานตรวจ' }).click();
+  await expect(claim.getByRole('alert')).toContainText('เลือกผลที่ได้จากเวทีนี้');
+  await claim.getByLabel('ผลที่ได้').selectOption('finalist');
+  await claim.getByLabel('ปี พ.ศ.').fill('2567');
+  await claim.getByRole('button', { name: 'ส่งให้ทีมงานตรวจ' }).click();
+  await expect(claim.getByRole('alert')).toContainText('แนบไฟล์หลักฐานอย่างน้อย 1 ไฟล์');
+  await claim.locator('input[type=file]').setInputFiles({ name: 'proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 proof') });
+  await expect(claim.getByText('proof.pdf')).toBeVisible();
+  await claim.locator('.cx-price__option').filter({ hasText: 'ตั้งราคา' }).click();
+  await claim.getByLabel('ราคา (บาท)').fill('500');
+  await claim.getByLabel('คิดต่ออะไร').fill('ชั่วโมง');
+  await claim.getByRole('button', { name: 'ส่งให้ทีมงานตรวจ' }).click();
+  await expect(mine.getByRole('status')).toContainText('ส่งแล้ว ทีมงานจะตรวจหลักฐาน');
+  await add.getByLabel('ค้นหาเวที').fill(fixture.other.name);
+  await expect(unchecked).toContainText('รอตรวจหลักฐาน');
+  await expect(unchecked.getByRole('button', { name: `ส่งหลักฐานของ ${fixture.other.name}` })).toHaveCount(0);
+  const submitted = page.locator('.cx-request').filter({ hasText: fixture.other.name });
   await expect(submitted).toContainText('รอทีมงานตรวจ');
   await expect(submitted).toContainText('500 บาท / ชั่วโมง');
+
+  // เวทีที่ยังไม่มีในระบบ: ไปฟอร์มเต็ม (โปสเตอร์ วันที่ รางวัล) แยกหน้า
+  await expect(add.getByRole('link', { name: 'เคยแข่งเวทีที่ยังไม่มีใน ChampionWays? ส่งข้อมูลเวทีให้ทีมตรวจ' }))
+    .toHaveAttribute('href', '/mentor-zone/new-competition');
   await expectNoSideScroll(page);
 });
 

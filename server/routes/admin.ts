@@ -10,7 +10,7 @@ import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
   competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices, mentorExperiences, staffNotifications,
   mentorPayoutAccounts, mentorPayouts, mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
-  submissionCategories, submissionLevels, submissionRewards, users, competitionImportSources, competitionImports,
+  submissionCategories, submissionLevels, submissionRewards, users, competitionImportSources, competitionImports, files,
 } from '../db/schema.js';
 import type { AppEnv } from '../lib/guards.js';
 import { requireReviewer } from '../lib/guards.js';
@@ -52,6 +52,9 @@ export const competitionChecks = [
   'คำบรรยายไม่ใช่ข้อความคัดลอกมาทั้งก้อนจากเว็บอื่น',
   'ไม่ใช่การขายของหรือรับสมัครงานที่แฝงมาเป็นการแข่งขัน',
 ];
+/** ใบจากเมนเทอร์ต้องตรวจหลักฐานด้วย เพราะเผยแพร่แล้วเมนเทอร์รับปรึกษาเวทีนี้ทันที */
+const mentorEvidenceCheck = 'ไฟล์หลักฐานเป็นของเมนเทอร์คนนี้จริง และตรงกับเวทีและผลที่อ้าง';
+const checksFor = (row: { mentorId: string | null }) => (row.mentorId ? [...competitionChecks, mentorEvidenceCheck] : competitionChecks);
 
 export const mentorChecks = [
   'ตัวตนและที่ทำงานตรวจสอบได้จากข้อมูลที่ให้มา',
@@ -196,22 +199,26 @@ async function loadCompetitionSubmission(id: string) {
     levels: levels.map((item) => item.level),
     rewards: rewards.map((item) => item.reward),
     files: (await filesOf('competition_submission', id)).map(publicFile),
+    // ใบจากเมนเทอร์: ชื่อเมนเทอร์และไฟล์หลักฐานว่าเคยแข่ง (ผู้ใช้ขอ 9 ต.ค. 2569)
+    mentorName: row.mentorId
+      ? (await db.select({ name: mentors.name }).from(mentors).where(eq(mentors.id, row.mentorId)))[0]?.name ?? null : null,
+    evidence: row.mentorId ? (await filesOf('competition_submission_evidence', id)).map(publicFile) : [],
     events,
   };
 }
 
 admin.get('/competition-submissions/:id', async (c) => {
-  return c.json({ submission: await loadCompetitionSubmission(c.req.param('id')), checks: competitionChecks });
+  const submission = await loadCompetitionSubmission(c.req.param('id'));
+  return c.json({ submission, checks: checksFor(submission) });
 });
 
 admin.post('/competition-submissions/:id/decision', async (c) => {
   const parsed = competitionDecisionBody.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
   const body = parsed.data;
-  guardDecision(body, competitionChecks);
-
   const id = c.req.param('id');
   const submission = await loadCompetitionSubmission(id);
+  guardDecision(body, checksFor(submission));
   const reviewer = c.get('user')!;
   let publishedSlug: string | null = null;
   /* โปสเตอร์ที่ผู้จัดแนบมา (รูปบน Blob ซึ่งเปิดสาธารณะอยู่แล้ว) ใช้เป็นภาพของเวทีเลย
@@ -258,7 +265,8 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
         teamMax: submission.teamMax,
         keywords: [],
         sourceUrl: submission.sourceUrl,
-        source: 'organiser',
+        // ใบจากเมนเทอร์ทีมงานตรวจประกาศเอง จึงนับเป็นเวทีที่ทีมงานดูแล (เตือนตรวจซ้ำทุก 30 วัน)
+        source: current.mentorId ? 'editorial' : 'organiser',
         lastVerifiedAt: new Date().toISOString().slice(0, 10),
         registerUrl: submission.registerUrl,
       });
@@ -274,6 +282,16 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
       await tx.update(competitionSubmissions)
         .set({ status: 'published', publishedCompetitionId: competitionId, kind, themes })
         .where(eq(competitionSubmissions.id, id));
+      // ใบจากเมนเทอร์: หลักฐานผ่านพร้อมกับเวที เมนเทอร์ได้ประสบการณ์ที่ตรวจแล้วและรับปรึกษาเวทีนี้ทันทีด้วยราคาที่ขอไว้
+      if (current.mentorId && current.mentorResult) {
+        await tx.insert(mentorExperiences).values({
+          id: newId('exp'), mentorId: current.mentorId, competitionId, name: submission.name,
+          result: current.mentorResult, year: current.mentorYear,
+        }).onConflictDoNothing();
+        await tx.insert(mentorCompetitionChoices).values({
+          mentorId: current.mentorId, competitionId, choice: 'help', price: current.mentorPrice ?? 0, minutes: null, unit: current.mentorUnit,
+        }).onConflictDoNothing();
+      }
     } else {
       await tx.update(competitionSubmissions)
         .set({ status: statusOf[body.decision] })
@@ -761,11 +779,19 @@ admin.get('/competition-requests', async (c) => {
     .innerJoin(mentors, eq(mentors.id, competitionRequests.mentorId))
     .leftJoin(competitions, eq(competitions.id, competitionRequests.competitionId))
     .orderBy(asc(competitionRequests.status), desc(competitionRequests.createdAt));
-  return c.json({ items: rows.map((r) => ({ ...r.request, mentorName: r.mentorName, competitionSlug: r.slug })) });
+  // ไฟล์หลักฐานของคำขอที่ผูกเวทีไว้แล้ว (ส่งจากหน้าเวทีหรือ Mentor zone)
+  const ids = rows.map((r) => r.request.id);
+  const evidence = ids.length ? await db.select().from(files)
+    .where(and(eq(files.ownerType, 'competition_request_evidence'), inArray(files.ownerId, ids))) : [];
+  return c.json({ items: rows.map((r) => ({
+    ...r.request, mentorName: r.mentorName, competitionSlug: r.slug,
+    evidenceFiles: evidence.filter((file) => file.ownerId === r.request.id).map(publicFile),
+  })) });
 });
 
 const requestDecision = z.discriminatedUnion('decision', [
-  z.object({ decision: z.literal('approve'), competitionSlug: z.string().trim().min(1, 'เลือกเวทีที่จะผูกกับคำขอ') }),
+  // คำขอที่ผูกเวทีมาแล้วไม่ต้องส่ง slug
+  z.object({ decision: z.literal('approve'), competitionSlug: z.string().trim().max(200).optional() }),
   z.object({ decision: z.literal('reject'), reason: z.string().trim().min(1, 'กรอกเหตุผลที่ปฏิเสธ').max(1000) }),
 ]);
 
@@ -776,7 +802,11 @@ admin.post('/competition-requests/:id/decision', async (c) => {
   const reviewer = c.get('user')!;
   const id = c.req.param('id');
   let competitionId: string | null = null;
-  if (body.decision === 'approve') {
+  if (body.decision === 'approve' && !body.competitionSlug) {
+    const [preset] = await db.select({ competitionId: competitionRequests.competitionId }).from(competitionRequests).where(eq(competitionRequests.id, id));
+    if (!preset?.competitionId) throw new HTTPException(400, { message: 'เลือกเวทีที่จะผูกกับคำขอ' });
+    competitionId = preset.competitionId;
+  } else if (body.decision === 'approve' && body.competitionSlug) {
     const [event] = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.slug, body.competitionSlug)).limit(1);
     if (!event) throw new HTTPException(404, { message: 'ไม่พบเวทีนี้ สร้างเวทีจากหน้าเพิ่มเวทีก่อน' });
     competitionId = event.id;

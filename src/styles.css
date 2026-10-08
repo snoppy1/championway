@@ -1310,3 +1310,40 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 @media (max-width: 480px) {
   .detail-glance dl { grid-template-columns: 1fr; }
 }
+
+/* ไฟล์หลักฐานของเมนเทอร์ (components/MentorClaim.tsx) ใช้ทั้งในกล่องบนหน้าเวที Mentor zone และฟอร์มเพิ่มเวที */
+.evidence-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0; }
+.evidence-picker__label { flex-basis: 100%; font-weight: 600; font-size: 14px; color: var(--ink); }
+.evidence-picker__hint { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+.evidence-picker__list { flex-basis: 100%; list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.evidence-picker__list li { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 4px 4px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.evidence-picker__list li.is-invalid { border-color: #b42318; }
+.evidence-picker__list svg { flex: none; color: var(--muted); }
+.evidence-picker__name { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.evidence-picker__none { font-size: 13px; color: var(--muted); }
+.evidence-picker__remove { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; }
+.evidence-picker__remove:hover { background: var(--purple-tint); color: var(--ink); }
+.evidence-picker__remove:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.evidence-picker__button { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--purple-deep); font-weight: 500; cursor: pointer; }
+.evidence-picker__button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.evidence-picker__button:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.evidence-picker__button.is-disabled { opacity: .6; cursor: not-allowed; }
+.cw-form .evidence-picker { margin: 14px 0 4px; }
+
+/* กล่องสำหรับเมนเทอร์บนหน้าเวที (components/MentorOffer.tsx) เห็นเฉพาะเมนเทอร์ */
+.mentor-offer { display: grid; gap: 10px; margin: 0 0 var(--space-5, 20px); padding: 14px 16px; border: 1px dashed var(--purple-soft); border-radius: 14px; background: var(--purple-tint); }
+.mentor-offer h3 { margin: 0; font: 600 16px/1.4 var(--display); }
+.mentor-offer__lead { margin: 0; font-size: 13.5px; color: var(--muted); }
+.mentor-offer .cx-message:empty { display: none; }
+.mentor-offer .cx-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.mentor-offer .cx-competition__form, .mentor-claim { display: grid; gap: 12px; }
+.cx-list__title .cx-pill { margin-left: 8px; vertical-align: 2px; font-family: var(--body, inherit); }
+/* ในฟอร์มเพิ่มเวที (.cw-form) ปุ่มและ label ทั่วไปมีสไตล์ของฟอร์มอยู่แล้ว คืนค่าให้ตัวเลือกไฟล์และราคา */
+.cw-form .evidence-picker__button { display: inline-flex; margin: 0; font-weight: 500; }
+.cw-form .evidence-picker__button svg { flex: none; }
+.cw-form .evidence-picker__remove { display: inline-grid; width: 36px; height: 36px; padding: 0; border: 0; background: none; color: var(--muted); }
+.cw-form .evidence-picker__remove svg { width: 16px; height: 16px; }
+.cw-form .cx-price__option { margin: 0; }
+.cw-form .cx-price__option input { width: auto; margin: 0; padding: 0; }
+.cw-form .cx-price-fields label { margin-bottom: 0; }
+.cw-form .cx-price-fields input { margin-top: 0; }

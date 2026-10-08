@@ -56,7 +56,23 @@ type Submission = {
   publishedCompetitionId: string | null;
   files: AttachedFile[];
   events: ReviewEvent[];
+  /* ใบจากเมนเทอร์ (เวทีที่เคยแข่งแต่ยังไม่มีในระบบ) */
+  mentorId: string | null;
+  mentorName?: string | null;
+  mentorResult: 'winner' | 'finalist' | 'participant' | null;
+  mentorYear: string;
+  mentorPrice: number | null;
+  mentorUnit: string;
+  evidence?: AttachedFile[];
 };
+
+const mentorResultLabel = { winner: 'ชนะ/ได้รางวัล', finalist: 'เข้ารอบสุดท้าย', participant: 'เข้าร่วมแข่งขัน' } as const;
+const baht = new Intl.NumberFormat('th-TH');
+
+/** ป้ายแยกใบจากเมนเทอร์ออกจากใบของผู้จัด */
+function MentorRequestPill() {
+  return <span className="status-pill is-mentor">Mentor request</span>;
+}
 
 /** จำนวนวันที่ใบนี้รออยู่ นับจากเวลาที่ส่ง */
 export function waitingDays(submittedAt: string) {
@@ -210,7 +226,7 @@ export function AdminCompetitionQueue() {
     {!loading && (rows.length > 0 ? <ul className="queue-list">
       {rows.map((item) => <li className="queue-row" key={item.id}>
         <div className="queue-main">
-          <CompetitionPublication submission={item} />
+          <span className="queue-pills"><CompetitionPublication submission={item} />{item.mentorId && <MentorRequestPill />}</span>
           <h2><Link to={`/admin/competitions/${item.id}`}>{item.name}</Link></h2>
           <p className="admin-muted">{item.organizerName} · {item.categories.map(categoryLabel).join(' · ')}</p>
         </div>
@@ -303,6 +319,7 @@ export function AdminCompetitionReview() {
       <div className="admin-title-row">
         <h1>{submission.name}</h1>
         <CompetitionPublication submission={submission} />
+        {submission.mentorId && <MentorRequestPill />}
       </div>
       <p className="admin-muted">
         ใบ {submission.id} · ส่งเมื่อ {formatDate(submission.submittedAt.slice(0, 10))} · รอมาแล้ว {waitingDays(submission.submittedAt)} วัน
@@ -322,7 +339,24 @@ export function AdminCompetitionReview() {
           <CardPreview preview={preview} seed={submission.id} />
         </section>
 
-        <section className="admin-block" aria-labelledby="organiser-title">
+        {submission.mentorId ? <section className="admin-block" aria-labelledby="mentor-claim-title">
+          <h2 id="mentor-claim-title">เมนเทอร์ที่ขอเพิ่มเวทีนี้</h2>
+          <p className="admin-private">เผยแพร่แล้ว เมนเทอร์คนนี้จะได้ผลงานที่ตรวจแล้วและรับปรึกษาเวทีนี้ทันทีตามราคาที่ขอ ตรวจไฟล์หลักฐานก่อน</p>
+          <dl className="admin-fields">
+            <Field label="เมนเทอร์">{submission.mentorName ?? submission.contactName}</Field>
+            <Field label="อีเมล">{submission.contactEmail}</Field>
+            <Field label="ผู้จัด (ตามประกาศ)">{submission.organizerName}</Field>
+            <Field label="ผลที่อ้าง">{submission.mentorResult ? `${mentorResultLabel[submission.mentorResult]} · ปี ${submission.mentorYear}` : ''}</Field>
+            <Field label="ราคาที่ขอ">{!submission.mentorPrice ? 'ฟรี' : `${baht.format(submission.mentorPrice)} บาท / ${submission.mentorUnit}`}</Field>
+          </dl>
+          <h3>ไฟล์หลักฐาน</h3>
+          {submission.evidence?.length ? <ul className="file-list">
+            {submission.evidence.map((file) => <li key={file.id}>
+              <a href={file.url} target="_blank" rel="noreferrer noopener"><Paperclip size={15} aria-hidden="true" />{file.originalName}</a>
+              <span className="admin-muted">{file.mime} · {kb(file.size)}</span>
+            </li>)}
+          </ul> : <p className="admin-empty">ไม่พบไฟล์หลักฐาน</p>}
+        </section> : <section className="admin-block" aria-labelledby="organiser-title">
           <h2 id="organiser-title">ผู้จัดงาน</h2>
           <p className="admin-private">ข้อมูลติดต่อใช้ตรวจสอบเท่านั้น ไม่แสดงบนหน้าเว็บ</p>
           <dl className="admin-fields">
@@ -332,7 +366,7 @@ export function AdminCompetitionReview() {
             <Field label="เบอร์โทร">{submission.contactPhone}</Field>
             <Field label="เว็บหรือเพจทางการ"><ExternalLink href={submission.organizerUrl} /></Field>
           </dl>
-        </section>
+        </section>}
 
         <section className="admin-block" aria-labelledby="event-title">
           <h2 id="event-title">รายละเอียดงาน</h2>

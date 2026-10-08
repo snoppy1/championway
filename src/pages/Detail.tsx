@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ArrowLeft, ArrowRight, Award, Building2, Calendar, Check, GraduationCap, Layers3,
@@ -14,6 +14,7 @@ import { CompetitionCover } from '../components/CoverArt';
 import { useApi } from '../lib/useApi';
 import type { ListedMentor, RankedMentor } from '../data/consult';
 import { MentorTile } from '../components/mentors';
+import { MentorOffer } from '../components/MentorOffer';
 import { useI18n } from '../i18n';
 import { useHiring } from '../data/hiring';
 import '../journey.css';
@@ -73,6 +74,7 @@ export function Detail() {
   const s = t.detail;
   const { slug } = useParams();
   const { search, hash } = useLocation();
+  const [mentorsVersion, setMentorsVersion] = useState(0);
   // เวทีที่เกี่ยวข้องคำนวณที่เซิร์ฟเวอร์จากหมวดที่ซ้อนกัน ส่งมาพร้อมกันในคำขอเดียว
   const { data, error, loading } = useApi<{ competition: Competition; related: Competition[] }>(
     slug ? `/competitions/${encodeURIComponent(slug)}` : null,
@@ -183,7 +185,9 @@ export function Detail() {
       <aside className="detail-mentors" id="mentors" aria-labelledby="mentors-title">
         <h2 id="mentors-title">{s.mentorsTitle}</h2>
         <p className="cx-lead">{s.mentorsLead}</p>
-        <AvailableMentors slug={competition.slug} />
+        {/* เห็นเฉพาะเมนเทอร์: รับปรึกษาเวทีนี้หรือส่งหลักฐาน รับแล้วรายชื่อด้านล่างอ่านใหม่ */}
+        <MentorOffer slug={competition.slug} name={competition.name} onChanged={() => setMentorsVersion((value) => value + 1)} />
+        <AvailableMentors key={mentorsVersion} slug={competition.slug} />
       </aside>
 
       <div className="detail-article">

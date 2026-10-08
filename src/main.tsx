@@ -65,6 +65,7 @@ const router = createBrowserRouter([{
     { path: '/profile/edit', element: <ProfileEdit /> },
     { path: '/organizers', element: <Organisers /> },
     { path: '/organizers/submit', element: <OrganiserSubmit /> },
+    { path: '/mentor-zone/new-competition', element: <OrganiserSubmit mode="mentor" /> },
     { path: '/consulting', element: <Consulting /> },
     { path: '/mentor-zone', element: <MentorZone /> },
     { path: '/verify-email', element: <VerifyEmail /> },

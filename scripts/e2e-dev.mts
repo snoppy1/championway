@@ -12,6 +12,7 @@ import { db, client } from '../server/db/client.ts';
 import {
   billingCustomers, consultationConfirmTokens, consultations, emailLog, emailVerifications, mentorAwards, mentorCompetitionChoices,
   mentorExperiences, mentorReviews, mentorSubmissions, mentors, reviewEvents, risingStarPeriods, sessions, staffAlerts, users,
+  competitionSubmissions,
 } from '../server/db/schema.ts';
 import { createSession } from '../server/lib/session.ts';
 
@@ -256,19 +257,30 @@ try {
     return `การ์ดหลังรีวิว: ${text.replace(/\s+/g, ' ').slice(0, 140)}`;
   });
 
+  // เวทีที่ยังไม่มีในระบบ เมนเทอร์ส่งผ่านฟอร์มเต็ม (9 ต.ค. 2569) ใบเข้าคิวงานแข่งพร้อมป้าย Mentor request
   await step('9 เมนเทอร์ส่งคำขอเพิ่มเวทีที่เคยแข่ง → admin ได้อีเมล', async () => {
-    await m.goto(`${BASE}/mentor-zone`);
-    await m.getByRole('tab', { name: 'เวทีของฉัน' }).click();
-    await m.getByRole('button', { name: 'เคยแข่งเวทีที่ไม่อยู่ในรายการนี้? ส่งให้ทีมตรวจ' }).click();
-    const form = m.getByRole('region', { name: 'เพิ่มเวทีที่คุณเคยแข่ง' });
-    await form.getByLabel('ชื่อเวที').fill('E2E Cup');
-    await form.getByLabel('ลิงก์ประกาศ').fill('https://example.com/e2e-cup');
-    await form.getByLabel('ผลที่ได้').selectOption('finalist');
-    await form.getByLabel('ปี พ.ศ.').fill('2566');
-    await form.getByLabel('ลิงก์ที่แสดงว่าคุณเคยแข่ง').fill('https://example.com/e2e-cup/results');
-    await form.locator('.cx-price__option').filter({ hasText: 'ฟรี' }).click();
-    await form.getByRole('button', { name: 'ส่งคำขอ' }).click();
-    await form.getByText('ส่งคำขอแล้ว').waitFor();
+    await m.goto(`${BASE}/mentor-zone/new-competition`);
+    const next = () => m.getByRole('button', { name: 'ถัดไป', exact: true }).click();
+    await m.getByLabel('ผู้จัดงาน (ตามที่เขียนในประกาศ) *').fill('E2E Org');
+    await m.getByLabel('ผลที่ได้').selectOption('finalist');
+    await m.getByLabel('ปี พ.ศ.').fill('2566');
+    await m.locator('.evidence-picker input[type=file]').setInputFiles({ name: 'proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 e2e') });
+    await m.locator('.cx-price__option').filter({ hasText: 'ฟรี' }).click();
+    await next();
+    await m.getByLabel('ชื่องาน *').fill('E2E Cup');
+    await m.getByRole('radio', { name: 'Hackathon' }).check();
+    await m.getByRole('checkbox', { name: 'นวัตกรรม', exact: true }).check();
+    await m.getByLabel('คำบรรยายสั้น *').fill('E2E: เวทีที่เมนเทอร์ขอเพิ่ม');
+    await m.getByRole('checkbox', { name: 'เทคโนโลยีและนวัตกรรม' }).check();
+    await m.getByRole('checkbox', { name: 'อุดมศึกษา' }).check();
+    await next();
+    await m.getByLabel('วันปิดรับสมัคร *').fill(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+    await m.getByLabel('ลิงก์ประกาศต้นทาง *').fill('https://example.com/e2e-cup');
+    await m.getByLabel('เงินรางวัลรวม (บาท)').fill('1000');
+    await next();
+    for (const box of await m.locator('.consent-check input').all()) await box.check();
+    await m.getByRole('button', { name: 'ส่งใบลงงานแข่ง' }).click();
+    await m.getByRole('heading', { name: 'ส่งคำขอแล้ว' }).waitFor();
     await wait(1500);
     const mail = await db.select().from(emailLog).where(and(eq(emailLog.to, admin.email), like(emailLog.subject, 'เมนเทอร์ขอเพิ่มเวที%')));
     if (!mail.length) throw new Error('admin ไม่ได้อีเมล');
@@ -289,6 +301,11 @@ try {
   // ล้างข้อมูลทดสอบออกจากฐาน dev
   const mentorId = ids.mentor;
   if (mentorId) {
+    const sent = await db.select({ id: competitionSubmissions.id }).from(competitionSubmissions).where(eq(competitionSubmissions.mentorId, mentorId));
+    if (sent.length) {
+      await db.delete(reviewEvents).where(inArray(reviewEvents.targetId, sent.map((row) => row.id)));
+      await db.delete(competitionSubmissions).where(inArray(competitionSubmissions.id, sent.map((row) => row.id)));
+    }
     await db.delete(mentorReviews).where(eq(mentorReviews.mentorId, mentorId));
     const cons = await db.select({ id: consultations.id }).from(consultations).where(eq(consultations.mentorId, mentorId));
     if (cons.length) await db.delete(consultationConfirmTokens).where(inArray(consultationConfirmTokens.consultationId, cons.map((c) => c.id)));

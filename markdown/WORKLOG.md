@@ -306,3 +306,8 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - `PriceFields` moved to `components/PriceFields.tsx`. Zone `#competitions` hash opens the competitions tab.
 - Tests: scripts/mentor-claims.test.ts (API), tests/mentor-offer.spec.ts (page box, claim → admin approve, full form → publish), consult zone test rewritten, fixture gains an unchecked `other` competition. scripts/e2e-dev.mts step 9 uses the new form.
 - Production needs migrations 0021–0025 before main is pushed.
+
+## 2026-10-09 — Production deploy
+
+- Owner ran Neon production migrations 0021–0025 (applied successfully), then fast-forwarded `main` to `596853f`.
+- Checked live: `/api/health` ok, new zone/state and mentor-submission endpoints answer 401 signed out, admin endpoints 401, competition list/detail/mentor list load. `payoutKey: missing` in health is pre-existing (hiring is paused).

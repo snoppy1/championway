@@ -1248,7 +1248,7 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
   padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper, #fbf9ff);
 }
 .detail-mentors > h2 { font-size: 21px; font-weight: 600; }
-.detail-mentors .cx-lead { margin-top: 6px; }
+.detail-mentors .cx-lead { margin: 6px 0 var(--space-5, 20px); }
 .detail-mentors .rs-section { margin-top: var(--space-5); }
 .detail-mentors .rs-section + .rs-section { margin-top: var(--space-6); }
 .detail-mentors .rs-section-head h3 { font-size: var(--text-lg); font-weight: 600; margin-top: 0; }
@@ -1266,8 +1266,9 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
 .mentor-tile__link:hover { border-color: var(--purple-soft); box-shadow: var(--shadow-card); transform: translateY(-2px); }
 .mentor-tile__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .mentor-tile--star .mentor-tile__link { border-color: var(--gold-line, #ecd892); }
-.mentor-tile__photo { position: relative; display: block; aspect-ratio: 1 / 1; background: var(--purple-tint); }
-.mentor-tile__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* รูปทุกใบกรอบเดียวกัน (4:3) ภาพที่ไม่พอดีตัดขอบแบบ cover เอียงขึ้นด้านบนให้เห็นหน้า */
+.mentor-tile__photo { position: relative; display: block; aspect-ratio: 4 / 3; overflow: hidden; background: var(--purple-tint); }
+.mentor-tile__photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 25%; display: block; }
 .mentor-tile__initial { display: grid; place-items: center; width: 100%; height: 100%; font: 600 44px/1 var(--display); color: var(--purple-deep); }
 /* ดาว Rising Star มุมขวาบนของรูป */
 .mentor-tile__star {

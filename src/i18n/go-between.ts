@@ -34,7 +34,7 @@ export const enGoBetween: DeepPartial<Messages> = {
     lead: 'The name and photo you add appear in the site header.',
   },
   detail: {
-    mentorsLead: 'Mentors who help teams with this competition. Talk with them outside ChampionWays, then confirm the guidance here.',
+    mentorsLead: 'Mentors who really competed in this competition, ready to help your team!',
   },
   mentorProfile: {
     reviewsEmpty: 'No reviews yet. Reviews appear after a mentor confirms a consultation.',
@@ -70,7 +70,7 @@ export const thGoBetween: DeepPartial<Messages> = {
     lead: 'ชื่อและรูปที่ใส่ไว้จะแสดงบนหัวเว็บ',
   },
   detail: {
-    mentorsLead: 'เมนเทอร์ที่ช่วยทีมในเวทีนี้ คุยกับเมนเทอร์นอก ChampionWays แล้วกลับมายืนยันคำแนะนำที่ได้รับที่นี่',
+    mentorsLead: 'Mentor ผู้มีประสบการณ์แข่งจริงจากเวทีนี้ พร้อมช่วยทีมคุณแล้ว!',
   },
   mentorProfile: {
     reviewsEmpty: 'ยังไม่มีรีวิว รีวิวจะขึ้นเมื่อเมนเทอร์ยืนยันการปรึกษา',

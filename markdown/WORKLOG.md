@@ -288,3 +288,9 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 ## 2026-10-07 — Import AI: drop forced tool_choice
 
 - The real 400 (shown after the error-message fix): `tool_choice: type "tool" and "any" are not supported for this model` (claude-sonnet-5-5). Switched to `tool_choice: auto` with a system rule to always answer via `save_draft`. Not verified against the live API from here (no key locally); admin retries one failed item on dev to confirm.
+
+## 2026-10-09 — Competition page mentor cards: shorter photo, new lead
+
+- `MentorTile` photo frame is 4:3 (was 1:1), image absolutely positioned with `object-fit: cover` (focus slightly above center), so every photo is the same size and the cards are shorter.
+- Space between the lead and the cards (`.detail-mentors .cx-lead` bottom margin).
+- Go-between lead: "Mentor ผู้มีประสบการณ์แข่งจริงจากเวทีนี้ พร้อมช่วยทีมคุณแล้ว!" / "Mentors who really competed in this competition, ready to help your team!".

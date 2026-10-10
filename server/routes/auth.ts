@@ -2,10 +2,10 @@ import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { createHash } from 'node:crypto';
-import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { emailVerifications, mentorSubmissions, sessions, users } from '../db/schema.js';
+import { emailVerifications, mentorSubmissions, passwordResets, sessions, users } from '../db/schema.js';
 import { env, googleConfigured } from '../lib/env.js';
 import { notify } from '../lib/email.js';
 import { authorizeUrl, exchangeCode, fetchProfile, newPkcePair } from '../lib/google.js';
@@ -375,6 +375,89 @@ auth.post('/password', requireUser, async (c) => {
   setSessionCookie(c, session.id, session.expiresAt, remember);
 
   return c.json({ user: publicUser(updated) });
+});
+
+/* ---------- ลืมรหัสผ่าน ----------
+   ขอลิงก์ด้วยอีเมล แล้วตั้งรหัสใหม่จากลิงก์ในอีเมล token เก็บแค่ค่า hash ใช้ได้ครั้งเดียว อายุ 1 ชั่วโมง
+   ผูกกับอีเมล ณ ตอนส่ง ตอบเหมือนกันทุกกรณีว่ามีบัญชีหรือไม่ บัญชี Google ที่ยังไม่มีรหัสผ่านตั้งรหัสจากลิงก์ได้
+   เพราะคนที่เปิดลิงก์ได้คือเจ้าของกล่องอีเมลนั้น */
+
+const RESET_TTL_MS = 3600_000;
+const RESET_COOLDOWN_MS = 60_000;
+
+auth.post('/password/forgot', async (c) => {
+  const parsed = z.object({ email: credentials.shape.email }).safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
+  const { email } = parsed.data;
+
+  // นับทุกคำขอไม่ว่าจะมีบัญชีหรือไม่ ผลที่ได้จึงไม่บอกว่าอีเมลนี้มีบัญชี
+  if (!await reserve('password_reset', { email, ip: clientIp(c) })) {
+    throw new HTTPException(429, { message: 'ขอลิงก์บ่อยเกินไป รอสักครู่แล้วลองใหม่' });
+  }
+  await prune();
+
+  const [found] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.email, email)).limit(1);
+  if (found) {
+    const token = newToken();
+    // ล็อกแถวผู้ใช้ก่อนเช็กช่วงพัก กดขอพร้อมกันหลายครั้งจะส่งออกได้ครั้งเดียว
+    const issued = await db.transaction(async (tx) => {
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, found.id)).for('update');
+      const [recent] = await tx.select({ createdAt: passwordResets.createdAt }).from(passwordResets)
+        .where(eq(passwordResets.userId, found.id)).orderBy(desc(passwordResets.createdAt)).limit(1);
+      if (recent && Date.now() - recent.createdAt.getTime() < RESET_COOLDOWN_MS) return false;
+      await tx.insert(passwordResets).values({
+        tokenHash: tokenHash(token), userId: found.id, email: found.email, expiresAt: new Date(Date.now() + RESET_TTL_MS),
+      });
+      return true;
+    });
+    if (issued) {
+      const link = `${env.appOrigin}/reset-password?token=${token}`;
+      await notify(found.email, 'ตั้งรหัสผ่านใหม่ ChampionWays / Reset your password',
+        `มีคำขอตั้งรหัสผ่านใหม่สำหรับบัญชีนี้ กดลิงก์เพื่อตั้งรหัสใหม่ ลิงก์ใช้ได้ 1 ชั่วโมงและใช้ได้ครั้งเดียว ถ้าคุณไม่ได้ขอ ไม่ต้องทำอะไร รหัสเดิมยังใช้ได้\n`
+        + `Someone asked to reset the password for this account. Open the link to set a new one. It works once, for 1 hour. If it wasn't you, ignore this email; your password stays the same.\n\n${link}`);
+    }
+  }
+  /* เวลาตอบของบัญชีที่มีอยู่นานกว่า (ส่งอีเมล) จึงพอเดาได้ว่ามีบัญชี (Astra รีวิว 10 ต.ค. 2569) ยอมรับไว้
+     เพราะ /signup บอกตรง ๆ อยู่แล้วว่าอีเมลนี้มีบัญชี ข้อความที่ตอบเหมือนกันมีไว้ไม่ให้หน้าเว็บบอกใบ้เอง */
+  return c.json({ ok: true });
+});
+
+const resetBody = z.object({ token: z.string().min(20).max(200), password: z.string().max(200) });
+
+auth.post('/password/reset', async (c) => {
+  const parsed = resetBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: 'ลิงก์ตั้งรหัสผ่านไม่ถูกต้อง' });
+  const { token, password } = parsed.data;
+  // ตรวจรหัสใหม่ก่อนใช้ token รหัสไม่ผ่านเกณฑ์แล้วลิงก์ต้องยังใช้ได้อยู่
+  const problem = passwordProblem(password);
+  if (problem) throw new HTTPException(400, { message: problem });
+  const nextHash = await hashPassword(password);
+
+  const email = await db.transaction(async (tx) => {
+    // ใช้ token ได้ครั้งเดียว: เงื่อนไข used_at is null ในคำสั่งเดียวกัน กันเปิดสองแท็บพร้อมกัน
+    const [row] = await tx.update(passwordResets).set({ usedAt: new Date() })
+      .where(and(eq(passwordResets.tokenHash, tokenHash(token)), isNull(passwordResets.usedAt), gt(passwordResets.expiresAt, new Date())))
+      .returning();
+    if (!row) return null;
+    // ล็อกแถวผู้ใช้ เรียงคิวกับการเปลี่ยนรหัส การเข้าสู่ระบบ และการผูก Google
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, row.userId)).for('update');
+    // อีเมลของบัญชีต้องยังตรงกับตอนส่งลิงก์ ถ้าเปลี่ยนไปแล้ว ลิงก์เก่าใช้ตั้งรหัสไม่ได้
+    const [updated] = await tx.update(users)
+      // เปิดลิงก์จากกล่องอีเมลได้ = เป็นเจ้าของอีเมลนี้ จึงนับว่ายืนยันอีเมลแล้วด้วย
+      .set({ passwordHash: nextHash, emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, now())` })
+      .where(and(eq(users.id, row.userId), eq(users.email, row.email)))
+      .returning({ email: users.email });
+    if (!updated) return null;
+    // ลิงก์อื่นที่ยังค้างอยู่ใช้ไม่ได้แล้ว และเตะทุกอุปกรณ์ออก คนที่แอบใช้บัญชีอยู่จะหลุดด้วย
+    await tx.update(passwordResets).set({ usedAt: new Date() })
+      .where(and(eq(passwordResets.userId, row.userId), isNull(passwordResets.usedAt)));
+    await destroyAllSessions(row.userId, tx);
+    return updated.email;
+  });
+  if (!email) throw new HTTPException(400, { message: 'ลิงก์ตั้งรหัสผ่านหมดอายุหรือใช้ไปแล้ว ขอลิงก์ใหม่อีกครั้ง' });
+  // รหัสใหม่ใช้ได้ทันที ไม่ให้ตัวนับรหัสผิดของรหัสเก่าล็อกเจ้าของไว้
+  await clearEmail('login_fail', email);
+  return c.json({ ok: true });
 });
 
 /* ---------- Google ---------- */

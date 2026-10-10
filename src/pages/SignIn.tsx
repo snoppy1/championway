@@ -101,6 +101,9 @@ export function SignIn({ mode }: { mode: 'signin' | 'signup' }) {
           />
           {signup && <small>{s.passwordHint}</small>}
         </label>
+        {!signup && <p className="auth-forgot">
+          <Link to={`/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''}`}>{s.forgot}</Link>
+        </p>}
 
         <p className="auth-message" role="alert">{message}</p>
 

@@ -663,6 +663,17 @@ export const emailVerifications = pgTable('email_verifications', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [index('email_verifications_user_idx').on(t.userId, t.createdAt)]);
 
+/** ลิงก์ตั้งรหัสผ่านใหม่ (ลืมรหัสผ่าน) เก็บแค่ค่า hash ของ token ใช้ได้ครั้งเดียว อายุสั้น
+    ผูกกับอีเมล ณ ตอนส่ง ถ้าเปลี่ยนอีเมลหลังจากนั้น ลิงก์เก่าใช้ไม่ได้ */
+export const passwordResets = pgTable('password_resets', {
+  tokenHash: text('token_hash').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('password_resets_user_idx').on(t.userId, t.createdAt)]);
+
 /** เมนเทอร์ขอเพิ่มงานแข่งที่อยากรับปรึกษา ทีมงานสร้างเวทีเองจากหน้าจัดการ แล้วผูกคำขอกับเวทีนั้น
     ตอนอนุมัติ เมนเทอร์จะถูกใส่เป็นผู้รับปรึกษางานนั้นพร้อมราคาที่ขอไว้ */
 export const competitionRequests = pgTable('competition_requests', {

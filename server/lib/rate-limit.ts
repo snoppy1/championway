@@ -10,7 +10,7 @@ import { newId } from './id.js';
    เว็บรันแบบ serverless ไม่มีหน่วยความจำร่วมกันระหว่างคำขอ จึงนับในฐานข้อมูล
    คีย์คืออีเมลหรือ IP ที่แฮชแล้ว ไม่เก็บค่าจริง (นโยบายความเป็นส่วนตัวข้อ 2) */
 
-export type AttemptKind = 'login_fail' | 'signup';
+export type AttemptKind = 'login_fail' | 'signup' | 'password_reset';
 type Rule = { scope: 'email' | 'ip'; max: number; windowMs: number };
 
 const MINUTE = 60_000;
@@ -18,6 +18,8 @@ export const rules: Record<AttemptKind, Rule[]> = {
   // ผิด 5 ครั้งใน 15 นาทีต่ออีเมล หรือ 30 ครั้งต่อ IP (หลายคนอาจใช้ IP เดียวกัน เช่น Wi-Fi โรงเรียน)
   login_fail: [{ scope: 'email', max: 5, windowMs: 15 * MINUTE }, { scope: 'ip', max: 30, windowMs: 15 * MINUTE }],
   signup: [{ scope: 'ip', max: 10, windowMs: 60 * MINUTE }],
+  // ขอลิงก์ลืมรหัสผ่าน: 3 ครั้งต่ออีเมลต่อชั่วโมง กันใช้เว็บเรายิงอีเมลใส่คนอื่น และ 20 ครั้งต่อ IP
+  password_reset: [{ scope: 'email', max: 3, windowMs: 60 * MINUTE }, { scope: 'ip', max: 20, windowMs: 60 * MINUTE }],
 };
 
 /** IP ของผู้ใช้จริงที่ Vercel ใส่ให้ (ผู้ใช้ปลอม header นี้ไม่ได้ Vercel เขียนทับเสมอ)

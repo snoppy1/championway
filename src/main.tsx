@@ -26,6 +26,7 @@ import { ProfileEdit } from './pages/ProfileEdit';
 import { Detail, NotFound } from './pages/Detail';
 import { SignIn } from './pages/SignIn';
 import { AuthLayout } from './pages/AuthLayout';
+import { ForgotPassword, ResetPassword } from './pages/ResetPassword';
 import { Legal } from './pages/Legal';
 import { Consulting } from './pages/Consulting';
 import { MentorZone } from './pages/MentorZoneRoute';
@@ -87,6 +88,8 @@ const router = createBrowserRouter([{
   children: [
     { path: '/signin', element: <SignIn mode="signin" /> },
     { path: '/signup', element: <SignIn mode="signup" /> },
+    { path: '/forgot-password', element: <ForgotPassword /> },
+    { path: '/reset-password', element: <ResetPassword /> },
   ],
 }, {
   // หน้าจัดการอยู่นอก Layout ของหน้าบ้าน เพราะไม่ควรมีเมนูผู้ใช้ทั่วไปหรือ footer การตลาด

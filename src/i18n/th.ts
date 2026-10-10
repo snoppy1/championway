@@ -117,6 +117,7 @@ export const th: Messages = {
     regions: {
       online: 'ออนไลน์',
       nationwide: 'ทั่วประเทศ',
+      international: 'นานาชาติ',
       bangkok: 'กรุงเทพฯ และปริมณฑล',
       central: 'ภาคกลาง',
       north: 'ภาคเหนือ',

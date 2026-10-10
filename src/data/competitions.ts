@@ -33,7 +33,7 @@ export const levelLabels: Record<Level, string> = th.taxonomy.levels;
 export type OpportunityType = 'contest' | 'camp' | 'workshop' | 'scholarship' | 'internship';
 export const typeLabels: Record<OpportunityType, string> = th.taxonomy.types;
 
-export type Region = 'online' | 'nationwide' | 'bangkok' | 'central' | 'north' | 'northeast' | 'east' | 'south';
+export type Region = 'online' | 'nationwide' | 'international' | 'bangkok' | 'central' | 'north' | 'northeast' | 'east' | 'south';
 export const regionLabels: Record<Region, string> = th.taxonomy.regions;
 
 export type Reward = 'certificate' | 'trophy' | 'publish' | 'internship' | 'partnership';

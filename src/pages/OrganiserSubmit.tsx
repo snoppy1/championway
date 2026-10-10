@@ -166,8 +166,8 @@ export function OrganiserSubmit({ mode = 'organizer' }: { mode?: 'organizer' | '
       if (!error && (monthOnly ? values.closesAt.slice(0, 7) < today().slice(0, 7) : values.closesAt <= today())) error = s.errors.closeFuture;
       if (!error && values.opensAt && values.opensAt > values.closesAt) error = s.errors.opensBefore;
       need('sourceUrl');
-      // งานทั่วประเทศจัดหลายที่หรือไม่มีที่เดียว ไม่บังคับสถานที่ เหมือนงานออนไลน์
-      if (!error && region !== 'online' && region !== 'nationwide' && !values.venue.trim()) error = s.need(s.needs.venue);
+      // งานทั่วประเทศ/นานาชาติจัดหลายที่หรือไม่มีที่เดียว ไม่บังคับสถานที่ เหมือนงานออนไลน์
+      if (!error && region !== 'online' && region !== 'nationwide' && region !== 'international' && !values.venue.trim()) error = s.need(s.needs.venue);
       if (!error && Number(values.prizeValue || 0) === 0 && !values.prizeNote.trim()) {
         error = s.errors.prizeNote;
       }

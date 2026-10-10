@@ -526,15 +526,16 @@ main:focus { outline: none; }
 .competition-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lift); }
 .card-featured-bar { height: 3px; background: linear-gradient(90deg, #6d28d9 0%, #b99aef 45%, #f5d95c 100%); }
 
-/* ทุกการ์ดใช้กรอบ A4 แนวตั้งเท่ากัน (ผู้ใช้ขอ 7 ต.ค. 2569) ภาพที่สัดส่วนไม่ตรงถูกตัดให้เต็มกรอบ
+/* ทุกการ์ดใช้กรอบ 4:3 เท่ากัน (เดิม A4 แนวตั้ง ผู้ใช้บอกว่ายาวไป 10 ต.ค. 2569) โปสเตอร์ถูกตัดโดยเก็บส่วนบนไว้ เพราะชื่องานมักอยู่บนสุด
    ภาพวางแบบ absolute เพราะ aspect-ratio ยอมให้เนื้อหาที่สูงกว่าดันกรอบให้สูงตาม (โปสเตอร์ยาวเลยทำการ์ดสูงไม่เท่ากัน) */
 .card-cover {
   position: relative;
-  aspect-ratio: 210 / 297;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   border-bottom: 1px solid #eee8f5;
 }
 .card-cover > .cover-art, .card-cover > .cover-poster { position: absolute; inset: 0; }
+.card-cover > .cover-poster { object-position: center top; }
 .cover-art { width: 100%; height: 100%; display: block; }
 .urgent-chip {
   position: absolute; top: 12px; right: 12px;
@@ -556,11 +557,11 @@ main:focus { outline: none; }
   color: var(--purple-deep);
   font-size: 12px; font-weight: 600;
 }
-.card-org { font-size: 12.5px; color: var(--muted); }
-.competition-card h3 { font-size: 20px; font-weight: 600; line-height: 1.35; text-wrap: pretty; }
+.card-org { font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+.competition-card h3 { font-size: 20px; font-weight: 600; line-height: 1.35; text-wrap: pretty; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .competition-card h3 a { color: inherit; }
 .competition-card h3 a:hover { color: var(--purple-deep); }
-.card-summary { font-size: 14px; line-height: 1.72; color: var(--muted); text-wrap: pretty; }
+.card-summary { font-size: 14px; line-height: 1.72; color: var(--muted); text-wrap: pretty; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .card-facts {
   margin-top: auto;
   padding-top: 16px;

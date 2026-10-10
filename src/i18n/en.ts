@@ -121,6 +121,7 @@ export const en = {
     regions: {
       online: 'Online',
       nationwide: 'Nationwide',
+      international: 'International',
       bangkok: 'Bangkok and vicinity',
       central: 'Central Thailand',
       north: 'Northern Thailand',

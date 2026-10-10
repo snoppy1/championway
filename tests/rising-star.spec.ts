@@ -119,7 +119,7 @@ test('every new-mentor card is the same size, even with a very long unbroken spe
   expect(new Set(boxes.map(([, h]) => h)).size).toBe(1);
 });
 
-test('competition card covers are all the same A4 frame, whatever the poster shape', async ({ page }) => {
+test('competition card covers are all the same 4:3 frame, whatever the poster shape', async ({ page }) => {
   await page.route('**/api/competitions?*', async (route) => {
     const json = await (await route.fetch()).json();
     json.items = json.items.map((item: object, index: number) => ({ ...item, posterUrl: [tallPoster, widePoster, null][index % 3] }));
@@ -129,7 +129,7 @@ test('competition card covers are all the same A4 frame, whatever the poster sha
   const covers = page.locator('.competition-card .card-cover');
   await expect(covers.nth(2)).toBeVisible();
   const boxes = await covers.evaluateAll((els) => els.slice(0, 6).map((el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }));
-  for (const [width, height] of boxes) expect(Math.abs(height / width - 297 / 210)).toBeLessThan(0.02);
+  for (const [width, height] of boxes) expect(Math.abs(height / width - 3 / 4)).toBeLessThan(0.02);
   // ภาพไม่ล้นกรอบ
   const poster = await covers.first().locator('img').boundingBox();
   const frame = await covers.first().boundingBox();

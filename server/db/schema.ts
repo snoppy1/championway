@@ -13,7 +13,7 @@ export const categoryEnum = pgEnum('category', [
 ]);
 export const levelEnum = pgEnum('level', ['primary', 'secondary', 'university', 'open']);
 export const opportunityTypeEnum = pgEnum('opportunity_type', ['contest', 'camp', 'workshop', 'scholarship', 'internship']);
-export const regionEnum = pgEnum('region', ['online', 'nationwide', 'bangkok', 'central', 'north', 'northeast', 'east', 'south']);
+export const regionEnum = pgEnum('region', ['online', 'nationwide', 'international', 'bangkok', 'central', 'north', 'northeast', 'east', 'south']);
 export const rewardEnum = pgEnum('reward', ['certificate', 'trophy', 'publish', 'internship', 'partnership']);
 export const sourceEnum = pgEnum('source', ['editorial', 'organiser', 'partner']);
 export const submissionStatusEnum = pgEnum('submission_status', ['pending', 'info', 'published', 'rejected']);

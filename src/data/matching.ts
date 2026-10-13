@@ -69,7 +69,7 @@ export const profileComplete = (p: MentorProfileV2, experienceCount: number) => 
 
 /** ชื่องานแข่งสำหรับเทียบซ้ำ: ตัวเล็ก ช่องว่างเดียว เลขไทย (U+0E50–U+0E59) เป็นเลขอารบิก */
 export function normalizeName(name: string) {
-  return name.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50)).toLowerCase().replace(/\s+/g, ' ').trim();
+  return name.replace(/[\u0E50-\u0E59]/g, (d) => String(d.charCodeAt(0) - 0x0e50)).toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;

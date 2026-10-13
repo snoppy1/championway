@@ -1,13 +1,16 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { mentorExperiences, mentorSkills, mentors, mentorSubmissions } from '../db/schema.js';
+import { competitions, hackathonNames, mentorExperiences, mentorSkills, mentors, mentorSubmissions } from '../db/schema.js';
+import { env } from '../lib/env.js';
+import { newId } from '../lib/id.js';
+import { notifyStaff } from '../lib/staff-notify.js';
 import { requireUser, type AppEnv } from '../lib/guards.js';
 import {
-  countries, formats, genders, helpsWith, languages, learnerLevels, missingSections, modes, replyHoursOptions, sessionLengths,
-  skillLevels, skillTags, slotProblem, teachingStyles,
+  countries, experienceKinds, experienceResults, formats, genders, helpsWith, languages, learnerLevels, missingSections, modes, replyHoursOptions, sessionLengths,
+  normalizeName, skillLevels, skillTags, slotProblem, teachingStyles, teamRoles,
 } from '../../src/data/matching.js';
 import type { MentorProfileV2 } from '../../src/data/matching.js';
 
@@ -92,4 +95,104 @@ mentorProfile.put('/consult/zone/profile', requireUser, async (c) => {
     await tx.insert(mentorSkills).values(skills.map((s) => ({ mentorId: mentor.id, tag: s.tag, level: s.level })));
   });
   return c.json(await loadProfileV2(mentor.id));
+});
+
+/* ---------- หมวด C: ประสบการณ์แข่งขัน ---------- */
+
+const experienceBody = z.object({
+  competitionSlug: z.string().trim().max(200).optional(),
+  name: z.string().trim().max(200).default(''),
+  year: z.string().regex(/^25\d\d$/, 'ปีที่เข้าร่วมเป็น พ.ศ. 4 หลัก'),
+  kind: z.enum(experienceKinds),
+  result: z.enum(experienceResults),
+  detail: z.string().trim().max(200).default(''),
+  role: z.enum(teamRoles),
+  roleOther: z.string().trim().max(80).default(''),
+  responsibility: z.string().trim().min(1, 'บอกสิ่งที่รับผิดชอบในการแข่งขัน').max(1000),
+  evidenceUrl: z.string().trim().max(500).refine((v) => /^https:\/\/\S+$/i.test(v), 'ลิงก์หลักฐานต้องขึ้นต้นด้วย https://'),
+  lessons: z.string().trim().max(1000).default(''),
+}).refine((v) => v.competitionSlug || v.name.length > 0, 'ใส่ชื่องานแข่ง')
+  .refine((v) => v.result !== 'winner' || v.detail.length > 0, 'ระบุรางวัลที่ได้')
+  .refine((v) => v.result !== 'other' || v.detail.length > 0, 'อธิบายผลการแข่งขัน')
+  .refine((v) => v.role !== 'other' || v.roleOther.length > 0, 'ระบุบทบาทในทีม');
+
+export const experienceJson = (row: typeof mentorExperiences.$inferSelect, slug: string | null) => ({
+  id: row.id, name: row.name, competitionSlug: slug, year: row.year, kind: row.kind, result: row.result, detail: row.detail,
+  role: row.role, roleOther: row.roleOther, responsibility: row.responsibility, evidenceUrl: row.evidenceUrl, lessons: row.lessons,
+  status: row.status, reason: row.reason, createdAt: row.createdAt,
+});
+
+mentorProfile.get('/consult/zone/experiences', requireUser, async (c) => {
+  const mentor = await requireMentor(c.get('user')!.id);
+  const rows = await db.select({ row: mentorExperiences, slug: competitions.slug }).from(mentorExperiences)
+    .leftJoin(competitions, eq(competitions.id, mentorExperiences.competitionId))
+    .where(eq(mentorExperiences.mentorId, mentor.id)).orderBy(desc(mentorExperiences.createdAt));
+  return c.json({ items: rows.map(({ row, slug }) => experienceJson(row, slug)) });
+});
+
+mentorProfile.post('/consult/zone/experiences', requireUser, async (c) => {
+  const user = c.get('user')!;
+  const mentor = await requireMentor(user.id);
+  const body = await parse(c, experienceBody);
+  const [{ waiting }] = await db.select({ waiting: sql<number>`count(*)::int` }).from(mentorExperiences)
+    .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.status, 'pending')));
+  if (waiting >= 10) return fail('มีประสบการณ์รอตรวจครบ 10 รายการแล้ว รอทีมงานตรวจก่อน', 409);
+
+  let competitionId: string | null = null;
+  let hackathonNameId: string | null = null;
+  let name = body.name.replace(/\s+/g, ' ');
+  if (body.competitionSlug) {
+    const [event] = await db.select({ id: competitions.id, name: competitions.name }).from(competitions).where(eq(competitions.slug, body.competitionSlug));
+    if (!event) return fail('ไม่พบงานแข่งนี้', 404);
+    competitionId = event.id;
+    name = event.name;
+  } else {
+    // ชื่อที่ตรงกับงานในระบบ (ตัวพิมพ์และช่องว่างไม่สน) ผูกกับงานนั้นแทน ไม่สร้างชื่อซ้ำ
+    const normalized = normalizeName(name);
+    const [event] = await db.select({ id: competitions.id, name: competitions.name }).from(competitions)
+      .where(sql`regexp_replace(lower(trim(${competitions.name})), '\\s+', ' ', 'g') = ${normalized}`).limit(1);
+    if (event) {
+      competitionId = event.id;
+      name = event.name;
+    } else {
+      await db.insert(hackathonNames).values({ id: newId('hkn'), name, normalized, createdBy: user.id }).onConflictDoNothing();
+      const [row] = await db.select().from(hackathonNames).where(eq(hackathonNames.normalized, normalized));
+      hackathonNameId = row.id;
+      name = row.name;
+    }
+  }
+  const id = newId('exp');
+  const [created] = await db.insert(mentorExperiences).values({
+    id, mentorId: mentor.id, competitionId, hackathonNameId, name, year: body.year, kind: body.kind, result: body.result, detail: body.detail,
+    role: body.role, roleOther: body.role === 'other' ? body.roleOther : '', responsibility: body.responsibility, evidenceUrl: body.evidenceUrl,
+    lessons: body.lessons, status: 'pending',
+  }).onConflictDoNothing().returning({ id: mentorExperiences.id });
+  if (!created) return fail('มีงานนี้ในปีนี้อยู่แล้ว', 409);
+  await notifyStaff('competition_request', user.id, `ประสบการณ์เมนเทอร์รอตรวจ: ${name} ${body.year}`,
+    `${mentor.name} เพิ่มประสบการณ์ "${name}" ปี ${body.year} พร้อมลิงก์หลักฐาน รอตรวจ
+
+${env.appOrigin}/admin/experiences`);
+  return c.json({ id }, 201);
+});
+
+mentorProfile.delete('/consult/zone/experiences/:id', requireUser, async (c) => {
+  const mentor = await requireMentor(c.get('user')!.id);
+  // ลบได้เฉพาะที่ยังไม่ผ่านการตรวจ ที่ตรวจแล้วเป็นหลักฐานของคะแนนและป้าย ต้องให้ทีมงานจัดการ
+  const [gone] = await db.delete(mentorExperiences)
+    .where(and(eq(mentorExperiences.id, c.req.param('id')), eq(mentorExperiences.mentorId, mentor.id), inArray(mentorExperiences.status, ['pending', 'rejected'])))
+    .returning({ id: mentorExperiences.id });
+  if (!gone) return fail('ไม่พบรายการนี้', 404);
+  return c.json({ ok: true });
+});
+
+/** เติมชื่องานแข่งอัตโนมัติ: งานที่มีหน้าในระบบ (มี slug) และชื่อที่เมนเทอร์เคยพิมพ์ไว้ (มี id) */
+mentorProfile.get('/hackathon-names', async (c) => {
+  const q = normalizeName(c.req.query('q') ?? '').slice(0, 80);
+  if (q.length < 2) return c.json({ items: [] });
+  const pattern = `%${q.replace(/[%_\\]/g, (ch) => `\\${ch}`)}%`;
+  const [listed, typed] = await Promise.all([
+    db.select({ slug: competitions.slug, name: competitions.name }).from(competitions).where(ilike(competitions.name, pattern)).orderBy(competitions.name).limit(8),
+    db.select({ id: hackathonNames.id, name: hackathonNames.name }).from(hackathonNames).where(ilike(hackathonNames.normalized, pattern)).orderBy(hackathonNames.name).limit(8),
+  ]);
+  return c.json({ items: [...listed.map((r) => ({ id: null, slug: r.slug, name: r.name })), ...typed.map((r) => ({ id: r.id, slug: null, name: r.name }))].slice(0, 8) });
 });

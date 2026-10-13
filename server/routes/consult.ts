@@ -143,7 +143,7 @@ consult.get('/competitions/:slug/mentors', async (c) => {
     ids.length ? db.select({ mentorId: consultations.mentorId, count: sql<number>`count(*)::int` }).from(consultations)
       .where(and(inArray(consultations.mentorId, ids), eq(consultations.status, 'completed'))).groupBy(consultations.mentorId) : [],
     ids.length ? db.select({ mentorId: mentorExperiences.mentorId, result: mentorExperiences.result, year: mentorExperiences.year })
-      .from(mentorExperiences).where(and(eq(mentorExperiences.competitionId, event.id), inArray(mentorExperiences.mentorId, ids))) : [],
+      .from(mentorExperiences).where(and(eq(mentorExperiences.competitionId, event.id), inArray(mentorExperiences.mentorId, ids), eq(mentorExperiences.status, 'verified'))) : [],
   ]);
   const byId = new Map(rows.map((row) => [row.mentor.id, row.mentor]));
   const priceOf = new Map(choices.map((row) => [row.mentorId, { price: row.price, minutes: row.minutes, unit: row.unit }]));
@@ -298,11 +298,11 @@ consult.get('/zone', requireUser, async (c) => {
        เวทีที่ตรวจประสบการณ์แล้ว (verified) เพิ่มได้ทันที เวทีอื่นต้องส่งหลักฐานให้ทีมงานตรวจก่อน */
     db.select({ slug: competitions.slug, name: competitions.name, org: competitions.org, closesAt: competitions.closesAt, description: competitions.description, sourceUrl: competitions.sourceUrl,
       // ชื่อคอลัมน์เขียนเต็มพร้อมชื่อตาราง drizzle ไม่ใส่ชื่อตารางให้ใน sql ดิบ ในซับคิวรี "id" จะไปชี้ตารางข้างใน
-      verified: sql<boolean>`exists (select 1 from mentor_experiences me where me.mentor_id = ${mentor.id} and me.competition_id = competitions.id)`,
+      verified: sql<boolean>`exists (select 1 from mentor_experiences me where me.mentor_id = ${mentor.id} and me.competition_id = competitions.id and me.status = 'verified')`,
       claimPending: sql<boolean>`exists (select 1 from competition_requests cr where cr.mentor_id = ${mentor.id} and cr.competition_id = competitions.id and cr.status = 'pending')`,
     }).from(competitions)
       .where(sql`competitions.closes_at >= (now() at time zone 'Asia/Bangkok')::date
-        or exists (select 1 from mentor_experiences me where me.mentor_id = ${mentor.id} and me.competition_id = competitions.id)`)
+        or exists (select 1 from mentor_experiences me where me.mentor_id = ${mentor.id} and me.competition_id = competitions.id and me.status = 'verified')`)
       .orderBy(competitions.closesAt),
     db.select().from(competitionRequests).where(eq(competitionRequests.mentorId, mentor.id)).orderBy(desc(competitionRequests.createdAt)),
     // ใบเพิ่มเวทีใหม่ที่เมนเทอร์ส่งผ่านฟอร์มเต็ม (เข้าคิวงานแข่งของแอดมิน)
@@ -374,7 +374,7 @@ consult.put('/zone/competitions/:slug', requireUser, async (c) => {
       .returning({ id: mentorCompetitionChoices.competitionId });
     if (edited) return 'ok';
     const [competed] = await tx.select({ id: mentorExperiences.id }).from(mentorExperiences)
-      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id))).limit(1);
+      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id), eq(mentorExperiences.status, 'verified'))).limit(1);
     if (!competed) return 'not-competed';
     await tx.insert(mentorCompetitionChoices).values({ mentorId: mentor.id, competitionId: event.id, choice: 'help', ...body })
       .onConflictDoUpdate({ target: [mentorCompetitionChoices.mentorId, mentorCompetitionChoices.competitionId], set: { choice: 'help', ...body, updatedAt: new Date() } });
@@ -407,7 +407,7 @@ consult.get('/zone/competitions/:slug', requireUser, async (c) => {
     db.select().from(mentorCompetitionChoices).where(and(eq(mentorCompetitionChoices.mentorId, mentor.id),
       eq(mentorCompetitionChoices.competitionId, event.id), eq(mentorCompetitionChoices.choice, 'help'))).limit(1),
     db.select({ id: mentorExperiences.id }).from(mentorExperiences)
-      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id))).limit(1),
+      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id), eq(mentorExperiences.status, 'verified'))).limit(1),
     db.select({ id: competitionRequests.id }).from(competitionRequests).where(and(eq(competitionRequests.mentorId, mentor.id),
       eq(competitionRequests.competitionId, event.id), eq(competitionRequests.status, 'pending'))).limit(1),
   ]);
@@ -437,7 +437,7 @@ consult.post('/zone/claims', requireUser, async (c) => {
   await db.transaction(async (tx) => {
     await tx.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentor.id)).for('update');
     const [competed] = await tx.select({ id: mentorExperiences.id }).from(mentorExperiences)
-      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id))).limit(1);
+      .where(and(eq(mentorExperiences.mentorId, mentor.id), eq(mentorExperiences.competitionId, event.id), eq(mentorExperiences.status, 'verified'))).limit(1);
     if (competed) return fail('เวทีนี้ตรวจแล้ว กดรับปรึกษาได้เลย', 409);
     const [waiting] = await tx.select({ id: competitionRequests.id }).from(competitionRequests).where(and(eq(competitionRequests.mentorId, mentor.id),
       eq(competitionRequests.competitionId, event.id), eq(competitionRequests.status, 'pending'))).limit(1);

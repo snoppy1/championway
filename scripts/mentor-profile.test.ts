@@ -90,3 +90,52 @@ test('profile: only mentors, validation, save and completeness', async () => {
   assert.deepEqual(again.profile.skills, [{ tag: 'llm', level: 'intermediate' }]);
   assert.equal((await send('PUT', '/consult/zone/profile', owner.cookie, { ...fullProfile, skills: [] })).status, 400);
 });
+
+test('experiences: typed names autocomplete, pending until checked, duplicates rejected', async () => {
+  const owner = await account();
+  const other = await account();
+  await mentorOf(owner.id);
+  await mentorOf(other.id);
+  const slug = `${prefix}-cup`;
+  await db.insert(competitions).values({
+    id: `${prefix}-c1`, slug, name: `${prefix} Listed Cup`, description: 'x', type: 'contest', org: 'x', closesAt: '2099-01-01', region: 'online',
+    prizeValue: 0, teamMin: 1, teamMax: 3, keywords: [], sourceUrl: 'https://example.test', source: 'editorial', lastVerifiedAt: '2026-01-01',
+  });
+  const base = { year: '2567', kind: 'hackathon', result: 'finalist', detail: '', role: 'developer', roleOther: '',
+    responsibility: 'เขียน backend', evidenceUrl: 'https://example.test/proof', lessons: '' };
+
+  // ต้องมีลิงก์ https ชื่อรางวัลเมื่อได้รางวัล และไม่ใช่เมนเทอร์ส่งไม่ได้
+  assert.equal((await send('POST', '/consult/zone/experiences', owner.cookie, { ...base, name: `${prefix} Typed Hack`, evidenceUrl: 'ftp://x' })).status, 400);
+  assert.equal((await send('POST', '/consult/zone/experiences', owner.cookie, { ...base, name: `${prefix} Typed Hack`, result: 'winner' })).status, 400);
+  const learner = await account();
+  assert.equal((await send('POST', '/consult/zone/experiences', learner.cookie, { ...base, name: `${prefix} Typed Hack` })).status, 403);
+
+  const typed = await send('POST', '/consult/zone/experiences', owner.cookie, { ...base, name: `${prefix} Typed  Hack` });
+  assert.equal(typed.status, 201, await typed.clone().text());
+  // ชื่อเดิมต่างแค่ตัวพิมพ์/ช่องว่าง ปีเดียวกัน = ซ้ำ
+  assert.equal((await send('POST', '/consult/zone/experiences', owner.cookie, { ...base, name: `${prefix} typed hack` })).status, 409);
+  // งานที่มีในระบบเลือกด้วย slug หรือพิมพ์ชื่อตรงกันก็ผูกกับงานนั้น
+  const listed = await send('POST', '/consult/zone/experiences', owner.cookie, { ...base, competitionSlug: slug, name: '' });
+  assert.equal(listed.status, 201, await listed.clone().text());
+  assert.equal((await send('POST', '/consult/zone/experiences', owner.cookie, { ...base, name: `${prefix} listed cup` })).status, 409);
+
+  // คนถัดไปเห็นชื่อที่พิมพ์ไว้ในการเติมคำ ทั้งงานในระบบและชื่อที่พิมพ์
+  const names = await (await send('GET', `/hackathon-names?q=${encodeURIComponent(prefix + ' typed')}`, other.cookie)).json() as { items: { name: string }[] };
+  assert.deepEqual(names.items.map((n) => n.name), [`${prefix} Typed Hack`]);
+  const both = await (await send('GET', `/hackathon-names?q=${encodeURIComponent(prefix)}`, other.cookie)).json() as { items: { name: string; slug: string | null }[] };
+  assert.ok(both.items.some((n) => n.slug === slug));
+
+  const mine = await (await send('GET', '/consult/zone/experiences', owner.cookie)).json() as { items: { id: string; status: string; competitionSlug: string | null }[] };
+  assert.deepEqual(mine.items.map((i) => i.status), ['pending', 'pending']);
+
+  // ประสบการณ์ที่รอตรวจยังใช้รับปรึกษางานนั้นไม่ได้
+  assert.equal((await send('PUT', `/consult/zone/competitions/${slug}`, owner.cookie, { price: 0 })).status, 403);
+  const state = await (await send('GET', `/consult/zone/competitions/${slug}`, owner.cookie)).json() as { state: string };
+  assert.notEqual(state.state, 'eligible');
+  const mentorsOf = await (await send('GET', `/consult/competitions/${slug}/mentors`, other.cookie)).json() as { risingStar: unknown[]; others: unknown[] };
+  assert.equal(mentorsOf.risingStar.length + mentorsOf.others.length, 0);
+
+  // ลบของคนอื่นไม่ได้ ลบของตัวเองที่รอตรวจได้
+  assert.equal((await send('DELETE', `/consult/zone/experiences/${mine.items[0].id}`, other.cookie)).status, 404);
+  assert.equal((await send('DELETE', `/consult/zone/experiences/${mine.items[0].id}`, owner.cookie)).status, 200);
+});

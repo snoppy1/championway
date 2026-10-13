@@ -176,3 +176,39 @@ test('admin verifies or rejects experiences; members cannot', async () => {
   const verified = await (await send('GET', '/admin/experiences?status=verified', admin.cookie)).json() as { items: { id: string }[] };
   assert.ok(verified.items.some((i) => i.id === created.id));
 });
+
+test('public profile shows sections A–F without private fields', async () => {
+  const owner = await account();
+  const visitor = await account();
+  const admin = await account('admin');
+  const mentorId = await mentorOf(owner.id);
+  await send('PUT', '/consult/zone/profile', owner.cookie, { ...fullProfile, gender: 'female' });
+  const pending = await (await send('POST', '/consult/zone/experiences', owner.cookie, {
+    name: `${prefix} Public Hack`, year: '2565', kind: 'software', result: 'winner', detail: 'รางวัลที่ 1', role: 'leader', roleOther: '',
+    responsibility: 'นำทีม', evidenceUrl: 'https://example.test/p3', lessons: '',
+  })).json() as { id: string };
+  const checked = await (await send('POST', '/consult/zone/experiences', owner.cookie, {
+    name: `${prefix} Checked Hack`, year: '2564', kind: 'hackathon', result: 'finalist', detail: '', role: 'developer', roleOther: '',
+    responsibility: 'เขียนโค้ด', evidenceUrl: 'https://example.test/p5', lessons: '',
+  })).json() as { id: string };
+  await send('POST', `/admin/experiences/${checked.id}/decision`, admin.cookie, { decision: 'verify' });
+
+  type Page = {
+    profile: Record<string, unknown>; experiences: { id: string; status: string; evidenceUrl?: string; reason?: string }[];
+    stats: { emailVerified: boolean; completedSessions: number; responseRate: number | null; evidenceLinks: number };
+  };
+  const page = await (await send('GET', `/consult/mentors/${mentorId}`, visitor.cookie)).json() as Page;
+  assert.equal(page.profile.headline, fullProfile.headline);
+  // เพศไม่ออกนอกระบบ
+  assert.equal('gender' in page.profile, false);
+  const shownPending = page.experiences.find((e) => e.id === pending.id)!;
+  assert.equal(shownPending.status, 'pending');
+  // ลิงก์หลักฐานเปิดเฉพาะรายการที่ตรวจแล้ว
+  assert.equal(shownPending.evidenceUrl, undefined);
+  assert.equal(page.experiences.find((e) => e.id === checked.id)!.evidenceUrl, 'https://example.test/p5');
+  assert.equal('reason' in shownPending, false);
+  assert.deepEqual(page.stats, { emailVerified: true, completedSessions: 0, responseRate: null, evidenceLinks: 1 });
+
+  const zone = await (await send('GET', '/consult/zone', owner.cookie)).json() as { profileComplete: boolean; profileMissing: string[] };
+  assert.deepEqual([zone.profileComplete, zone.profileMissing], [true, []]);
+});

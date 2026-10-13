@@ -22,6 +22,8 @@ import { hiringEnabled } from '../lib/flow.js';
 import { env } from '../lib/env.js';
 import { notify } from '../lib/email.js';
 import { bangkokMonth, ratingJson, ratingsBetween } from '../lib/ratings.js';
+import { mentorStats } from '../lib/mentor-stats.js';
+import { loadProfileV2 } from './mentor-profile.js';
 
 /* จ้างเมนเทอร์ผ่านเว็บ (ผู้ใช้ตัดสิน 1 ต.ค. 2569 แทนการติดต่อนอกเว็บ)
 
@@ -177,7 +179,7 @@ consult.get('/mentors/:id', async (c) => {
   const m = row.mentor;
   const now = new Date();
   const month = bangkokMonth(now, 0);
-  const [monthly, allTime, members, offered, reviews] = await Promise.all([
+  const [monthly, allTime, members, offered, reviews, v2, stats, experienceRows] = await Promise.all([
     ratingsBetween(month.start, month.end),
     ratingsBetween(new Date(0), now),
     activeMemberIds(now),
@@ -189,7 +191,16 @@ consult.get('/mentors/:id', async (c) => {
       .from(mentorReviews).innerJoin(users, eq(users.id, mentorReviews.userId))
       .where(and(eq(mentorReviews.mentorId, m.id), isNull(mentorReviews.hiddenAt)))
       .orderBy(desc(mentorReviews.createdAt)).limit(20),
+    loadProfileV2(m.id),
+    mentorStats(m.id),
+    // โปรไฟล์แบบใหม่ หมวด C: แสดงที่ตรวจแล้วและที่รอตรวจ (ติดป้ายรอตรวจ) ที่ไม่ผ่านไม่แสดง
+    db.select({ row: mentorExperiences, slug: competitions.slug }).from(mentorExperiences)
+      .leftJoin(competitions, eq(competitions.id, mentorExperiences.competitionId))
+      .where(and(eq(mentorExperiences.mentorId, m.id), inArray(mentorExperiences.status, ['verified', 'pending'])))
+      .orderBy(desc(mentorExperiences.year), desc(mentorExperiences.createdAt)),
   ]);
+  // เพศใช้จับคู่เท่านั้น ไม่ส่งออกบนหน้าโปรไฟล์
+  const { gender: _gender, ...publicProfile } = v2.profile;
 
   const viewer = c.get('user');
   let hire: { id: string; status: string; reviewed: boolean; roomId: string | null } | null = null;
@@ -213,6 +224,14 @@ consult.get('/mentors/:id', async (c) => {
       price: m.price, minutes: m.minutes, unit: m.priceUnit,
     },
     competitions: offered,
+    profile: publicProfile,
+    experiences: experienceRows.map(({ row, slug }) => ({
+      id: row.id, name: row.name, competitionSlug: slug, year: row.year, kind: row.kind, result: row.result, detail: row.detail,
+      role: row.role, roleOther: row.roleOther, responsibility: row.responsibility, lessons: row.lessons, status: row.status,
+      // ลิงก์หลักฐานเปิดเฉพาะรายการที่ทีมงานตรวจแล้ว
+      ...(row.status === 'verified' ? { evidenceUrl: row.evidenceUrl } : {}),
+    })),
+    stats,
     reviews: reviews.map((r) => ({ stars: r.stars, comment: r.comment, createdAt: r.createdAt, name: r.name.split(/\s+/)[0] })),
     viewer: viewer ? { signedIn: true, emailVerified: viewer.emailVerified, isSelf: row.userId === viewer.id } : null,
     hire,
@@ -288,6 +307,7 @@ consult.get('/zone', requireUser, async (c) => {
   const user = c.get('user')!;
   const mentor = await ownMentor(user.id);
   if (!mentor) return c.json({ mentor: null });
+  const v2 = await loadProfileV2(mentor.id);
   const now = new Date();
   const month = bangkokMonth(now, 0);
   const [chosen, open, requests, sent, pending, monthly, members] = await Promise.all([
@@ -328,6 +348,8 @@ consult.get('/zone', requireUser, async (c) => {
   const payoutOf = new Map(payouts.map((p) => [p.hireId, p]));
   return c.json({
     mentor: { ...card(mentor), risingStar: members.has(mentor.id), rating: ratingJson(monthly.get(mentor.id)), price: mentor.price, minutes: mentor.minutes, unit: mentor.priceUnit },
+    // โปรไฟล์แบบใหม่ยังกรอกไม่ครบ = ยังไม่ถูกจับคู่ หน้า Mentor zone ขึ้นแถบเตือน
+    profileComplete: v2.complete, profileMissing: v2.missing,
     // เลขบัญชีเต็มไม่ส่งออก แม้แต่เจ้าของ เห็นแค่ 4 ตัวท้าย
     contacts: contactsOf(mentor),
     // รอเมนเทอร์ยืนยันว่าให้คำปรึกษาจริง (โหมดติดต่อนอกเว็บ)

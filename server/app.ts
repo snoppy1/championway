@@ -10,6 +10,7 @@ import { admin } from './routes/admin.js';
 import { publicApi } from './routes/public.js';
 import { chat } from './routes/chat.js';
 import { consult } from './routes/consult.js';
+import { mentorProfile } from './routes/mentor-profile.js';
 import { cron } from './routes/cron.js';
 import { journey } from './routes/journey.js';
 import { risingStar } from './routes/rising-star.js';
@@ -47,6 +48,8 @@ app.route('/auth', auth);
 app.route('/admin', admin);
 app.route('/billing', billing);
 app.route('/chats', chat);
+// โปรไฟล์เมนเทอร์แบบใหม่ บางเส้นทางอยู่ใต้ /consult/zone ต่อไว้ก่อน consult
+app.route('/', mentorProfile);
 app.route('/consult', consult);
 app.route('/cron', cron);
 app.route('/journey', journey);

@@ -12,6 +12,8 @@ import { Tabs, panelId, tabId } from '../components/Tabs';
 import { useI18n } from '../i18n';
 import { formatDate } from '../i18n/format';
 import { nb } from '../components/nb';
+import { ProfileBanner, ProfileEditor } from '../components/ProfileEditor';
+import type { Section } from '../data/matching';
 import { CompetitionsSection } from './MentorZone';
 import type { Chosen, Open, Request } from './MentorZone';
 import '../consult.css';
@@ -29,8 +31,11 @@ type Zone = {
   competitions: Chosen[];
   available: Open[];
   requests: Request[];
+  /** โปรไฟล์แบบใหม่ (หมวด A–F) กรอกครบหรือยัง ยังไม่ครบ = ยังไม่ถูกจับคู่ */
+  profileComplete: boolean;
+  profileMissing: Section[];
 };
-type ZoneTab = 'confirm' | 'contacts' | 'competitions';
+type ZoneTab = 'confirm' | 'contacts' | 'competitions' | 'profile';
 const EMAIL = /^\S+@\S+\.\S+$/;
 
 /* ---------- คำขอให้ยืนยัน ---------- */
@@ -182,6 +187,7 @@ export function ContactMentorZone() {
     if (hash.startsWith('#confirm-')) setTab('confirm');
     // มาจากกล่องรับปรึกษาบนหน้าเวที
     else if (hash === '#competitions') setTab('competitions');
+    else if (hash === '#profile') setTab('profile');
   }, [hash]);
 
   if (authLoading) return <main id="main" tabIndex={-1} className="shell page cx-page"><p className="side-note" role="status">{s.loading}</p></main>;
@@ -225,6 +231,8 @@ export function ContactMentorZone() {
         <Link className="ghost-button cx-button" to={`/mentors/${mentor.id}`}>{s.publicProfile}</Link>
       </section>
 
+      <ProfileBanner missing={data.profileMissing ?? []} onOpen={() => setTab('profile')} />
+
       {noChannels && <p className="cx-banner cx-banner--requested" role="note">
         {c.contactsMissing}{' '}
         <button type="button" className="link-button cx-link cx-link--text" onClick={() => setTab('contacts')}>{c.tabContacts}</button>
@@ -234,6 +242,7 @@ export function ContactMentorZone() {
         { id: 'confirm' as ZoneTab, label: c.tabConfirm(waiting.length) },
         { id: 'contacts' as ZoneTab, label: c.tabContacts },
         { id: 'competitions' as ZoneTab, label: c.tabCompetitions },
+        { id: 'profile' as ZoneTab, label: t.mentorProfileV2.tab },
       ]} />
 
       <div role="tabpanel" id={panelId('zone', 'confirm')} aria-labelledby={tabId('zone', 'confirm')} hidden={current !== 'confirm'} className="cx-zone-panel">
@@ -246,6 +255,9 @@ export function ContactMentorZone() {
         <div className="cx-stack">
           <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests} reload={reload} />
         </div>
+      </div>
+      <div role="tabpanel" id={panelId('zone', 'profile')} aria-labelledby={tabId('zone', 'profile')} hidden={current !== 'profile'} className="cx-zone-panel">
+        {current === 'profile' && <ProfileEditor onSaved={reload} />}
       </div>
     </>}
   </main>;

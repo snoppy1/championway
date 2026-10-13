@@ -639,3 +639,36 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-price__option input { position: absolute; opacity: 0; pointer-events: none; }
 .cx-price__option:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .cx-price__option:has(input:disabled) { cursor: not-allowed; opacity: .6; }
+
+/* ---------- โปรไฟล์เมนเทอร์แบบใหม่ (Mentor zone แท็บโปรไฟล์ / ประสบการณ์ spec 2026-10-13) ---------- */
+.pv2-banner { display: grid; gap: var(--space-1); justify-items: start; margin-bottom: var(--space-4); }
+.pv2-banner p { margin: 0; }
+.pv2-form { gap: var(--space-6); }
+.pv2-section { display: grid; gap: var(--space-4); min-width: 0; margin: 0; padding: var(--space-5) 0 0; border: 0; border-top: 1px solid var(--line); }
+.pv2-section:first-of-type { padding-top: 0; border-top: 0; }
+.pv2-section > legend { float: left; width: 100%; margin-bottom: var(--space-1); font-size: var(--text-lg); font-weight: 700; color: var(--ink-deep); }
+.pv2-section > legend + * { clear: both; }
+.pv2-checks { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+.pv2-checks > legend, .pv2-label { margin: 0 0 var(--space-1); padding: 0; font-size: var(--text-base); font-weight: 600; }
+.pv2-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pv2-chip { position: relative; display: inline-flex; align-items: center; min-height: 40px; padding: 0 var(--space-4); border: 1px solid var(--line-input); border-radius: var(--radius-pill); background: var(--card); font-size: var(--text-sm); font-weight: 500; cursor: pointer; }
+.pv2-chip input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.pv2-chip:hover { border-color: var(--purple-soft); }
+.pv2-chip:has(input:checked) { border-color: var(--purple); background: var(--purple-tint); color: var(--purple-deep); font-weight: 600; }
+.pv2-chip:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pv2-skill-group h3 { margin: 0 0 var(--space-2); font-size: var(--text-sm); font-weight: 600; color: var(--muted); }
+.pv2-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--space-2) var(--space-4); }
+.pv2-skill { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 44px; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.pv2-skill:has(select:not([value=""]) option:checked:not([value=""])) { border-color: var(--line-purple); background: var(--purple-tint); }
+.pv2-skill label { font-size: var(--text-sm); font-weight: 500; }
+.pv2-skill select { min-height: 36px; padding: 0 var(--space-2); border: 1px solid var(--line-input); border-radius: var(--radius-sm); background: var(--card); font: inherit; font-size: var(--text-sm); }
+.pv2-slots { display: grid; gap: var(--space-3); }
+.pv2-slots > .cx-button { justify-self: start; }
+.pv2-slot { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: var(--space-3); align-items: end; }
+.pv2-icon { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; }
+.pv2-toggle { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-base); font-weight: 500; cursor: pointer; }
+.pv2-toggle input { width: 20px; height: 20px; accent-color: var(--purple); }
+@media (max-width: 560px) {
+  .pv2-slot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pv2-slot .cx-field:first-child { grid-column: 1 / -1; }
+}

@@ -16,6 +16,8 @@ import { CHAT_CHANGED } from '../components/ChatPanel';
 import { HireSummary, StatusPill, UnreadBadge } from '../components/hire';
 import { HireWorkspace } from '../components/HireWorkspace';
 import { Tabs, panelId, tabId } from '../components/Tabs';
+import { ProfileBanner, ProfileEditor } from '../components/ProfileEditor';
+import type { Section } from '../data/matching';
 import { useI18n } from '../i18n';
 import { formatDate, formatInputDate } from '../i18n/format';
 import '../consult.css';
@@ -44,6 +46,9 @@ type Zone = {
   available: Open[];
   requests: Request[];
   hires: MentorHire[];
+  /** โปรไฟล์แบบใหม่ (หมวด A–F) กรอกครบหรือยัง ยังไม่ครบ = ยังไม่ถูกจับคู่ */
+  profileComplete: boolean;
+  profileMissing: Section[];
 };
 
 const PAGE = 5;
@@ -554,7 +559,7 @@ function RequestList({ requests }: { requests: Request[] }) {
 
 /* ---------- หน้า ---------- */
 
-type ZoneTab = 'requests' | 'chats' | 'payouts' | 'competitions';
+type ZoneTab = 'requests' | 'chats' | 'payouts' | 'competitions' | 'profile';
 
 export function HireMentorZone() {
   const { t } = useI18n();
@@ -590,6 +595,7 @@ export function HireMentorZone() {
     if (!hires) return;
     // มาจากกล่องรับปรึกษาบนหน้าเวที
     if (hash === '#competitions') { setTab('competitions'); return; }
+    if (hash === '#profile') { setTab('profile'); return; }
     const match = /^#(room|hire)-(.+)$/.exec(hash);
     if (match) {
       const found = hires.find((hire) => (match[1] === 'room' ? hire.roomId : hire.id) === match[2]);
@@ -640,11 +646,14 @@ export function HireMentorZone() {
         <Link className="ghost-button cx-button" to={`/mentors/${mentor.id}`}>{s.publicProfile}</Link>
       </section>
 
+      <ProfileBanner missing={data.profileMissing ?? []} onOpen={() => setTab('profile')} />
+
       <Tabs prefix="zone" label={s.tabsLabel} value={current} onChange={(id) => setTab(id)} tabs={[
         { id: 'requests' as ZoneTab, label: s.tabRequests(requested.length) },
         { id: 'chats' as ZoneTab, label: <>{s.tabChats}{unreadChats > 0 && <UnreadBadge count={unreadChats} />}</> },
         { id: 'payouts' as ZoneTab, label: t.payout.tab },
         { id: 'competitions' as ZoneTab, label: s.tabCompetitions },
+        { id: 'profile' as ZoneTab, label: t.mentorProfileV2.tab },
       ]} />
       <p className="cx-message cx-message--ok" role="status">{notice}</p>
 
@@ -665,6 +674,9 @@ export function HireMentorZone() {
         <div className="cx-stack">
           <CompetitionsSection chosen={data.competitions} available={data.available} requests={data.requests} reload={reload} />
         </div>
+      </div>
+      <div role="tabpanel" id={panelId('zone', 'profile')} aria-labelledby={tabId('zone', 'profile')} hidden={current !== 'profile'} className="cx-zone-panel">
+        {current === 'profile' && <ProfileEditor onSaved={reload} />}
       </div>
     </>}
   </main>;

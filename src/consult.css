@@ -683,3 +683,7 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .pv2-status.is-rejected { border-color: var(--danger-line); background: var(--danger-tint); color: var(--danger); }
 .pv2-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .pv2-exp-form { padding-top: var(--space-4); border-top: 1px solid var(--line); }
+
+.cx-hero__headline { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--purple-deep); }
+.pv2-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+.pv2-tags li { padding: var(--space-1) var(--space-3); border: 1px solid var(--line-purple); border-radius: var(--radius-pill); background: var(--purple-tint); color: var(--ink-deep); font-size: var(--text-sm); }

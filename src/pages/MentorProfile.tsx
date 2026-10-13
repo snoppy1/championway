@@ -14,6 +14,9 @@ import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useAuth } from '../data/auth';
 import { useI18n } from '../i18n';
 import { formatDate, formatDateTime, formatInputDate } from '../i18n/format';
+import type { MentorProfileV2 } from '../data/matching';
+import { experienceLine } from '../components/ExperienceList';
+import type { ExperienceRow } from '../components/ExperienceList';
 import '../consult.css';
 
 /* โปรไฟล์เมนเทอร์สาธารณะ กับฟอร์มจ้าง (1 ต.ค. 2569: จ้างผ่านเว็บและคุยในแชตของเว็บ)
@@ -35,7 +38,66 @@ type Payload = {
   hire: null | { id: string; status: HireStatus; reviewed: boolean; roomId: string | null };
   /** ช่องทางติดต่อ: ส่งมาเฉพาะโหมดตัวกลางและเฉพาะคนที่ยืนยันอีเมลแล้วและเคยกดติดต่อ */
   contacts: Contacts | null;
+  /** โปรไฟล์แบบใหม่ หมวด A–F (spec 2026-10-13) เพศไม่ส่งมา ลิงก์หลักฐานมาเฉพาะรายการที่ตรวจแล้ว */
+  profile: Omit<MentorProfileV2, 'gender'>;
+  experiences: (Omit<ExperienceRow, 'evidenceUrl' | 'reason' | 'createdAt'> & { evidenceUrl?: string })[];
+  stats: { emailVerified: boolean; completedSessions: number; responseRate: number | null; evidenceLinks: number };
 };
+
+/** ส่วนโปรไฟล์แบบใหม่: ความถนัด การให้คำปรึกษา ประสบการณ์แข่งขัน และความน่าเชื่อถือ ส่วนที่ยังไม่ได้กรอกไม่แสดง */
+function ProfileSections({ data }: { data: Payload }) {
+  const { t } = useI18n();
+  const v = t.mentorProfileV2;
+  const p = data.profile;
+  const mentoring = [
+    ...p.helpsWith.map((id) => v.helpsWithNames[id]), ...p.teachingStyles.map((id) => v.teachingStyleNames[id]),
+    ...p.formats.map((id) => v.formatNames[id]), ...p.learnerLevels.map((id) => v.learnerLevelNames[id]),
+  ];
+  const availability = [
+    p.languages.map((id) => v.languageNames[id]).join(', '),
+    p.replyHours ? v.replyOptions[p.replyHours] : '',
+    p.mode ? v.modeNames[p.mode] : '',
+    p.sessionMinutes.map((n) => v.minutes(n)).join(' / '),
+  ].filter(Boolean);
+  const stats = data.stats;
+  return <>
+    {p.skills.length > 0 && <section className="panel" aria-labelledby="pv2-skills-title">
+      <h2 id="pv2-skills-title">{v.publicSkills}</h2>
+      <ul className="pv2-tags">{p.skills.map((skill) => <li key={skill.tag}>{v.skillNames[skill.tag]} · {v.levelNames[skill.level]}</li>)}</ul>
+    </section>}
+
+    {(mentoring.length > 0 || p.deliverables || availability.length > 0) && <section className="panel" aria-labelledby="pv2-mentoring-title">
+      <h2 id="pv2-mentoring-title">{v.publicHelps}</h2>
+      {mentoring.length > 0 && <ul className="pv2-tags">{mentoring.map((label) => <li key={label}>{label}</li>)}</ul>}
+      {p.deliverables && <><h3>{v.deliverables}</h3><p className="cx-prose">{p.deliverables}</p></>}
+      {availability.length > 0 && <><h3>{v.publicAvailability}</h3><p className="cx-prose">{availability.join(' · ')}</p></>}
+    </section>}
+
+    <section className="panel" aria-labelledby="pv2-exp-title">
+      <h2 id="pv2-exp-title">{v.experiencesTitle}</h2>
+      {data.experiences.length === 0 ? <p className="cx-lead">{v.experiencesEmpty}</p> : <ul className="cx-list">
+        {data.experiences.map((row) => <li key={row.id}><div>
+          <p className="cx-list__title">{row.name} · {row.year}
+            <span className={`cx-pill pv2-status is-${row.status}`}>{v.statusNames[row.status]}</span></p>
+          <p className="cx-hint">{experienceLine(row, v)}</p>
+          {row.responsibility && <p className="cx-prose">{row.responsibility}</p>}
+          {row.lessons && <p className="cx-prose">{row.lessons}</p>}
+          {row.evidenceUrl && <a className="cx-link" href={row.evidenceUrl} target="_blank" rel="noreferrer noopener">{v.evidenceUrl}</a>}
+        </div></li>)}
+      </ul>}
+    </section>
+
+    <section className="panel" aria-labelledby="pv2-trust-title">
+      <h2 id="pv2-trust-title">{v.publicTrust}</h2>
+      <ul className="pv2-tags">
+        {stats.emailVerified && <li>{v.statEmail}</li>}
+        <li>{v.statSessions(stats.completedSessions)}</li>
+        <li>{stats.responseRate === null ? v.statResponseNone : v.statResponse(stats.responseRate)}</li>
+        {stats.evidenceLinks > 0 && <li>{v.statEvidence(stats.evidenceLinks)}</li>}
+      </ul>
+    </section>
+  </>;
+}
 
 function StarsRow({ stars }: { stars: number }) {
   const { t } = useI18n();
@@ -252,6 +314,7 @@ export function MentorProfile() {
       <span className="rs-avatar-wrap"><Avatar initial={mentor.initial} plain={!mentor.risingStar} photoUrl={mentor.photoUrl} /></span>
       <div className="cx-hero__who">
         <h1>{mentor.name}</h1>
+        {data.profile?.headline && <p className="cx-hero__headline">{data.profile.headline}</p>}
         <p className="cx-badges">
           {mentor.verified && <span className="cx-badge"><BadgeCheck size={15} aria-hidden="true" />{s.verifiedBadge}</span>}
           {mentor.risingStar && <RisingStarPill />}
@@ -282,7 +345,10 @@ export function MentorProfile() {
           <p className="cx-prose">{mentor.best}</p>
           <h3>{s.cannotHelp}</h3>
           <p className="cx-prose">{mentor.cannot}</p>
+          {data.profile?.background && <p className="cx-hint">{data.profile.background}</p>}
         </section>
+
+        {data.profile && <ProfileSections data={data} />}
 
         <section className="panel" aria-labelledby="competitions-title">
           <h2 id="competitions-title">{s.competitionsTitle}</h2>

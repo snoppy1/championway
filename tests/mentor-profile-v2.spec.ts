@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
-import { like } from 'drizzle-orm';
+import { eq, like } from 'drizzle-orm';
 import { db } from '../server/db/client';
-import { hackathonNames, mentorExperiences } from '../server/db/schema';
+import { hackathonNames, mentorExperiences, mentorSkills, mentors } from '../server/db/schema';
 import { createAccount, createMentorFixture, removeAccount, signIn } from './helpers';
 
 /* โปรไฟล์เมนเทอร์แบบใหม่ หมวด A–F (spec docs/superpowers/specs/2026-10-13-mentor-matching-design.md) */
@@ -135,5 +135,39 @@ test('a reviewer verifies one pending experience and rejects another with a reas
   } finally {
     await fixture.cleanup();
     await removeAccount(reviewer);
+  }
+});
+
+test('public profile shows headline, skills, mentoring, experiences and trust stats', async ({ page }) => {
+  const fixture = await createMentorFixture({ thai: true });
+  try {
+    await db.update(mentors).set({
+      headline: 'AI Engineer | Mentor', languages: ['th', 'en'], helpsWith: ['coding'], teachingStyles: ['step_by_step'], formats: ['one_on_one'],
+      learnerLevels: ['beginner'], replyHours: 24, mode: 'online', sessionMinutes: [60], gender: 'female', deliverables: 'สรุปสิ่งที่ต้องแก้ต่อ',
+    }).where(eq(mentors.id, fixture.mentorId));
+    await db.insert(mentorSkills).values({ mentorId: fixture.mentorId, tag: 'python', level: 'expert' });
+    await db.insert(mentorExperiences).values({
+      id: `${fixture.mentorId}-exp-pub`, mentorId: fixture.mentorId, name: 'Pending Hack', year: '2568', result: 'finalist', kind: 'hackathon',
+      role: 'designer', responsibility: 'ออกแบบหน้าจอ', evidenceUrl: 'https://example.com/hidden', status: 'pending',
+    });
+    await page.goto(`/mentors/${fixture.mentorId}`);
+    await expect(page.getByText('AI Engineer | Mentor')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'ทักษะ' })).toContainText('Python · Expert');
+    const mentoring = page.getByRole('region', { name: 'การให้คำปรึกษา' });
+    await expect(mentoring).toContainText('สอนทีละขั้น');
+    await expect(mentoring).toContainText('สรุปสิ่งที่ต้องแก้ต่อ');
+    await expect(mentoring).toContainText('ภายใน 1 วัน');
+    const experiences = page.getByRole('region', { name: 'ประสบการณ์แข่งขัน' });
+    await expect(experiences.getByRole('listitem').filter({ hasText: fixture.competition.name })).toContainText('ตรวจแล้ว');
+    const pending = experiences.getByRole('listitem').filter({ hasText: 'Pending Hack' });
+    await expect(pending).toContainText('รอตรวจ');
+    // ลิงก์หลักฐานของรายการที่ยังไม่ตรวจไม่เปิดให้คนทั่วไปเห็น
+    await expect(page.locator('a[href="https://example.com/hidden"]')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'ความน่าเชื่อถือ' })).toContainText('ยืนยันอีเมลแล้ว');
+    // เพศไม่แสดงบนหน้าโปรไฟล์
+    await expect(page.getByText('หญิง', { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: `artifacts/mentor-profile-v2-${test.info().project.name}.png`, fullPage: true });
+  } finally {
+    await fixture.cleanup();
   }
 });

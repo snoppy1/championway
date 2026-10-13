@@ -17,6 +17,7 @@ import { HireSummary, StatusPill, UnreadBadge } from '../components/hire';
 import { HireWorkspace } from '../components/HireWorkspace';
 import { Tabs, panelId, tabId } from '../components/Tabs';
 import { ProfileBanner, ProfileEditor } from '../components/ProfileEditor';
+import { ExperienceList } from '../components/ExperienceList';
 import type { Section } from '../data/matching';
 import { useI18n } from '../i18n';
 import { formatDate, formatInputDate } from '../i18n/format';
@@ -559,7 +560,7 @@ function RequestList({ requests }: { requests: Request[] }) {
 
 /* ---------- หน้า ---------- */
 
-type ZoneTab = 'requests' | 'chats' | 'payouts' | 'competitions' | 'profile';
+type ZoneTab = 'requests' | 'chats' | 'payouts' | 'competitions' | 'profile' | 'experiences';
 
 export function HireMentorZone() {
   const { t } = useI18n();
@@ -596,6 +597,7 @@ export function HireMentorZone() {
     // มาจากกล่องรับปรึกษาบนหน้าเวที
     if (hash === '#competitions') { setTab('competitions'); return; }
     if (hash === '#profile') { setTab('profile'); return; }
+    if (hash === '#experiences') { setTab('experiences'); return; }
     const match = /^#(room|hire)-(.+)$/.exec(hash);
     if (match) {
       const found = hires.find((hire) => (match[1] === 'room' ? hire.roomId : hire.id) === match[2]);
@@ -646,7 +648,7 @@ export function HireMentorZone() {
         <Link className="ghost-button cx-button" to={`/mentors/${mentor.id}`}>{s.publicProfile}</Link>
       </section>
 
-      <ProfileBanner missing={data.profileMissing ?? []} onOpen={() => setTab('profile')} />
+      <ProfileBanner missing={data.profileMissing ?? []} onOpen={setTab} />
 
       <Tabs prefix="zone" label={s.tabsLabel} value={current} onChange={(id) => setTab(id)} tabs={[
         { id: 'requests' as ZoneTab, label: s.tabRequests(requested.length) },
@@ -654,6 +656,7 @@ export function HireMentorZone() {
         { id: 'payouts' as ZoneTab, label: t.payout.tab },
         { id: 'competitions' as ZoneTab, label: s.tabCompetitions },
         { id: 'profile' as ZoneTab, label: t.mentorProfileV2.tab },
+        { id: 'experiences' as ZoneTab, label: t.mentorProfileV2.experiencesTab },
       ]} />
       <p className="cx-message cx-message--ok" role="status">{notice}</p>
 
@@ -677,6 +680,9 @@ export function HireMentorZone() {
       </div>
       <div role="tabpanel" id={panelId('zone', 'profile')} aria-labelledby={tabId('zone', 'profile')} hidden={current !== 'profile'} className="cx-zone-panel">
         {current === 'profile' && <ProfileEditor onSaved={reload} />}
+      </div>
+      <div role="tabpanel" id={panelId('zone', 'experiences')} aria-labelledby={tabId('zone', 'experiences')} hidden={current !== 'experiences'} className="cx-zone-panel">
+        {current === 'experiences' && <ExperienceList onChanged={reload} />}
       </div>
     </>}
   </main>;

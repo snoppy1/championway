@@ -244,7 +244,7 @@ test('the Mentor zone shows requests to confirm, highlights the one from the ema
 
   await signIn(page, fixture.owner, `/mentor-zone#confirm-${secondId}`);
   // โหมดตัวกลางมีสามส่วนเท่านั้น ไม่มีคำขอจ้าง แชต หรือการรับเงิน
-  await expect(page.getByRole('tab')).toHaveText(['คำขอให้ยืนยัน (2)', 'ช่องทางติดต่อ', 'เวทีของฉัน', 'โปรไฟล์']);
+  await expect(page.getByRole('tab')).toHaveText(['คำขอให้ยืนยัน (2)', 'ช่องทางติดต่อ', 'เวทีของฉัน', 'โปรไฟล์', 'ประสบการณ์']);
   await expect(page.getByRole('tab', { name: /คำขอให้ยืนยัน/ })).toHaveAttribute('aria-selected', 'true');
   // ลิงก์จากอีเมลเลือกรายการนั้นให้เห็นเด่น
   const target = page.locator(`#confirm-${secondId}`);

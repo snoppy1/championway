@@ -13,6 +13,7 @@ import { useI18n } from '../i18n';
 import { formatDate } from '../i18n/format';
 import { nb } from '../components/nb';
 import { ProfileBanner, ProfileEditor } from '../components/ProfileEditor';
+import { ExperienceList } from '../components/ExperienceList';
 import type { Section } from '../data/matching';
 import { CompetitionsSection } from './MentorZone';
 import type { Chosen, Open, Request } from './MentorZone';
@@ -35,7 +36,7 @@ type Zone = {
   profileComplete: boolean;
   profileMissing: Section[];
 };
-type ZoneTab = 'confirm' | 'contacts' | 'competitions' | 'profile';
+type ZoneTab = 'confirm' | 'contacts' | 'competitions' | 'profile' | 'experiences';
 const EMAIL = /^\S+@\S+\.\S+$/;
 
 /* ---------- คำขอให้ยืนยัน ---------- */
@@ -188,6 +189,7 @@ export function ContactMentorZone() {
     // มาจากกล่องรับปรึกษาบนหน้าเวที
     else if (hash === '#competitions') setTab('competitions');
     else if (hash === '#profile') setTab('profile');
+    else if (hash === '#experiences') setTab('experiences');
   }, [hash]);
 
   if (authLoading) return <main id="main" tabIndex={-1} className="shell page cx-page"><p className="side-note" role="status">{s.loading}</p></main>;
@@ -231,7 +233,7 @@ export function ContactMentorZone() {
         <Link className="ghost-button cx-button" to={`/mentors/${mentor.id}`}>{s.publicProfile}</Link>
       </section>
 
-      <ProfileBanner missing={data.profileMissing ?? []} onOpen={() => setTab('profile')} />
+      <ProfileBanner missing={data.profileMissing ?? []} onOpen={setTab} />
 
       {noChannels && <p className="cx-banner cx-banner--requested" role="note">
         {c.contactsMissing}{' '}
@@ -243,6 +245,7 @@ export function ContactMentorZone() {
         { id: 'contacts' as ZoneTab, label: c.tabContacts },
         { id: 'competitions' as ZoneTab, label: c.tabCompetitions },
         { id: 'profile' as ZoneTab, label: t.mentorProfileV2.tab },
+        { id: 'experiences' as ZoneTab, label: t.mentorProfileV2.experiencesTab },
       ]} />
 
       <div role="tabpanel" id={panelId('zone', 'confirm')} aria-labelledby={tabId('zone', 'confirm')} hidden={current !== 'confirm'} className="cx-zone-panel">
@@ -258,6 +261,9 @@ export function ContactMentorZone() {
       </div>
       <div role="tabpanel" id={panelId('zone', 'profile')} aria-labelledby={tabId('zone', 'profile')} hidden={current !== 'profile'} className="cx-zone-panel">
         {current === 'profile' && <ProfileEditor onSaved={reload} />}
+      </div>
+      <div role="tabpanel" id={panelId('zone', 'experiences')} aria-labelledby={tabId('zone', 'experiences')} hidden={current !== 'experiences'} className="cx-zone-panel">
+        {current === 'experiences' && <ExperienceList onChanged={reload} />}
       </div>
     </>}
   </main>;

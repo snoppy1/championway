@@ -672,3 +672,14 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
   .pv2-slot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pv2-slot .cx-field:first-child { grid-column: 1 / -1; }
 }
+
+.pv2-combo { position: relative; }
+.pv2-combo__list { position: absolute; top: calc(100% - var(--space-5)); left: 0; right: 0; z-index: 5; max-height: 280px; overflow-y: auto; margin: 0; padding: var(--space-1); list-style: none; background: var(--card); border: 1px solid var(--line-input); border-radius: var(--radius-sm); box-shadow: 0 12px 28px -12px rgb(46 16 101 / 25%); }
+.pv2-combo__list li { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: var(--text-sm); cursor: pointer; }
+.pv2-combo__list li:hover, .pv2-combo__list li.is-active { background: var(--purple-tint); color: var(--purple-deep); }
+.cx-list__title .pv2-status { margin-inline-start: var(--space-2); vertical-align: middle; }
+.pv2-status.is-pending { border-color: var(--gold-line); background: var(--gold-tint); color: var(--gold-ink); }
+.pv2-status.is-verified { border-color: var(--success-line); background: var(--success-tint); color: var(--success); }
+.pv2-status.is-rejected { border-color: var(--danger-line); background: var(--danger-tint); color: var(--danger); }
+.pv2-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.pv2-exp-form { padding-top: var(--space-4); border-top: 1px solid var(--line); }

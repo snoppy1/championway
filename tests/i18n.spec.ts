@@ -484,7 +484,7 @@ test('the contact flow pages have no Thai in English: profile, Consulting, Mento
     await page.context().clearCookies();
     await signInEnglish(page, fixture.owner, '/mentor-zone');
     await expect(page.getByRole('heading', { level: 1, name: 'Mentor zone' })).toBeVisible();
-    await expect(page.getByRole('tab')).toHaveText(['Confirm requests (1)', 'Contact channels', 'My competitions', 'Profile']);
+    await expect(page.getByRole('tab')).toHaveText(['Confirm requests (1)', 'Contact channels', 'My competitions', 'Profile', 'Experience']);
     const zoneContent = await contentFrom(page, '/api/consult/zone');
     await expectNoThai(page, zoneContent);
     await page.getByRole('button', { name: 'Not me' }).click();

@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { like } from 'drizzle-orm';
+import { db } from '../server/db/client';
+import { hackathonNames } from '../server/db/schema';
 import { createMentorFixture, signIn } from './helpers';
 
 /* โปรไฟล์เมนเทอร์แบบใหม่ หมวด A–F (spec docs/superpowers/specs/2026-10-13-mentor-matching-design.md) */
@@ -48,5 +51,54 @@ test('the profile form shows the server error when a required choice is missing'
     await expect(form.getByRole('alert')).toContainText('เลือกภาษาที่ให้คำปรึกษาอย่างน้อยหนึ่งภาษา');
   } finally {
     await fixture.cleanup();
+  }
+});
+
+test('mentor adds a typed competition experience that waits for review', async ({ page }) => {
+  const fixture = await createMentorFixture({ thai: true });
+  const name = `Typed Hack ${fixture.mentorId}`;
+  try {
+    await signIn(page, fixture.owner, '/mentor-zone#experiences');
+    const list = page.getByRole('region', { name: 'ประสบการณ์แข่งขัน' });
+    // ประสบการณ์เดิมจาก fixture ตรวจแล้ว ลบเองไม่ได้
+    await expect(list.getByText('ตรวจแล้ว').first()).toBeVisible();
+    await expect(list.getByRole('button', { name: `ลบ ${fixture.competition.name}` })).toHaveCount(0);
+    await list.getByRole('button', { name: 'เพิ่มงานแข่ง' }).click();
+    const form = list.getByRole('form', { name: 'เพิ่มงานแข่ง' });
+    await form.getByRole('combobox', { name: 'ชื่อสนามแข่งขัน *' }).fill(name);
+    await form.getByLabel('ปีที่เข้าร่วม (พ.ศ.) *').fill('2567');
+    await form.getByLabel('ประเภทการแข่งขัน *').selectOption('hackathon');
+    await form.getByLabel('ผลการแข่งขัน *').selectOption('winner');
+    await form.getByLabel('บทบาทในทีม *').selectOption('developer');
+    await form.getByLabel('สิ่งที่รับผิดชอบในการแข่งขัน *').fill('เขียน backend');
+    await form.getByLabel('ลิงก์หลักฐานการแข่งขัน *').fill('http://example.com/proof');
+    await form.getByRole('button', { name: 'ส่งให้ทีมงานตรวจ' }).click();
+    // ได้รางวัลต้องระบุรางวัล และลิงก์ต้องเป็น https
+    await expect(form.getByRole('alert')).toContainText('ระบุรางวัลที่ได้');
+    await form.getByLabel('รางวัลที่ได้ *').fill('รางวัลที่ 1');
+    await form.getByRole('button', { name: 'ส่งให้ทีมงานตรวจ' }).click();
+    await expect(form.getByRole('alert')).toContainText('https://');
+    await form.getByLabel('ลิงก์หลักฐานการแข่งขัน *').fill('https://example.com/proof');
+    await form.getByRole('button', { name: 'ส่งให้ทีมงานตรวจ' }).click();
+    await expect(list.getByRole('status')).toContainText('ส่งแล้ว');
+    const row = list.getByRole('listitem').filter({ hasText: name });
+    await expect(row).toContainText('รอตรวจ');
+    await expect(row).toContainText('ได้รับรางวัล (รางวัลที่ 1)');
+    await page.screenshot({ path: `artifacts/mentor-zone-experiences-${test.info().project.name}.png`, fullPage: true });
+
+    // ชื่อที่พิมพ์ไว้ขึ้นในการเติมคำครั้งถัดไป เลือกแล้วช่องได้ชื่อเต็ม
+    await list.getByRole('button', { name: 'เพิ่มงานแข่ง' }).click();
+    const box = list.getByRole('combobox', { name: 'ชื่อสนามแข่งขัน *' });
+    await box.fill(name.slice(0, 14));
+    await list.getByRole('option', { name }).click();
+    await expect(box).toHaveValue(name);
+    await list.getByRole('button', { name: 'ยกเลิก' }).click();
+
+    // ลบรายการที่รอตรวจได้
+    await row.getByRole('button', { name: `ลบ ${name}` }).click();
+    await expect(list.getByRole('listitem').filter({ hasText: name })).toHaveCount(0);
+  } finally {
+    await fixture.cleanup();
+    await db.delete(hackathonNames).where(like(hackathonNames.name, `Typed Hack ${fixture.mentorId}%`));
   }
 });

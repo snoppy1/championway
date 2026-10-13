@@ -149,7 +149,8 @@ consult.get('/competitions/:slug/mentors', async (c) => {
   const priceOf = new Map(choices.map((row) => [row.mentorId, { price: row.price, minutes: row.minutes, unit: row.unit }]));
   const doneOf = new Map(done.map((row) => [row.mentorId, row.count]));
   const experienceOf = new Map(ids.map((id) => {
-    const best = bestResult(competed.filter((row) => row.mentorId === id));
+    // ผล "อื่น ๆ" (โปรไฟล์แบบใหม่) นับเท่าผู้เข้าร่วมในป้ายและลำดับเดิม
+    const best = bestResult(competed.filter((row) => row.mentorId === id).map((row) => ({ ...row, result: row.result === 'other' ? 'participant' as const : row.result })));
     return [id, best ? { result: best.result, year: best.year } : null];
   }));
   /* ลำดับ: คะแนนรวมของรีวิวทั้งหมด จำนวนครั้งที่ปรึกษาสำเร็จ และผลงานในเวทีนี้ (lib/mentor-rank.ts)

@@ -266,16 +266,54 @@ export const mentorExperiences = pgTable('mentor_experiences', {
   id: text('id').primaryKey(),
   mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
   competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
+  /** งานที่ยังไม่มีหน้าในระบบ ชี้ไปรายชื่อที่ใช้เติมคำอัตโนมัติ (มีอย่างใดอย่างหนึ่งกับ competitionId) */
+  hackathonNameId: text('hackathon_name_id').references(() => hackathonNames.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
-  result: text('result').$type<'winner' | 'finalist' | 'participant'>().notNull(),
+  result: text('result').$type<'winner' | 'finalist' | 'participant' | 'other'>().notNull(),
   year: text('year').notNull(),
+  /** ชื่อรางวัล (ต้องมีเมื่อ winner) หรือคำอธิบายผลแบบ "อื่น ๆ" */
   detail: text('detail').notNull().default(''),
+  kind: text('kind').$type<'hackathon' | 'innovation' | 'software' | 'other'>().notNull().default('hackathon'),
+  role: text('role').$type<'developer' | 'designer' | 'leader' | 'business' | 'other'>().notNull().default('other'),
+  roleOther: text('role_other').notNull().default(''),
+  responsibility: text('responsibility').notNull().default(''),
+  evidenceUrl: text('evidence_url').notNull().default(''),
+  lessons: text('lessons').notNull().default(''),
+  /* แถวเดิมทุกแถวผ่านการตรวจมาแล้ว ค่าเริ่มต้นจึงเป็น verified (ทางเดิมที่ insert ตอนอนุมัติยังถูก)
+     ประสบการณ์ที่เมนเทอร์เพิ่มเองใน Mentor zone ต้องใส่ pending เอง นับคะแนนเฉพาะ verified */
+  status: text('status').$type<'pending' | 'verified' | 'rejected'>().notNull().default('verified'),
+  reviewedBy: text('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reason: text('reason').notNull().default(''),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index('mentor_experiences_mentor_idx').on(table.mentorId),
   index('mentor_experiences_competition_idx').on(table.competitionId),
+  index('mentor_experiences_status_idx').on(table.status, table.createdAt),
   // เวทีเดียวกันปีเดียวกันนับครั้งเดียว ใบสมัครที่ใส่ซ้ำหรือคำขอที่อนุมัติซ้ำจะไม่เกิดแถวซ้ำ (Astra รีวิว 4 ต.ค. 2569)
   uniqueIndex('mentor_experiences_once_key').on(table.mentorId, table.competitionId, table.year).where(sql`${table.competitionId} is not null`),
+  uniqueIndex('mentor_experiences_name_once_key').on(table.mentorId, table.hackathonNameId, table.year).where(sql`${table.hackathonNameId} is not null`),
+  check('mentor_experiences_status_check', sql`${table.status} in ('pending', 'verified', 'rejected')`),
+]);
+
+/** ชื่องานแข่งที่เมนเทอร์พิมพ์เองเพราะยังไม่มีในระบบ ใช้เติมคำอัตโนมัติให้คนถัดไป ไม่สร้างหน้างานแข่ง
+    ชื่อที่ผู้ใช้ทั่วไปพิมพ์ไม่ถูกเพิ่มที่นี่ (กันชื่อมั่ว) */
+export const hackathonNames = pgTable('hackathon_names', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  normalized: text('normalized').notNull(),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex('hackathon_names_normalized_key').on(table.normalized)]);
+
+/** หมวด B: ทักษะเป็น tag จากรายการตายตัว (src/data/matching.ts) พร้อมระดับ */
+export const mentorSkills = pgTable('mentor_skills', {
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  tag: text('tag').notNull(),
+  level: text('level').$type<'intermediate' | 'advanced' | 'expert'>().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.mentorId, table.tag] }),
+  check('mentor_skills_level_check', sql`${table.level} in ('intermediate', 'advanced', 'expert')`),
 ]);
 
 /* ---------- เมนเทอร์ที่ผ่านการตรวจแล้ว ---------- */
@@ -311,6 +349,28 @@ export const mentors = pgTable('mentors', {
   verified: boolean('verified').notNull().default(false),
   weeklyRank: integer('weekly_rank'),
   weeklyFocus: text('weekly_focus'),
+  /* โปรไฟล์แบบใหม่ หมวด A, D, E (spec 2026-10-13) ว่างได้ทุกช่องเพราะเมนเทอร์เดิมยังไม่ได้กรอก
+     กรอกครบแล้วถึงจะถูกจับคู่ (src/data/matching.ts profileComplete) */
+  headline: text('headline').notNull().default(''),
+  country: text('country').notNull().default(''),
+  timeZone: text('time_zone').notNull().default('Asia/Bangkok'),
+  languages: text('languages').array().notNull().default([]),
+  background: text('background').notNull().default(''),
+  /** ไม่บังคับ ว่าง = ไม่ถูกจับคู่กับคำขอที่ระบุเพศ ไม่แสดงบนหน้าโปรไฟล์ */
+  gender: text('gender').$type<'male' | 'female'>(),
+  helpsWith: text('helps_with').array().notNull().default([]),
+  learnerLevels: text('learner_levels').array().notNull().default([]),
+  teachingStyles: text('teaching_styles').array().notNull().default([]),
+  formats: text('formats').array().notNull().default([]),
+  deliverables: text('deliverables').notNull().default(''),
+  /** ช่วงเวลาว่างตามเวลาของเมนเทอร์ [{ day: 0-6 (อาทิตย์ = 0), from: 'HH:MM', to: 'HH:MM' }] */
+  availability: jsonb('availability').$type<{ day: number; from: string; to: string }[]>().notNull().default([]),
+  sessionsPerWeek: integer('sessions_per_week'),
+  sessionMinutes: integer('session_minutes').array().notNull().default([]),
+  acceptingRequests: boolean('accepting_requests').notNull().default(true),
+  replyHours: integer('reply_hours'),
+  acceptsUrgent: boolean('accepts_urgent').notNull().default(false),
+  mode: text('mode').$type<'online' | 'onsite' | 'both'>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

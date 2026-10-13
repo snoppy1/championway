@@ -773,6 +773,43 @@ admin.post('/demo/clear', async (c) => {
    ทีมงานสร้างเวทีเองจากหน้า "เพิ่มเวที" (ต้องตรวจประกาศต้นทางเหมือนเวทีอื่น) แล้วกลับมาผูกคำขอกับเวทีนั้น
    ตอนอนุมัติ เมนเทอร์ที่ขอจะถูกใส่เป็นผู้รับปรึกษางานนั้นพร้อมราคาที่ขอไว้ */
 
+/* ---------- ประสบการณ์แข่งขันที่เมนเทอร์เพิ่มเองใน Mentor zone (spec 2026-10-13 หมวด C) ----------
+   ตรวจลิงก์หลักฐานแล้วกดผ่าน รายการนั้นจึงนับเป็นผลงาน (ป้าย ลำดับ รับปรึกษางานนั้นได้) ไม่ผ่านต้องบอกเหตุผล */
+
+const experienceStatuses = ['pending', 'verified', 'rejected'] as const;
+admin.get('/experiences', async (c) => {
+  const status = c.req.query('status') ?? 'pending';
+  const filter = (experienceStatuses as readonly string[]).includes(status) ? eq(mentorExperiences.status, status as typeof experienceStatuses[number]) : undefined;
+  const rows = await db.select({ row: mentorExperiences, slug: competitions.slug, mentorName: mentors.name }).from(mentorExperiences)
+    .innerJoin(mentors, eq(mentors.id, mentorExperiences.mentorId))
+    .leftJoin(competitions, eq(competitions.id, mentorExperiences.competitionId))
+    .where(filter).orderBy(desc(mentorExperiences.createdAt)).limit(200);
+  return c.json({ items: rows.map(({ row, slug, mentorName }) => ({
+    id: row.id, mentorId: row.mentorId, mentorName, name: row.name, competitionSlug: slug, year: row.year, kind: row.kind, result: row.result,
+    detail: row.detail, role: row.role, roleOther: row.roleOther, responsibility: row.responsibility, evidenceUrl: row.evidenceUrl,
+    lessons: row.lessons, status: row.status, reason: row.reason, createdAt: row.createdAt,
+  })) });
+});
+
+const experienceDecision = z.discriminatedUnion('decision', [
+  z.object({ decision: z.literal('verify') }),
+  z.object({ decision: z.literal('reject'), reason: z.string().trim().min(1, 'บอกเหตุผลให้เมนเทอร์').max(500) }),
+]);
+admin.post('/experiences/:id/decision', async (c) => {
+  const user = c.get('user')!;
+  const parsed = experienceDecision.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? 'ข้อมูลไม่ถูกต้อง' });
+  const body = parsed.data;
+  const [row] = await db.select({ id: mentorExperiences.id }).from(mentorExperiences).where(eq(mentorExperiences.id, c.req.param('id')));
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบรายการนี้' });
+  // เปลี่ยนได้เฉพาะรายการที่ยังรอตรวจ กดซ้ำหรือสองคนกดพร้อมกันจึงมีผลครั้งเดียว
+  const [done] = await db.update(mentorExperiences)
+    .set({ status: body.decision === 'verify' ? 'verified' : 'rejected', reason: body.decision === 'reject' ? body.reason : '', reviewedBy: user.id, reviewedAt: new Date() })
+    .where(and(eq(mentorExperiences.id, row.id), eq(mentorExperiences.status, 'pending'))).returning({ id: mentorExperiences.id });
+  if (!done) throw new HTTPException(409, { message: 'รายการนี้ตรวจไปแล้ว' });
+  return c.json({ ok: true });
+});
+
 admin.get('/competition-requests', async (c) => {
   const rows = await db.select({ request: competitionRequests, mentorName: mentors.name, slug: competitions.slug })
     .from(competitionRequests)

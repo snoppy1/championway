@@ -1,7 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { inArray, like } from 'drizzle-orm';
+import { eq, inArray, like } from 'drizzle-orm';
 import { app } from '../server/app';
 import { db, client } from '../server/db/client';
 import { competitions, hackathonNames, mentorExperiences, mentorSkills, mentorSubmissions, mentors, sessions, staffAlerts, users } from '../server/db/schema';
@@ -138,4 +138,41 @@ test('experiences: typed names autocomplete, pending until checked, duplicates r
   // ลบของคนอื่นไม่ได้ ลบของตัวเองที่รอตรวจได้
   assert.equal((await send('DELETE', `/consult/zone/experiences/${mine.items[0].id}`, other.cookie)).status, 404);
   assert.equal((await send('DELETE', `/consult/zone/experiences/${mine.items[0].id}`, owner.cookie)).status, 200);
+});
+
+test('admin verifies or rejects experiences; members cannot', async () => {
+  const owner = await account();
+  const member = await account();
+  const admin = await account('admin');
+  await mentorOf(owner.id);
+  const created = await (await send('POST', '/consult/zone/experiences', owner.cookie, {
+    name: `${prefix} Review Hack`, year: '2566', kind: 'hackathon', result: 'participant', detail: '', role: 'designer', roleOther: '',
+    responsibility: 'ออกแบบหน้าจอ', evidenceUrl: 'https://example.test/p2', lessons: 'วางแผนเวลา',
+  })).json() as { id: string };
+  const second = await (await send('POST', '/consult/zone/experiences', owner.cookie, {
+    name: `${prefix} Second Hack`, year: '2566', kind: 'other', result: 'other', detail: 'รางวัลขวัญใจ', role: 'other', roleOther: 'ผู้ประสานงาน',
+    responsibility: 'ประสานทีม', evidenceUrl: 'https://example.test/p4', lessons: '',
+  })).json() as { id: string };
+
+  assert.equal((await send('GET', '/admin/experiences', member.cookie)).status, 403);
+  assert.equal((await send('POST', `/admin/experiences/${created.id}/decision`, member.cookie, { decision: 'verify' })).status, 403);
+  const queue = await (await send('GET', '/admin/experiences?status=pending', admin.cookie)).json() as { items: { id: string; evidenceUrl: string; mentorName: string }[] };
+  const row = queue.items.find((i) => i.id === created.id)!;
+  assert.equal(row.evidenceUrl, 'https://example.test/p2');
+  assert.equal(row.mentorName, `เมนเทอร์ ${prefix}`);
+  // ไม่ผ่านต้องมีเหตุผล
+  assert.equal((await send('POST', `/admin/experiences/${created.id}/decision`, admin.cookie, { decision: 'reject', reason: '' })).status, 400);
+  assert.equal((await send('POST', `/admin/experiences/${created.id}/decision`, admin.cookie, { decision: 'verify' })).status, 200);
+  assert.equal((await send('POST', `/admin/experiences/${created.id}/decision`, admin.cookie, { decision: 'verify' })).status, 409);
+  assert.equal((await send('POST', `/admin/experiences/${second.id}/decision`, admin.cookie, { decision: 'reject', reason: 'ลิงก์เปิดไม่ได้' })).status, 200);
+  assert.equal((await send('POST', '/admin/experiences/nope/decision', admin.cookie, { decision: 'verify' })).status, 404);
+
+  const [stored] = await db.select().from(mentorExperiences).where(eq(mentorExperiences.id, created.id));
+  assert.deepEqual([stored.status, stored.reviewedBy], ['verified', admin.id]);
+  // เมนเทอร์เห็นเหตุผลที่ไม่ผ่าน
+  const mine = await (await send('GET', '/consult/zone/experiences', owner.cookie)).json() as { items: { id: string; status: string; reason: string }[] };
+  const rejected = mine.items.find((i) => i.id === second.id)!;
+  assert.deepEqual([rejected.status, rejected.reason], ['rejected', 'ลิงก์เปิดไม่ได้']);
+  const verified = await (await send('GET', '/admin/experiences?status=verified', admin.cookie)).json() as { items: { id: string }[] };
+  assert.ok(verified.items.some((i) => i.id === created.id));
 });

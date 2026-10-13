@@ -62,6 +62,7 @@ export function AdminLayout() {
           <NavLink to="/admin/requests">
             คำขอเพิ่มเวที{pendingRequests > 0 && <span className="admin-badge">{pendingRequests}</span>}
           </NavLink>
+          <NavLink to="/admin/experiences">ประสบการณ์เมนเทอร์</NavLink>
           <NavLink to="/admin/reviews">รีวิว</NavLink>
           {isAdmin(user) && <NavLink to="/admin/notifications">การแจ้งเตือน</NavLink>}
           {isAdmin(user) && hiring === true && <>

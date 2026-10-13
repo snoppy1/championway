@@ -43,6 +43,7 @@ import { AdminOverview } from './pages/admin/AdminOverview';
 import { AdminCompetitionQueue, AdminCompetitionReview } from './pages/admin/AdminCompetitions';
 import { AdminMentorQueue, AdminMentorReview } from './pages/admin/AdminMentors';
 import { AdminRequestQueue } from './pages/admin/AdminRequests';
+import { AdminExperienceQueue } from './pages/admin/AdminExperiences';
 import { AdminReviewList } from './pages/admin/AdminReviews';
 import { AdminNotifications } from './pages/admin/AdminNotifications';
 import { AdminImports } from './pages/admin/AdminImports';
@@ -104,6 +105,7 @@ const router = createBrowserRouter([{
     { path: 'mentors', element: <AdminMentorQueue /> },
     { path: 'mentors/:id', element: <AdminMentorReview /> },
     { path: 'requests', element: <AdminRequestQueue /> },
+    { path: 'experiences', element: <AdminExperienceQueue /> },
     { path: 'reviews', element: <AdminReviewList /> },
     { path: 'notifications', element: <AdminNotifications /> },
     { path: 'imports', element: <AdminImports /> },

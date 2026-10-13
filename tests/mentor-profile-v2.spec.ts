@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { like } from 'drizzle-orm';
 import { db } from '../server/db/client';
-import { hackathonNames } from '../server/db/schema';
-import { createMentorFixture, signIn } from './helpers';
+import { hackathonNames, mentorExperiences } from '../server/db/schema';
+import { createAccount, createMentorFixture, removeAccount, signIn } from './helpers';
 
 /* โปรไฟล์เมนเทอร์แบบใหม่ หมวด A–F (spec docs/superpowers/specs/2026-10-13-mentor-matching-design.md) */
 
@@ -100,5 +100,40 @@ test('mentor adds a typed competition experience that waits for review', async (
   } finally {
     await fixture.cleanup();
     await db.delete(hackathonNames).where(like(hackathonNames.name, `Typed Hack ${fixture.mentorId}%`));
+  }
+});
+
+test('a reviewer verifies one pending experience and rejects another with a reason', async ({ page }) => {
+  const fixture = await createMentorFixture({ thai: true });
+  const reviewer = await createAccount('reviewer');
+  const good = `Admin Check ${fixture.mentorId}`;
+  const bad = `Admin Reject ${fixture.mentorId}`;
+  try {
+    await db.insert(mentorExperiences).values([good, bad].map((name, index) => ({
+      id: `${fixture.mentorId}-exp-x${index}`, mentorId: fixture.mentorId, name, year: '2566', result: 'finalist' as const, kind: 'hackathon' as const,
+      role: 'developer' as const, responsibility: 'เขียน API', evidenceUrl: `https://example.com/e${index}`, status: 'pending' as const,
+    })));
+    await signIn(page, reviewer, '/admin/experiences');
+    const row = page.getByRole('listitem').filter({ hasText: good });
+    await expect(row.getByRole('link', { name: /example\.com\/e0/ })).toHaveAttribute('href', 'https://example.com/e0');
+    await expect(row).toContainText('เขียน API');
+    await row.getByRole('button', { name: 'หลักฐานถูกต้อง' }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: good })).toHaveCount(0);
+
+    const other = page.getByRole('listitem').filter({ hasText: bad });
+    await other.getByRole('button', { name: 'ไม่ผ่าน' }).click();
+    await expect(other.getByRole('alert')).toContainText('กรอกเหตุผล');
+    await other.getByLabel('เหตุผลที่ไม่ผ่าน').fill('ลิงก์เปิดไม่ได้');
+    await other.getByRole('button', { name: 'ไม่ผ่าน' }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: bad })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'ตรวจแล้ว' }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: good })).toBeVisible();
+    await page.getByRole('button', { name: 'ไม่ผ่าน', exact: true }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: bad })).toContainText('ลิงก์เปิดไม่ได้');
+    await page.screenshot({ path: `artifacts/admin-experiences-${test.info().project.name}.png`, fullPage: true });
+  } finally {
+    await fixture.cleanup();
+    await removeAccount(reviewer);
   }
 });

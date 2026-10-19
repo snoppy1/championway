@@ -19,7 +19,11 @@ Success: a first-time visitor understands what ChampionWays does within 5 second
 | 3 | Typed competition names | A new name joins autocomplete at once (name only, no page). An experience counts toward H only after an admin checks its evidence ("รอตรวจ" until then). Names typed by learners are used for matching but never added to autocomplete. |
 | 4 | Start / Finish Consult | Start shows contacts at once and emails the mentor a project summary. Finish → mentor confirms by email link (existing flow) → learner can review. Mentor "not me" = no review. |
 | 5 | H score | Graded score, not a hard filter. Same competition verified = full + badge "เคยแข่งงานนี้". Everyone still appears; those who competed in it rank higher. |
-| — | Engine | Rule-based formula computed when a request is sent, results stored as a snapshot. No AI in v1. |
+| — | Engine | Rule-based formula computed when a request is sent, results stored as a snapshot. AI never scores. |
+| 6 | AI (2026-10-20) | AI only turns free text into tags from the fixed lists, once at save time; the person sees and can edit the tags; the formula reads tags. AI-written card reasons come later. See 5.8. |
+| 7 | Reply time without history (2026-10-20) | Declared `replyHours` until 3 consultations, then the slower of declared and measured median. See 5.6. |
+| 8 | New mentors (2026-10-20) | No score boost. "Mentor ใหม่" badge; inside a near-tie they rank before mentors rated under 3.5 stars. See 5.7. |
+| 9 | Rising Star (2026-10-20) | Never changes the %. Up to 2 labelled "Rising Star · แนะนำ" slots on top when % ≥ 60; first inside a near-tie (≤ 5 points); gold badge. See 5.7. |
 
 Unchanged constraints: hiring/chat/payment stay paused behind `HIRING_ENABLED`; mentors only mentor competitions they competed in (checked evidence); all copy TH/EN via dictionaries; Production deploy only when the owner asks, migrations first.
 
@@ -172,12 +176,23 @@ G = 0 with no match, else 0.5 + 0.5 × (matched ÷ wanted). For `build_skills` t
 ### 5.6 A — Availability & language (10%)
 - A = 0.6·urgency + 0.4·language
 - urgency `48h`: acceptsUrgent and replyHours ≤ 24 → 1; acceptsUrgent → 0.6; else 0.1. `week`: replyHours ≤ 72 → 1, else 0.5. `flexible` → 1.
+- replyHours used here is the **effective** reply time: the mentor's declared value while they have fewer than 3 consultations; from 3 on, the slower of declared and the measured median (Start Consult → the mentor's first response/confirmation). Over-promising is corrected; answering faster than declared costs nothing. New mentors are never penalised for having no history.
 - language: exact match → 1; `either` with a mentor who speaks one of them → 1
 
-### 5.7 Output
-- Top 10 by score. Ties are broken by average stars, then completed sessions, then the newer verified experience.
+### 5.7 Output and ordering
+- The % shown is always the formula result. Paid status never changes it.
+- **Rising Star slots:** up to 2 cards on top labelled "Rising Star · แนะนำ" (a disclosed paid placement). Only active Rising Star members who passed every hard filter and scored **≥ 60%** qualify, the best two by score. With none qualifying, no slot is shown.
+- **Main list:** the remaining mentors, top 10 by score. Mentors whose scores are within **5 points** of each other count as a near-tie and are ordered: Rising Star → new mentor (no reviews yet) → average stars → completed sessions → newer verified experience. A new mentor goes ahead of mentors rated under 3.5 stars inside a near-tie, not ahead of better-rated ones.
+- Badges on cards: gold star for Rising Star (existing design), "Mentor ใหม่" for mentors with no reviews yet.
+- Starting values 2 slots / 60% / 5 points are constants in `server/lib/matching.ts`, tuned later from real data.
 - Each result stores parts and up to 3 reasons (the strongest parts), e.g. "เคยแข่งงานนี้", "React · Expert", "ตอบภายใน 24 ชม."
 - No eligible mentor → empty state with "แก้คำตอบ" (edit the answers) and a link to browse all mentors.
+
+### 5.8 AI as a tagger (not a scorer)
+- Free text (the learner's request note, the mentor's bio, deliverables and lessons) is sent to Claude **once, when it is saved**. Claude must answer through a tool whose schema only allows ids from the fixed lists in `src/data/matching.ts` (help areas, skill tags, stages).
+- The extracted tags are stored next to the answers with `source: 'ai'`, and shown to the owner ("เราเข้าใจว่าคุณต้องการ: AI/ML · Web · Pitch") to remove or add before they count. Matching reads only stored tags, so the same answers always give the same result, and no AI call happens per match.
+- When the AI call fails or is turned off, the request still works from the ticked options alone.
+- Later: AI rewrites the stored reasons into one short sentence per card. The % and the order still come from the formula.
 
 ## 6. Pages and routes
 
@@ -222,4 +237,4 @@ Finish Consult and reviews reuse the existing `consultations` claim → mentor e
 
 ## 10. Out of scope (v1)
 
-AI ranking or AI-written reasons; in-platform chat and payment (paused); calendar booking against `availability`; learner-to-learner team matching.
+AI ranking (never); AI-written card reasons (after v1, see 5.8); in-platform chat and payment (paused); calendar booking against `availability`; learner-to-learner team matching.

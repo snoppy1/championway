@@ -1,12 +1,12 @@
-# ChampionWays pivot: hackathon mentor matching
+# ChampionWays pivot: competition mentor matching (hackathons and case competitions)
 
 Date: 2026-10-13 · Status: draft for owner review
 
 ## 1. Why
 
-Visitors compare ChampionWays with Contesterlife because the first thing they see is a list of competitions. ChampionWays is a platform that connects hackathon mentors with students who want to compete. The site is rebuilt around one path:
+Visitors compare ChampionWays with Contesterlife because the first thing they see is a list of competitions. ChampionWays is a platform that connects mentors who have won hackathons and case competitions with students who want to compete. The site is rebuilt around one path:
 
-Home → **Ready to win the hackathon?** → basic profile (first time) → project + questions → matched mentors (several, ranked) → **Start Consult** (talk off the platform) → **Finish Consult** → star review.
+Home → **Ready to win the competition?** → basic profile (first time) → project + questions → matched mentors (several, ranked) → **Start Consult** (talk off the platform) → **Finish Consult** → star review.
 
 Success: a first-time visitor understands what ChampionWays does within 5 seconds of landing, and can go from Home to a ranked list of mentors without reading a competition page.
 
@@ -24,6 +24,9 @@ Success: a first-time visitor understands what ChampionWays does within 5 second
 | 7 | Reply time without history (2026-10-20) | Declared `replyHours` until 3 consultations, then the slower of declared and measured median. See 5.6. |
 | 8 | New mentors (2026-10-20) | No score boost. "Mentor ใหม่" badge; inside a near-tie they rank before mentors rated under 3.5 stars. See 5.7. |
 | 9 | Rising Star (2026-10-20) | Never changes the %. Up to 2 labelled "Rising Star · แนะนำ" slots on top when % ≥ 60; first inside a near-tie (≤ 5 points); gold badge. See 5.7. |
+| 10 | Scope (2026-10-20) | Hackathons **and** case competitions. CTA "Ready to win the competition?". Learners say which kind their competition is; mentors tag each experience with its kind; H prefers the same kind. See 4.1, 4.2, 5.3. |
+| 11 | One mentor at a time (2026-10-20) | A project has at most one open consultation, so advice never conflicts. After Finish (waiting for the mentor) the learner may start with someone else. **Change mentor** ends an open consultation with a reason (`no_response`, `not_fit`, `other`) and no review. See 6.1. |
+| 12 | Navigation (2026-10-20) | Sign-in area as on the current site, plus **My Projects** for signed-in users. No Match button in the nav: matching starts from the Landing CTA or My Projects → New project. See 7. |
 
 Unchanged constraints: hiring/chat/payment stay paused behind `HIRING_ENABLED`; mentors only mentor competitions they competed in (checked evidence); all copy TH/EN via dictionaries; Production deploy only when the owner asks, migrations first.
 
@@ -59,13 +62,13 @@ Next migration number: 0028.
 - `hardware_iot_robotics`
 - `data_science`, `cybersecurity`, `cloud`
 - `uiux`, `product_design`
-- `business_model`, `startup`, `marketing`
+- `business_model`, `startup`, `marketing`, `strategy`, `finance`
 - `pitching`, `presentation`, `storytelling`
 
 **C — Competition experience** — extend `mentor_experiences` (one row per competition entered; a mentor adds as many as they want)
 - `competitionId` (existing, nullable) **or** new `hackathonNameId` → new table `hackathon_names (id, name, normalized, created_by, created_at)`, unique on `normalized`. Autocomplete searches `competitions.name` ∪ `hackathon_names.name`.
 - `year` (existing), required
-- `kind` new: `hackathon | innovation | software | other`, required
+- `kind` new: `hackathon | case | innovation | software | other`, required
 - `result`: existing `winner | finalist | participant` plus new `other`; `detail` holds the award name (required when `winner`) or the "other" text
 - `role` new: `developer | designer | leader | business | other` (+ `roleOther` text)
 - `responsibility` new text, required
@@ -74,7 +77,7 @@ Next migration number: 0028.
 - `status` new: `pending | verified | rejected`. Existing rows migrate as `verified` (they were checked under the old rule). Only `verified` rows count toward H and badges.
 
 **D — Mentoring capability** (`mentors` new columns, all text[] of fixed values)
-- `helpsWith`: `idea_validation`, `coding`, `debugging`, `architecture`, `mvp`, `pitch_deck`, `presentation`
+- `helpsWith`: `idea_validation`, `coding`, `debugging`, `architecture`, `mvp`, `pitch_deck`, `presentation`, `case_analysis`
 - `learnerLevels`: `beginner`, `intermediate`, `advanced`
 - `teachingStyles`: `step_by_step`, `guided_questions`, `review`, `direct_feedback`
 - `formats`: `one_on_one`, `team`, `code_review`
@@ -91,7 +94,7 @@ Next migration number: 0028.
 - `mode`: `online | onsite | both`
 - price: existing `price` / `priceUnit` (free or amount per free-text unit)
 
-**F — Trust & reputation** — computed, never typed: email verified; average stars + count (`mentor_reviews`); completed sessions (`consultations` confirmed); response rate = confirmed or denied ÷ finished-by-learner, and median days to respond; evidence links from verified experiences.
+**F — Trust & reputation** — computed, never typed: email verified; average stars + count (`mentor_reviews`); completed sessions (`consultations` confirmed); response rate = confirmed or denied ÷ (finished-by-learner + changed with reason `no_response`), and median days to respond; evidence links from verified experiences.
 
 **Completeness** — `profileComplete(mentor)` (pure function, server and client): A (headline, languages ≥1, country, background), B (≥1 skill), C (≥1 experience, any status), D (helpsWith, learnerLevels, teachingStyles, formats ≥1 each), E (availability ≥1 slot, sessionsPerWeek, sessionMinutes ≥1, replyHours, mode). Incomplete → visible profile, excluded from matching, Mentor zone banner.
 
@@ -104,11 +107,12 @@ Next migration number: 0028.
   - `interests_fields`: `ai`, `web`, `hardware`, `design`, `data`, `security`, `business`, `other`
   - `skills`: same tag list as mentor B
   - name and photo come from `users`
-- `projects (id, user_id, name, start: has_competition | has_idea | build_skills, competition_id null, competition_name text, stage, created_at, updated_at)`
-  - `stage`: `idea | planning | prototype | improving | pitching`
+- `projects (id, user_id, name, start: has_competition | has_idea | build_skills, competition_kind: hackathon | case | null, competition_id null, competition_name text, stage, created_at, updated_at)`
+  - `competition_kind` is required when `start = has_competition` (asked right under Q1, before Q2)
+  - `stage`: `idea | planning | prototype | improving | pitching`; labels fit both kinds: Just an idea / Researching & planning / Building (prototype or analysis) / Improving / Preparing pitch
   - `competition_name` is the typed name when there is no `competition_id`; it is matched against `hackathon_names.normalized` but never inserted there
 - `match_requests (id, project_id, user_id, answers jsonb, created_at)` — answers to Q4–Q10:
-  - `helpAreas` (multi): `ai_ml`, `web_app`, `hardware`, `uiux`, `business`, `idea_validation`, `debugging`, `pitch`, `teamwork`
+  - `helpAreas` (multi): `ai_ml`, `web_app`, `hardware`, `uiux`, `business`, `idea_validation`, `debugging`, `pitch`, `teamwork`, `case_analysis`, `financial_modeling`
   - `skillLevel`: `beginner | intermediate | advanced`
   - `style`: `step_by_step | guided_questions | review | direct_feedback | mixed`
   - `format`: `one_on_one | team | either`
@@ -146,13 +150,15 @@ Each chosen help area is covered by mentor skill tags and/or capabilities:
 | debugging | capability debugging, or format code_review with any Programming/Web skill |
 | pitch | skills pitching, presentation, storytelling, or capability pitch_deck / presentation |
 | teamwork | capability architecture or mvp, or a verified experience with role leader |
+| case_analysis | skill strategy, or capability case_analysis |
+| financial_modeling | skill finance |
 
 Coverage per area = best of: skill level Expert 1.0, Advanced 0.85, Intermediate 0.6; capability-only 0.7. If the learner is `advanced`, an Intermediate skill counts 0.4. S = mean over chosen areas.
 
-### 5.3 H — Hackathon experience (25%), verified experiences only
+### 5.3 H — Competition experience (25%), verified experiences only
 - The request names a competition (`competition_id`, or a typed name equal to a `hackathon_names` entry after normalising) and the mentor has a verified experience in it → **1.0**, reason "เคยแข่งงานนี้".
-- Otherwise the best experience: base 0.5 if `kind = hackathon`, else 0.3; +0.2 winner, +0.1 finalist; +0.1 if the role fits a help area (developer ↔ web_app/ai_ml/debugging, designer ↔ uiux, business ↔ business/pitch, leader ↔ teamwork); capped at 0.8.
-- The learner has no competition (`has_idea` / `build_skills`): same rule, but the cap is 1.0 and the hackathon base is 0.6.
+- Otherwise the best experience: base 0.5 if its `kind` equals the request's competition kind (`hackathon` when the learner has no competition yet), else 0.3; +0.2 winner, +0.1 finalist; +0.1 if the role fits a help area (developer ↔ web_app/ai_ml/debugging, designer ↔ uiux, business ↔ business/pitch, leader ↔ teamwork); capped at 0.8.
+- The learner has no competition (`has_idea` / `build_skills`): same rule, but the cap is 1.0 and the same-kind base is 0.6.
 - No verified experience → 0.
 
 ### 5.4 G — Goal & project fit (20%)
@@ -164,6 +170,8 @@ Coverage per area = best of: skill level Expert 1.0, Advanced 0.85, Intermediate
 | prototype | coding, mvp, architecture, debugging |
 | improving | debugging, architecture (or format code_review) |
 | pitching | pitch_deck, presentation |
+
+For a case competition, `prototype` and `improving` want `case_analysis` (plus `pitch_deck` for improving) instead of the coding capabilities.
 
 G = 0 with no match, else 0.5 + 0.5 × (matched ÷ wanted). For `build_skills` the stage is treated as `prototype`.
 
@@ -198,13 +206,13 @@ G = 0 with no match, else 0.5 + 0.5 × (matched ÷ wanted). For `build_skills` t
 
 | Route | Purpose |
 |---|---|
-| `/` | New Home: one line of what ChampionWays is, CTA **Ready to win the hackathon?**, 3-step strip, new mentors slider (exists) |
+| `/` | New Home (Landing from Claude Design): CTA **Ready to win the competition?**, how it works (4 steps), new mentors, Rising Star ranking |
 | `/match` | Entry: signed out → sign-in with `next`; no learner profile → profile step; else pick a project or create one |
 | `/match/profile` | Learner basic profile (A), also editable from Profile |
-| `/projects` | **My Project**: projects, each with its requests; a request with no started consult shows "My match" |
+| `/projects` | **My Projects**: projects, each with its open consultation (at most one), its saved matches ("My matches") and history; **New project** starts the match flow |
 | `/projects/new`, `/projects/:id` | Create/edit project (Q1–Q3) |
 | `/projects/:id/match` | Questions Q4–Q10, short and one screen per group, with little text |
-| `/matches/:requestId` | Results: mentor cards (photo, headline, % match, reasons, price), profile link, **Start Consult** per mentor; several allowed |
+| `/matches/:requestId` | Results: mentor cards (photo, headline, % match, reasons, price), profile link, **Start Consult** per mentor; disabled while the project has an open consultation |
 | `/mentors/:id` | Profile shows A, B, C (verified + pending), D, E summary, F stats |
 | Mentor zone | New tab "โปรไฟล์" for A/B/D/E; experiences tab for C (add → admin evidence check); completeness banner |
 | Mentor application | Expanded to A–E (C uses the experience form) |
@@ -214,9 +222,15 @@ API (all under `/api`): `GET/PUT /learner/profile`; `GET/POST /projects`, `GET/P
 
 Finish Consult and reviews reuse the existing `consultations` claim → mentor email confirm → `mentor_reviews`.
 
+### 6.1 One open consultation per project
+- `POST /matches/:requestId/start/:mentorId` returns 409 when the project already has a consultation in status `contacted` (started, not finished). The results page disables the other Start buttons with "You're consulting X. Finish first to start with someone new."
+- Finish moves it out of `contacted`, so a new Start is allowed while the mentor has not confirmed yet.
+- `POST /consultations/:id/change { reason: no_response | not_fit | other, note? }` (learner, only while `contacted`) closes it as `changed`: no mentor email, no review. `no_response` counts against the mentor's response rate.
+- A rated review is per mentor: each consultation is finished, confirmed and reviewed on its own. A team consultation is one consultation; the project owner finishes and reviews it.
+
 ## 7. Phase 4 specifics
 
-- Navigation: Home · สำรวจ Mentor · My Project · Mentor zone (mentors) · Profile. Explore and Organisers leave the menu.
+- Navigation keeps the current sign-in area (Sign in / Sign up; signed in: name → Profile, Admin for reviewers, Sign out) and adds **My Projects** for signed-in users with a count of things to do (open consultations not finished, confirmed ones not reviewed). Mentor zone for mentors. No Match button in the nav. Explore, Organisers, Library and Saved leave the menu.
 - `/explore` → `/`; `/competitions/:slug` → `/mentors`; `/organizers*` → `/`.
 - Auto-import cron is disabled (the code stays). Admin competition pages stay.
 

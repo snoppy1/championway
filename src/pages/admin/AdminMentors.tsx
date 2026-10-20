@@ -11,8 +11,13 @@ import {
   AttachedFiles, ExternalLink, Field, QueueFilters, REVIEW_TARGET_DAYS, StatusPill, Trail, waitingDays,
 } from './AdminCompetitions';
 import type { AttachedFile, ReviewEvent, SubmissionStatus } from './AdminCompetitions';
+import { th } from '../../i18n/th';
+import type { MentorProfileV2 } from '../../data/matching';
 
-const resultLabel = { winner: 'ชนะ/ได้รางวัล', finalist: 'เข้ารอบสุดท้าย', participant: 'เข้าร่วมแข่งขัน' } as const;
+const resultLabel = { winner: 'ชนะ/ได้รางวัล', finalist: 'เข้ารอบสุดท้าย', participant: 'เข้าร่วมแข่งขัน', other: 'ผลอื่น ๆ' } as const;
+// ชื่อตัวเลือกโปรไฟล์ใช้คำไทยชุดเดียวกับหน้าเว็บ (หน้าจัดการเป็นภาษาไทยอย่างเดียว)
+const v = th.mentorProfileV2;
+const list = <T,>(ids: readonly T[], label: (id: T) => string) => (ids.length ? ids.map(label).join(' · ') : 'ไม่ได้เลือก');
 
 type Award = {
   id: string;
@@ -20,8 +25,14 @@ type Award = {
   competitionSlug: string | null;
   year: string;
   evidence: string;
-  result: 'winner' | 'finalist' | 'participant';
+  result: 'winner' | 'finalist' | 'participant' | 'other';
   detail: string;
+  /** ใบแบบใหม่ (21 ต.ค. 2569) ใบแบบเก่าได้ค่าเริ่มต้น */
+  kind: keyof typeof v.kindNames;
+  role: keyof typeof v.roleNames;
+  roleOther: string;
+  responsibility: string;
+  lessons: string;
   wantsMentor: boolean;
   matched: { slug: string; name: string } | null;
   /** ไฟล์หลักฐาน (บังคับตั้งแต่ 6 ต.ค. 2569 หลายไฟล์ได้ตั้งแต่ 7 ต.ค.) ใบเก่าไม่มี */
@@ -107,6 +118,9 @@ type MentorSubmission = {
   offers: { slug: string; name: string; price: number | null; minutes: number | null; unit: string }[];
   /** รูปโปรไฟล์จากใบสมัคร ขึ้นหน้าเว็บหลังอนุมัติ */
   photoUrl: string | null;
+  /** ใบแบบใหม่: โปรไฟล์หมวด A, B, D, E และราคาเดียว (price ข้างบน หน่วยใน priceUnit) ใบแบบเก่าเป็น null */
+  profile: MentorProfileV2 | null;
+  priceUnit: string;
   awards: Award[];
   files: AttachedFile[];
   events: ReviewEvent[];
@@ -201,19 +215,36 @@ export function AdminMentorReview() {
             <Field label="ประสบการณ์">{submission.experience}</Field>
             <Field label="ช่วยได้">{submission.best}</Field>
             <Field label="ช่วยไม่ได้">{submission.cannot}</Field>
-            <Field label="ความถนัด">{submission.topics.join(' · ')}</Field>
+            {submission.topics.length > 0 && <Field label="ความถนัด (ใบแบบเก่า)">{submission.topics.join(' · ')}</Field>}
+            {submission.profile && <>
+              <Field label="Headline">{submission.profile.headline}</Field>
+              <Field label="ประเทศ · Time zone">{v.countries[submission.profile.country] ?? submission.profile.country} · {submission.profile.timeZone}</Field>
+              <Field label="การศึกษาหรือสายงาน">{submission.profile.background}</Field>
+              <Field label="ภาษา">{list(submission.profile.languages, (id) => v.languageNames[id])}</Field>
+              <Field label="ทักษะ">{list(submission.profile.skills, (skill) => `${v.skillNames[skill.tag]} (${v.levelNames[skill.level]})`)}</Field>
+              <Field label="ช่วยอะไรได้">{list(submission.profile.helpsWith, (id) => v.helpsWithNames[id])}</Field>
+              <Field label="กลุ่มผู้เรียน">{list(submission.profile.learnerLevels, (id) => v.learnerLevelNames[id])}</Field>
+              <Field label="รูปแบบการสอน">{list(submission.profile.teachingStyles, (id) => v.teachingStyleNames[id])}</Field>
+              <Field label="รูปแบบการให้คำปรึกษา">{list(submission.profile.formats, (id) => v.formatNames[id])}</Field>
+              <Field label="สิ่งที่ผู้เรียนได้รับ">{submission.profile.deliverables || 'ไม่ได้ระบุ'}</Field>
+              <Field label="เวลาว่าง">{list(submission.profile.availability, (slot) => `${v.days[slot.day]} ${slot.from}–${slot.to}`)}</Field>
+              <Field label="Session">{`${submission.profile.sessionsPerWeek ?? '-'} ครั้ง/สัปดาห์ · ${list(submission.profile.sessionMinutes, (n) => v.minutes(n))}`}
+                {` · ${submission.profile.replyHours ? v.replyOptions[submission.profile.replyHours] : '-'} · ${submission.profile.mode ? v.modeNames[submission.profile.mode] : '-'}`}
+                {submission.profile.acceptsUrgent ? ' · รับงานด่วนได้' : ''}</Field>
+              <Field label="ราคา">{submission.price === 0 ? 'ฟรี' : submission.price === null ? '-' : `${baht.format(submission.price)} บาท ต่อ${submission.priceUnit}`}</Field>
+            </>}
             {/* นักเรียนที่ยืนยันอีเมลแล้วเห็นช่องทางเหล่านี้หลังกดติดต่อ ผู้ตรวจจึงควรเห็นก่อนเผยแพร่ */}
             <Field label="ติดต่อ: อีเมล">{submission.contactEmail || 'ไม่ได้ระบุ'}</Field>
             <Field label="ติดต่อ: LINE ID">{submission.contactLine || 'ไม่ได้ระบุ'}</Field>
             <Field label="ติดต่อ: เบอร์โทร">{submission.contactPhone || 'ไม่ได้ระบุ'}</Field>
             <Field label="ติดต่อ: Instagram">{submission.contactInstagram || 'ไม่ได้ระบุ'}</Field>
             <Field label="ติดต่อ: ลิงก์อื่น">{submission.contactLink ? <ExternalLink href={submission.contactLink} /> : 'ไม่ได้ระบุ'}</Field>
-            <Field label="งานที่ติ๊กและราคา">{submission.offers?.length
+            {!submission.profile && <Field label="งานที่ติ๊กและราคา">{submission.offers?.length
               ? <ul className="admin-offers">{submission.offers.map((offer) => <li key={offer.slug}>
                 <Link to={`/competitions/${offer.slug}`}>{offer.name}</Link>
                 {' · '}{offer.price === null ? 'ข้ามไว้ ใส่ราคาทีหลัง' : offer.price === 0 ? 'ฟรี' : offer.unit ? `${baht.format(offer.price)} บาท ต่อ${offer.unit}` : `${baht.format(offer.price)} บาท / ${offer.minutes} นาที`}
               </li>)}</ul>
-              : 'ไม่ได้ติ๊กงานใด'}</Field>
+              : 'ไม่ได้ติ๊กงานใด'}</Field>}
             <Field label="ผลงาน"><ExternalLink href={submission.portfolio || null} /></Field>
           </dl>
         </section>
@@ -239,13 +270,18 @@ export function AdminMentorReview() {
               <dl className="admin-fields">
                 <Field label="ผลที่ได้">{resultLabel[award.result]}{award.detail ? ` · ${award.detail}` : ''}</Field>
                 <Field label="ปี">{award.year}</Field>
-                <Field label="อยากเป็นเมนเทอร์ของเวทีนี้">{!award.wantsMentor ? 'ไม่'
+                {submission.profile ? <>
+                  <Field label="ประเภท">{v.kindNames[award.kind]}</Field>
+                  <Field label="บทบาท">{award.role === 'other' ? award.roleOther : v.roleNames[award.role]}</Field>
+                  <Field label="สิ่งที่รับผิดชอบ">{award.responsibility}</Field>
+                  {award.lessons && <Field label="ประสบการณ์ที่ส่งต่อได้">{award.lessons}</Field>}
+                </> : <Field label="อยากเป็นเมนเทอร์ของเวทีนี้">{!award.wantsMentor ? 'ไม่'
                   : award.matched ? 'ใช่'
-                  : `ใช่ · เวทียังไม่มีในระบบ อนุมัติแล้วจะเป็นคำขอเพิ่มเวที (${award.offerPrice ? `${baht.format(award.offerPrice)} บาท ต่อ${award.offerUnit}` : 'ฟรี'})`}</Field>
+                  : `ใช่ · เวทียังไม่มีในระบบ อนุมัติแล้วจะเป็นคำขอเพิ่มเวที (${award.offerPrice ? `${baht.format(award.offerPrice)} บาท ต่อ${award.offerUnit}` : 'ฟรี'})`}</Field>}
                 <Field label="เวทีในระบบ">
                   {award.matched
                     ? <Link to={`/competitions/${award.matched.slug}`}>{award.matched.name}</Link>
-                    : <span className="award-unmatched">ไม่พบเวทีนี้ในระบบ ต้องตรวจด้วยมือ</span>}
+                    : <span className="award-unmatched">ไม่พบเวทีนี้ในระบบ ต้องตรวจด้วยมือ{submission.profile ? ' (อนุมัติแล้วชื่อนี้เข้ารายชื่อเติมคำอัตโนมัติ)' : ''}</span>}
                 </Field>
                 <Field label="ไฟล์หลักฐาน">{award.evidenceFileUrls.length
                   ? <span className="award-files">{award.evidenceFileUrls.map((url, index) => <a key={url} href={url} target="_blank" rel="noopener noreferrer">

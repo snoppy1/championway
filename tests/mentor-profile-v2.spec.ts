@@ -42,13 +42,17 @@ test('mentor completes profile sections A, B, D, E from Mentor zone', async ({ p
   }
 });
 
-test('the profile form shows the server error when a required choice is missing', async ({ page }) => {
+test('a partly filled profile saves, and a server error shows in the page language', async ({ page }) => {
   const fixture = await createMentorFixture({ thai: true });
   try {
     await signIn(page, fixture.owner, '/mentor-zone#profile');
     const form = page.getByRole('form', { name: 'โปรไฟล์' });
+    // เมนเทอร์ที่ย้ายมาจากระบบเดิมบันทึกทีละหมวดได้ หมวดที่ยังว่างยังอยู่ในแถบเตือน
     await form.getByRole('button', { name: 'บันทึกโปรไฟล์' }).click();
-    await expect(form.getByRole('alert')).toContainText('เลือกภาษาที่ให้คำปรึกษาอย่างน้อยหนึ่งภาษา');
+    await expect(form.getByRole('status')).toHaveText('บันทึกโปรไฟล์แล้ว');
+    await form.locator('#pv2-per-week').fill('25');
+    await form.getByRole('button', { name: 'บันทึกโปรไฟล์' }).click();
+    await expect(form.getByRole('alert')).toHaveText('จำนวน Session ต่อสัปดาห์ต้องอยู่ระหว่าง 1 ถึง 20');
   } finally {
     await fixture.cleanup();
   }

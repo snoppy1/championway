@@ -2,23 +2,29 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, ClipboardCheck, Eye, ShieldCheck } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { occupationValues, topicIds, topicValues } from '../data/stored-values';
-import type { OccupationId, TopicId } from '../data/stored-values';
+import { occupationValues } from '../data/stored-values';
+import type { OccupationId } from '../data/stored-values';
 import { occupationLabel } from '../data/profile';
 import { useAuth } from '../data/auth';
 import { ApiError, api, post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { isWebLink } from '../data/consult';
-import { ExperienceCard, PriceCard, experienceProblems, matchCompetition, priceProblem } from '../components/ApplyExperience';
+import { missingSections } from '../data/matching';
+import type { MentorProfileV2, Section } from '../data/matching';
+import { ExperienceCard, PriceCard, blankExperience, experienceProblems, matchCompetition, priceProblem } from '../components/ApplyExperience';
 import type { Experience, KnownCompetition, Price, Result } from '../components/ApplyExperience';
+import { AvailabilityFields, BasicFields, MentoringFields, SkillFields, emptyProfile } from '../components/ProfileEditor';
+import type { ProfileSetter } from '../components/ProfileEditor';
 import { useI18n } from '../i18n';
 import '../form.css';
+import '../consult.css';
 
-/* ใบสมัครเมนเทอร์ไม่มีตัวเลือก "นักเรียน" เพราะเมนเทอร์ต้องผ่านเวทีมาแล้ว */
+/* ใบสมัครเมนเทอร์ 6 ขั้น (spec 2026-10-13 ตัดสิน 21 ต.ค. 2569: ต่อเติมจากฟอร์มเดิม ไม่ออกแบบใหม่)
+   0 ข้อมูลผู้สมัคร + โปรไฟล์หมวด A · 1 ทักษะ (B) · 2 ประสบการณ์แข่งขัน (C) · 3 วิธีที่ช่วย (D)
+   4 เวลา (E) ราคาเดียวต่อเมนเทอร์ และช่องทางติดต่อ · 5 ตรวจและส่ง
+   ช่องโปรไฟล์ใช้ชุดเดียวกับแท็บโปรไฟล์ใน Mentor zone อนุมัติแล้วเมนเทอร์ครบทุกหมวดและถูกจับคู่ได้ทันที
+   ติดต่อกันนอกเว็บ เว็บไม่เก็บเงิน แก้ทุกอย่างได้ภายหลังใน Mentor zone */
 const applicantStatuses: OccupationId[] = ['university', 'working', 'other'];
-/* ขั้น 2 ประสบการณ์แข่งขัน (ติ๊กเวทีที่อยากเป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งและมีในระบบ)
-   ขั้น 3 ช่องทางติดต่อ และราคาของเวทีที่ติ๊กไว้ (ฟรี หรือบาทต่อหน่วยที่พิมพ์เอง) ไม่มีราคากลาง
-   ติดต่อกันนอกเว็บ เว็บไม่เก็บเงิน แก้ราคาได้ภายหลังใน Mentor zone */
 type Field = 'first' | 'last' | 'nickname' | 'email' | 'occupation' | 'organization' | 'role' | 'experience' | 'portfolio' | 'best' | 'cannot'
   | 'contactEmail' | 'contactLine' | 'contactPhone' | 'contactInstagram' | 'contactLink';
 const empty: Record<Field, string> = { first: '', last: '', nickname: '', email: '', occupation: '', organization: '', role: '', experience: '', portfolio: '', best: '', cannot: '', contactEmail: '', contactLine: '', contactPhone: '', contactInstagram: '', contactLink: '' };
@@ -27,28 +33,30 @@ type ConsentKey = 'accuracy' | 'guidanceOnly' | 'replies' | 'noJudging' | 'payme
 /** Every box starts unticked and all of them are required before the sample submit. */
 const consentKeys: ConsentKey[] = ['accuracy', 'guidanceOnly', 'replies', 'noJudging', 'payment'];
 const noConsent: Record<ConsentKey, boolean> = { accuracy: false, guidanceOnly: false, replies: false, noJudging: false, payment: false };
-/** ความถนัด (ผู้ใช้ขอ 7 ต.ค. 2569): เลือกจากรายการได้ไม่เกินสี่ข้อ บวก "อื่นๆ" ที่พิมพ์เองได้อีกหนึ่งข้อ */
-const maxTopics = 4;
-const topicOf = new Map<string, TopicId>(topicIds.map((id) => [topicValues[id], id]));
+const lastStage = 5;
+/** หมวดโปรไฟล์ที่แต่ละขั้นต้องกรอกให้ครบก่อนไปต่อ */
+const sectionOfStage: Partial<Record<number, Section>> = { 0: 'A', 1: 'B', 3: 'D', 4: 'E' };
 
 type StoredFile = { id: string; name: string };
-/** ใบเดิมที่ทีมงานขอข้อมูลเพิ่ม (GET /api/submissions/mentor/:id) ใช้เติมฟอร์มตอนแก้ใบ */
+/** ใบเดิมที่ทีมงานขอข้อมูลเพิ่ม (GET /api/submissions/mentor/:id) ใช้เติมฟอร์มตอนแก้ใบ ใบแบบเก่าไม่มีโปรไฟล์และราคา */
 type EditableApplication = {
   note: string;
   submission: Record<Exclude<Field, 'first' | 'last'>, string> & {
-    firstName: string; lastName: string; topics: string[]; photo: StoredFile | null;
-    offers: { slug: string; price: number; unit: string }[];
-    awards: { title: string; competitionSlug: string | null; result: Result; detail: string; year: string; evidence: string;
-      wantsMentor: boolean; offerPrice: number | null; offerUnit: string; files: StoredFile[] }[];
+    firstName: string; lastName: string; photo: StoredFile | null;
+    profile: MentorProfileV2 | null; price: { amount: number; unit: string } | null;
+    awards: { title: string; competitionSlug: string | null; kind: Experience['kind']; result: Result; detail: string; year: string;
+      role: Experience['role']; roleOther: string; responsibility: string; lessons: string; evidence: string; files: StoredFile[] }[];
   };
 };
-const priceOf = (price: number, unit: string): Price => (price === 0 ? { mode: 'free', price: '', unit: '' } : { mode: 'paid', price: String(price), unit });
+const priceOf = (amount: number, unit: string): Price => (amount === 0 ? { mode: 'free', price: '', unit: '' } : { mode: 'paid', price: String(amount), unit });
 
 export function MentorApplication() {
   const { t } = useI18n();
   const s = t.mentorApply;
+  const v = t.mentorProfileV2;
   const [stage, setStage] = useState(0);
   const [values, setValues] = useState(empty);
+  const [profile, setProfile] = useState<MentorProfileV2>(emptyProfile);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const nextExperience = useRef(0);
   // การ์ดที่แสดงปัญหาแล้ว (กดถัดไปหรือกด "เสร็จ") ปัญหาคำนวณใหม่ทุกครั้งที่แก้ จึงหายเองเมื่อแก้ครบ
@@ -56,17 +64,18 @@ export function MentorApplication() {
   const [removed, setRemoved] = useState<{ item: Experience; index: number } | null>(null);
   const [portrait, setPortrait] = useState<File>();
   const [portraitUrl, setPortraitUrl] = useState('');
-  const [selectedTopics, setSelectedTopics] = useState<TopicId[]>([]);
-  const [otherOn, setOtherOn] = useState(false);
-  const [otherTopic, setOtherTopic] = useState('');
   const [consent, setConsent] = useState(noConsent);
-  const [prices, setPrices] = useState<Record<string, Price>>({});
-  const [showPriceErrors, setShowPriceErrors] = useState(false);
+  const [price, setPrice] = useState<Price>();
+  const [showPriceError, setShowPriceError] = useState(false);
   // รายชื่อเวทีทั้งหมดในระบบ (รวมที่ปิดแล้ว) ใช้จับคู่ชื่อเวทีในประสบการณ์ โหลดไม่ได้ก็ยังพิมพ์ชื่อเองได้
   const knownList = useApi<{ items: KnownCompetition[] }>('/consult/open-competitions?all=1');
   const known = knownList.data?.items ?? [];
-  /* รายชื่อเวทีโหลดเสร็จทีหลังได้ (เน็ตช้า หรือวางชื่อก่อนโหลดเสร็จ) จับคู่ชื่อที่พิมพ์ไว้แล้วใหม่ทุกครั้งที่รายชื่อเปลี่ยน
-     ไม่งั้นเวทีที่มีในระบบจะค้างเป็น "ยังไม่มีใน ChampionWays" และติ๊กเป็นเมนเทอร์ไม่ได้ (เจอจากการทดสอบบน dev 5 ต.ค. 2569) */
+  // ชื่องานที่เมนเทอร์คนอื่นเคยพิมพ์ไว้ (รายชื่อเดียวกับประสบการณ์ใน Mentor zone) เติมคำอัตโนมัติตามที่พิมพ์อยู่
+  const typing = experiences.find((item) => item.open)?.name.trim() ?? '';
+  const typed = useApi<{ items: { id: string | null; slug: string | null; name: string }[] }>(
+    typing.length >= 2 ? `/hackathon-names?q=${encodeURIComponent(typing)}` : null);
+  const suggestions = [...new Set([...known.map((row) => row.name), ...(typed.data?.items ?? []).map((row) => row.name)])];
+  /* รายชื่อเวทีโหลดเสร็จทีหลังได้ (เน็ตช้า หรือวางชื่อก่อนโหลดเสร็จ) จับคู่ชื่อที่พิมพ์ไว้แล้วใหม่ทุกครั้งที่รายชื่อเปลี่ยน */
   useEffect(() => {
     if (!knownList.data) return;
     const list = knownList.data.items;
@@ -75,11 +84,6 @@ export function MentorApplication() {
       return slug === item.slug ? item : { ...item, slug };
     }));
   }, [knownList.data]);
-  /* เวทีที่ติ๊กว่าอยากเป็นเมนเทอร์ ไม่ซ้ำกัน ตามลำดับที่ใส่ เวทีในระบบใช้ slug เป็นคีย์ราคา
-     เวทีที่ยังไม่มีในระบบใช้ new-<id ของการ์ด> และส่งราคาไปกับรายการนั้น อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
-  const priceKey = (item: Experience) => item.slug ?? `new-${item.id}`;
-  const mentorFor = [...new Map(experiences.filter((item) => item.mentor && item.name.trim())
-    .map((item) => [priceKey(item), known.find((row) => row.slug === item.slug)?.name ?? item.name.trim()])).entries()];
   const [message, setMessage] = useState('');
   const [complete, setComplete] = useState(false);
   const [sending, setSending] = useState(false);
@@ -98,21 +102,14 @@ export function MentorApplication() {
     setValues(Object.fromEntries((Object.keys(empty) as Field[]).map((key) => [key,
       key === 'first' ? firstName : key === 'last' ? lastName : rest[key] ?? ''])) as Record<Field, string>);
     setExistingPhoto(data.photo);
-    const rows = data.awards.map((award) => ({
-      id: ++nextExperience.current, name: award.title, slug: award.competitionSlug, result: award.result, detail: award.detail,
-      year: award.year, url: award.evidence, mentor: award.wantsMentor, open: false,
+    if (data.profile) setProfile(data.profile);
+    if (data.price) setPrice(priceOf(data.price.amount, data.price.unit));
+    setExperiences(data.awards.map((award) => ({
+      ...blankExperience(++nextExperience.current), open: false,
+      name: award.title, slug: award.competitionSlug, kind: award.kind, result: award.result, detail: award.detail, year: award.year,
+      role: award.role, roleOther: award.roleOther, responsibility: award.responsibility, lessons: award.lessons, url: award.evidence,
       proofs: award.files.map((file) => ({ key: file.id, id: file.id, name: file.name })),
-    }));
-    setExperiences(rows);
-    setPrices({
-      ...Object.fromEntries(data.offers.map((offer) => [offer.slug, priceOf(offer.price, offer.unit)])),
-      ...Object.fromEntries(data.awards.flatMap((award, index) => award.wantsMentor && !award.competitionSlug && award.offerPrice !== null
-        ? [[`new-${rows[index].id}`, priceOf(award.offerPrice, award.offerUnit)]] : [])),
-    });
-    setSelectedTopics(data.topics.flatMap((topic) => topicOf.get(topic) ?? []));
-    const other = data.topics.find((topic) => !topicOf.has(topic));
-    setOtherOn(Boolean(other));
-    setOtherTopic(other ?? '');
+    })));
   }, [editing.data]);
   const formRef = useRef<HTMLFormElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -138,6 +135,8 @@ export function MentorApplication() {
   /** Editing the application after ticking "the data is mine" forces a fresh read-through. */
   const reviewAgain = () => setConsent((current) => (current.accuracy ? { ...current, accuracy: false } : current));
   const set = (field: Field, value: string) => { reviewAgain(); setValues((current) => ({ ...current, [field]: value })); };
+  const setProfileField: ProfileSetter = (key, value) => { reviewAgain(); setMessage(''); setProfile((current) => ({ ...current, [key]: value })); };
+  const profileProps = { draft: profile, set: setProfileField, busy: sending };
   // คำอธิบายใต้ช่องอยู่นอก label และผูกด้วย aria-describedby ชื่อช่องที่โปรแกรมอ่านหน้าจออ่านจะได้เป็นแค่ชื่อช่อง
   const field = (key: Field, label: string, props: InputHTMLAttributes<HTMLInputElement> = {}, hint?: string) => <div className="apply-field">
     <label htmlFor={`apply-${key}`}>{label}<input id={`apply-${key}`} value={values[key]} onChange={(event) => set(key, event.target.value)} aria-describedby={hint ? `apply-${key}-hint` : undefined} {...props} /></label>
@@ -153,7 +152,7 @@ export function MentorApplication() {
     // การ์ดที่กรอกครบแล้วพับเก็บ เหลือการ์ดใหม่ใบเดียวที่กางอยู่
     setExperiences((current) => [
       ...current.map((item) => (item.open && !experienceProblems(item).length ? { ...item, open: false } : item)),
-      { id: ++nextExperience.current, name: '', slug: null, result: '', detail: '', year: '', url: '', proofs: [], mentor: false, open: true },
+      blankExperience(++nextExperience.current),
     ]);
   };
   const finishExperience = (item: Experience) => {
@@ -174,18 +173,21 @@ export function MentorApplication() {
 
   function validate() {
     const active = formRef.current?.querySelector(`fieldset[data-stage="${stage}"]`);
-    // ช่องในการ์ดประสบการณ์ตรวจเองพร้อมข้อความใต้ช่อง จึงข้ามการตรวจแบบ bubble ของเบราว์เซอร์
-    for (const element of active?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input:not(.exp *),select:not(.exp *),textarea:not(.exp *)') ?? []) {
+    // ช่องในการ์ดประสบการณ์และช่องโปรไฟล์ตรวจเองพร้อมข้อความ จึงข้ามการตรวจแบบ bubble ของเบราว์เซอร์
+    for (const element of active?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input:not(.exp *):not(.apply-profile *),select:not(.exp *):not(.apply-profile *),textarea:not(.exp *):not(.apply-profile *)') ?? []) {
       element.setCustomValidity('');
       if (element.required && ['text', 'textarea'].includes(element.type) && !element.value.trim()) element.setCustomValidity(s.errors.fillAll);
       if (!element.reportValidity()) return false;
     }
     let error = '';
     let missingConsent: ConsentKey | undefined;
-    // รูปโปรไฟล์บังคับ เมนเทอร์ทุกคนมีรูปบนหน้าเวที (ผู้ใช้ขอ 6 ต.ค. 2569)
-    if (stage === 0 && !portrait && !existingPhoto) error = s.errors.portraitMissing;
+    const section = sectionOfStage[stage];
+    // หมวดโปรไฟล์ของขั้นนี้ต้องครบ (กฎเดียวกับ missingSections ที่เซิร์ฟเวอร์ใช้)
+    if (section && missingSections(profile, experiences.length).includes(section)) error = s.errors.profile[section as Exclude<Section, 'C'>];
+    // รูปโปรไฟล์บังคับ เมนเทอร์ทุกคนมีรูปบนโปรไฟล์ (ผู้ใช้ขอ 6 ต.ค. 2569)
+    else if (stage === 0 && !portrait && !existingPhoto) error = s.errors.portraitMissing;
     else if (stage === 0 && portrait && (!['image/png', 'image/jpeg', 'image/webp'].includes(portrait!.type) || portrait!.size > 4 * 1024 * 1024)) error = s.errors.portrait;
-    if (stage === 1) {
+    if (stage === 2) {
       // เป็นเมนเทอร์ได้ต้องเคยแข่ง จึงต้องมีประสบการณ์อย่างน้อยหนึ่งรายการ ปัญหาแสดงใต้ช่องในการ์ดนั้น
       const bad = experiences.filter((item) => experienceProblems(item).length);
       if (!experiences.length) error = s.errors.needExperience;
@@ -196,21 +198,15 @@ export function MentorApplication() {
         setTimeout(() => document.querySelector<HTMLElement>('.exp.is-invalid [aria-invalid="true"]')?.focus(), 50);
       }
     }
-    if (stage === 2) {
-      if (otherOn && !otherTopic.trim()) error = s.errors.otherMissing;
-      else if (!selectedTopics.length && !otherOn) error = s.errors.pickTopic;
-      else if (![values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].some((value) => value.trim())) error = s.errors.needContact;
-      else if (values.contactLink.trim() && !isWebLink(values.contactLink)) error = s.errors.badLink;
-      // ทุกเวทีที่ติ๊กไว้ต้องเลือกฟรี หรือใส่ราคากับหน่วยให้ครบ
-      const bad = mentorFor.filter(([slug]) => priceProblem(prices[slug]));
-      setShowPriceErrors(true);
-      if (!error && bad.length) {
-        error = s.errors.offerPrice(bad.length);
-        // รอให้กรอบแดงขึ้นก่อน แล้วพาไปการ์ดแรกที่ต้องแก้
+    if (stage === 4 && !error) {
+      setShowPriceError(true);
+      if (priceProblem(price)) {
+        error = s.errors.price;
         setTimeout(() => document.querySelector<HTMLElement>('.offer.is-invalid [aria-invalid="true"], .offer.is-invalid input[type=radio]')?.focus(), 50);
-      }
+      } else if (![values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].some((value) => value.trim())) error = s.errors.needContact;
+      else if (values.contactLink.trim() && !isWebLink(values.contactLink)) error = s.errors.badLink;
     }
-    if (stage === 3) {
+    if (stage === lastStage) {
       missingConsent = consentKeys.find((key) => !consent[key]);
       if (missingConsent) error = s.errors.consentMissing;
     }
@@ -249,26 +245,22 @@ export function MentorApplication() {
         best: values.best, cannot: values.cannot,
         contactEmail: values.contactEmail, contactLine: values.contactLine, contactPhone: values.contactPhone,
         contactInstagram: values.contactInstagram, contactLink: values.contactLink,
-        offers: mentorFor.filter(([key]) => !key.startsWith('new-')).map(([slug]) => {
-          const price = prices[slug];
-          return price.mode === 'free' ? { slug, price: 0, unit: '' } : { slug, price: Number(price.price), unit: price.unit.trim() };
-        }),
-        // ฐานข้อมูลเก็บความถนัดเป็นข้อความไทยตามเดิม ไม่ว่าผู้ใช้เลือกภาษาไหน
-        topics: [...selectedTopics.map((id) => topicValues[id]), ...(otherOn && otherTopic.trim() ? [otherTopic.trim()] : [])],
-        awards: experiences.map((item, index) => {
-          const typedPrice = item.mentor && !item.slug ? prices[priceKey(item)] : undefined;
-          return {
-            title: item.name.trim(),
-            competitionSlug: item.slug,
-            result: item.result,
-            detail: item.detail.trim(),
-            year: item.year,
-            wantsMentor: item.mentor,
-            evidence: item.url.trim(),
-            evidenceFileIds: evidenceIds[index],
-            offer: typedPrice ? { price: typedPrice.mode === 'free' ? 0 : Number(typedPrice.price), unit: typedPrice.mode === 'free' ? '' : typedPrice.unit.trim() } : null,
-          };
-        }),
+        profile,
+        price: price!.mode === 'free' ? { amount: 0, unit: '' } : { amount: Number(price!.price), unit: price!.unit.trim() },
+        awards: experiences.map((item, index) => ({
+          title: item.name.trim(),
+          competitionSlug: item.slug,
+          kind: item.kind,
+          result: item.result,
+          detail: item.detail.trim(),
+          year: item.year,
+          role: item.role,
+          roleOther: item.role === 'other' ? item.roleOther.trim() : '',
+          responsibility: item.responsibility.trim(),
+          lessons: item.lessons.trim(),
+          evidence: item.url.trim(),
+          evidenceFileIds: evidenceIds[index],
+        })),
       };
       if (editId) await api(`/submissions/mentor/${encodeURIComponent(editId)}`, { method: 'PUT', body: JSON.stringify(payload) });
       else await post('/submissions/mentor', payload);
@@ -283,7 +275,7 @@ export function MentorApplication() {
   function next(event: FormEvent) {
     event.preventDefault();
     if (!validate()) return;
-    if (stage < 3) { setStage(stage + 1); return; }
+    if (stage < lastStage) { setStage(stage + 1); return; }
     if (!user) {
       setMessage(s.errors.needSignIn);
       return;
@@ -291,7 +283,8 @@ export function MentorApplication() {
     void submitApplication();
   }
 
-  const topicLabels = [...selectedTopics.map((topic) => t.taxonomy.topics[topic]), ...(otherOn && otherTopic.trim() ? [otherTopic.trim()] : [])];
+  const priceLine = !price || priceProblem(price) ? '' : price.mode === 'free' ? t.price.line(0, null) : t.price.line(Number(price.price), null, price.unit.trim());
+  const names = <T extends string | number>(ids: readonly T[], label: (id: T) => string) => ids.map(label).join(' · ');
 
   const group = (title: string, children: ReactNode, hint?: string, aside?: ReactNode) => <section className="group">
     <div className="group-head"><h3>{title}</h3>{aside}</div>
@@ -309,6 +302,10 @@ export function MentorApplication() {
     <span>{s.consent[key]}</span>
   </label>;
 
+  const intro = (index: number, title: string, lead: string) => <>
+    <legend className="sr-only">{s.steps[index]}</legend><div className="intro"><h2 tabIndex={-1}>{title}</h2><p className="muted">{lead}</p></div>
+  </>;
+
   return <main id="main" tabIndex={-1}><div id="cw-apply" className="cw-form">
     <section className="hero">
       <div className="application-hero-inner"><Link className="application-back" to="/profile"><ArrowLeft size={16} aria-hidden="true" />{s.backToProfile}</Link><span className="tag">{editId ? s.editEyebrow : s.eyebrow}</span><h1>{s.titleFirst}<br />{s.titleSecond}</h1><p className="muted">{s.lead}</p><p className="application-prototype">{s.reviewNote}</p></div>
@@ -325,7 +322,7 @@ export function MentorApplication() {
           </section>)}
         <form ref={formRef} onSubmit={next} hidden={complete || Boolean(editId && user && !editing.data)} noValidate onInput={(event) => { if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) event.target.setCustomValidity(''); }}>
           <fieldset data-stage="0" hidden={stage !== 0} disabled={stage !== 0}>
-            <legend className="sr-only">{s.steps[0]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage0Title}</h2><p className="muted">{s.stage0Lead}</p></div>
+            {intro(0, s.stage0Title, s.stage0Lead)}
             <div className="grid">{field('first', s.firstName, { required: true, maxLength: 50, autoComplete: 'given-name' })}{field('last', s.lastName, { required: true, maxLength: 60, autoComplete: 'family-name' }, s.lastNameHint)}</div>
             {field('nickname', s.nickname, { required: true, maxLength: 30, placeholder: s.nicknamePlaceholder })}
             {field('email', s.email, { type: 'email', required: true, autoComplete: 'email' }, s.emailHint)}
@@ -333,13 +330,19 @@ export function MentorApplication() {
             {field('role', s.role, { required: true, maxLength: 100, placeholder: s.rolePlaceholder })}
             <label htmlFor="apply-portrait">{s.portrait}<input id="apply-portrait" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { reviewAgain(); setPortrait(event.target.files?.[0]); }} /><small>{s.portraitHint}</small></label>
             {existingPhoto && !portrait && <p className="portrait-current"><img src={`/api/files/${existingPhoto.id}`} alt={s.portraitAlt} />{s.portraitCurrent}</p>}
+            {group(s.profileGroup, <div className="apply-profile cx-form"><BasicFields {...profileProps} /></div>, s.profileHint)}
           </fieldset>
 
           <fieldset data-stage="1" hidden={stage !== 1} disabled={stage !== 1}>
-            <legend className="sr-only">{s.steps[1]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage1Title}</h2><p className="muted">{s.stage1Lead}</p></div>
+            {intro(1, s.skillsTitle, s.skillsLead)}
+            <div className="apply-profile cx-form"><SkillFields {...profileProps} /></div>
+          </fieldset>
+
+          <fieldset data-stage="2" hidden={stage !== 2} disabled={stage !== 2}>
+            {intro(2, s.stage1Title, s.stage1Lead)}
             {group(s.journeyGroup, <label htmlFor="apply-experience">{s.experience}<textarea id="apply-experience" required maxLength={600} value={values.experience} onChange={(event) => set('experience', event.target.value)} placeholder={s.experiencePlaceholder} /></label>, s.journeyHint)}
             {group(s.awardsGroup, <>
-              <datalist id="apply-known-competitions">{known.map((row) => <option key={row.slug} value={row.name}>{row.org}</option>)}</datalist>
+              <datalist id="apply-known-competitions">{suggestions.map((name) => <option key={name} value={name} />)}</datalist>
               {experiences.map((item, index) => <ExperienceCard key={item.id} index={index} item={item} known={known} listId="apply-known-competitions"
                 problems={checkedExperiences.includes(item.id) ? experienceProblems(item) : []} onChange={(patch) => updateExperience(item.id, patch)}
                 onRemove={() => removeExperience(item, index)} onDone={() => finishExperience(item)} />)}
@@ -353,21 +356,20 @@ export function MentorApplication() {
             </>)}
           </fieldset>
 
-          <fieldset data-stage="2" hidden={stage !== 2} disabled={stage !== 2}>
-            <legend className="sr-only">{s.steps[2]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage2Title}</h2><p className="muted">{s.stage2Lead}</p></div>
+          <fieldset data-stage="3" hidden={stage !== 3} disabled={stage !== 3}>
+            {intro(3, s.stage2Title, s.stage2Lead)}
             {group(s.scopeGroup, <>
               {field('best', s.best, { required: true, maxLength: 120, placeholder: s.bestPlaceholder }, s.bestHint)}
               {field('cannot', s.cannot, { required: true, maxLength: 120, placeholder: s.cannotPlaceholder }, s.cannotHint)}
             </>)}
-            {group(s.strengthsGroup, <>
-              <div className="topics" role="group" aria-labelledby="topic-label">
-                {topicIds.map((topic) => <label className="check topic" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={(event) => { if (event.target.checked && selectedTopics.length === maxTopics) { setMessage(s.errors.maxTopics); return; } reviewAgain(); setSelectedTopics(event.target.checked ? [...selectedTopics, topic] : selectedTopics.filter((item) => item !== topic)); setMessage(''); }} /><span>{t.taxonomy.topics[topic]}</span></label>)}
-                <label className="check topic"><input type="checkbox" checked={otherOn} onChange={(event) => { reviewAgain(); setOtherOn(event.target.checked); setMessage(''); }} /><span>{s.otherTopic}</span></label>
-              </div>
-              {otherOn && <label className="topic-other" htmlFor="apply-other-topic">{s.otherTopicLabel}
-                <input id="apply-other-topic" maxLength={80} value={otherTopic} placeholder={s.otherTopicPlaceholder}
-                  onChange={(event) => { reviewAgain(); setOtherTopic(event.target.value); }} /></label>}
-            </>, s.strengthsHint, <span className="count" id="topic-label" aria-live="polite">{s.strengthsCount(selectedTopics.length)}</span>)}
+            {group(s.mentoringGroup, <div className="apply-profile cx-form"><MentoringFields {...profileProps} /></div>, s.mentoringHint)}
+          </fieldset>
+
+          <fieldset data-stage="4" hidden={stage !== 4} disabled={stage !== 4}>
+            {intro(4, s.timeTitle, s.timeLead)}
+            {group(s.timeGroup, <div className="apply-profile cx-form"><AvailabilityFields {...profileProps} accepting={false} /></div>)}
+            {group(s.priceGroup, <ul className="offers-list"><PriceCard name={s.priceName} price={price} invalid={showPriceError}
+              onChange={(next) => { reviewAgain(); setPrice(next); }} /></ul>, s.priceHint)}
             {group(s.contactsGroup, <div className="grid">
               {field('contactEmail', s.contactEmail, { type: 'email', maxLength: 200, autoComplete: 'off' })}
               {field('contactLine', s.contactLine, { maxLength: 100, autoComplete: 'off' })}
@@ -375,47 +377,48 @@ export function MentorApplication() {
               {field('contactInstagram', s.contactInstagram, { maxLength: 100, autoComplete: 'off' })}
               {field('contactLink', s.contactLink, { type: 'url', maxLength: 500, placeholder: 'https://', autoComplete: 'off' }, s.contactLinkHint)}
             </div>, s.contactsHint)}
-            {group(s.pricingGroup, mentorFor.length
-              ? <ul className="offers-list">{mentorFor.map(([slug, name]) => <PriceCard key={slug} name={name} price={prices[slug]} invalid={showPriceErrors}
-                onChange={(next) => { reviewAgain(); setPrices((current) => ({ ...current, [slug]: next })); }} />)}</ul>
-              : <div className="note">{s.pricingEmpty}</div>, s.pricingHint)}
             <p className="muted">{s.zoneNote}</p>
           </fieldset>
 
-          <fieldset data-stage="3" hidden={stage !== 3} disabled={stage !== 3}>
-            <legend className="sr-only">{s.steps[3]}</legend><div className="intro"><h2 tabIndex={-1}>{s.stage3Title}</h2><p className="muted">{s.stage3Lead}</p></div>
+          <fieldset data-stage="5" hidden={stage !== 5} disabled={stage !== 5}>
+            {intro(5, s.stage3Title, s.stage3Lead)}
             {group(s.previewGroup, <div className="profile">
               {portraitUrl || existingPhoto ? <img className="avatar" src={portraitUrl || `/api/files/${existingPhoto!.id}`} alt={s.portraitAlt} /> : <div className="avatar" aria-hidden="true">{values.first.slice(0, 1)}</div>}
               <h4>{values.nickname} {values.last.trim().slice(0, 1)}.</h4>
+              {profile.headline && <p><strong>{profile.headline}</strong></p>}
               <p className="muted">{values.role} · {values.organization}</p>
               <p><strong>{s.bestLabel}</strong> {values.best}</p>
               <p><strong>{s.cannotLabel}</strong> {values.cannot}</p>
-              <p>{topicLabels.map((label) => <span className="tag" key={label}>{label}</span>)}</p>
+              <p>{profile.helpsWith.map((id) => <span className="tag" key={id}>{v.helpsWithNames[id]}</span>)}</p>
               <small>{s.previewFooter}</small>
             </div>, s.previewHint)}
             {reviewGroup(s.reviewApplicant, 0, <>
               <div className="review"><small>{s.reviewFullName}</small><strong>{values.first} {values.last}</strong></div>
               <div className="review"><small>{s.reviewEmail}</small><strong>{values.email}</strong></div>
               <div className="review"><small>{s.reviewStatus}</small>{occupationLabel(values.occupation, t)} · {values.organization}</div>
+              <div className="review"><small>{v.sectionNames.A}</small>{[profile.headline, v.countries[profile.country], profile.background, names(profile.languages, (id) => v.languageNames[id])].filter(Boolean).join(' · ')}</div>
             </>)}
-            {reviewGroup(s.reviewExperienceGroup, 1, <>
+            {reviewGroup(s.steps[1], 1, <div className="review"><small>{v.skills}</small>{profile.skills.map((skill) => `${v.skillNames[skill.tag]} (${v.levelNames[skill.level]})`).join(' · ')}</div>)}
+            {reviewGroup(s.reviewExperienceGroup, 2, <>
               <div className="review"><small>{s.reviewExperience}</small>{values.experience}</div>
               {experiences.map((item) => <div className="review" key={item.id}>
                 <strong>{item.name}</strong>
-                <p>{[item.result && t.taxonomy.results[item.result], item.detail, item.year].filter(Boolean).join(' · ')}</p>
-                <small>{s.reviewAwaiting(item.proofs.map((proof) => proof.name).join(', ') || item.url)}{item.mentor ? ` · ${s.reviewWantsMentor}` : ''}</small>
+                <p>{[item.kind && v.kindNames[item.kind], item.year, item.result && v.resultNames[item.result], item.detail, item.role && (item.role === 'other' ? item.roleOther : v.roleNames[item.role])].filter(Boolean).join(' · ')}</p>
+                <small>{s.reviewAwaiting([...item.proofs.map((proof) => proof.name), item.url.trim()].filter(Boolean).join(', '))}</small>
               </div>)}
               {values.portfolio && <div className="review"><small>{s.reviewPortfolio}</small>{values.portfolio}</div>}
             </>)}
-            {reviewGroup(s.strengthsGroup, 2, <>
-              <div className="review"><small>{s.reviewStrengths}</small>{topicLabels.join(' · ')}</div>
+            {reviewGroup(s.steps[3], 3, <>
+              <div className="review"><small>{v.helpsWith}</small>{names(profile.helpsWith, (id) => v.helpsWithNames[id])}</div>
+              <div className="review"><small>{v.learnerLevels}</small>{names(profile.learnerLevels, (id) => v.learnerLevelNames[id])}</div>
+              <div className="review"><small>{v.teachingStyles}</small>{names(profile.teachingStyles, (id) => v.teachingStyleNames[id])}</div>
+              <div className="review"><small>{v.formats}</small>{names(profile.formats, (id) => v.formatNames[id])}</div>
+            </>)}
+            {reviewGroup(s.steps[4], 4, <>
+              <div className="review"><small>{v.availability}</small>{profile.availability.map((slot) => `${v.days[slot.day]} ${slot.from}–${slot.to}`).join(' · ')}</div>
+              <div className="review"><small>{v.sessionMinutes}</small>{[names(profile.sessionMinutes, (n) => v.minutes(n)), profile.sessionsPerWeek && `${v.sessionsPerWeek}: ${profile.sessionsPerWeek}`, profile.replyHours && v.replyOptions[profile.replyHours], profile.mode && v.modeNames[profile.mode]].filter(Boolean).join(' · ')}</div>
+              <div className="review"><small>{s.priceGroup}</small><strong>{priceLine}</strong></div>
               <div className="review"><small>{s.reviewContacts}</small>{[values.contactEmail, values.contactLine, values.contactPhone, values.contactInstagram, values.contactLink].filter((value) => value.trim()).join(' · ')}</div>
-              <div className="review"><small>{s.reviewCompetitions}</small>{mentorFor.length
-                ? <ul className="review-offers">{mentorFor.map(([slug, name]) => <li key={slug}>
-                  <span>{name}</span>
-                  <strong>{prices[slug]?.mode === 'free' ? t.price.line(0, null) : t.price.line(Number(prices[slug]?.price), null, prices[slug]?.unit.trim())}</strong>
-                </li>)}</ul>
-                : s.reviewNoCompetitions}</div>
             </>)}
             {group(s.consentGroup, <>
               <div className="consent-list">{consentKeys.slice(0, 4).map(consentBox)}</div>
@@ -426,7 +429,7 @@ export function MentorApplication() {
           {!authLoading && !user && <p className="note" role="status">
             {s.signInBefore}<Link to={`/signin?next=${encodeURIComponent(editId ? `/mentors/apply?edit=${editId}` : '/mentors/apply')}`}>{s.signInLink}</Link>{s.signInAfter}
           </p>}
-          <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>{s.back}</button>}<span className="muted">{s.stepOf(stage + 1)}</span><button className="primary" type="submit" disabled={sending}>{stage === 3 ? (sending ? s.submitting : editId ? s.editSubmit : s.submit) : s.next}{stage < 3 && <ArrowRight aria-hidden="true" />}</button></div>
+          <p className="application-message" role="alert">{message}</p><div className="actions">{stage > 0 && <button type="button" onClick={() => goTo(stage - 1)}>{s.back}</button>}<span className="muted">{s.stepOf(stage + 1)}</span><button className="primary" type="submit" disabled={sending}>{stage === lastStage ? (sending ? s.submitting : editId ? s.editSubmit : s.submit) : s.next}{stage < lastStage && <ArrowRight aria-hidden="true" />}</button></div>
         </form>
         {complete && <div className="application-complete"><ClipboardCheck className="finish-icon" aria-hidden="true" /><h2 tabIndex={-1}>{editId ? s.editDoneTitle : s.doneTitle}</h2><p>{editId ? s.editDoneText : s.doneText}</p><div className="note">{s.doneNote}</div><p className="muted">{s.doneStatuses}</p><button type="button" onClick={() => setComplete(false)}>{s.doneBack}</button><Link className="application-return" to="/profile">{s.doneProfile}</Link></div>}
       </div>

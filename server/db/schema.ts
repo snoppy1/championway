@@ -231,6 +231,15 @@ export const mentorSubmissions = pgTable('mentor_submissions', {
   /** รูปโปรไฟล์ที่อัปโหลดตอนสมัคร (บังคับตั้งแต่ 6 ต.ค. 2569) */
   photoFileId: text('photo_file_id').references(() => files.id, { onDelete: 'set null' }),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  /* ใบสมัครแบบใหม่ (spec 2026-10-13 ตัดสิน 21 ต.ค. 2569): โปรไฟล์หมวด A, B, D, E ครบทั้งชุด กับราคาเดียวต่อเมนเทอร์
+     (price ข้างบน 0 = ฟรี หน่วยพิมพ์เอง) อนุมัติแล้วคัดลอกไปที่ mentors และ mentor_skills ใบแบบเก่า profile เป็น null */
+  profile: jsonb('profile').$type<{
+    headline: string; country: string; timeZone: string; languages: string[]; background: string; gender: 'male' | 'female' | null;
+    skills: { tag: string; level: string }[]; helpsWith: string[]; learnerLevels: string[]; teachingStyles: string[]; formats: string[];
+    deliverables: string; availability: { day: number; from: string; to: string }[]; sessionsPerWeek: number | null; sessionMinutes: number[];
+    acceptingRequests: boolean; replyHours: number | null; acceptsUrgent: boolean; mode: 'online' | 'onsite' | 'both' | null;
+  }>(),
+  priceUnit: text('price_unit').notNull().default(''),
 }, (table) => [index('mentor_submissions_status_idx').on(table.status, table.submittedAt)]);
 
 export const mentorAwards = pgTable('mentor_awards', {
@@ -246,9 +255,15 @@ export const mentorAwards = pgTable('mentor_awards', {
   evidence: text('evidence').notNull(),
   /* ประสบการณ์แข่งขัน (ผู้ใช้ตัดสิน 4 ต.ค. 2569): เป็นเมนเทอร์ของเวทีไหนได้ต้องเคยแข่งเวทีนั้นเอง ผลอะไรก็ได้
      ไม่รับโค้ชหรือกรรมการ รางวัลเป็นป้ายและคะแนนจัดอันดับ ไม่ใช่เงื่อนไข */
-  result: text('result').$type<'winner' | 'finalist' | 'participant'>().notNull().default('winner'),
-  /** รายละเอียดผล เช่น "รองชนะเลิศอันดับ 1" ไม่บังคับ */
+  result: text('result').$type<'winner' | 'finalist' | 'participant' | 'other'>().notNull().default('winner'),
+  /** รายละเอียดผล เช่น "รองชนะเลิศอันดับ 1" ใบแบบใหม่บังคับเมื่อ winner (ชื่อรางวัล) หรือ other (คำอธิบาย) */
   detail: text('detail').notNull().default(''),
+  /* ใบแบบใหม่ ช่องเดียวกับประสบการณ์ใน Mentor zone (mentor_experiences) ใบแบบเก่าได้ค่าเริ่มต้น */
+  kind: text('kind').$type<'hackathon' | 'case' | 'innovation' | 'software' | 'other'>().notNull().default('hackathon'),
+  role: text('role').$type<'developer' | 'designer' | 'leader' | 'business' | 'other'>().notNull().default('other'),
+  roleOther: text('role_other').notNull().default(''),
+  responsibility: text('responsibility').notNull().default(''),
+  lessons: text('lessons').notNull().default(''),
   /** อยากเป็นเมนเทอร์ของเวทีนี้ ติ๊กได้เฉพาะเวทีที่มีในระบบ */
   wantsMentor: boolean('wants_mentor').notNull().default(false),
   /** ไฟล์หลักฐานที่แนบ อย่างน้อยหนึ่งไฟล์ สูงสุดห้าไฟล์ (บังคับตั้งแต่ 6 ต.ค. 2569 หลายไฟล์ตั้งแต่ 7 ต.ค.) เห็นเฉพาะทีมตรวจ */
@@ -257,7 +272,7 @@ export const mentorAwards = pgTable('mentor_awards', {
   offerUnit: text('offer_unit').notNull().default(''),
 }, (table) => [
   index('mentor_awards_submission_idx').on(table.submissionId),
-  check('mentor_awards_result_check', sql`${table.result} in ('winner', 'finalist', 'participant')`),
+  check('mentor_awards_result_check', sql`${table.result} in ('winner', 'finalist', 'participant', 'other')`),
 ]);
 
 /** ประสบการณ์แข่งขันของเมนเทอร์ที่ผ่านการตรวจแล้ว คัดลอกจากใบสมัครตอนอนุมัติ
@@ -273,7 +288,7 @@ export const mentorExperiences = pgTable('mentor_experiences', {
   year: text('year').notNull(),
   /** ชื่อรางวัล (ต้องมีเมื่อ winner) หรือคำอธิบายผลแบบ "อื่น ๆ" */
   detail: text('detail').notNull().default(''),
-  kind: text('kind').$type<'hackathon' | 'innovation' | 'software' | 'other'>().notNull().default('hackathon'),
+  kind: text('kind').$type<'hackathon' | 'case' | 'innovation' | 'software' | 'other'>().notNull().default('hackathon'),
   role: text('role').$type<'developer' | 'designer' | 'leader' | 'business' | 'other'>().notNull().default('other'),
   roleOther: text('role_other').notNull().default(''),
   responsibility: text('responsibility').notNull().default(''),

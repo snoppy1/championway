@@ -8,7 +8,7 @@ import { emailLog, mentorAwards, mentorSubmissions, sessions, staffAlerts, staff
 import { testDatabase } from '../server/lib/database-safety';
 import { createSession } from '../server/lib/session';
 import { env } from '../server/lib/env';
-import { withUploads } from './fake-files';
+import { applicationAward, applicationPrice, applicationProfile, withUploads } from './fake-files';
 
 /* แจ้งทีมงานทางอีเมลเมื่อมีเรื่องใหม่รอตรวจ: เปิด/ปิดได้ ส่งถึง admin ทุกคน หรือเลือกเฉพาะบางคน (ตั้งได้เฉพาะ admin) */
 
@@ -33,8 +33,7 @@ async function apply(cookie: string) {
   const response = await call('/submissions/mentor', cookie, 'POST', await withUploads(cookie, {
     firstName: `ผู้สมัคร${seq++}`, lastName: 'ทดสอบ', nickname: 'ทด', email: `${prefix}-applicant@championways.test`, occupation: 'ทำงานแล้ว',
     organization: 'ทีม', role: 'วิศวกร', experience: 'เคยแข่ง', best: 'ช่วยได้', cannot: 'ช่วยไม่ได้',
-    topics: ['ตีโจทย์และหาไอเดีย', 'Pitching และตอบคำถาม'], contactLine: 'line',
-    awards: [{ title: 'เวทีนอกระบบ', competitionSlug: null, result: 'participant', year: '2567', evidence: 'https://example.test/x' }],
+    contactLine: 'line', profile: applicationProfile, price: applicationPrice, awards: [applicationAward()],
   }));
   assert.equal(response.status, 201, await response.clone().text());
   return (await response.json()).id as string;

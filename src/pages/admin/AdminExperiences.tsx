@@ -20,7 +20,7 @@ const pillClass: Record<Status, string> = { pending: 'is-pending', verified: 'is
 const filters: { id: Status | 'all'; label: string }[] = [
   { id: 'pending', label: 'รอตรวจ' }, { id: 'verified', label: 'ตรวจแล้ว' }, { id: 'rejected', label: 'ไม่ผ่าน' }, { id: 'all', label: 'ทั้งหมด' },
 ];
-const kindLabel: Record<string, string> = { hackathon: 'Hackathon', innovation: 'Innovation / Invention', software: 'Software / Programming', other: 'ประเภทอื่น' };
+const kindLabel: Record<string, string> = { hackathon: 'Hackathon', case: 'Case competition', innovation: 'Innovation / Invention', software: 'Software / Programming', other: 'ประเภทอื่น' };
 const resultLabel: Record<string, string> = { participant: 'ผู้เข้าร่วม', finalist: 'Finalist', winner: 'ได้รับรางวัล', other: 'ผลอื่น ๆ' };
 const roleLabel: Record<string, string> = { developer: 'Developer', designer: 'Designer', leader: 'Team Leader / PM', business: 'Business / Pitching', other: 'อื่น ๆ' };
 

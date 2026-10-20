@@ -66,36 +66,48 @@ try {
   // ---------- 1. สมัครเมนเทอร์ ----------
   const mctx = await ctxFor(browser, applicant.session);
   const m = await mctx.newPage(); openPages.push(m);
-  await step('1 สมัครเมนเทอร์ (4 ขั้น)', async () => {
+  await step('1 สมัครเมนเทอร์ (6 ขั้น)', async () => {
+    const next = () => m.getByRole('button', { name: 'ถัดไป', exact: true }).click();
+    const chip = (name: string) => m.getByRole('checkbox', { name, exact: true }).check();
     await m.goto(`${BASE}/mentors/apply`);
     await m.fill('#apply-first', 'สมชาย'); await m.fill('#apply-last', 'ทดสอบระบบ'); await m.fill('#apply-nickname', 'ชาย');
     await m.fill('#apply-email', applicant.email);
     await m.selectOption('#apply-occupation', { index: 2 }); await m.fill('#apply-organization', 'มหาวิทยาลัยทดสอบ'); await m.fill('#apply-role', 'วิศวกร');
-    await m.getByRole('button', { name: 'ถัดไป', exact: true }).click();
+    await m.locator('#apply-portrait').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: Buffer.from('89504e470d0a1a0a', 'hex') });
+    await m.fill('#pv2-headline', 'AI Engineer | E2E mentor'); await m.selectOption('#pv2-country', 'TH');
+    await m.fill('#pv2-background', 'วิศวกรรมคอมพิวเตอร์'); await chip('ภาษาไทย');
+    await next();
+    await m.selectOption('#pv2-skill-python', 'expert'); await m.selectOption('#pv2-skill-pitching', 'advanced');
+    await next();
     await m.fill('#apply-experience', 'เคยแข่ง AI for Good และเวทีอื่น ๆ หลายรายการ');
-    await m.getByRole('button', { name: '+ เพิ่มเวทีที่เคยแข่ง' }).click();
-    let card = m.locator('.exp').last();
-    await card.getByLabel('ชื่อเวที *').fill(competitionName);
-    await card.locator('.exp-match.is-known').waitFor();
-    await card.locator('.offer-mode__option').filter({ hasText: 'ได้รางวัล' }).click();
-    await card.getByLabel('ปี พ.ศ. *').fill('2567');
-    await card.getByLabel(/ลิงก์ประกาศผล/).fill('https://example.com/results-2567');
-    await card.getByRole('checkbox', { name: /อยากเป็นเมนเทอร์ของเวทีนี้/ }).check();
-    await m.getByRole('button', { name: '+ เพิ่มเวทีที่เคยแข่ง' }).click();
-    card = m.locator('.exp').last();
-    await card.getByLabel('ชื่อเวที *').fill('เวทีนอกระบบ E2E');
-    await card.locator('.offer-mode__option').filter({ hasText: 'เข้าร่วม' }).click();
-    await card.getByLabel('ปี พ.ศ. *').fill('2566');
-    await card.getByLabel(/ลิงก์ประกาศผล/).fill('https://example.com/other');
-    await m.getByRole('button', { name: 'ถัดไป', exact: true }).click();
+    const addCard = async (name: string, result: string, year: string, url: string) => {
+      await m.getByRole('button', { name: '+ เพิ่มเวทีที่เคยแข่ง' }).click();
+      const card = m.locator('.exp').last();
+      await card.getByLabel('ชื่อเวที *').fill(name);
+      await card.getByLabel('ประเภทการแข่งขัน *').selectOption('hackathon');
+      await card.getByLabel('ปี พ.ศ. *').fill(year);
+      await card.locator('.offer-mode__option').filter({ hasText: result }).click();
+      await card.getByLabel('บทบาทในทีม *').selectOption('developer');
+      await card.getByLabel('สิ่งที่รับผิดชอบในการแข่งขัน *').fill('เขียนโมเดลและเดโม');
+      await card.getByLabel('ลิงก์หลักฐาน', { exact: true }).fill(url);
+      return card;
+    };
+    const known = await addCard(competitionName, 'ผู้เข้าร่วมการแข่งขัน', '2567', 'https://example.com/results-2567');
+    await known.locator('.exp-match.is-known').waitFor();
+    await addCard('เวทีนอกระบบ E2E', 'เข้ารอบชิงชนะเลิศ', '2566', 'https://example.com/other');
+    await next();
     await m.fill('#apply-best', 'ช่วยตีโจทย์และซ้อมพิทช์'); await m.fill('#apply-cannot', 'ไม่ทำงานส่งแทน');
-    await m.locator('.topic input').nth(0).check(); await m.locator('.topic input').nth(1).check();
-    await m.fill('#apply-contactLine', 'e2e.mentor.line');
+    await chip('Coding'); await chip('Beginner'); await chip('Review งาน'); await chip('1-on-1');
+    await next();
+    await m.getByRole('button', { name: 'เพิ่มช่วงเวลา' }).click();
+    await m.fill('#pv2-per-week', '2'); await chip('60 นาที');
+    await m.selectOption('#pv2-reply', '24'); await m.selectOption('#pv2-mode', 'online');
     const price = m.locator('.offers-list .offer').first();
     await price.locator('.offer-mode__option').filter({ hasText: 'ตั้งราคา' }).click();
     await price.getByLabel('ราคา (บาท)').fill('300');
     await price.getByLabel('คิดต่ออะไร').fill('ชั่วโมง');
-    await m.getByRole('button', { name: 'ถัดไป', exact: true }).click();
+    await m.fill('#apply-contactLine', 'e2e.mentor.line');
+    await next();
     for (const box of await m.locator('.consent-check input').all()) await box.check();
     await shot(m, '1-review');
     await m.getByRole('button', { name: 'ส่งใบสมัคร', exact: true }).click();
@@ -103,8 +115,8 @@ try {
     const [row] = await db.select().from(mentorSubmissions).where(eq(mentorSubmissions.userId, applicant.id)).orderBy(desc(mentorSubmissions.submittedAt));
     ids.submission = row.id;
     const awards = await db.select().from(mentorAwards).where(eq(mentorAwards.submissionId, row.id));
-    if (awards.length !== 2 || row.competitionOffers.length !== 1) throw new Error(`awards ${awards.length} offers ${row.competitionOffers.length}`);
-    return `ใบ ${row.id} · ประสบการณ์ ${awards.length} · ราคา ${row.competitionOffers[0].price} ต่อ ${row.competitionOffers[0].unit}`;
+    if (awards.length !== 2 || !row.profile || row.price !== 300) throw new Error(`awards ${awards.length} profile ${Boolean(row.profile)} price ${row.price}`);
+    return `ใบ ${row.id} · ประสบการณ์ ${awards.length} · ราคา ${row.price} ต่อ ${row.priceUnit}`;
   });
 
   await step('1b อีเมล: ผู้สมัครได้รับ + admin ได้แจ้งเตือน', async () => {

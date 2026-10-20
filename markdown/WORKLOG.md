@@ -330,3 +330,54 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 - Owner ran Neon production migrations 0021–0025 (applied successfully), then fast-forwarded `main` to `596853f`.
 - Checked live: `/api/health` ok, new zone/state and mentor-submission endpoints answer 401 signed out, admin endpoints 401, competition list/detail/mentor list load. `payoutKey: missing` in health is pre-existing (hiring is paused).
+
+## 2026-10-13 — Pivot to hackathon mentor matching: phase 1 of 4, mentor profile v2
+
+- Owner's direction: ChampionWays becomes a platform that matches hackathon mentors with students (not a competition list like Contesterlife). Spec: `docs/superpowers/specs/2026-10-13-mentor-matching-design.md`.
+  - Phase order: 1 mentor profile → 2 learner profile, projects, questions, matching → 3 Start/Finish consult and reviews → 4 new Home and menu.
+  - Owner decisions in the spec, section 2. The competition system is hidden but kept, and existing mentors fill the gaps.
+  - Typed names autocomplete at once but count only after an admin check. Start Consult shows contacts; Finish needs the mentor's confirmation. H is a graded score.
+- Plan for this phase: `docs/superpowers/plans/2026-10-13-mentor-profile-v2.md`.
+- Migration **0028** (additive only):
+  - `mentors` gains A/D/E fields: headline, country (`ZZ` = other), time zone, languages, background, optional gender (never public), helpsWith, learner levels, teaching styles, formats, deliverables, availability slots, sessions/week, session lengths, accepting, reply hours, urgent, mode.
+  - New tables `mentor_skills` (tag + level) and `hackathon_names` (typed competition names for autocomplete).
+  - `mentor_experiences` gains hackathon_name_id, kind, role, role_other, responsibility, evidence_url, lessons, status (existing rows = `verified`), reviewed_by/at and reason. Result `other` is added (it shows as participant in the old badge and rank).
+- Only `verified` experiences count for "mentor this competition", competition-page badges and ranking.
+- Option lists and `missingSections`/`profileComplete`/`normalizeName` live in `src/data/matching.ts` (shared with the server).
+- API:
+  - GET/PUT `/consult/zone/profile`.
+  - GET/POST/DELETE `/consult/zone/experiences` (pending; up to 10 waiting; a duplicate competition+year gives 409; a typed name equal to a listed competition binds to it).
+  - GET `/hackathon-names?q=`.
+  - Admin GET `/admin/experiences`, POST `/admin/experiences/:id/decision`.
+  - `/consult/zone` returns `profileComplete`/`profileMissing`.
+  - `/consult/mentors/:id` returns `profile` (no gender), `experiences` (verified + pending; evidence link only once checked) and `stats` (section F: email verified, completed sessions, response rate, checked evidence links; `lib/mentor-stats.ts`).
+- Staff email for a new experience reuses the `competition_request` notification kind.
+- UI:
+  - Mentor zone (both the live go-between zone and the paused hire zone) has new "โปรไฟล์" (`ProfileEditor`) and "ประสบการณ์" (`ExperienceList`, combobox autocomplete) tabs, a completeness banner, and `#profile`/`#experiences` hashes.
+  - New admin page /admin/experiences.
+  - The public profile adds headline, skills, mentoring + availability, structured experiences and trust.
+- Not changed: the mentor application form (new mentors fill A–F after approval, like existing ones).
+- Tests:
+  - scripts/matching-data.test.ts and scripts/mentor-profile.test.ts (API).
+  - tests/mentor-profile-v2.spec.ts (zone profile, experiences, admin queue, public profile).
+  - Tab-list assertions in contact.spec/i18n.spec updated.
+- Production needs migration 0028 before main is pushed.
+
+## 2026-10-21 — Phase 1 fixes and the six-step mentor application
+
+- Owner's decisions (spec decision 14): extend the existing application instead of a new Design; Sign in / Sign up stay the existing pages. Matching v2 and Landing v4 designs approved (structure only; small details handled in code).
+- Phase 1 review fixes:
+  - `/consult/zone/*` routes in `routes/mentor-profile.ts` now set `no-store` and refuse cross-site writes themselves (consult's middleware never ran on them).
+  - Errors from those routes come as codes and answer in the page language (`x-lang`); stray zod messages become "Some details are not valid."
+  - A partly filled profile saves (empty skills/languages allowed); `missingSections` flags the gaps.
+  - Approving a competition request or a mentor's competition submission now verifies an existing pending/rejected row for the same competition and year (`onConflictDoUpdate`), instead of silently doing nothing.
+- Option lists: skills `strategy`, `finance`; experience kind `case`; helpsWith `case_analysis` (TH/EN names, admin label).
+- Mentor application `/mentors/apply`, six steps: applicant details + profile A → skills → competition experience → how you help → time, one price, contacts → review.
+  - Profile fields are shared components from `components/ProfileEditor.tsx` (`BasicFields`, `SkillFields`, `MentoringFields`, `AvailabilityFields`).
+  - Experience cards add type, role (+other), responsibility, lessons; evidence is a file or an https link; winner needs the award name. Autocomplete adds typed names from `/hackathon-names`.
+  - Per-competition prices and old topics are gone; one price per mentor (free or amount per own unit).
+- Migration **0029** (additive): `mentor_submissions.profile` (jsonb) and `price_unit`; `mentor_awards` kind, role, role_other, responsibility, lessons; result `other` allowed.
+- Server: the application requires a complete profile. On approval the mentor gets A–E and skills, experiences become `verified` with the new fields, typed names join `hackathon_names`, and listed competitions they entered become `help` choices at the one price. Old pending applications (no profile) still publish the old way. Edit mode returns profile, price and the new fields. Admin review page shows the profile, price and new experience fields.
+- Tests: `scripts/mentor-application.test.ts` (replaces mentor-offers: validation, TH/EN messages, approval → complete, matchable mentor, public profile), mentor-profile.test (partial save, no-store, cross-site 403, languages, request approval verifies a pending row), mentor-edit and staff-notify updated; `tests/mentor-application.spec.ts` rewritten for six steps; mentor-profile-v2 spec updated; `scripts/e2e-dev.mts` step 1 follows the new form.
+- Checks: API 121/121; Playwright 342 passed + the 3 updated tests pass on all viewports (90 skipped as before); build ok. `check:i18n` still reports Thai in `src/legal/*` (unchanged files, pre-existing).
+- Production needs migrations 0028 and 0029 before main is pushed.

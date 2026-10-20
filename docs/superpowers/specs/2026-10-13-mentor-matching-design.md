@@ -28,6 +28,7 @@ Success: a first-time visitor understands what ChampionWays does within 5 second
 | 11 | One mentor at a time (2026-10-20) | A project has at most one open consultation, so advice never conflicts. After Finish (waiting for the mentor) the learner may start with someone else. **Change mentor** ends an open consultation with a reason (`no_response`, `not_fit`, `other`) and no review. See 6.1. |
 | 12 | Navigation (2026-10-20) | Sign-in area as on the current site, plus **My Projects** for signed-in users. No Match button in the nav: matching starts from the Landing CTA or My Projects → New project. See 7. |
 | 13 | Landing copy and ranking (2026-10-20) | Copy never says every mentor is a winner (any verified result qualifies; awards are badges). The Landing ranking shows **paid Rising Star members only**, ranked by this month's reviews (existing monthly logic), periods This month / Last month, field filter derived from skill groups (business / technology / design). Mentor card topics come from `helpsWith`; price shows the mentor's own unit. |
+| 14 | Mentor application (2026-10-21) | Extend the existing form, no new Design. Six steps: applicant details + A, skills (B), competition experience (C, same fields as Mentor zone; evidence file **or** https link), how you help (D), time (E) + one price per mentor + contacts, review. The profile must be complete to submit. On approval the mentor gets A–E and skills, experiences become `verified`, typed names join `hackathon_names`, and listed competitions they entered become `help` choices at that one price. Per-competition prices and old topics are gone from the form; old pending applications still publish the old way. Sign in / Sign up stay the existing pages. |
 
 Unchanged constraints: hiring/chat/payment stay paused behind `HIRING_ENABLED`; mentors only mentor competitions they competed in (checked evidence); all copy TH/EN via dictionaries; Production deploy only when the owner asks, migrations first.
 
@@ -44,7 +45,7 @@ Phase 4 goes last so the current site keeps working until the new path is comple
 
 ## 4. Data model
 
-Next migration number: 0028.
+Next migration number: 0030 (0028 profile v2, 0029 mentor application v2).
 
 ### 4.1 Mentor (fixed option lists live in `src/data/matching.ts`, shared with the server)
 
@@ -216,7 +217,7 @@ G = 0 with no match, else 0.5 + 0.5 × (matched ÷ wanted). For `build_skills` t
 | `/matches/:requestId` | Results: mentor cards (photo, headline, % match, reasons, price), profile link, **Start Consult** per mentor; disabled while the project has an open consultation |
 | `/mentors/:id` | Profile shows A, B, C (verified + pending), D, E summary, F stats |
 | Mentor zone | New tab "โปรไฟล์" for A/B/D/E; experiences tab for C (add → admin evidence check); completeness banner |
-| Mentor application | Expanded to A–E (C uses the experience form) |
+| Mentor application | `/mentors/apply`, six steps covering A–E (decision 14); approval makes a complete, matchable mentor |
 | Admin | Experience evidence queue (extends the existing request queue); the competition admin stays for the names list |
 
 API (all under `/api`): `GET/PUT /learner/profile`; `GET/POST /projects`, `GET/PUT/DELETE /projects/:id`; `POST /projects/:id/match` → `{ requestId }`; `GET /matches/:requestId`; `POST /matches/:requestId/start/:mentorId` → creates the consultation (status `contacted`), returns contacts, emails the mentor a summary of the project and answers (never the learner's email); `GET/PUT /consult/zone/profile`; `POST /consult/zone/experiences`; `GET /hackathon-names?q=`.

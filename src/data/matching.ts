@@ -8,7 +8,7 @@ export const skillGroups = {
   hardware: ['hardware_iot_robotics'],
   dataCloud: ['data_science', 'cybersecurity', 'cloud'],
   design: ['uiux', 'product_design'],
-  business: ['business_model', 'startup', 'marketing'],
+  business: ['business_model', 'startup', 'marketing', 'strategy', 'finance'],
   pitch: ['pitching', 'presentation', 'storytelling'],
 } as const;
 export type SkillGroup = keyof typeof skillGroups;
@@ -22,14 +22,14 @@ export type Language = (typeof languages)[number];
 export const genders = ['male', 'female'] as const;
 export type Gender = (typeof genders)[number];
 
-export const experienceKinds = ['hackathon', 'innovation', 'software', 'other'] as const;
+export const experienceKinds = ['hackathon', 'case', 'innovation', 'software', 'other'] as const;
 export type ExperienceKind = (typeof experienceKinds)[number];
 export const experienceResults = ['participant', 'finalist', 'winner', 'other'] as const;
 export type ExperienceResult = (typeof experienceResults)[number];
 export const teamRoles = ['developer', 'designer', 'leader', 'business', 'other'] as const;
 export type TeamRole = (typeof teamRoles)[number];
 
-export const helpsWith = ['idea_validation', 'coding', 'debugging', 'architecture', 'mvp', 'pitch_deck', 'presentation'] as const;
+export const helpsWith = ['idea_validation', 'coding', 'debugging', 'architecture', 'mvp', 'pitch_deck', 'presentation', 'case_analysis'] as const;
 export type HelpsWith = (typeof helpsWith)[number];
 export const learnerLevels = ['beginner', 'intermediate', 'advanced'] as const;
 export type LearnerLevel = (typeof learnerLevels)[number];

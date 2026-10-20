@@ -4,7 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { eq, inArray, like } from 'drizzle-orm';
 import { app } from '../server/app';
 import { db, client } from '../server/db/client';
-import { competitions, hackathonNames, mentorExperiences, mentorSkills, mentorSubmissions, mentors, sessions, staffAlerts, users } from '../server/db/schema';
+import {
+  competitionRequests, competitions, hackathonNames, mentorCompetitionChoices, mentorExperiences, mentorSkills, mentorSubmissions, mentors, sessions, staffAlerts, users,
+} from '../server/db/schema';
 import { testDatabase } from '../server/lib/database-safety';
 import { createSession } from '../server/lib/session';
 
@@ -70,7 +72,6 @@ test('profile: only mentors, validation, save and completeness', async () => {
   // ค่าที่ไม่อยู่ในรายการ ภาษาว่าง ช่วงเวลากลับหัว ถูกปฏิเสธ
   for (const bad of [
     { ...fullProfile, skills: [{ tag: 'cobol', level: 'expert' }] },
-    { ...fullProfile, languages: [] },
     { ...fullProfile, availability: [{ day: 1, from: '10:00', to: '09:00' }] },
     { ...fullProfile, availability: [{ day: 1, from: '9am', to: '10:00' }] },
     { ...fullProfile, sessionMinutes: [45] },
@@ -88,7 +89,33 @@ test('profile: only mentors, validation, save and completeness', async () => {
   // บันทึกซ้ำแทนที่ทักษะเดิมทั้งชุด (ไม่ซ้อน)
   const again = await (await send('PUT', '/consult/zone/profile', owner.cookie, { ...fullProfile, skills: [{ tag: 'llm', level: 'intermediate' }] })).json() as { profile: typeof fullProfile };
   assert.deepEqual(again.profile.skills, [{ tag: 'llm', level: 'intermediate' }]);
-  assert.equal((await send('PUT', '/consult/zone/profile', owner.cookie, { ...fullProfile, skills: [] })).status, 400);
+  // บันทึกได้แม้ยังไม่ครบ (เมนเทอร์ที่ย้ายมาจากระบบเดิมทยอยกรอก) หมวดที่ว่างกลับมาเป็นหมวดที่ขาด
+  const partial = await send('PUT', '/consult/zone/profile', owner.cookie, { ...fullProfile, skills: [], languages: [], headline: '' });
+  assert.equal(partial.status, 200, await partial.clone().text());
+  assert.deepEqual((await partial.json() as { missing: string[] }).missing, ['A', 'B', 'C']);
+});
+
+test('profile routes: no caching, no cross-site writes, errors in the page language', async () => {
+  const owner = await account();
+  await mentorOf(owner.id);
+  const read = await send('GET', '/consult/zone/profile', owner.cookie);
+  assert.equal(read.headers.get('cache-control'), 'private, no-store');
+  const crossSite = await app.request('/api/consult/zone/profile', {
+    method: 'PUT', headers: { cookie: owner.cookie, 'content-type': 'application/json', origin: 'https://evil.example' }, body: JSON.stringify(fullProfile),
+  });
+  assert.equal(crossSite.status, 403);
+  const bad = (lang: string) => app.request('/api/consult/zone/profile', {
+    method: 'PUT', headers: { cookie: owner.cookie, 'content-type': 'application/json', 'x-lang': lang }, body: JSON.stringify({ ...fullProfile, replyHours: 5 }),
+  });
+  assert.equal((await (await bad('en')).json()).error, 'Choose a reply time from the list.');
+  assert.equal((await (await bad('th')).json()).error, 'เลือกเวลาตอบกลับจากรายการ');
+  // ข้อความตั้งต้นของ zod (อังกฤษล้วน) ไม่หลุดออกไป
+  const garbage = await app.request('/api/consult/zone/profile', {
+    method: 'PUT', headers: { cookie: owner.cookie, 'content-type': 'application/json', 'x-lang': 'th' }, body: JSON.stringify({ ...fullProfile, acceptsUrgent: 'yes' }),
+  });
+  assert.equal((await garbage.json()).error, 'ข้อมูลไม่ถูกต้อง');
+  const learner = await account();
+  assert.equal((await (await app.request('/api/consult/zone/profile', { headers: { cookie: learner.cookie, 'x-lang': 'en' } })).json()).error, 'Only approved mentors can do this.');
 });
 
 test('experiences: typed names autocomplete, pending until checked, duplicates rejected', async () => {
@@ -175,6 +202,32 @@ test('admin verifies or rejects experiences; members cannot', async () => {
   assert.deepEqual([rejected.status, rejected.reason], ['rejected', 'ลิงก์เปิดไม่ได้']);
   const verified = await (await send('GET', '/admin/experiences?status=verified', admin.cookie)).json() as { items: { id: string }[] };
   assert.ok(verified.items.some((i) => i.id === created.id));
+});
+
+test('approving a competition request verifies the same competition and year already waiting in Mentor zone', async () => {
+  const owner = await account();
+  const admin = await account('admin');
+  const mentorId = await mentorOf(owner.id);
+  const slug = `${prefix}-claim`;
+  await db.insert(competitions).values({
+    id: `${prefix}-c2`, slug, name: `${prefix} Claim Cup`, description: 'x', type: 'contest', org: 'x', closesAt: '2099-01-01', region: 'online',
+    prizeValue: 0, teamMin: 1, teamMax: 3, keywords: [], sourceUrl: 'https://example.test', source: 'editorial', lastVerifiedAt: '2026-01-01',
+  });
+  const waiting = await send('POST', '/consult/zone/experiences', owner.cookie, {
+    competitionSlug: slug, name: '', year: '2566', kind: 'hackathon', result: 'finalist', detail: '', role: 'developer', roleOther: '',
+    responsibility: 'เขียนโค้ด', evidenceUrl: 'https://example.test/p5', lessons: '',
+  });
+  assert.equal(waiting.status, 201, await waiting.clone().text());
+  const requestId = `${prefix}-req`;
+  await db.insert(competitionRequests).values({
+    id: requestId, mentorId, userId: owner.id, name: `${prefix} Claim Cup`, url: '', price: 0, competitionId: `${prefix}-c2`, result: 'finalist', year: '2566',
+  });
+  const decided = await send('POST', `/admin/competition-requests/${requestId}/decision`, admin.cookie, { decision: 'approve' });
+  assert.equal(decided.status, 200, await decided.clone().text());
+  const rows = await db.select().from(mentorExperiences).where(eq(mentorExperiences.mentorId, mentorId));
+  assert.deepEqual(rows.map((row) => [row.status, row.reviewedBy]), [['verified', admin.id]]);
+  await db.delete(mentorCompetitionChoices).where(eq(mentorCompetitionChoices.mentorId, mentorId));
+  await db.delete(competitionRequests).where(eq(competitionRequests.id, requestId));
 });
 
 test('public profile shows sections A–F without private fields', async () => {

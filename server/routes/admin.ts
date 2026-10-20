@@ -24,6 +24,8 @@ import type { StaffNotificationKind } from '../lib/staff-notify.js';
 import { fileProblem, fileUrl, filesOf, publicFile, storeFile } from '../lib/files.js';
 import { monthEdge } from '../lib/dates.js';
 import { firstIssue } from './public.js';
+import { resolveCompetitionName, writeProfile } from './mentor-profile.js';
+import type { ProfileFields } from './mentor-profile.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
 import { importSourceIds } from '../../src/data/imports.js';
@@ -55,6 +57,14 @@ export const competitionChecks = [
 /** ใบจากเมนเทอร์ต้องตรวจหลักฐานด้วย เพราะเผยแพร่แล้วเมนเทอร์รับปรึกษาเวทีนี้ทันที */
 const mentorEvidenceCheck = 'ไฟล์หลักฐานเป็นของเมนเทอร์คนนี้จริง และตรงกับเวทีและผลที่อ้าง';
 const checksFor = (row: { mentorId: string | null }) => (row.mentorId ? [...competitionChecks, mentorEvidenceCheck] : competitionChecks);
+
+/* เมนเทอร์อาจเพิ่มงานเดียวกันปีเดียวกันไว้ใน Mentor zone แล้ว (รอตรวจหรือไม่ผ่าน) หลักฐานผ่านที่นี่ก็ทำให้แถวนั้นผ่านด้วย
+   ไม่อย่างนั้นแถวเดิมจะขวางการเพิ่มแถวที่ตรวจแล้ว และงานนี้ไม่นับเป็นผลงานเลย */
+const verifyExisting = (reviewerId: string) => ({
+  target: [mentorExperiences.mentorId, mentorExperiences.competitionId, mentorExperiences.year],
+  targetWhere: sql`${mentorExperiences.competitionId} is not null`,
+  set: { status: 'verified' as const, reason: '', reviewedBy: reviewerId, reviewedAt: new Date() },
+});
 
 export const mentorChecks = [
   'ตัวตนและที่ทำงานตรวจสอบได้จากข้อมูลที่ให้มา',
@@ -286,8 +296,8 @@ admin.post('/competition-submissions/:id/decision', async (c) => {
       if (current.mentorId && current.mentorResult) {
         await tx.insert(mentorExperiences).values({
           id: newId('exp'), mentorId: current.mentorId, competitionId, name: submission.name,
-          result: current.mentorResult, year: current.mentorYear,
-        }).onConflictDoNothing();
+          result: current.mentorResult, year: current.mentorYear, reviewedBy: reviewer.id, reviewedAt: new Date(),
+        }).onConflictDoUpdate(verifyExisting(reviewer.id));
         await tx.insert(mentorCompetitionChoices).values({
           mentorId: current.mentorId, competitionId, choice: 'help', price: current.mentorPrice ?? 0, minutes: null, unit: current.mentorUnit,
         }).onConflictDoNothing();
@@ -410,9 +420,12 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
       const offerOf = new Map(submission.competitionOffers.map((offer) => [offer.competitionId, offer]));
       const cheapest = submission.competitionOffers.filter((offer) => offer.price !== null)
         .sort((a, b) => a.price! - b.price!)[0];
-      const profilePrice = submission.competitionOffers.length
-        ? { price: cheapest?.price ?? null, minutes: cheapest?.minutes ?? null, priceUnit: cheapest?.unit ?? '' }
-        : { price: submission.price, minutes: submission.minutes };
+      // ใบแบบใหม่ (มีโปรไฟล์) มีราคาเดียวต่อเมนเทอร์อยู่แล้ว
+      const profilePrice = submission.profile
+        ? { price: submission.price, minutes: null, priceUnit: submission.priceUnit }
+        : submission.competitionOffers.length
+          ? { price: cheapest?.price ?? null, minutes: cheapest?.minutes ?? null, priceUnit: cheapest?.unit ?? '' }
+          : { price: submission.price, minutes: submission.minutes };
 
       mentorId = newId('mtr');
       await tx.insert(mentors).values({
@@ -437,6 +450,8 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
         // รูปจากใบสมัครกลายเป็นรูปบนหน้าเวทีและโปรไฟล์ (/api/files เปิดสาธารณะเมื่อเป็นรูปของเมนเทอร์)
         photoUrl: submission.photoFileId ? `/api/files/${submission.photoFileId}` : null,
       });
+      // โปรไฟล์หมวด A, B, D, E จากใบสมัคร เมนเทอร์ครบทุกหมวดตั้งแต่วันแรกจึงถูกจับคู่ได้ทันที
+      if (submission.profile) await writeProfile(tx, mentorId, submission.profile as ProfileFields);
       /* งานที่ติ๊กไว้ตอนสมัครกลายเป็นงานที่รับปรึกษา ใช้ราคาของงานนั้นจากใบสมัคร แก้ทีหลังได้ใน Mentor zone
          เฉพาะเวทีที่มีประสบการณ์แข่งในใบนี้ ใบแบบเก่าที่ติ๊กเวทีโดยไม่มีหลักฐานว่าเคยแข่งจะไม่ได้เวทีนั้น (Astra รีวิว 4 ต.ค. 2569) */
       const competed = new Set(submission.awards.map((award) => award.matched?.id).filter((competitionId): competitionId is string => Boolean(competitionId)));
@@ -449,16 +464,25 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
           mentorId: mentorId!, competitionId: row.id, choice: 'help',
           ...(offerOf.has(row.id)
             ? { price: offerOf.get(row.id)!.price, minutes: offerOf.get(row.id)!.minutes ?? null, unit: offerOf.get(row.id)!.unit ?? '' }
-            : { price: submission.price, minutes: submission.minutes }),
+            : { price: submission.price, minutes: submission.minutes, unit: submission.priceUnit }),
         })));
       }
-      // ประสบการณ์แข่งขันที่ผู้ตรวจดูหลักฐานแล้ว กลายเป็นป้ายบนหน้าเวทีและคะแนนจัดอันดับ
-      if (submission.awards.length) {
-        await tx.insert(mentorExperiences).values(submission.awards.map((award) => ({
-          id: newId('exp'), mentorId: mentorId!, competitionId: award.matched?.id ?? null,
-          name: award.matched?.name ?? award.title, result: award.result, year: award.year, detail: award.detail,
-        }))).onConflictDoNothing();
+      /* ประสบการณ์แข่งขันที่ผู้ตรวจดูหลักฐานแล้ว กลายเป็นป้ายบนหน้าเวที คะแนนจัดอันดับ และคะแนนจับคู่
+         ใบแบบใหม่: ชื่อที่ไม่ตรงเวทีในระบบเข้ารายชื่อเติมคำอัตโนมัติ (เหมือนประสบการณ์ที่เพิ่มใน Mentor zone) */
+      const experienceRows = [];
+      for (const award of submission.awards) {
+        const place = award.matched
+          ? { competitionId: award.matched.id, hackathonNameId: null, name: award.matched.name }
+          : submission.profile ? await resolveCompetitionName(tx, award.title, submission.userId)
+          : { competitionId: null, hackathonNameId: null, name: award.title };
+        experienceRows.push({
+          id: newId('exp'), mentorId: mentorId!, ...place, result: award.result, year: award.year, detail: award.detail,
+          kind: award.kind, role: award.role, roleOther: award.roleOther, responsibility: award.responsibility, lessons: award.lessons,
+          evidenceUrl: /^https:\/\/\S+$/i.test(award.evidence) ? award.evidence : '',
+          status: 'verified' as const, reviewedBy: reviewer.id, reviewedAt: new Date(),
+        });
       }
+      if (experienceRows.length) await tx.insert(mentorExperiences).values(experienceRows).onConflictDoNothing();
       /* เวทีที่ยังไม่มีในระบบแต่ติ๊กอยากเป็นเมนเทอร์ (พร้อมราคา) กลายเป็นคำขอเพิ่มเวทีในคิวเดียวกับ Mentor zone
          ทีมสร้างเวทีแล้วอนุมัติคำขอ เมนเทอร์ก็ได้เวทีนั้นพร้อมราคาที่ใส่ไว้ (ผู้ใช้ขอ 6 ต.ค. 2569) */
       const typed = submission.awards.filter((award) => award.wantsMentor && !award.matched && award.offerPrice !== null);
@@ -466,7 +490,8 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
         await tx.insert(competitionRequests).values(typed.map((award) => ({
           id: newId('creq'), mentorId: mentorId!, userId: submission.userId!, name: award.title,
           url: /^https?:\/\//i.test(award.evidence) ? award.evidence : '', details: award.detail,
-          price: award.offerPrice!, unit: award.offerUnit, result: award.result, year: award.year,
+          // ใบแบบเก่าเท่านั้น (ใบแบบใหม่ไม่มี wantsMentor) ผลจึงเป็นสามแบบเดิม
+          price: award.offerPrice!, unit: award.offerUnit, result: award.result as 'winner' | 'finalist' | 'participant', year: award.year,
           evidence: award.evidence || (award.evidenceFileIds.length
             ? `ไฟล์แนบในใบสมัครเมนเทอร์ (${award.evidenceFileIds.map((fileId) => `/api/files/${fileId}`).join(', ')})` : ''),
         })));
@@ -870,7 +895,8 @@ admin.post('/competition-requests/:id/decision', async (c) => {
         const [event] = await tx.select({ name: competitions.name }).from(competitions).where(eq(competitions.id, competitionId));
         await tx.insert(mentorExperiences).values({
           id: newId('exp'), mentorId: row.mentorId, competitionId, name: event?.name ?? row.name, result: row.result, year: row.year,
-        }).onConflictDoNothing();
+          reviewedBy: reviewer.id, reviewedAt: new Date(),
+        }).onConflictDoUpdate(verifyExisting(reviewer.id));
       }
     }
     return row;

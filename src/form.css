@@ -250,3 +250,11 @@
 .cw-form .exp-info__facts span{white-space:nowrap}
 .cw-form .exp-info__facts span:first-child{white-space:normal}
 .cw-form .exp-info__link{display:inline-flex;align-items:center;gap:6px;min-height:32px;font-size:13px;font-weight:500;color:var(--purple-deep)}
+
+/* ช่องโปรไฟล์ที่ใช้ร่วมกับ Mentor zone (components/ProfileEditor.tsx) ระยะห่างมาจาก .cx-field และ .pv2-* แล้ว
+   กันไม่ให้สไตล์ label/input ทั่วไปของฟอร์มนี้ทับ จนชิปไม่อยู่กลางและช่องห่างเกิน */
+.cw-form .apply-profile label{margin-bottom:0}
+.cw-form .apply-profile input:not([type=checkbox]),.cw-form .apply-profile select,.cw-form .apply-profile textarea{margin-top:0}
+.cw-form .apply-profile .pv2-chip{display:inline-flex}
+.cw-form .apply-profile .pv2-toggle{display:flex}
+.cw-form .apply-profile .pv2-skill label{font-weight:500}

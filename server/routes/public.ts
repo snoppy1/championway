@@ -21,6 +21,8 @@ import { attachFiles, fileProblem, publicFile, readStoredFile, storeFile } from 
 import { monthEdge } from '../lib/dates.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
 import { topicValues } from '../../src/data/stored-values.js';
+import { experienceKinds, missingSections, teamRoles } from '../../src/data/matching.js';
+import { beYear, issueCode, profileFields, profileMessage } from './mentor-profile.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
 
 export const publicApi = new Hono<AppEnv>();
@@ -373,17 +375,6 @@ ${env.appOrigin}/admin/competitions/${id}`);
   return c.json({ id }, 201);
 });
 
-/* หลักฐานเป็นลิงก์ http(s) หรือข้อความ (ชื่อไฟล์แนบ) ห้ามอักขระควบคุม เช่น java<TAB>script: ที่เบราว์เซอร์ตัดทิ้งแล้วกลายเป็นลิงก์อันตราย
-   ถ้าตีความเป็น URL ได้ ต้องเป็น http(s) เท่านั้น (Astra รีวิว 4 ต.ค. 2569) */
-function safeEvidence(value: string) {
-  if (/[\u0000-\u001f\u007f]/.test(value)) return false;
-  try {
-    return ['http:', 'https:'].includes(new URL(value).protocol);
-  } catch {
-    return !/^[a-z][a-z0-9+.-]*:/i.test(value);
-  }
-}
-
 const mentorSubmissionBody = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
@@ -399,7 +390,7 @@ const mentorSubmissionBody = z.object({
   cannot: z.string().trim().min(1).max(1000),
   /* ความถนัด (ผู้ใช้ขอ 7 ต.ค. 2569): เลือกจากรายการได้ไม่เกินสี่ข้อ บวก "อื่นๆ" ที่พิมพ์เองได้อีกหนึ่งข้อ รวมแล้วต้องมีอย่างน้อยหนึ่งข้อ
      ข้อที่พิมพ์เองเก็บเป็นข้อความตามที่พิมพ์ อยู่ท้ายรายการ */
-  topics: z.array(z.string().trim().min(1).max(80)).min(1, 'เลือกความถนัดอย่างน้อยหนึ่งข้อ').max(5)
+  topics: z.array(z.string().trim().min(1).max(80)).max(5).default([])
     .transform((list) => [...new Set(list)])
     .refine((list) => list.filter((topic) => standardTopics.has(topic)).length <= 4, 'เลือกความถนัดจากรายการได้ไม่เกินสี่ข้อ')
     .refine((list) => list.filter((topic) => !standardTopics.has(topic)).length <= 1, 'ความถนัดอื่นๆ ใส่ได้หนึ่งข้อ'),
@@ -409,32 +400,35 @@ const mentorSubmissionBody = z.object({
   contactPhone: z.string().trim().max(40).default(''),
   contactInstagram: z.string().trim().max(100).default(''),
   contactLink: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//i.test(v), 'ลิงก์ต้องขึ้นต้นด้วย https://').default(''),
-  /* ราคาของเวทีที่ติ๊ก "อยากเป็นเมนเทอร์" ไว้ในประสบการณ์ (ผู้ใช้ตัดสิน 4 ต.ค. 2569)
+  /* ใบแบบใหม่ (21 ต.ค. 2569): โปรไฟล์หมวด A, B, D, E ครบทุกหมวด (ตรวจใน prepare) และราคาเดียวต่อเมนเทอร์
      0 = ฟรี (ไม่มีหน่วย) · มากกว่า 0 ต้องบอกว่าคิดต่ออะไร เช่น "ชั่วโมง" "โปรเจกต์" */
-  offers: z.array(z.object({
-    slug: z.string().trim().min(1).max(200),
-    price: z.number().int().min(0).max(100000),
-    unit: z.string().trim().max(40).default(''),
-  }).refine((o) => o.price === 0 || o.unit.length > 0, 'บอกด้วยว่าราคานี้คิดต่ออะไร เช่น ชั่วโมง หรือโปรเจกต์'))
-    .max(50).default([]),
+  profile: profileFields,
+  price: z.object({ amount: z.number().int().min(0).max(100000), unit: z.string().trim().max(40).default('') })
+    .refine((o) => o.amount === 0 || o.unit.length > 0, 'priceUnit'),
   paidSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
   freeSlot: z.string().datetime({ offset: true }).or(isoDate).nullish(),
-  /** ประสบการณ์แข่งขัน ต้องมีอย่างน้อยหนึ่งรายการ (เป็นเมนเทอร์ได้ต้องเคยแข่ง) ไม่จำกัดว่าต้องได้รางวัล */
+  /** ประสบการณ์แข่งขัน ต้องมีอย่างน้อยหนึ่งรายการ (เป็นเมนเทอร์ได้ต้องเคยแข่ง) ไม่จำกัดว่าต้องได้รางวัล
+      ช่องเดียวกับประสบการณ์ใน Mentor zone อนุมัติใบแล้วกลายเป็นประสบการณ์ที่ตรวจแล้ว */
   awards: z.array(z.object({
-    title: z.string().trim().min(1).max(200),
+    title: z.string().trim().min(1, 'name').max(200),
     competitionSlug: z.string().trim().max(200).nullable().default(null),
-    result: z.enum(['winner', 'finalist', 'participant']).default('winner'),
+    kind: z.enum(experienceKinds),
+    result: z.enum(['winner', 'finalist', 'participant', 'other']),
     detail: z.string().trim().max(200).default(''),
-    year: z.string().trim().min(1).max(10),
-    // ลิงก์ต้องเป็น http(s) ห้าม javascript: data: (หน้า admin อาจทำเป็นลิงก์) ไม่บังคับแล้ว เพราะบังคับแนบไฟล์แทน
-    evidence: z.string().trim().max(400).refine((v) => !v || safeEvidence(v), 'ลิงก์หลักฐานต้องขึ้นต้นด้วย https://').default(''),
-    /** ไฟล์หลักฐานที่อัปโหลดผ่าน /api/files ก่อนส่งใบ บังคับทุกรายการ (ผู้ใช้ขอ 6 ต.ค. 2569) แนบได้สูงสุดห้าไฟล์ (7 ต.ค.) */
-    evidenceFileIds: z.array(z.string().trim().min(1).max(60)).min(1, 'แนบไฟล์หลักฐานของทุกเวที').max(5, 'แนบไฟล์หลักฐานได้ไม่เกินห้าไฟล์ต่อเวที'),
-    wantsMentor: z.boolean().default(false),
-    /** ราคาของเวทีที่ยังไม่มีในระบบ (ติ๊กอยากเป็นเมนเทอร์) อนุมัติแล้วกลายเป็นคำขอเพิ่มเวที */
-    offer: z.object({ price: z.number().int().min(0).max(100000), unit: z.string().trim().max(40).default('') })
-      .refine((o) => o.price === 0 || o.unit.length > 0, 'บอกด้วยว่าราคานี้คิดต่ออะไร เช่น ชั่วโมง หรือโปรเจกต์').nullish(),
-  })).min(1, 'เพิ่มประสบการณ์แข่งขันอย่างน้อยหนึ่งรายการ').max(30),
+    year: beYear,
+    role: z.enum(teamRoles),
+    roleOther: z.string().trim().max(80).default(''),
+    responsibility: z.string().trim().min(1, 'responsibility').max(1000),
+    lessons: z.string().trim().max(1000).default(''),
+    // ลิงก์ต้องเป็น https ห้าม javascript: data: (หน้า admin ทำเป็นลิงก์) มีลิงก์หรือไฟล์อย่างใดอย่างหนึ่งก็พอ
+    evidence: z.string().trim().max(400).refine((v) => !v || /^https:\/\/\S+$/i.test(v), 'https').default(''),
+    /** ไฟล์หลักฐานที่อัปโหลดผ่าน /api/files ก่อนส่งใบ แนบได้สูงสุดห้าไฟล์ (7 ต.ค.) */
+    evidenceFileIds: z.array(z.string().trim().min(1).max(60)).max(5, 'แนบไฟล์หลักฐานได้ไม่เกินห้าไฟล์ต่อเวที').default([]),
+  }).refine((a) => a.result !== 'winner' || a.detail.length > 0, 'award')
+    .refine((a) => a.result !== 'other' || a.detail.length > 0, 'resultOther')
+    .refine((a) => a.role !== 'other' || a.roleOther.length > 0, 'roleOther')
+    .refine((a) => a.evidence.length > 0 || a.evidenceFileIds.length > 0, 'evidenceNeeded'))
+    .min(1, 'เพิ่มประสบการณ์แข่งขันอย่างน้อยหนึ่งรายการ').max(30),
   /** รูปโปรไฟล์ที่อัปโหลดผ่าน /api/files ก่อนส่งใบ บังคับ เมนเทอร์ทุกคนมีรูปบนหน้าเวที (ผู้ใช้ขอ 6 ต.ค. 2569) */
   photoFileId: z.string().trim().min(1, 'เพิ่มรูปโปรไฟล์').max(60),
   /** id ของไฟล์หลักฐานที่อัปโหลดไว้ก่อนหน้า */
@@ -447,8 +441,9 @@ type MentorBody = z.infer<typeof mentorSubmissionBody>;
 /** ตรวจเวที ราคา และไฟล์ของใบสมัครเมนเทอร์ ใช้ทั้งตอนส่งใบใหม่และตอนแก้ใบที่ทีมงานขอข้อมูลเพิ่ม
     ไฟล์ที่อ้างต้องเป็นของผู้สมัครเอง (อัปโหลดผ่าน /api/files) หรือผูกกับใบนี้อยู่แล้ว (ตอนแก้ใบ) */
 async function prepareMentorSubmission(body: MentorBody, userId: string, existingId?: string) {
-  /* เวทีที่อ้างต้องมีในระบบจริง ถึงจะติ๊กเป็นเมนเทอร์ได้ และตั้งราคาได้เฉพาะเวทีที่ติ๊กไว้ในประสบการณ์
-     (เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง) ราคาของเวทีอื่นที่ส่งมาถูกทิ้ง */
+  // ใบต้องกรอกโปรไฟล์ครบทุกหมวด เมนเทอร์ที่ผ่านอนุมัติจะถูกจับคู่ได้ทันที (หมวด C คือรายการประสบการณ์ในใบ)
+  if (missingSections(body.profile, body.awards.length).length) throw new HTTPException(400, { message: 'profileIncomplete' });
+  /* เวทีในระบบที่เคยแข่ง (ผลอะไรก็ได้) อนุมัติแล้วรับปรึกษาเวทีนั้นด้วยราคาเดียวของเมนเทอร์ ชื่อที่ไม่ตรงเวทีในระบบไปอยู่ในรายชื่อเติมคำอัตโนมัติ */
   const claimed = [...new Set(body.awards.map((award) => award.competitionSlug).filter((slug): slug is string => Boolean(slug)))];
   const known = claimed.length
     // เฉพาะเวทีที่มีหน้าบนเว็บ (kind ไม่ว่าง) นักเรียนถึงจะเห็นเมนเทอร์ของเวทีนั้น
@@ -456,20 +451,7 @@ async function prepareMentorSubmission(body: MentorBody, userId: string, existin
       .where(and(inArray(competitionsTable.slug, claimed), sql`${competitionsTable.kind} is not null`))
     : [];
   const idOf = new Map(known.map((row) => [row.slug, row.id]));
-  const mentorFor = new Set(body.awards.filter((award) => award.wantsMentor && award.competitionSlug && idOf.has(award.competitionSlug))
-    .map((award) => award.competitionSlug!));
-  const priced = new Map<string, { price: number; unit: string }>();
-  for (const offer of body.offers) {
-    if (mentorFor.has(offer.slug) && !priced.has(offer.slug)) priced.set(offer.slug, { price: offer.price, unit: offer.price === 0 ? '' : offer.unit });
-  }
-  const missing = [...mentorFor].filter((slug) => !priced.has(slug));
-  if (missing.length) throw new HTTPException(400, { message: 'ใส่ราคาของทุกเวทีที่อยากเป็นเมนเทอร์ (ฟรี หรือราคาต่ออะไร)' });
-  const offers = [...mentorFor].map((slug) => ({ competitionId: idOf.get(slug)!, ...priced.get(slug)! }));
-  // เวทีที่ยังไม่มีในระบบแต่ติ๊กอยากเป็นเมนเทอร์ ต้องมีราคามาด้วย
-  const typedMentor = (award: MentorBody['awards'][number]) => award.wantsMentor && !(award.competitionSlug && idOf.has(award.competitionSlug));
-  if (body.awards.some((award) => typedMentor(award) && !award.offer)) {
-    throw new HTTPException(400, { message: 'ใส่ราคาของทุกเวทีที่อยากเป็นเมนเทอร์ (ฟรี หรือราคาต่ออะไร)' });
-  }
+  const competitionIds = [...new Set(body.awards.flatMap((award) => (award.competitionSlug && idOf.get(award.competitionSlug)) || []))];
 
   /* ไฟล์ที่อ้างต้องเป็นของผู้สมัครเอง และยังไม่ถูกผูกกับใบไหน หรือผูกกับใบที่กำลังแก้อยู่ รูปโปรไฟล์ต้องเป็นรูปภาพ */
   const wanted = [...new Set([body.photoFileId, ...body.awards.flatMap((award) => award.evidenceFileIds)])];
@@ -482,7 +464,7 @@ async function prepareMentorSubmission(body: MentorBody, userId: string, existin
   if (!owned.find((file) => file.id === body.photoFileId)?.mime.startsWith('image/')) {
     throw new HTTPException(400, { message: 'รูปโปรไฟล์ต้องเป็นไฟล์ JPG, PNG หรือ WebP' });
   }
-  return { idOf, mentorFor, offers, typedMentor, wanted };
+  return { idOf, competitionIds, wanted };
 }
 
 type Prepared = Awaited<ReturnType<typeof prepareMentorSubmission>>;
@@ -508,8 +490,12 @@ const mentorFields = (body: MentorBody, prepared: Prepared) => ({
   contactPhone: body.contactPhone,
   contactInstagram: body.contactInstagram,
   contactLink: body.contactLink,
-  competitionIds: prepared.offers.map((offer) => offer.competitionId),
-  competitionOffers: prepared.offers,
+  competitionIds: prepared.competitionIds,
+  competitionOffers: [],
+  profile: body.profile,
+  price: body.price.amount,
+  priceUnit: body.price.amount === 0 ? '' : body.price.unit,
+  minutes: null,
   paidSlot: body.paidSlot ? new Date(body.paidSlot) : null,
   freeSlot: body.freeSlot ? new Date(body.freeSlot) : null,
   photoFileId: body.photoFileId,
@@ -531,23 +517,40 @@ async function writeMentorAwards(tx: Tx, id: string, userId: string, body: Mento
     evidenceFileIds: [...new Set(award.evidenceFileIds)],
     result: award.result,
     detail: award.detail,
-    wantsMentor: Boolean(award.wantsMentor
-      && ((award.competitionSlug && prepared.mentorFor.has(award.competitionSlug)) || prepared.typedMentor(award))),
-    offerPrice: prepared.typedMentor(award) ? award.offer!.price : null,
-    offerUnit: prepared.typedMentor(award) && award.offer!.price > 0 ? award.offer!.unit : '',
+    kind: award.kind,
+    role: award.role,
+    roleOther: award.role === 'other' ? award.roleOther : '',
+    responsibility: award.responsibility,
+    lessons: award.lessons,
   })));
 }
 
-publicApi.post('/submissions/mentor', requireUser, async (c) => {
+/** ตรวจใบสมัคร ข้อความ error ที่เป็นรหัสของโปรไฟล์ตอบตามภาษาของหน้าเว็บ ข้อความอื่นตอบแบบเดิม (ชื่อช่อง: ข้อความ) */
+async function parseMentorBody(c: { req: { json: () => Promise<unknown>; header: (name: string) => string | undefined } }) {
   const parsed = mentorSubmissionBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
-  const body = parsed.data;
+  if (parsed.success) return parsed.data;
+  const code = issueCode(parsed.error);
+  throw new HTTPException(400, { message: code === 'invalid' ? firstIssue(parsed.error) : profileMessage(code, c.req.header('x-lang')) });
+}
+async function prepareOrExplain(c: { req: { header: (name: string) => string | undefined } }, ...args: Parameters<typeof prepareMentorSubmission>) {
+  try {
+    return await prepareMentorSubmission(...args);
+  } catch (error) {
+    if (error instanceof HTTPException && error.message === 'profileIncomplete') {
+      throw new HTTPException(400, { message: profileMessage('profileIncomplete', c.req.header('x-lang')) });
+    }
+    throw error;
+  }
+}
+
+publicApi.post('/submissions/mentor', requireUser, async (c) => {
+  const body = await parseMentorBody(c);
   const user = c.get('user')!;
   const id = newId('ms');
-  const prepared = await prepareMentorSubmission(body, user.id);
+  const prepared = await prepareOrExplain(c, body, user.id);
 
   await db.transaction(async (tx) => {
-    await tx.insert(mentorSubmissions).values({ id, userId: user.id, price: null, minutes: null, ...mentorFields(body, prepared) });
+    await tx.insert(mentorSubmissions).values({ id, userId: user.id, ...mentorFields(body, prepared) });
     await writeMentorAwards(tx, id, user.id, body, prepared);
   });
 
@@ -585,11 +588,6 @@ publicApi.get('/submissions/mentor/:id', requireUser, async (c) => {
       .where(and(eq(filesTable.ownerType, 'mentor_submission'), eq(filesTable.ownerId, row.id))),
   ]);
   const file = (fileId: string | null) => attached.find((item) => item.id === fileId) ?? null;
-  // ราคาของเวทีในระบบเก็บในใบ ส่วนเวทีที่ยังไม่มีในระบบเก็บในรายการประสบการณ์
-  const slugOf = row.competitionOffers.length
-    ? new Map((await db.select({ id: competitionsTable.id, slug: competitionsTable.slug }).from(competitionsTable)
-      .where(inArray(competitionsTable.id, row.competitionOffers.map((offer) => offer.competitionId)))).map((item) => [item.id, item.slug]))
-    : new Map<string, string>();
   return c.json({
     note: request?.note ?? '',
     submission: {
@@ -599,13 +597,12 @@ publicApi.get('/submissions/mentor/:id', requireUser, async (c) => {
       contactEmail: row.contactEmail, contactLine: row.contactLine, contactPhone: row.contactPhone,
       contactInstagram: row.contactInstagram, contactLink: row.contactLink,
       photo: file(row.photoFileId),
-      offers: row.competitionOffers.flatMap((offer) => {
-        const slug = slugOf.get(offer.competitionId);
-        return slug ? [{ slug, price: offer.price ?? 0, unit: offer.unit ?? '' }] : [];
-      }),
+      // ใบแบบเก่า (ก่อน 21 ต.ค. 2569) ไม่มีโปรไฟล์และราคาเดียว ผู้สมัครกรอกส่วนนั้นใหม่ตอนแก้ใบ
+      profile: row.profile,
+      price: row.profile && row.price !== null ? { amount: row.price, unit: row.priceUnit } : null,
       awards: awards.map((award) => ({
-        title: award.title, competitionSlug: award.competitionSlug, result: award.result, detail: award.detail, year: award.year,
-        evidence: award.evidence, wantsMentor: award.wantsMentor, offerPrice: award.offerPrice, offerUnit: award.offerUnit,
+        title: award.title, competitionSlug: award.competitionSlug, kind: award.kind, result: award.result, detail: award.detail, year: award.year,
+        role: award.role, roleOther: award.roleOther, responsibility: award.responsibility, lessons: award.lessons, evidence: award.evidence,
         files: award.evidenceFileIds.flatMap((fileId) => file(fileId) ?? []),
       })),
     },
@@ -613,12 +610,10 @@ publicApi.get('/submissions/mentor/:id', requireUser, async (c) => {
 });
 
 publicApi.put('/submissions/mentor/:id', requireUser, async (c) => {
-  const parsed = mentorSubmissionBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) throw new HTTPException(400, { message: firstIssue(parsed.error) });
-  const body = parsed.data;
+  const body = await parseMentorBody(c);
   const user = c.get('user')!;
   const { id } = await editableMentorSubmission(c.req.param('id'), user.id);
-  const prepared = await prepareMentorSubmission(body, user.id, id);
+  const prepared = await prepareOrExplain(c, body, user.id, id);
 
   await db.transaction(async (tx) => {
     // ล็อกใบไว้ก่อน ถ้าทีมงานตัดสินใบนี้ไปพร้อมกัน ฝั่งที่มาทีหลังจะเห็นสถานะใหม่

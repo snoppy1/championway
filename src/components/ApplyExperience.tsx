@@ -4,21 +4,23 @@ import { useI18n } from '../i18n';
 import { formatInputDate } from '../i18n/format';
 import { priceProblem } from '../data/consult';
 import type { Price } from '../data/consult';
+import { experienceKinds, experienceResults, teamRoles } from '../data/matching';
+import type { ExperienceKind, ExperienceResult, TeamRole } from '../data/matching';
 
-/* ใบสมัครเมนเทอร์ (ผู้ใช้ตัดสิน 4 ต.ค. 2569 กับทีม)
-   ขั้น 2: ประสบการณ์แข่งขันกี่รายการก็ได้ แต่ละรายการบอกเวที ผล ปี หลักฐาน และติ๊กว่าอยากเป็นเมนเทอร์ของเวทีนั้นไหม
-           เป็นเมนเทอร์ได้เฉพาะเวทีที่เคยแข่งเอง (ผลอะไรก็ได้) เวทีที่ยังไม่มีในระบบก็ติ๊กได้ ทีมงานเพิ่มให้หลังอนุมัติ (6 ต.ค. 2569)
-           ไฟล์หลักฐานบังคับทุกรายการ ลิงก์ประกาศผลไม่บังคับ (ผู้ใช้ขอ 6 ต.ค. 2569) แนบได้สูงสุดห้าไฟล์ (7 ต.ค.)
-   ขั้น 3: ราคาของเวทีที่ติ๊กไว้ เลือก "ฟรี" หรือ "[ราคา] บาท ต่อ [หน่วยที่พิมพ์เอง]"
+/* ใบสมัครเมนเทอร์ ขั้นประสบการณ์แข่งขัน (ผู้ใช้ตัดสิน 4 ต.ค. 2569 ปรับ 21 ต.ค. 2569 ให้ตรงกับประสบการณ์ใน Mentor zone)
+   กี่รายการก็ได้ แต่ละรายการบอกงานแข่ง ประเภท ปี ผล บทบาท สิ่งที่รับผิดชอบ หลักฐาน และบทเรียน (ไม่บังคับ)
+   ผลอะไรก็ได้ ไม่ต้องได้รางวัล หลักฐานเป็นไฟล์ (สูงสุดห้าไฟล์) หรือลิงก์ https อย่างใดอย่างหนึ่งก็พอ
+   ราคาเป็นราคาเดียวต่อเมนเทอร์ อยู่ขั้นเวลาและราคา ไม่ผูกกับงานแข่ง
    ปัญหาของแต่ละช่องแสดงใต้ช่องนั้นในการ์ด ไม่ใช่ข้อความรวมข้อเดียว (design-critic 4 ต.ค. 2569) */
 
-export type Result = 'winner' | 'finalist' | 'participant';
-export const results: Result[] = ['winner', 'finalist', 'participant'];
+export type Result = ExperienceResult;
+export const results = experienceResults;
 /** ไฟล์หลักฐานหนึ่งไฟล์ ไฟล์ใหม่ยังไม่ได้อัปโหลด (มี file) ไฟล์ที่แนบไว้ในใบเดิมตอนแก้ใบ (มี id) */
 export type Proof = { key: string; name: string; file?: File; id?: string };
 export const maxProofs = 5;
 export type Experience = {
-  id: number; name: string; slug: string | null; result: Result | ''; detail: string; year: string; url: string; proofs: Proof[]; mentor: boolean;
+  id: number; name: string; slug: string | null; kind: ExperienceKind | ''; result: Result | ''; detail: string; year: string;
+  role: TeamRole | ''; roleOther: string; responsibility: string; lessons: string; url: string; proofs: Proof[];
   /** การ์ดที่กรอกครบแล้วพับเหลือบรรทัดเดียว หน้าจะได้ไม่ยาวเกินเมื่อมีหลายเวที */
   open: boolean;
 };
@@ -31,17 +33,26 @@ export const matchCompetition = (known: KnownCompetition[], name: string) =>
 export { priceProblem };
 export type { Price };
 
-export type ExperienceProblem = 'name' | 'result' | 'year' | 'proof' | 'url' | 'file';
+export type ExperienceProblem = 'name' | 'kind' | 'result' | 'detail' | 'year' | 'role' | 'roleOther' | 'responsibility' | 'proof' | 'url' | 'file';
 const evidenceTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-/** อะไรในการ์ดนี้ยังไม่ครบหรือไม่ถูก ว่าง = ครบแล้ว */
+/** การ์ดใหม่ว่าง ๆ */
+export const blankExperience = (id: number): Experience => ({
+  id, name: '', slug: null, kind: '', result: '', detail: '', year: '', role: '', roleOther: '', responsibility: '', lessons: '', url: '', proofs: [], open: true,
+});
+/** อะไรในการ์ดนี้ยังไม่ครบหรือไม่ถูก ว่าง = ครบแล้ว (กฎเดียวกับเซิร์ฟเวอร์) */
 export function experienceProblems(item: Experience): ExperienceProblem[] {
   const problems: ExperienceProblem[] = [];
   const thisYear = new Date().getFullYear() + 543;
   if (!item.name.trim()) problems.push('name');
+  if (!item.kind) problems.push('kind');
   if (!item.result) problems.push('result');
+  if ((item.result === 'winner' || item.result === 'other') && !item.detail.trim()) problems.push('detail');
   if (!/^\d{4}$/.test(item.year) || Number(item.year) < 2500 || Number(item.year) > thisYear) problems.push('year');
-  if (!item.proofs.length) problems.push('proof');
-  if (item.url.trim() && !/^https?:\/\//i.test(item.url.trim())) problems.push('url');
+  if (!item.role) problems.push('role');
+  if (item.role === 'other' && !item.roleOther.trim()) problems.push('roleOther');
+  if (!item.responsibility.trim()) problems.push('responsibility');
+  if (!item.proofs.length && !item.url.trim()) problems.push('proof');
+  if (item.url.trim() && !/^https:\/\/\S+$/i.test(item.url.trim())) problems.push('url');
   if (item.proofs.some(({ file }) => file && (file.size > 4 * 1024 * 1024 || !evidenceTypes.includes(file.type)))) problems.push('file');
   return problems;
 }
@@ -92,6 +103,7 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
 }) {
   const { t } = useI18n();
   const s = t.mentorApply.exp;
+  const v = t.mentorProfileV2;
   const uid = useId();
   const match = (name: string) => matchCompetition(known, name);
   const inSystem = Boolean(item.slug);
@@ -105,8 +117,7 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
       <div className="exp-summary">
         <span className="exp-summary__text">
           <strong>{item.name}</strong>
-          <span>{[item.result && t.taxonomy.results[item.result], item.year].filter(Boolean).join(' · ')}</span>
-          {item.mentor && <span className="exp-summary__tag">{s.mentorTag}</span>}
+          <span>{[item.kind && v.kindNames[item.kind], item.year, item.result && v.resultNames[item.result], item.role && v.roleNames[item.role]].filter(Boolean).join(' · ')}</span>
         </span>
         <span className="exp-summary__actions">
           <button className="plain" type="button" aria-label={s.editAria(item.name)} onClick={() => onChange({ open: true })}>{s.edit}</button>
@@ -137,21 +148,61 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
     </p>
     {/* เวทีที่จับคู่ได้ แสดงรายละเอียดให้แน่ใจว่าเลือกถูกเวที (ชื่อคล้ายกันได้) พร้อมลิงก์เปิดหน้าเวทีในแท็บใหม่ */}
     {found && <CompetitionInfo competition={found} />}
-    <div className="exp-field">
-      <span className="exp-label">{s.result}</span>
-      <Segmented name={`${uid}-result`} label={s.result} value={item.result} invalid={has('result')}
-        describedBy={has('result') ? `${uid}-result-error` : undefined}
-        options={results.map((value) => ({ value, label: t.taxonomy.results[value] }))} onChange={(result) => onChange({ result })} />
-      {has('result') && <FieldError id={`${uid}-result-error`} text={s.errors.result} />}
-    </div>
     <div className="grid exp-grid">
-      <label>{s.detail}<input maxLength={200} value={item.detail} placeholder={s.detailPlaceholder} onChange={(event) => onChange({ detail: event.target.value })} /></label>
+      <div className="exp-field">
+        <label className="exp-label" htmlFor={`${uid}-kind`}>{s.kind}</label>
+        <select id={`${uid}-kind`} value={item.kind} aria-invalid={has('kind') || undefined} aria-describedby={has('kind') ? `${uid}-kind-error` : undefined}
+          onChange={(event) => onChange({ kind: event.target.value as ExperienceKind })}>
+          <option value="">{s.pick}</option>
+          {experienceKinds.map((kind) => <option key={kind} value={kind}>{v.kindNames[kind]}</option>)}
+        </select>
+        {has('kind') && <FieldError id={`${uid}-kind-error`} text={s.errors.kind} />}
+      </div>
       <div>
         <label>{s.year}<input inputMode="numeric" maxLength={4} value={item.year} placeholder={s.yearPlaceholder}
           aria-invalid={has('year') || undefined} aria-describedby={has('year') ? `${uid}-year-error` : undefined}
           onChange={(event) => onChange({ year: event.target.value.replace(/[^0-9]/g, '') })} /></label>
         {has('year') && <FieldError id={`${uid}-year-error`} text={s.errors.year(year)} />}
       </div>
+    </div>
+    <div className="exp-field">
+      <span className="exp-label">{s.result}</span>
+      <Segmented name={`${uid}-result`} label={s.result} value={item.result} invalid={has('result')}
+        describedBy={has('result') ? `${uid}-result-error` : undefined}
+        options={results.map((value) => ({ value, label: v.resultNames[value] }))} onChange={(result) => onChange({ result })} />
+      {has('result') && <FieldError id={`${uid}-result-error`} text={s.errors.result} />}
+    </div>
+    <div className="exp-field">
+      <label className="exp-label" htmlFor={`${uid}-detail`}>{item.result === 'winner' ? s.detailAward : item.result === 'other' ? s.detailOther : s.detail}</label>
+      <input id={`${uid}-detail`} maxLength={200} value={item.detail} placeholder={s.detailPlaceholder}
+        aria-invalid={has('detail') || undefined} aria-describedby={has('detail') ? `${uid}-detail-error` : undefined}
+        onChange={(event) => onChange({ detail: event.target.value })} />
+      {has('detail') && <FieldError id={`${uid}-detail-error`} text={item.result === 'winner' ? s.errors.detailAward : s.errors.detailOther} />}
+    </div>
+    <div className="grid exp-grid">
+      <div className="exp-field">
+        <label className="exp-label" htmlFor={`${uid}-role`}>{s.role}</label>
+        <select id={`${uid}-role`} value={item.role} aria-invalid={has('role') || undefined} aria-describedby={has('role') ? `${uid}-role-error` : undefined}
+          onChange={(event) => onChange({ role: event.target.value as TeamRole })}>
+          <option value="">{s.pick}</option>
+          {teamRoles.map((role) => <option key={role} value={role}>{v.roleNames[role]}</option>)}
+        </select>
+        {has('role') && <FieldError id={`${uid}-role-error`} text={s.errors.role} />}
+      </div>
+      {item.role === 'other' && <div className="exp-field">
+        <label className="exp-label" htmlFor={`${uid}-role-other`}>{s.roleOther}</label>
+        <input id={`${uid}-role-other`} maxLength={80} value={item.roleOther}
+          aria-invalid={has('roleOther') || undefined} aria-describedby={has('roleOther') ? `${uid}-role-other-error` : undefined}
+          onChange={(event) => onChange({ roleOther: event.target.value })} />
+        {has('roleOther') && <FieldError id={`${uid}-role-other-error`} text={s.errors.roleOther} />}
+      </div>}
+    </div>
+    <div className="exp-field">
+      <label className="exp-label" htmlFor={`${uid}-resp`}>{s.responsibility}</label>
+      <textarea id={`${uid}-resp`} maxLength={1000} rows={3} value={item.responsibility} placeholder={s.responsibilityPlaceholder}
+        aria-invalid={has('responsibility') || undefined} aria-describedby={has('responsibility') ? `${uid}-resp-error` : undefined}
+        onChange={(event) => onChange({ responsibility: event.target.value })} />
+      {has('responsibility') && <FieldError id={`${uid}-resp-error`} text={s.errors.responsibility} />}
     </div>
     <div className="exp-file exp-gap">
       <span className="exp-label" id={`${uid}-file-label`}>{s.file}</span>
@@ -183,10 +234,10 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
       aria-invalid={has('url') || undefined} aria-describedby={has('url') ? `${uid}-url-error` : undefined}
       onChange={(event) => onChange({ url: event.target.value })} /></label>
     {has('url') && <FieldError id={`${uid}-url-error`} text={s.errors.badUrl} />}
-    <label className="check exp-mentor">
-      <input type="checkbox" checked={item.mentor} disabled={!item.name.trim()} onChange={(event) => onChange({ mentor: event.target.checked })} />
-      <span><strong>{s.mentor}</strong><small>{inSystem ? s.mentorHint : s.mentorNeedsSystem}</small></span>
-    </label>
+    <div className="exp-field exp-gap">
+      <label className="exp-label" htmlFor={`${uid}-lessons`}>{s.lessons}</label>
+      <textarea id={`${uid}-lessons`} maxLength={1000} rows={2} value={item.lessons} onChange={(event) => onChange({ lessons: event.target.value })} />
+    </div>
     <button type="button" className="exp-done" onClick={onDone}>{s.done}</button>
   </div>;
 }

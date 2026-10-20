@@ -27,6 +27,7 @@ Success: a first-time visitor understands what ChampionWays does within 5 second
 | 10 | Scope (2026-10-20) | Hackathons **and** case competitions. CTA "Ready to win the competition?". Learners say which kind their competition is; mentors tag each experience with its kind; H prefers the same kind. See 4.1, 4.2, 5.3. |
 | 11 | One mentor at a time (2026-10-20) | A project has at most one open consultation, so advice never conflicts. After Finish (waiting for the mentor) the learner may start with someone else. **Change mentor** ends an open consultation with a reason (`no_response`, `not_fit`, `other`) and no review. See 6.1. |
 | 12 | Navigation (2026-10-20) | Sign-in area as on the current site, plus **My Projects** for signed-in users. No Match button in the nav: matching starts from the Landing CTA or My Projects → New project. See 7. |
+| 13 | Landing copy and ranking (2026-10-20) | Copy never says every mentor is a winner (any verified result qualifies; awards are badges). The Landing ranking shows **paid Rising Star members only**, ranked by this month's reviews (existing monthly logic), periods This month / Last month, field filter derived from skill groups (business / technology / design). Mentor card topics come from `helpsWith`; price shows the mentor's own unit. |
 
 Unchanged constraints: hiring/chat/payment stay paused behind `HIRING_ENABLED`; mentors only mentor competitions they competed in (checked evidence); all copy TH/EN via dictionaries; Production deploy only when the owner asks, migrations first.
 

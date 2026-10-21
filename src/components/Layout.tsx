@@ -1,26 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import { BookmarkSimple } from './icons';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { isReviewer, useAuth } from '../data/auth';
-import { useSavedSlugs } from '../data/saved';
 import { api } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { CHAT_CHANGED } from './ChatPanel';
 import { UnreadBadge } from './hire';
 import { useHiring } from '../data/hiring';
 import trophy from '../assets/trophy.png';
-import wordmark from '../assets/wordmark.png';
 import { useI18n } from '../i18n';
 
 /** The text beside it says what this is (admin), so the image is decorative. */
 export function BrandMark() {
   return <img className="brand-mark" src={trophy} alt="" width={36} height={36} />;
-}
-
-/** โลโก้ตัวอักษรเต็ม (ถ้วย + ChampionWays) ใช้หัวและท้ายเว็บ ลิงก์ที่ครอบมี aria-label อยู่แล้ว รูปจึงไม่ต้องมี alt */
-export function Wordmark() {
-  return <img className="brand-wordmark" src={wordmark} alt="" width={572} height={120} />;
 }
 
 /* ปุ่มสลับภาษา ค่าตั้งต้นคืออังกฤษ ป้ายบนปุ่มเป็นรหัสภาษา EN/TH เหมือนกันทั้งสองภาษา
@@ -35,7 +27,6 @@ export function LangToggle() {
 
 function Header() {
   const { t } = useI18n();
-  const saved = useSavedSlugs();
   const { pathname, search } = useLocation();
   const { user, loading, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -81,27 +72,30 @@ function Header() {
 
   return <header className="site-header">
     <div className="shell header-inner">
+      {/* หัวเว็บตาม Landing v4: ถ้วยกับชื่อเป็นตัวอักษร */}
       <Link to="/" className="brand-link" aria-label={t.common.homeLink}>
-        <Wordmark />
+        <BrandMark /><span className="brand-name" aria-hidden="true">ChampionWays</span>
       </Link>
       {/* จอกว้างใช้ display: contents ให้ลูกเรียงอยู่ในแถบเดียวกับโลโก้ตามเดิม
           จอแคบกลายเป็นแผงเมนูที่เปิดจากปุ่มสามขีด หัวเว็บจึงเหลือแถวเดียว */}
       <div className={menuOpen ? 'header-menu is-open' : 'header-menu'} id="site-menu">
         <nav className="main-nav" aria-label={t.nav.mainMenu}>
-          <NavLink to="/" end>{t.nav.explore}</NavLink>
-          {/* ชื่อผู้ใช้ทางขวาเป็นทางเข้าโปรไฟล์อยู่แล้ว จึงไม่ซ้ำเป็นเมนูอีกอัน แถบบนจะได้ยังอยู่บรรทัดเดียวที่ 1101px */}
-          <NavLink to="/mentors" end>{t.nav.mentors}</NavLink>
+          {/* เมนูตาม Landing v4 (spec ข้อ 12): งานแข่ง คลังความรู้ และรายการที่บันทึกออกจากเมนูแล้ว
+              Consulting อยู่แทน My Projects ไปก่อนจนกว่าระบบจับคู่จะเปิด */}
+          <NavLink to="/mentors" end>{t.nav.findMentor}</NavLink>
+          <Link to="/#ranking">{t.nav.ranking}</Link>
           {user && consultMe && (consultMe.mentorId
             ? <NavLink to="/mentor-zone">{t.nav.mentorZone}<UnreadBadge count={unread} /></NavLink>
             : <NavLink to="/consulting">{t.nav.consulting}<UnreadBadge count={unread} /></NavLink>)}
-          <span className="nav-soon" title={t.common.comingSoon}>{t.nav.library} <small>{t.common.soonTag}</small></span>
         </nav>
         <div className="header-actions">
           <LangToggle />
           {loading ? <span className="account-loading" aria-hidden="true" /> : user ? <>
             {isReviewer(user) && <Link className="ghost-button" to="/admin">{t.nav.admin}</Link>}
             {/* ชื่อบนหัวเว็บคือทางเข้าโปรไฟล์ ใช้ของที่มีอยู่แล้วแทนการเพิ่มปุ่มใหม่ให้แถบบนแน่นขึ้น */}
-            <Link className="account-name" to="/profile" title={t.nav.profileTitle(user.email)}>{user.name}</Link>
+            <Link className="account-name" to="/profile" title={t.nav.profileTitle(user.email)}>
+              <span className="account-initial" aria-hidden="true">{user.name.trim().slice(0, 1).toUpperCase()}</span>{user.name}
+            </Link>
             <button type="button" className="ghost-button" onClick={() => { void signOut(); }}>{t.nav.signOut}</button>
           </> : <>
             <Link className="ghost-button" to={`/signin?next=${encodeURIComponent(next)}`}>{t.nav.signIn}</Link>
@@ -109,10 +103,6 @@ function Header() {
           </>}
         </div>
       </div>
-      <Link to="/?saved=1" className="icon-button header-saved" aria-label={t.nav.savedItems(saved.length)}>
-        <BookmarkSimple size={19} filled={saved.length > 0} />
-        {saved.length > 0 && <span className="saved-badge" aria-hidden="true">{saved.length}</span>}
-      </Link>
       <button
         type="button" className="icon-button menu-toggle"
         aria-expanded={menuOpen} aria-controls="site-menu"
@@ -150,33 +140,33 @@ export function Layout() {
       <div className="shell footer-grid">
         <div className="footer-brand">
           <Link to="/" className="brand-link" aria-label={t.common.homeLink}>
-            <Wordmark />
+            <BrandMark /><span className="brand-name" aria-hidden="true">ChampionWays</span>
           </Link>
           <p>{t.footer.tagline}</p>
         </div>
         <div className="footer-links">
           <div>
-            <strong>{t.footer.find}</strong>
-            <Link to="/">{t.nav.explore}</Link>
+            <strong>{t.footer.forTeams}</strong>
+            <Link to="/mentors">{t.footer.match}</Link>
+            <Link to="/#ranking">{t.footer.ranking}</Link>
+            <Link to="/#how">{t.footer.how}</Link>
           </div>
           <div>
-            <strong>{t.footer.forOrganizers}</strong>
-            {/* เปิดทางเข้าฟอร์มผู้จัดงานแล้ว (4 ต.ค. 2569) โดเมน championways.space ยืนยันกับ Resend แล้ว
-                ฟอร์มที่สัญญาว่าจะแจ้งผลทางอีเมลจึงส่งถึงผู้จัดได้จริง */}
-            <Link to="/organizers">{t.footer.listForFree}</Link>
-            <Link to="/organizers/submit">{t.footer.suggestCompetition}</Link>
-          </div>
-          <div>
-            <strong>{t.footer.legal}</strong>
-            <Link to="/terms">{t.footer.terms}</Link>
-            <Link to="/privacy">{t.footer.privacy}</Link>
-            <Link to="/refunds">{t.footer.refunds}</Link>
-            <a href="mailto:support@championways.space">{t.footer.contact}</a>
+            <strong>{t.footer.forMentors}</strong>
+            <Link to="/mentors/apply">{t.footer.become}</Link>
           </div>
         </div>
       </div>
-      <div className="shell footer-bottom">{t.footer.bottomLine}</div>
+      <div className="shell footer-bottom">
+        <span>{t.footer.copyright}</span>
+        <span className="footer-legal">
+          <Link to="/privacy">{t.footer.privacy}</Link>
+          <Link to="/terms">{t.footer.terms}</Link>
+          <Link to="/refunds">{t.footer.refunds}</Link>
+          <a href="mailto:support@championways.space">{t.footer.contact}</a>
+        </span>
+      </div>
     </footer>
-    <ScrollRestoration getKey={(location) => (location.pathname === '/' ? location.pathname + location.search : location.key)} />
+    <ScrollRestoration getKey={(location) => (location.pathname === '/explore' ? location.pathname + location.search : location.key)} />
   </>;
 }

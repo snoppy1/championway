@@ -382,3 +382,14 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Checks: API 121/121; Playwright 342 passed + the 3 updated tests pass on all viewports (90 skipped as before); build ok. `check:i18n` still reports Thai in `src/legal/*` (unchanged files, pre-existing).
 - Production needs migrations 0028 and 0029 before main is pushed.
 - Dev database (the one dev.championways.space uses, `DATABASE_URL`) was missing 0025–0029, so `/api/mentors` and `/api/hackathon-names` returned 500 on dev. Ran `npm run db:migrate` on dev only; endpoints return 200 and `/mentors/apply` shows the six steps. Production (26 applied) still needs 0026–0029 per its own journal check before main is pushed.
+
+## 2026-10-21 — Landing v4 as the home page, new header and footer
+
+- Owner asked for Claude Design "ChampionWays Mentor Landing v4" now, everything except Sign in / Sign up (AuthLayout unchanged). Spec decision 15.
+- `/` = Landing (`src/pages/Home.tsx`, `src/landing.css`, images `src/assets/landing/*.webp` from the design): hero, 4 newest mentors (joined, best verified result, 2 helpsWith tags, price), how it works (4 steps), Rising Star board (This month / Last month, field filter, podium + list, empty state, "Become a Rising Star" box for mentors who are not members), closing CTA.
+- Matching is not built yet, so every "Ready to win the competition?" goes to `/mentors` for now.
+- Header: trophy + ChampionWays, menu "Find a mentor" (`/mentors`) and "Rising Star ranking" (`/#ranking`); Consulting / Mentor zone stay for signed-in users; name shown as a pill. Saved, Knowledge hub and Explore left the menu. Footer is dark with For teams / For mentors / legal links.
+- The competition explorer moved to `/explore` (old `/?q=…` links redirect there); Detail back links point there.
+- API: `/api/rising-star/newest` adds headline, helpsWith, price, unit, joinedAt, credit; new `/api/rising-star/board?period=last` (members of that month only, ranked by `byRating`, field from skill groups, sessions = confirmed consultations in the month, `viewer.member`).
+- Tests: new `tests/landing.spec.ts`; prototype, consult, i18n, rising-star specs follow the move.
+- No migration.

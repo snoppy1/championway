@@ -13,9 +13,9 @@ async function apiTotal(page: Page, query = '') {
 }
 
 test('home shows the first page of competitions and paginates', async ({ page }) => {
-  await page.goto('/');
-  // The hero heading is wordmark artwork, so its name comes from the image alt text.
-  await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('ChampionWays');
+  await page.goto('/explore');
+  // หน้ารวมงานแข่งย้ายจากหน้าแรกมาที่ /explore (Landing v4)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('สำรวจการแข่งขัน');
   const total = await apiTotal(page);
   await expect(page.locator('.competition-card')).toHaveCount(PER_PAGE);
   await expect(page.getByRole('status').first()).toContainText(`${total} เวที`);
@@ -32,7 +32,7 @@ test('home shows the first page of competitions and paginates', async ({ page })
 });
 
 test('search, category and timing filters all live in the URL', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/explore');
   await page.getByRole('searchbox', { name: 'ค้นหาการแข่งขัน' }).fill('  หุ่นยนต์  ');
   await page.getByRole('button', { name: 'ค้นหา', exact: true }).click();
   await expect(page).toHaveURL(/q=/);
@@ -40,12 +40,12 @@ test('search, category and timing filters all live in the URL', async ({ page })
   await expect(page.locator('.competition-card h3')).toHaveText('Robotics Frontier League');
 
   // `category` is the old name for `cat`, so links shared before the rename still open.
-  await page.goto('/?category=design');
+  await page.goto('/explore?category=design');
   const designCount = await apiTotal(page, 'cat=design');
   await expect(page.locator('.competition-card')).toHaveCount(designCount);
   await expect(page.getByRole('status').first()).toContainText('ศิลปะและออกแบบ');
 
-  await page.goto('/');
+  await page.goto('/explore');
   await page.getByRole('button', { name: 'ตัวกรอง' }).click();
   // click, not check: check() reads the state before the router flushes the new URL.
   const timing = page.getByRole('radio', { name: 'ปิดรับใน 30 วัน' });
@@ -58,14 +58,14 @@ test('search, category and timing filters all live in the URL', async ({ page })
 });
 
 test('an unknown category or page in the URL falls back instead of breaking', async ({ page }) => {
-  await page.goto('/?category=not-real&sort=nonsense&page=99');
+  await page.goto('/explore?category=not-real&sort=nonsense&page=99');
   const total = await apiTotal(page);
   await expect(page.locator('.competition-card')).toHaveCount(total - (Math.ceil(total / PER_PAGE) - 1) * PER_PAGE);
   await expect(page.getByRole('button', { name: 'Hackathon', exact: true })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('sorting by prize puts the largest award first', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/explore');
   await page.getByLabel('เรียงตาม').selectOption('prize');
   await expect(page).toHaveURL(/sort=prize/);
   const response = await page.request.get('/api/competitions?sort=prize&perPage=1');
@@ -73,17 +73,15 @@ test('sorting by prize puts the largest award first', async ({ page }) => {
   await expect(page.locator('.competition-card h3').first()).toHaveText(items[0].name);
 });
 
-test('saving a competition updates the header count and the saved view', async ({ page }) => {
-  await page.goto('/');
+test('saving a competition shows it in the saved view', async ({ page }) => {
+  await page.goto('/explore');
   const card = page.locator('.competition-card').first();
   const title = await card.locator('h3').textContent();
   await card.getByRole('button', { name: 'บันทึก', exact: true }).click();
   await expect(card.getByRole('button', { name: 'บันทึกแล้ว' })).toHaveAttribute('aria-pressed', 'true');
 
-  const savedLink = page.getByRole('link', { name: /รายการที่บันทึก 1 รายการ/ });
-  await expect(savedLink).toBeVisible();
-  await savedLink.click();
-  await expect(page).toHaveURL(/saved=1/);
+  // รายการที่บันทึกออกจากหัวเว็บแล้ว (spec ข้อ 12) ยังเปิดได้จากลิงก์เดิม
+  await page.goto('/explore?saved=1');
   await expect(page.locator('.competition-card')).toHaveCount(1);
   await expect(page.locator('.competition-card h3')).toHaveText(title!);
 
@@ -106,7 +104,7 @@ test('every competition opens from a direct URL with all five sections', async (
 });
 
 test('returning from a detail page keeps the search, filter and scroll position', async ({ page }) => {
-  await page.goto('/?category=business&sort=prize');
+  await page.goto('/explore?category=business&sort=prize');
   await expect(page.locator('.competition-card').first()).toBeVisible();
   // scrollTo rather than mouse.wheel: the wheel does not move the page under mobile emulation.
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
@@ -118,7 +116,7 @@ test('returning from a detail page keeps the search, filter and scroll position'
 
   await page.locator('.competition-card').first().getByRole('link', { name: /ดูรายละเอียด/ }).click();
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await page.getByRole('link', { name: 'กลับไปหน้าแรก' }).click();
+  await page.getByRole('link', { name: 'กลับไปรายการงานแข่ง' }).click();
 
   await expect(page).toHaveURL(/category=business/);
   await expect(page.getByRole('status').first()).toContainText('ธุรกิจและผู้ประกอบการ');
@@ -129,12 +127,12 @@ test('an unknown slug shows the not-found page, not a blank screen', async ({ pa
   await page.goto('/competitions/no-such-competition');
   await expect(page.getByRole('heading', { name: 'ยังไม่พบเวทีนี้' })).toBeVisible();
   await page.getByRole('link', { name: /กลับไปสำรวจการแข่งขัน/ }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/explore$/);
 });
 
 test('explore: the kind tabs and theme filters live in the URL and survive a reload', async ({ page }) => {
   await page.goto('/explore');
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/explore$/);
   // "ทั้งหมด" ต้องติดอยู่ตั้งแต่เปิดหน้ามา ไม่ใช่ปล่อยให้ทั้งแถวดูไม่มีอะไรถูกเลือก
   await expect(page.getByRole('group', { name: 'ประเภทการแข่งขัน', exact: true }).getByRole('button')).toHaveCount(3);
   await expect(page.getByRole('button', { name: 'ทั้งหมด', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -199,7 +197,7 @@ test('the old mentor link redirects to the competition, where its mentors now li
 });
 
 test('keyboard reaches the search box and the skip link', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/explore');
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'ข้ามไปเนื้อหาหลัก' })).toBeFocused();
 
@@ -244,7 +242,7 @@ test('filter groups are OR inside and AND across, and read back from the URL', a
   const inBangkok = camps.filter((item) => item.region === 'bangkok');
   expect(camps.length, 'fixtures must exercise both sides of the OR').toBeGreaterThan(inBangkok.length);
 
-  await page.goto('/');
+  await page.goto('/explore');
   await page.getByRole('button', { name: 'ตัวกรอง' }).click();
   await page.getByRole('checkbox', { name: 'ค่าย' }).click();
   await page.getByRole('checkbox', { name: 'ทุน' }).click();
@@ -266,7 +264,7 @@ test('filter groups are OR inside and AND across, and read back from the URL', a
 });
 
 test('clearing the panel keeps the chosen category and search, and the panel passes axe', async ({ page }) => {
-  await page.goto('/?q=ออกแบบ&cat=design&free=1&level=university');
+  await page.goto('/explore?q=ออกแบบ&cat=design&free=1&level=university');
   await page.getByRole('button', { name: 'ตัวกรอง' }).click();
 
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();

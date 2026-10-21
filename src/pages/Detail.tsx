@@ -65,7 +65,7 @@ export function NotFound({ reason }: { reason?: string }) {
     <p style={{ margin: '10px 0 22px', color: 'var(--muted)' }}>
       {reason || s.notFoundText}
     </p>
-    <Link className="primary-button" to="/"><ArrowLeft size={17} aria-hidden="true" />{s.backToExplore}</Link>
+    <Link className="primary-button" to="/explore"><ArrowLeft size={17} aria-hidden="true" />{s.backToExplore}</Link>
   </main>;
 }
 
@@ -118,7 +118,7 @@ export function Detail() {
 
   return <main id="main" tabIndex={-1} className="shell page detail-page">
     <div className="detail-breadcrumb">
-      <Link to={`/${search}`}><ArrowLeft size={16} aria-hidden="true" />{s.backHome}</Link>
+      <Link to={`/explore${search}`}><ArrowLeft size={16} aria-hidden="true" />{s.backHome}</Link>
       <span>{s.breadcrumb(t.taxonomy.categories[main])}</span>
     </div>
 
@@ -208,7 +208,7 @@ export function Detail() {
     {related.length > 0 && <section className="related-section" aria-labelledby="related-title">
       <div className="section-head">
         <h2 id="related-title">{s.relatedTitle}</h2>
-        <Link className="detail-link" to={`/?cat=${main}`}>
+        <Link className="detail-link" to={`/explore?cat=${main}`}>
           {s.viewCategory(t.taxonomy.categories[main])}<ArrowRight size={16} aria-hidden="true" />
         </Link>
       </div>

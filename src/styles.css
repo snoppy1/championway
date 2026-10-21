@@ -175,7 +175,6 @@ main:focus { outline: none; }
 
 .header-menu { display: contents; }
 .main-nav { order: 1; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; margin-right: auto; }
-.header-saved { order: 2; }
 .icon-button.menu-toggle { display: none; }
 .main-nav a {
   white-space: nowrap;
@@ -291,6 +290,8 @@ main:focus { outline: none; }
   color: #65517e;
 }
 .hero-lead { margin: 22px auto 0; max-width: 600px; font-size: 16px; line-height: 1.8; color: #706779; }
+/* หน้ารวมงานแข่ง (/explore) ใช้หัวข้อตัวอักษรแทนโลโก้ใหญ่ */
+.hero-title { font-size: clamp(32px, 4.4vw, 48px); font-weight: 700; color: var(--ink-deep); }
 
 /* ---------- weekly highlights ---------- */
 
@@ -805,21 +806,27 @@ legend { margin-bottom: 12px; font-weight: 600; }
 
 /* ---------- footer ---------- */
 
-.site-footer { margin-top: 56px; border-top: 1px solid var(--line); background: linear-gradient(180deg, #fcfbfe, #fffbea); }
+.site-footer { margin-top: 56px; background: #1c1530; color: #cfc6de; }
 .footer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 32px;
   align-items: start;
-  padding-block: 52px 40px;
+  padding-block: 64px 40px;
 }
-.footer-brand p { margin-top: 14px; max-width: 32ch; font-size: 14px; line-height: 1.75; color: var(--muted); }
+.site-footer .brand-link { color: #fff; }
+.site-footer .brand-mark { width: 30px; height: 30px; }
+.site-footer .brand-name { font-size: 17px; }
+.footer-brand p { margin-top: 12px; max-width: 32ch; font-size: 14px; line-height: 1.75; color: #a99fbb; }
 .footer-links { display: flex; gap: 56px; flex-wrap: wrap; justify-content: flex-end; }
-.footer-links div { display: flex; flex-direction: column; gap: 11px; }
-.footer-links strong { font-size: 12px; color: var(--muted); letter-spacing: 0.6px; }
-.footer-links a { font-size: 14px; color: #57504b; }
-.footer-links a:hover { color: var(--purple-deep); }
-.footer-bottom { padding-block: 22px 40px; border-top: 1px solid var(--line-warm); font-size: 12.5px; color: var(--muted); }
+.footer-links div { display: flex; flex-direction: column; gap: 10px; }
+.footer-links strong { font-size: 12px; color: #8e84a3; letter-spacing: 1px; }
+.footer-links a { font-size: 14px; color: #e4ddef; }
+.footer-links a:hover, .footer-legal a:hover { color: #fff; text-decoration: underline; }
+.footer-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 20px; padding-block: 8px 40px; font-size: 13px; color: #8e84a3; }
+.footer-legal { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.footer-legal a { color: #a99fbb; }
+.site-footer :focus-visible { outline-color: var(--gold); }
 
 /* ---------- responsive ---------- */
 
@@ -950,8 +957,10 @@ legend { margin-bottom: 12px; font-weight: 600; }
 
 .account-name { font-size: 13px; font-weight: 600; color: var(--ink-deep); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* เป็นลิงก์ไปหน้าโปรไฟล์ ต้องเห็นว่ากดได้ตอนชี้และรับ focus จากคีย์บอร์ดได้ */
-a.account-name { display: inline-block; padding: 6px 4px; border-radius: 8px; }
-a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
+/* ชื่อในหัวเว็บเป็นป้ายมีวงกลมตัวอักษรแรก ตาม Landing v4 */
+a.account-name { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 12px 4px 4px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px; font-weight: 500; }
+a.account-name:hover { border-color: #d9c6f3; color: var(--ink-deep); }
+.account-initial { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #ddcbff, var(--gold)); font-family: var(--display); font-size: 12px; font-weight: 600; color: #3b2a5a; }
 .account-loading { width: 96px; height: 20px; border-radius: 999px; background: var(--line); }
 
 .auth-page { display: flex; justify-content: center; padding-block: 40px 70px; }
@@ -1098,7 +1107,6 @@ a.account-name:hover { color: var(--purple-deep); text-decoration: underline; }
   .header-inner { flex-wrap: wrap; gap: 10px; padding-block: 10px; }
   .brand-link { margin-right: auto; }
   .icon-button.menu-toggle { display: grid; order: 3; }
-  .header-saved { order: 2; }
   .header-menu {
     display: none;
     order: 4;

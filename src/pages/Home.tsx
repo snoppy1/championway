@@ -1,292 +1,248 @@
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
-import { ArrowRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Timer, Trophy } from 'lucide-react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { activeFilterCount, daysLeft, exactDeadline, formatDeadline, prizeLabel, sortOptions } from '../data/competitions';
-import type { Competition, Filters, SortId } from '../data/competitions';
-import { clearedFilters, readFilters, writeFilters } from '../data/filters';
-import { toggleSaved, useSavedSlugs } from '../data/saved';
+import { useEffect, useState } from 'react';
+import { ArrowRight, Clock3, FileText, Flag, MessageCircle, ReceiptText, ShieldCheck, Star, Trophy, Users } from 'lucide-react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useApi } from '../lib/useApi';
-import { CompetitionCover } from '../components/CoverArt';
-import { Avatar } from '../components/mentors';
-import { FilterPanel } from '../components/FilterPanel';
-import { BookmarkSimple } from '../components/icons';
-import wordmark from '../assets/wordmark-lg.webp';
-
-import { CompetitionTypeFilter } from '../components/CompetitionTypeFilter';
 import { useI18n } from '../i18n';
-import '../journey.css';
+import { Avatar, RisingStarPill } from '../components/mentors';
+import type { HelpsWith } from '../data/matching';
+import trophy from '../assets/trophy.png';
+import heroImage from '../assets/landing/hero-columns.webp';
+import ctaImage from '../assets/landing/cta-summit.webp';
+import '../landing.css';
 
-const PER_PAGE = 6;
+/* หน้าแรกแบบใหม่ (Claude Design: ChampionWays Mentor Landing v4, 21 ต.ค. 2569)
+   hero → เมนเทอร์ใหม่ → วิธีใช้งาน 4 ขั้น → อันดับ Rising Star → ชวนเริ่ม
+   ระบบจับคู่ยังไม่เปิด ปุ่ม "Ready to win the competition?" จึงพาไปหน้ารวมเมนเทอร์ก่อน (spec ข้อ 12, 13) */
+const START = '/mentors';
 
-type NewMentor = { id: string; name: string; initial: string; specialty: string; photoUrl?: string | null };
+type Credit = { result: 'winner' | 'finalist' | 'participant' | 'other'; name: string } | null;
+type NewMentor = {
+  id: string; name: string; initial: string; specialty: string; photoUrl: string | null; headline: string;
+  helpsWith: HelpsWith[]; price: number | null; minutes: number | null; unit: string; joinedAt: string; credit: Credit;
+};
+type Field = 'business' | 'technology' | 'design';
+type BoardMentor = {
+  rank: number; id: string; name: string; initial: string; photoUrl: string | null; headline: string; field: Field | null;
+  credit: Credit; rating: { average: number | null; reviews: number }; sessions: number;
+};
+type Board = { month: string; closesAt: string | null; items: BoardMentor[]; viewer: { member: boolean } | null; demo: boolean };
 
-/* แถบ "Mentor หน้าใหม่" แทนการแข่งขันล่าสุด (ผู้ใช้ขอ 5 ต.ค. 2569) เรียงจากคนที่ทีมงานอนุมัติล่าสุด
-   เลื่อนเองด้วยปุ่มลูกศรหรือแถบข้างล่าง ไม่เลื่อนอัตโนมัติ จึงไม่ต้องมีปุ่มหยุด */
-function NewMentors({ onReady }: { onReady: (ready: boolean) => void }) {
+function CreditLine({ credit, className }: { credit: Credit; className: string }) {
   const { t } = useI18n();
-  const s = t.home;
-  const { data, loading } = useApi<{ items: NewMentor[] }>('/rising-star/newest');
-  useEffect(() => { onReady(!loading); }, [loading, onReady]);
-  const scroller = useRef<HTMLDivElement>(null);
-  const items = data?.items ?? [];
+  if (!credit) return null;
+  const award = credit.result === 'winner' || credit.result === 'finalist';
+  const Icon = award ? Trophy : Flag;
+  return <p className={`${className}${award ? ' is-award' : ''}`}><Icon size={14} aria-hidden="true" />{t.landing.credit[credit.result](credit.name)}</p>;
+}
+
+function Price({ mentor }: { mentor: NewMentor }) {
+  const { t } = useI18n();
+  if (mentor.price === null) return <span />;
+  if (mentor.price === 0) return <span className="lp-price"><b>{t.landing.free}</b></span>;
+  const unit = mentor.unit ? ` / ${mentor.unit}` : mentor.minutes ? t.landing.perMinutes(mentor.minutes) : '';
+  return <span className="lp-price"><b>{t.landing.baht(mentor.price)}</b>{unit}</span>;
+}
+
+function NewMentors() {
+  const { t } = useI18n();
+  const s = t.landing;
+  const { data } = useApi<{ items: NewMentor[] }>('/rising-star/newest');
+  const items = (data?.items ?? []).slice(0, 4);
   if (!items.length) return null;
-
-  const step = (direction: 1 | -1) => {
-    const box = scroller.current;
-    const card = box?.querySelector<HTMLElement>('.trend-card');
-    if (!box || !card) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    box.scrollBy({ left: direction * (card.offsetWidth + 18), behavior: reduce ? 'auto' : 'smooth' });
-  };
-
-  return <section className="shell highlights" aria-labelledby="new-mentors-title">
-    <div className="section-head">
+  const now = Date.now();
+  return <section className="lp-shell lp-new" id="new" aria-labelledby="lp-new-title">
+    <div className="lp-head">
       <div>
-        <h2 id="new-mentors-title">{s.newMentorsTitle}</h2>
-        <p>{s.newMentorsLead}</p>
+        <p className="lp-eyebrow">{s.newEyebrow}</p>
+        <h2 id="lp-new-title">{s.newTitle}</h2>
+        <p className="lp-lead">{s.newLead}</p>
       </div>
-      <div className="slider-controls">
-        <button type="button" className="slider-arrow" aria-label={s.previousMentors} onClick={() => step(-1)}>
-          <ChevronLeft size={18} aria-hidden="true" />
-        </button>
-        <button type="button" className="slider-arrow" aria-label={s.nextMentors} onClick={() => step(1)}>
-          <ChevronRight size={18} aria-hidden="true" />
-        </button>
-        <Link className="slider-all" to="/mentors">{s.allMentors}<ArrowRight size={14} aria-hidden="true" /></Link>
-      </div>
+      <Link className="lp-more" to="/mentors">{s.browseAll}<ArrowRight size={14} aria-hidden="true" /></Link>
     </div>
-    {/* ต้องรับ focus ได้เพื่อให้เลื่อนด้วยลูกศรบนคีย์บอร์ดได้เหมือนกับเมาส์ */}
-    <div className="trend-scroller" ref={scroller} tabIndex={0} role="group" aria-label={s.newMentorsScroll}>
-      {items.map((mentor) => <Link className="trend-card mentor-slide" key={mentor.id} to={`/mentors/${mentor.id}`}>
-        <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
-        <div>
-          <b>{mentor.name}</b>
-          <small>{mentor.specialty}</small>
+    <div className="lp-new__grid">
+      {items.map((mentor) => <article className="lp-card" key={mentor.id}>
+        <div className="lp-card__top">
+          <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
+          <span className="lp-joined">{s.joined(Math.max(0, Math.floor((now - Date.parse(mentor.joinedAt)) / 86_400_000)))}</span>
         </div>
-      </Link>)}
+        <h3>{mentor.name}</h3>
+        <p className="lp-card__sub">{mentor.headline || mentor.specialty}</p>
+        <CreditLine credit={mentor.credit} className="lp-credit" />
+        {mentor.helpsWith.length > 0 && <ul className="lp-tags">
+          {mentor.helpsWith.map((topic) => <li key={topic}>{t.mentorProfileV2.helpsWithNames[topic]}</li>)}
+        </ul>}
+        <div className="lp-card__foot">
+          <Price mentor={mentor} />
+          <Link className="lp-btn-outline" to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}>{s.viewProfile}</Link>
+        </div>
+      </article>)}
     </div>
   </section>;
 }
 
-function CompetitionCard({ competition }: { competition: Competition }) {
-  const { t, lang } = useI18n();
-  const s = t.home;
-  const { search } = useLocation();
-  const saved = useSavedSlugs();
-  const isSaved = saved.includes(competition.slug);
-  const left = daysLeft(competition);
-  const urgent = left >= 0 && left <= 7 && exactDeadline(competition);
-  const [first] = competition.categories;
+const stepIcons = [FileText, Users, MessageCircle, Star];
 
-  return <article className="competition-card">
-    {competition.featured && <div className="card-featured-bar" aria-hidden="true" />}
-    <div className="card-cover">
-      <CompetitionCover category={first} seed={competition.slug} posterUrl={competition.posterUrl} />
-      {competition.kind && <span className="kind-chip">{t.taxonomy.kinds[competition.kind]}</span>}
-      {urgent && <span className="urgent-chip"><Timer size={13} aria-hidden="true" />{t.competition.closesInDays(left)}</span>}
+function HowItWorks() {
+  const { t } = useI18n();
+  const s = t.landing;
+  return <section className="lp-shell lp-how" id="how" aria-labelledby="lp-how-title">
+    <div className="lp-how__head">
+      <p className="lp-eyebrow">{s.howEyebrow}</p>
+      <h2 id="lp-how-title">{s.howTitle}</h2>
     </div>
-    <div className="card-body">
-      <div className="card-meta">
-        {competition.themes?.map(theme => <span className="category-pill" key={theme}>{t.taxonomy.themes[theme]}</span>)}
-        <span className="card-org">{competition.org}</span>
-      </div>
-      <h3><Link to={`/competitions/${competition.slug}${search}`}>{competition.name}</Link></h3>
-      <p className="card-summary">{competition.description}</p>
-      <div className="card-facts">
-        <span><Calendar size={15} aria-hidden="true" />{t.competition.closes(formatDeadline(competition, lang, t))}</span>
-        <span><Trophy size={15} aria-hidden="true" />{prizeLabel(competition, t, lang)}</span>
-      </div>
-      <div className="card-actions">
-        <Link className="detail-link" to={`/competitions/${competition.slug}${search}`} aria-label={s.viewDetailsOf(competition.name)}>
-          {s.viewDetails}<ArrowRight size={14} aria-hidden="true" />
-        </Link>
-        <button
-          type="button"
-          className={isSaved ? 'save-button is-saved' : 'save-button'}
-          aria-pressed={isSaved}
-          onClick={() => toggleSaved(competition.slug)}
-        >
-          <BookmarkSimple size={15} filled={isSaved} />{isSaved ? s.saved : s.save}
-        </button>
-      </div>
+    <div className="lp-steps">
+      <span className="lp-steps__line" aria-hidden="true" />
+      <ol>
+        {s.steps.map((step, index) => {
+          const Icon = stepIcons[index];
+          return <li key={step.title}>
+            <span className={`lp-step__icon lp-step__icon--${index}`}><Icon size={24} aria-hidden="true" /></span>
+            <p className="lp-step__n">{s.step(index + 1)}</p>
+            <h3>{step.title}</h3>
+            <p>{step.text}</p>
+          </li>;
+        })}
+      </ol>
     </div>
-  </article>;
+    <p className="lp-center"><Link className="lp-btn-primary" to={START}>{s.cta}<ArrowRight size={16} aria-hidden="true" /></Link></p>
+  </section>;
+}
+
+const fieldIds = ['all', 'business', 'technology', 'design'] as const;
+
+function Ranking() {
+  const { t, lang } = useI18n();
+  const s = t.landing;
+  const [last, setLast] = useState(false);
+  const [field, setField] = useState<(typeof fieldIds)[number]>('all');
+  const { data } = useApi<Board>(`/rising-star/board${last ? '?period=last' : ''}`);
+  const items = (data?.items ?? []).filter((mentor) => field === 'all' || mentor.field === field);
+  // ตัวเลขอันดับนับใหม่หลังกรองสาย คนแรกของสายนั้นจะเป็น #1
+  const ranked = items.map((mentor, index) => ({ ...mentor, rank: index + 1 }));
+  const top = ranked.slice(0, 3);
+  const rest = ranked.slice(3);
+  const closes = data?.closesAt
+    ? new Intl.DateTimeFormat(lang === 'th' ? 'th-TH' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(Date.parse(data.closesAt) - 1))
+    : null;
+  const empty = field !== 'all' ? s.noField : last ? s.emptyLast : s.emptyMonth;
+  const reviewsLabel = last ? s.reviewsLast : s.reviewsThis;
+
+  return <section className="lp-rank" id="ranking" aria-labelledby="lp-rank-title">
+    <div className="lp-shell">
+      <div className="lp-head">
+        <div>
+          <p className="lp-eyebrow">{s.rankEyebrow}</p>
+          <h2 id="lp-rank-title">{s.rankTitle}</h2>
+          <p className="lp-lead">{last ? s.rankLeadLast : s.rankLead}</p>
+          {closes && <p className="lp-closes"><Clock3 size={13} aria-hidden="true" />{s.closes(closes)}</p>}
+        </div>
+        <div className="lp-periods" role="group" aria-label={s.period}>
+          <button type="button" aria-pressed={!last} onClick={() => setLast(false)}>{s.thisMonth}</button>
+          <button type="button" aria-pressed={last} onClick={() => setLast(true)}>{s.lastMonth}</button>
+        </div>
+      </div>
+      <div className="lp-fields" role="group" aria-label={s.field}>
+        {fieldIds.map((id) => <button type="button" key={id} aria-pressed={field === id} onClick={() => setField(id)}>{s.fields[id]}</button>)}
+      </div>
+      {data?.demo && ranked.length > 0 && <p className="lp-demo">{s.demo}</p>}
+
+      {data && ranked.length === 0 && <div className="lp-empty">
+        <span className="lp-empty__icon"><Star size={22} aria-hidden="true" /></span>
+        <p>{empty}</p>
+        <Link className="lp-more" to="/mentors">{s.browseAll}<ArrowRight size={14} aria-hidden="true" /></Link>
+      </div>}
+
+      {top.length > 0 && <div className={top.length === 3 ? 'lp-podium is-full' : 'lp-podium'}>
+        {top.map((mentor) => <article className={mentor.rank === 1 ? 'lp-podium__card is-first' : 'lp-podium__card'} key={mentor.id}>
+          <span className="lp-podium__rank">#{mentor.rank}</span>
+          <span className="lp-podium__pill"><RisingStarPill /></span>
+          <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
+          <h3>{mentor.name}</h3>
+          <p className="lp-card__sub">{mentor.headline}</p>
+          <CreditLine credit={mentor.credit} className="lp-podium__credit" />
+          <div className="lp-podium__stats">
+            <span><b>{mentor.rating.average === null ? '–' : <>★ {mentor.rating.average.toFixed(1)}</>}</b><small>{mentor.rating.average === null ? s.noRating : s.avgRating}</small></span>
+            <span><b>{mentor.rating.reviews}</b><small>{reviewsLabel}</small></span>
+          </div>
+          <p className="lp-podium__sessions">{s.sessionsLine(mentor.sessions, last)}</p>
+          <Link className="lp-podium__btn" to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}>{s.viewProfile}</Link>
+        </article>)}
+      </div>}
+
+      {rest.length > 0 && <ol className="lp-list" start={4}>
+        {rest.map((mentor) => <li key={mentor.id}>
+          <span className="lp-list__rank">{mentor.rank}</span>
+          <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
+          <div className="lp-list__body">
+            <p className="lp-list__name"><b>{mentor.name}</b><RisingStarPill /><span>{mentor.headline}</span></p>
+            <p className="lp-list__meta">
+              {mentor.credit && <span className={mentor.credit.result === 'winner' || mentor.credit.result === 'finalist' ? 'is-award' : ''}>{s.credit[mentor.credit.result](mentor.credit.name)}</span>}
+              <b>{mentor.rating.average === null ? s.noRating : <>★ {mentor.rating.average.toFixed(1)} · {s.reviewsLine(mentor.rating.reviews, last)}</>}</b>
+              <span className="lp-list__muted">{s.sessionsLine(mentor.sessions, last)}</span>
+            </p>
+          </div>
+          <Link className="lp-btn-outline" to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}>{s.view}</Link>
+        </li>)}
+      </ol>}
+
+      {data?.viewer && !data.viewer.member && <div className="lp-become">
+        <div>
+          <span className="lp-become__icon"><Star size={18} aria-hidden="true" /></span>
+          <div><b>{s.becomeTitle}</b><span>{s.becomeLead}</span></div>
+        </div>
+        <Link className="lp-btn-outline" to="/mentors">{s.becomeBtn}</Link>
+      </div>}
+    </div>
+  </section>;
 }
 
 export function Home() {
   const { t } = useI18n();
-  const s = t.home;
-  const [params, setParams] = useSearchParams();
-  const saved = useSavedSlugs();
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [highlightsReady, setHighlightsReady] = useState(false);
-
-  const filters = readFilters(params);
-  const rawSort = params.get('sort') ?? 'deadline';
-  const sort = (sortOptions.some((item) => item.id === rawSort) ? rawSort : 'deadline') as SortId;
-  const savedOnly = params.get('saved') === '1';
-  const requestedPage = Number(params.get('page'));
-
-  const [draft, setDraft] = useState(filters.query);
-  useEffect(() => { setDraft(filters.query); }, [filters.query]);
+  const s = t.landing;
+  const { search, hash } = useLocation();
   useEffect(() => { document.title = `ChampionWays — ${s.pageTitle}`; }, [s.pageTitle]);
-
-  function updateParam(patch: Record<string, string | null>, keepPage = false) {
-    const next = new URLSearchParams(params);
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null || value === '') next.delete(key); else next.set(key, value);
-    }
-    if (!keepPage) next.delete('page');
-    setParams(next, { preventScrollReset: true });
-  }
-
-  function applyFilters(next: Filters) {
-    setParams(writeFilters(params, next), { preventScrollReset: true });
-  }
-
-  function submitSearch(event: FormEvent) {
-    event.preventDefault();
-    applyFilters({ ...filters, query: draft.trim() });
-  }
-
-  /* การกรองและแบ่งหน้าทำที่เซิร์ฟเวอร์ หน้าเว็บส่ง query string ชุดเดียวกับที่อยู่บน URL
-     ยกเว้นรายการที่บันทึกไว้ ซึ่งเก็บอยู่ในเบราว์เซอร์เท่านั้น จึงส่งเป็นรายชื่อ slug ไป */
-  const apiParams = new URLSearchParams(params);
-  apiParams.delete('saved');
-  apiParams.set('perPage', String(PER_PAGE));
-  if (savedOnly) apiParams.set('slugs', saved.join(','));
-  const emptySaved = savedOnly && saved.length === 0;
-  const { data, error, loading } = useApi<{
-    total: number; page: number; pageCount: number; items: Competition[];
-  }>(emptySaved ? null : `/competitions?${apiParams}`);
-
-  // Router restoration can be clamped while the API-driven sections are still
-  // placeholders. Restore the departure position once their final height is known.
+  /* ลิงก์ "/#ranking" และ "/#how" จากหน้าอื่น: เลื่อนไปส่วนนั้นหลังการ์ดโหลดเสร็จ ตำแหน่งจะได้ไม่เลื่อนหนีอีก */
   useEffect(() => {
-    if (loading || !highlightsReady) return;
-    const key = `competition-scroll:${params.toString()}`;
-    const savedPosition = sessionStorage.getItem(key);
-    if (savedPosition === null) return;
-    let cancelled = false;
-    void document.fonts.ready.then(() => requestAnimationFrame(() => {
-      if (cancelled) return;
-      window.scrollTo(0, Number(savedPosition));
-      sessionStorage.removeItem(key);
-    }));
-    return () => { cancelled = true; };
-  }, [loading, highlightsReady, params]);
+    if (!hash) return;
+    const timer = window.setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView(), 350);
+    return () => window.clearTimeout(timer);
+  }, [hash]);
+  // ลิงก์ค้นหางานแข่งเดิม (/?q=…, /?cat=…, /?saved=1) ไปหน้ารวมงานแข่งที่ย้ายไป /explore
+  if (search) return <Navigate to={`/explore${search}`} replace />;
 
-  const results = data?.items ?? [];
-  const total = emptySaved ? 0 : data?.total ?? 0;
-  const pageCount = emptySaved ? 1 : data?.pageCount ?? 1;
-  const page = data?.page ?? (Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1);
-  const shown = results;
-  const panelCount = activeFilterCount(filters);
-  const chosenCategories = filters.categories.map((id) => t.taxonomy.categories[id]).join(' · ');
-  const summary = [
-    loading ? s.loading : s.total(total),
-    chosenCategories,
-    panelCount > 0 ? s.filterCount(panelCount) : '',
-    savedOnly ? s.savedOnly : '',
-  ].filter(Boolean).join(' · ');
-
-  return <main id="main" tabIndex={-1} onClickCapture={event => {
-    const link = (event.target as HTMLElement).closest('a');
-    if (link && new URL(link.href).pathname.startsWith('/competitions/')) {
-      sessionStorage.setItem(`competition-scroll:${params.toString()}`, String(window.scrollY));
-    }
-  }}>
-    <section className="hero">
-      <div className="shell hero-inner">
-        <h1 className="hero-wordmark"><img src={wordmark} alt="ChampionWays" width={1480} height={311} /></h1>
-        <p className="hero-tagline">{s.tagline}</p>
-        <p className="hero-lead">{s.lead}</p>
+  return <main id="main" tabIndex={-1} className="lp">
+    <section className="lp-hero">
+      <div className="lp-hero__art" aria-hidden="true">
+        <img src={heroImage} alt="" width={1916} height={821} />
+      </div>
+      <div className="lp-hero__inner">
+        <p className="lp-badge"><img src={trophy} alt="" width={18} height={18} />{s.heroBadge}</p>
+        <h1>{s.h1a} <span>{s.h1b}</span></h1>
+        <p className="lp-hero__lead">{s.heroLead}</p>
+        <div className="lp-hero__actions">
+          <Link className="lp-btn-dark" to={START}>{s.cta}<ArrowRight size={16} aria-hidden="true" /></Link>
+          <a className="lp-link" href="#how">{s.seeHow}</a>
+        </div>
+        <ul className="lp-bullets">
+          <li><ShieldCheck size={15} aria-hidden="true" />{s.b1}</li>
+          <li><Clock3 size={15} aria-hidden="true" />{s.b2}</li>
+          <li><ReceiptText size={15} aria-hidden="true" />{s.b3}</li>
+        </ul>
       </div>
     </section>
 
-    <NewMentors onReady={setHighlightsReady} />
+    <NewMentors />
+    <HowItWorks />
+    <Ranking />
 
-    <div className="shell search-panel">
-      <form className="search-bar" role="search" onSubmit={submitSearch}>
-        <div className="search-field">
-          <Search size={18} aria-hidden="true" />
-          <label className="sr-only" htmlFor="competition-search">{s.searchLabel}</label>
-          <input
-            id="competition-search" type="search" autoComplete="off"
-            placeholder={s.searchPlaceholder}
-            value={draft} onChange={(event) => setDraft(event.target.value)}
-          />
-        </div>
-        <button className="primary-button" type="submit">{s.searchSubmit}</button>
-        <button
-          type="button" className="filter-toggle" aria-expanded={panelOpen}
-          onClick={() => setPanelOpen(true)}
-        >
-          <SlidersHorizontal size={17} aria-hidden="true" />
-          {s.filters}
-          {panelCount > 0 && <span className="filter-count">{panelCount}</span>}
-        </button>
-      </form>
-    </div>
-
-    <div className="shell">
-      <CompetitionTypeFilter />
-    </div>
-
-    <section className="shell results" aria-labelledby="results-title">
-      <div className="results-head">
-        <div className="results-title">
-          <h2 id="results-title">{s.resultsTitle}</h2>
-          <span className="results-count" role="status">
-            {summary}
-          </span>
-        </div>
-        <label className="sort-field">
-          {s.sortBy}
-          <span className="select-wrap">
-            <select value={sort} onChange={(event) => updateParam({ sort: event.target.value })}>
-              {sortOptions.map((option) => <option key={option.id} value={option.id}>{t.taxonomy.sort[option.id]}</option>)}
-            </select>
-            <ChevronDown size={13} aria-hidden="true" />
-          </span>
-        </label>
+    <section className="lp-cta" aria-labelledby="lp-cta-title">
+      <img className="lp-cta__art" src={ctaImage} alt="" width={1584} height={672} loading="lazy" />
+      <div className="lp-cta__inner">
+        <h2 id="lp-cta-title">{s.ctaTitle}</h2>
+        <p>{s.ctaLead}</p>
+        <Link className="lp-btn-gold" to={START}>{s.cta}<ArrowRight size={16} aria-hidden="true" /></Link>
+        <small>{s.ctaNote}</small>
       </div>
-
-      {error && <p className="auth-message" role="alert">{error}</p>}
-
-      {loading ? <div className="card-grid" aria-hidden="true">
-        {Array.from({ length: PER_PAGE }, (_, index) => <div className="card-skeleton" key={index} />)}
-      </div> : results.length > 0 ? <div className="card-grid">
-        {shown.map((competition) => <CompetitionCard key={competition.slug} competition={competition} />)}
-      </div> : <div className="empty-state">
-        <Search size={34} aria-hidden="true" />
-        <h2>{savedOnly ? s.emptySavedTitle : s.emptyNoneTitle}</h2>
-        <p>{savedOnly ? s.emptySavedText : s.emptyNoneText}</p>
-        <p style={{ marginTop: 16 }}>
-          <Link className="ghost-button" to="/">{s.showAll}</Link>
-        </p>
-      </div>}
-
-      {pageCount > 1 && <nav className="pagination" aria-label={s.pages}>
-        <button type="button" className="page-arrow" aria-label={s.previousPage} disabled={page === 1}
-          onClick={() => updateParam({ page: String(page - 1) }, true)}><ChevronLeft size={16} /></button>
-        {Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => <button
-          key={number} type="button"
-          className={number === page ? 'page-button active' : 'page-button'}
-          aria-current={number === page ? 'page' : undefined}
-          onClick={() => updateParam({ page: String(number) }, true)}
-        >{number}</button>)}
-        <button type="button" className="page-arrow" aria-label={s.nextPage} disabled={page === pageCount}
-          onClick={() => updateParam({ page: String(page + 1) }, true)}><ChevronRight size={16} /></button>
-      </nav>}
     </section>
-
-    <FilterPanel
-      open={panelOpen} filters={filters} count={total}
-      onChange={applyFilters}
-      onClear={() => applyFilters(clearedFilters(filters))}
-      onClose={() => setPanelOpen(false)}
-    />
   </main>;
 }

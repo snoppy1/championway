@@ -411,7 +411,7 @@ test('the header shows Mentor zone to an approved mentor and Consulting to every
   await page.goto('/');
   await openHeaderMenu(page);
   const nav = page.getByRole('navigation', { name: 'เมนูหลัก' });
-  await expect(nav.getByRole('link', { name: 'สำรวจ Mentor' })).toHaveAttribute('href', '/mentors');
+  await expect(nav.getByRole('link', { name: 'หาเมนเทอร์' })).toHaveAttribute('href', '/mentors');
   await expect(nav.getByRole('link', { name: 'การปรึกษา' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'โซนเมนเทอร์' })).toHaveCount(0);
 
@@ -433,7 +433,7 @@ test('the Mentor zone is for approved mentors, and a mentor can manage prices an
   const learner = await student();
   await signIn(page, learner, '/mentor-zone');
   await expect(page.getByRole('heading', { name: 'โซนเมนเทอร์สำหรับเมนเทอร์ที่ผ่านการอนุมัติ' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'สมัครเป็นเมนเทอร์' })).toHaveAttribute('href', '/mentors/apply');
+  await expect(page.locator('main').getByRole('link', { name: 'สมัครเป็นเมนเทอร์' })).toHaveAttribute('href', '/mentors/apply');
   await page.context().clearCookies();
 
   await signIn(page, fixture.owner, '/mentor-zone');

@@ -83,49 +83,20 @@ test('someone who is not a mentor sees no Rising Star sign-up box', async ({ pag
   await page.goto('/mentors');
   await expect(page.getByRole('heading', { level: 2, name: 'Rising Star เดือนนี้' })).toBeVisible();
   await expect(page.locator('.rs-upsell')).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'สมัครเป็นเมนเทอร์' })).toHaveCount(0);
+  await expect(page.locator('main').getByRole('link', { name: 'สมัครเป็นเมนเทอร์' })).toHaveCount(0);
   await expect(page.locator('.rs-layout')).toHaveClass(/rs-layout--solo/);
 });
 
-test('the home page slides through the newest mentors', async ({ page }) => {
-  const { items } = await (await page.request.get('/api/rising-star/newest')).json();
-  expect(items.length).toBeGreaterThan(0);
-  expect(Object.keys(items[0]).sort()).toEqual(['id', 'initial', 'name', 'photoUrl', 'specialty']);
-  await page.goto('/');
-  const slider = page.getByRole('group', { name: 'Mentor หน้าใหม่ เลื่อนดูด้านข้างได้' });
-  await expect(slider.getByRole('link').first()).toHaveAttribute('href', `/mentors/${items[0].id}`);
-  await expect(page.getByRole('link', { name: 'ดู Mentor ทั้งหมด' })).toHaveAttribute('href', '/mentors');
-});
-
-/* ผู้ใช้ขอ 7 ต.ค. 2569: การ์ดเมนเทอร์หน้าใหม่กว้างเท่ากัน โปสเตอร์ทุกใบกรอบ A4 เท่ากัน รูปเมนเทอร์ขึ้นในหน้าโปรไฟล์ */
+/* ผู้ใช้ขอ 7 ต.ค. 2569: โปสเตอร์ทุกใบกรอบเท่ากัน รูปเมนเทอร์ขึ้นในหน้าโปรไฟล์ (การ์ดเมนเทอร์ใหม่ย้ายไป landing.spec.ts) */
 const tallPoster = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="1200"><rect width="200" height="1200" fill="#c33"/></svg>')}`;
 const widePoster = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400"><rect width="1600" height="400" fill="#36c"/></svg>')}`;
 
-test('every new-mentor card is the same size, even with a very long unbroken specialty', async ({ page }) => {
-  await page.route('**/api/rising-star/newest', async (route) => {
-    const json = await (await route.fetch()).json();
-    json.items = [
-      { ...json.items[0], id: 'long-1', specialty: 'd'.repeat(90) },
-      { ...json.items[0], id: 'long-2', specialty: 'สั้น' },
-      { ...json.items[0], id: 'long-3', name: 'ชื่อยาวมากมากมากมากมากมากมากมากมากมากมาก', specialty: 'สองบรรทัด '.repeat(12) },
-    ];
-    await route.fulfill({ json });
-  });
-  await page.goto('/');
-  const cards = page.getByRole('group', { name: 'Mentor หน้าใหม่ เลื่อนดูด้านข้างได้' }).locator('.mentor-slide');
-  await expect(cards).toHaveCount(3);
-  const boxes = await cards.evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
-  expect(new Set(boxes.map(([w]) => w)).size).toBe(1);
-  expect(new Set(boxes.map(([, h]) => h)).size).toBe(1);
-});
-
 test('competition card covers are all the same 4:3 frame, whatever the poster shape', async ({ page }) => {
-  await page.route('**/api/competitions?*', async (route) => {
-    const json = await (await route.fetch()).json();
-    json.items = json.items.map((item: object, index: number) => ({ ...item, posterUrl: [tallPoster, widePoster, null][index % 3] }));
-    await route.fulfill({ json });
-  });
-  await page.goto('/');
+  // อ่านข้อมูลจริงก่อนแล้วตอบแบบตายตัว หน้าอาจยกเลิกคำขอแรกตอนเครื่องช้า route.fetch จึงอ่านคำตอบที่ทิ้งไปแล้ว
+  const real = await (await page.request.get('/api/competitions?perPage=6')).json();
+  real.items = real.items.map((item: object, index: number) => ({ ...item, posterUrl: [tallPoster, widePoster, null][index % 3] }));
+  await page.route('**/api/competitions?*', (route) => route.fulfill({ json: real }));
+  await page.goto('/explore');
   const covers = page.locator('.competition-card .card-cover');
   await expect(covers.nth(2)).toBeVisible();
   const boxes = await covers.evaluateAll((els) => els.slice(0, 6).map((el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }));
@@ -136,7 +107,7 @@ test('competition card covers are all the same 4:3 frame, whatever the poster sh
   expect(Math.abs(poster!.height - frame!.height)).toBeLessThanOrEqual(1);
 });
 
-test('the mentor profile shows the mentor photo, as the home slider does', async ({ page }) => {
+test('the mentor profile shows the mentor photo', async ({ page }) => {
   // คนเก่าสุดในรายการเป็นข้อมูลตัวอย่างที่ไม่หายระหว่างเทส (เทสอื่นสร้างแล้วลบเมนเทอร์ชั่วคราวพร้อมกัน)
   const { items } = await (await page.request.get('/api/rising-star/newest')).json() as { items: { id: string }[] };
   const mentor = items.at(-1)!;

@@ -525,7 +525,16 @@ export function Home() {
     near: useRef<HTMLDivElement>(null), hero: useRef<HTMLDivElement>(null), logo: useRef<HTMLImageElement>(null), glow: useRef<HTMLDivElement>(null),
     lift: useRef<HTMLElement>(null), cover: useRef<HTMLDivElement>(null), dim: useRef<HTMLDivElement>(null),
   };
-  const ready = Boolean(data || error);
+  /* ฉากเปิดรอข้อมูลเมนเทอร์ไม่เกิน 1.2 วินาที (เซิร์ฟเวอร์ที่เพิ่งตื่นอาจช้า) ถ้าไม่ทันก็เล่นโดยไม่มีการ์ดเมนเทอร์
+     ชุดการ์ดถูกตรึงตอนเริ่มเล่น ข้อมูลที่มาทีหลังไม่เพิ่มการ์ดกลางคัน (การ์ดใหม่จะไม่มีตำแหน่งให้ลอยออก) */
+  const [introData, setIntroData] = useState<Landing | null>(null);
+  useEffect(() => {
+    if (introData) return;
+    if (data || error) { setIntroData(data ?? { mentors: [], stories: [] }); return; }
+    const timer = setTimeout(() => setIntroData({ mentors: [], stories: [] }), 1200);
+    return () => clearTimeout(timer);
+  }, [data, error, introData]);
+  const ready = introData !== null;
   const replay = useLandingMotion(ready && !search, refs);
 
   useEffect(() => { document.title = `ChampionWays — ${s.pageTitle}`; }, [s.pageTitle]);
@@ -543,7 +552,7 @@ export function Home() {
   const stories = data?.stories ?? [];
   return <main ref={refs.root} id="main" tabIndex={-1} className="lp">
     <div ref={refs.glow} className="lp-glow" aria-hidden="true" />
-    {ready && <Intro refs={refs} mentors={mentors} story={stories[0] ?? null} />}
+    {introData && <Intro refs={refs} mentors={introData.mentors} story={introData.stories[0] ?? null} />}
     {!ready && <div className="lp-intro" aria-busy="true" />}
     <div className="lp-after">
       {mentors.length > 0 && <Mentors mentors={mentors} />}

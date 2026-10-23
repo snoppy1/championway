@@ -410,3 +410,5 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
   - Mentor profile (`pages/MentorProfile.tsx`, `mentor-profile.css`): hero card with stats, tabs About / Experience / Reviews, side card with price, formats and the existing contact flow. The design's Save button is left out (no saved-mentor feature).
 - Tests: new `tests/match.spec.ts`, rewritten `tests/landing.spec.ts`; consult, contact, mentor-profile-v2, i18n specs follow the new nav and tabs.
 - Production needs migrations 0026–0030 before main is pushed.
+
+- 2026-10-24: owner sent the corrected "ChampionWays" landing file. Only the Thai section headings changed: "ชัยชนะไม่ใช่เรื่องดวง / มันเรียนรู้ได้", "จากโปรเจกต์ของคุณ สู่คนที่ใช่", "เป้าหมายใหญ่ / ต้องมีคนหนุนหลัง", "สงสัยใช่ไหม? / เริ่มตรงนี้"; Thai accent words are upright Mali with no space before them. Landing spec no longer counts cards exactly (parallel tests add mentors).

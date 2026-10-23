@@ -112,7 +112,7 @@ function Mentors({ mentors }: { mentors: LandingMentor[] }) {
   return <section className="lp-mentors" id="mentors" aria-labelledby="lp-mentors-title">
     <div className="lp-shell">
       <div className="lp-mentors__head">
-        <h2 id="lp-mentors-title">{s.mentorsA}<br />{s.mentorsB} <Accent>{s.mentorsAccent}</Accent></h2>
+        <h2 id="lp-mentors-title">{s.mentorsA}<br />{s.mentorsB}<Accent>{s.mentorsAccent}</Accent></h2>
         {mentors.length > 1 && <div className="lp-carousel-controls">
           <button type="button" aria-label={s.prev} onClick={() => step(-1)}><ArrowLeft size={18} aria-hidden="true" /></button>
           <button type="button" aria-label={playing ? s.pause : s.play} onClick={() => setPlaying((p) => !p)}>
@@ -137,7 +137,7 @@ function How() {
   return <section className="lp-how" id="how" aria-labelledby="lp-how-title">
     <div className="lp-shell">
       <div className="lp-how__head">
-        <h2 id="lp-how-title">{s.howA} <Accent>{s.howAccent}</Accent></h2>
+        <h2 id="lp-how-title">{s.howA}<Accent>{s.howAccent}</Accent></h2>
         <p>{s.howLead}</p>
       </div>
       <ol className="lp-steps">
@@ -163,7 +163,7 @@ function Stories({ stories }: { stories: Story[] }) {
   return <section className="lp-stories" id="stories" aria-labelledby="lp-stories-title">
     <div className="lp-shell">
       <div className="lp-stories__head">
-        <h2 id="lp-stories-title">{s.storiesA}<br />{s.storiesB} <Accent>{s.storiesAccent}</Accent></h2>
+        <h2 id="lp-stories-title">{s.storiesA}<br />{s.storiesB}<Accent>{s.storiesAccent}</Accent></h2>
         <p>{s.storiesLead}</p>
       </div>
       {stories.length > 0 && <ul className="lp-quotes">

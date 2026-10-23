@@ -829,7 +829,7 @@ legend { margin-bottom: 12px; font-weight: 600; }
 .footer-closing { margin: 22px 0 0; max-width: 570px; font-family: var(--display); font-weight: 600; font-size: clamp(35px, 5vw, 62px); line-height: 1.02; letter-spacing: -.05em; color: #211d2b; }
 :lang(th) .footer-closing { letter-spacing: -.01em; line-height: 1.2; }
 .footer-closing em { font-style: normal; font-family: 'Caveat', 'Mali', var(--display); font-weight: 600; font-size: 1.05em; color: #6d42ef; letter-spacing: -.01em; }
-:lang(th) .footer-closing em { font-size: .9em; }
+:lang(th) .footer-closing em { font-family: 'Mali', var(--display); font-size: 1em; }
 .footer-links { display: flex; gap: 60px; flex-wrap: wrap; justify-content: flex-end; padding-top: 8px; }
 .footer-links div { display: flex; flex-direction: column; gap: 12px; }
 .footer-links strong { font-size: 12px; color: #211d2b; }

@@ -373,3 +373,9 @@ button.mf-group__head svg { margin-left: auto; transition: transform .2s; }
   .mf-fly .mf-plane { offset-distance: 62%; }
   .mf-reveal, .mf-card, .mf-progress__bar > span { transition: none; }
 }
+
+/* จอกว้าง: ดีไซน์ทำไว้ที่ราว 1440px บนจอ 1600px ขึ้นไปทั้งหน้าดูเล็ก จึงขยายแถบบนและเนื้อหาทั้งชุดตามความกว้างจอ
+   (zoom ขยายระยะห่าง ฟอนต์ และไอคอนพร้อมกัน สัดส่วนเหมือนดีไซน์) */
+@media (min-width: 1600px) { .mf-top, .mf-main { zoom: 1.1; } }
+@media (min-width: 1880px) { .mf-top, .mf-main { zoom: 1.2; } }
+@media (min-width: 2300px) { .mf-top, .mf-main { zoom: 1.4; } }

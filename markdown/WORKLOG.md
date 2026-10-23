@@ -393,3 +393,20 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - API: `/api/rising-star/newest` adds headline, helpsWith, price, unit, joinedAt, credit; new `/api/rising-star/board?period=last` (members of that month only, ranked by `byRating`, field from skill groups, sessions = confirmed consultations in the month, `viewer.member`).
 - Tests: new `tests/landing.spec.ts`; prototype, consult, i18n, rising-star specs follow the move.
 - No migration.
+
+## 2026-10-24 — Find my mentor (matching), new Home, new mentor profile; Rising Star ranking paused
+
+- Owner replaced the old pages with Claude Design files "Find My Mentor", "ChampionWays" (Home) and redesign-mentor-profile; Sign in / Sign up unchanged. Rising Star ranking bypassed (spec decision 16).
+- Matching (phase 2):
+  - Migration **0030** (additive): `learner_profiles`, `projects`, `match_requests`, `match_results`, `consultations.match_request_id`.
+  - `server/lib/matching.ts`: pure formula v1 (S/H/G/T/A, hard filters, near-tie order without Rising Star, up to 3 reasons, top 10). `scripts/matching.test.ts`.
+  - `server/routes/matching.ts`: `/learner/profile`, `/projects` (20 max), `/projects/:id/match` (10 a day), `/matches/:id`, `/matches/:id/start/:mentorId` (one open consultation per project, contacts returned, mentor emailed a project summary without the learner's email). `scripts/match-api.test.ts`.
+  - "verified" in the hard filter = approved mentor (`mentors.verified` is a winner badge). Reply time uses the declared value.
+  - Note tags: fixed keywords (`src/data/note-keywords.ts`), shown as "suggested from your note", user can remove/add.
+- Pages:
+  - `/match` (`pages/Match.tsx`, `components/MatchShell.tsx`, `match.css`): 9 screens first time, project picker for returning users, review screen, matching overlay, error state. `/matches/:id` (`pages/MatchResults.tsx`): ranked cards, reasons, Start Consult → contacts dialog → Consulting.
+  - Home (`pages/Home.tsx`, `landing.css`, `/api/landing`): hero with competition posters, real mentors carousel (pause/prev/next), 4 steps, real reviews (hidden when none) + become a mentor, FAQ. Fonts Caveat + Mali for accents.
+  - Header: wordmark, My projects (/match), Become a mentor or Mentor zone, Consulting for signed-in learners; floating pill on Home only. Footer light with closing line.
+  - Mentor profile (`pages/MentorProfile.tsx`, `mentor-profile.css`): hero card with stats, tabs About / Experience / Reviews, side card with price, formats and the existing contact flow. The design's Save button is left out (no saved-mentor feature).
+- Tests: new `tests/match.spec.ts`, rewritten `tests/landing.spec.ts`; consult, contact, mentor-profile-v2, i18n specs follow the new nav and tabs.
+- Production needs migrations 0026–0030 before main is pushed.

@@ -72,6 +72,42 @@ export function normalizeName(name: string) {
   return name.replace(/[\u0E50-\u0E59]/g, (d) => String(d.charCodeAt(0) - 0x0e50)).toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+/* ---------- ฝั่งผู้เรียน: โปรไฟล์ โปรเจกต์ และคำถามจับคู่ (spec 4.2) ---------- */
+
+export const interestFields = ['ai', 'web', 'hardware', 'design', 'data', 'security', 'business', 'other'] as const;
+export type InterestField = (typeof interestFields)[number];
+export const projectStarts = ['has_competition', 'has_idea', 'build_skills'] as const;
+export type ProjectStart = (typeof projectStarts)[number];
+export const competitionKinds = ['hackathon', 'case'] as const;
+export type CompetitionKind = (typeof competitionKinds)[number];
+export const projectStages = ['idea', 'planning', 'prototype', 'improving', 'pitching'] as const;
+export type ProjectStage = (typeof projectStages)[number];
+export const helpAreas = ['ai_ml', 'web_app', 'hardware', 'uiux', 'business', 'idea_validation', 'debugging', 'pitch', 'teamwork', 'case_analysis', 'financial_modeling'] as const;
+export type HelpArea = (typeof helpAreas)[number];
+/** งานแข่งแบบ Case เรียงเรื่องเหล่านี้ขึ้นก่อน */
+export const caseFirstAreas: readonly HelpArea[] = ['case_analysis', 'financial_modeling', 'business', 'pitch'];
+export const requestStyles = [...teachingStyles, 'mixed'] as const;
+export type RequestStyle = (typeof requestStyles)[number];
+export const requestFormats = ['one_on_one', 'team', 'either'] as const;
+export type RequestFormat = (typeof requestFormats)[number];
+export const urgencies = ['48h', 'week', 'flexible'] as const;
+export type Urgency = (typeof urgencies)[number];
+export const requestLanguages = ['th', 'en', 'either'] as const;
+export type RequestLanguage = (typeof requestLanguages)[number];
+export const requestGenders = ['any', 'male', 'female'] as const;
+export type RequestGender = (typeof requestGenders)[number];
+
+export type LearnerProfile = {
+  level: LearnerLevel; interestsFields: InterestField[]; skills: SkillTag[]; languages: Language[]; country: string; interests: string;
+};
+export type MatchAnswers = {
+  helpAreas: HelpArea[]; skillLevel: LearnerLevel; style: RequestStyle; format: RequestFormat; urgency: Urgency;
+  language: RequestLanguage; gender: RequestGender; note: string;
+  /** เรื่องที่แนะนำจากหมายเหตุและผู้ใช้ยืนยันแล้ว (ไม่ใช่ AI: เทียบคำตายตัว) นับรวมกับ helpAreas */
+  noteTags: HelpArea[];
+};
+
+
 const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
 /** ช่วงเวลาว่างหนึ่งช่วง ตอบชื่อปัญหาหรือ null */
 export function slotProblem(slot: Slot): 'day' | 'time' | 'order' | null {

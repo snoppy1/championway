@@ -14,6 +14,8 @@ import { mentorProfile } from './routes/mentor-profile.js';
 import { cron } from './routes/cron.js';
 import { journey } from './routes/journey.js';
 import { risingStar } from './routes/rising-star.js';
+import { matching } from './routes/matching.js';
+import { landing } from './routes/landing.js';
 
 export const app = new Hono<AppEnv>().basePath('/api');
 
@@ -54,6 +56,9 @@ app.route('/consult', consult);
 app.route('/cron', cron);
 app.route('/journey', journey);
 app.route('/rising-star', risingStar);
+app.route('/landing', landing);
+// หา Mentor ให้ฉัน: /learner/profile, /projects, /matches (routes/matching.ts)
+app.route('/', matching);
 app.route('/', publicApi);
 
 app.onError((error, c) => {

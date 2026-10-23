@@ -21,6 +21,8 @@ import { Explore } from './pages/Explore';
 import { MentorProfile } from './pages/MentorProfile';
 import { MentorsRoute } from './pages/MentorsRoute';
 import { MentorApplication } from './pages/MentorApplication';
+import { Match } from './pages/Match';
+import { MatchResults } from './pages/MatchResults';
 import { Profile } from './pages/Profile';
 import { ProfileEdit } from './pages/ProfileEdit';
 import { Detail, NotFound } from './pages/Detail';
@@ -83,6 +85,11 @@ const router = createBrowserRouter([{
     { path: '/refunds', element: <Legal doc="refunds" /> },
     { path: '*', element: <NotFound /> },
   ],
+}, {
+  // หา Mentor ให้ฉัน มีแถบบนของตัวเอง (โลโก้ ความคืบหน้า ภาษา) ไม่มีเมนูและ footer ของเว็บ
+  path: '/match', element: <Match />,
+}, {
+  path: '/matches/:id', element: <MatchResults />,
 }, {
   // เข้าสู่ระบบ / สมัครสมาชิกมีแถบบนและภาพของตัวเอง (AuthLayout) ภาพสุ่มครั้งเดียวต่อการเปิดหน้า สลับแท็บแล้วไม่เปลี่ยน
   element: <AuthLayout />,

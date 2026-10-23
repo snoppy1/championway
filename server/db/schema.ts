@@ -628,6 +628,8 @@ export const consultations = pgTable('consultations', {
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   /** ส่งอีเมลเตือนเมนเทอร์ให้ยืนยันไปแล้วเมื่อไร (เตือนครั้งเดียวหลัง 3 วัน) */
   remindedAt: timestamp('reminded_at', { withTimezone: true }),
+  /** เริ่มจากหน้าผลจับคู่ (spec 6.1: หนึ่งโปรเจกต์ปรึกษาค้างได้ทีละคน) ว่าง = ติดต่อจากหน้าโปรไฟล์ */
+  matchRequestId: text('match_request_id').references(() => matchRequests.id, { onDelete: 'set null' }),
 }, t => [
   index('consultations_user_idx').on(t.userId, t.createdAt),
   index('consultations_mentor_idx').on(t.mentorId, t.status),
@@ -894,4 +896,66 @@ export const competitionImports = pgTable('competition_imports', {
   uniqueIndex('competition_imports_url_idx').on(t.url),
   index('competition_imports_status_idx').on(t.status, t.createdAt),
   check('competition_imports_status_check', sql`${t.status} in ('processing', 'pending', 'skipped', 'accepted', 'rejected', 'failed')`),
+]);
+
+/* ---------- จับคู่เมนเทอร์ (spec 2026-10-13 ข้อ 4.2) ----------
+   โปรไฟล์ผู้เรียน → โปรเจกต์ (คำถาม 1–3) → คำขอจับคู่ (คำถาม 4–10) → ผลที่คำนวณครั้งเดียวตอนส่ง (server/lib/matching.ts)
+   ค่าตัวเลือกทั้งหมดเป็น id จาก src/data/matching.ts ป้ายอยู่ใน i18n */
+
+export const learnerProfiles = pgTable('learner_profiles', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  level: text('level').$type<'beginner' | 'intermediate' | 'advanced'>().notNull(),
+  interestsFields: text('interests_fields').array().notNull().default([]),
+  skills: text('skills').array().notNull().default([]),
+  languages: text('languages').array().notNull().default([]),
+  country: text('country').notNull().default('TH'),
+  interests: text('interests').notNull().default(''),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, () => [check('learner_profiles_level_check', sql`level in ('beginner', 'intermediate', 'advanced')`)]);
+
+export const projects = pgTable('projects', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  start: text('start').$type<'has_competition' | 'has_idea' | 'build_skills'>().notNull(),
+  /** ต้องมีเมื่อ start = has_competition */
+  competitionKind: text('competition_kind').$type<'hackathon' | 'case'>(),
+  competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
+  /** ชื่อที่พิมพ์เองเมื่อไม่มีในรายการ ใช้จับคู่กับ hackathon_names แต่ไม่เพิ่มลงรายการนั้น */
+  competitionName: text('competition_name').notNull().default(''),
+  stage: text('stage').$type<'idea' | 'planning' | 'prototype' | 'improving' | 'pitching'>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('projects_user_idx').on(t.userId, t.updatedAt),
+  check('projects_start_check', sql`start in ('has_competition', 'has_idea', 'build_skills')`),
+  check('projects_stage_check', sql`stage in ('idea', 'planning', 'prototype', 'improving', 'pitching')`),
+  check('projects_kind_check', sql`competition_kind is null or competition_kind in ('hackathon', 'case')`),
+]);
+
+/** คำตอบคำถาม 4–10 พร้อมสำเนาคำถาม 1–3 ตอนส่ง ผลจึงไม่เปลี่ยนเมื่อแก้โปรเจกต์ทีหลัง */
+export const matchRequests = pgTable('match_requests', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  answers: jsonb('answers').$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('match_requests_user_idx').on(t.userId, t.createdAt),
+  index('match_requests_project_idx').on(t.projectId, t.createdAt),
+]);
+
+export const matchResults = pgTable('match_results', {
+  requestId: text('request_id').notNull().references(() => matchRequests.id, { onDelete: 'cascade' }),
+  mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
+  rank: integer('rank').notNull(),
+  /** 0–100 */
+  score: integer('score').notNull(),
+  parts: jsonb('parts').$type<{ S: number; H: number; G: number; T: number; A: number }>().notNull(),
+  /** รหัสเหตุผลพร้อมค่า เช่น { code: 'skill', tag: 'react', level: 'expert' } หน้าเว็บแปลเป็นข้อความ */
+  reasons: jsonb('reasons').$type<Record<string, string | number>[]>().notNull().default([]),
+  version: text('version').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.requestId, t.mentorId] }),
+  index('match_results_request_idx').on(t.requestId, t.rank),
 ]);

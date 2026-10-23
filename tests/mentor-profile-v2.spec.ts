@@ -156,18 +156,20 @@ test('public profile shows headline, skills, mentoring, experiences and trust st
     });
     await page.goto(`/mentors/${fixture.mentorId}`);
     await expect(page.getByText('AI Engineer | Mentor')).toBeVisible();
-    await expect(page.getByRole('region', { name: 'ทักษะ' })).toContainText('Python · Expert');
-    const mentoring = page.getByRole('region', { name: 'การให้คำปรึกษา' });
+    await expect(page.getByRole('region', { name: 'ความถนัด' })).toContainText('Python · Expert');
+    const mentoring = page.getByRole('region', { name: 'วิธีให้คำปรึกษา' });
     await expect(mentoring).toContainText('สอนทีละขั้น');
     await expect(mentoring).toContainText('สรุปสิ่งที่ต้องแก้ต่อ');
-    await expect(mentoring).toContainText('ภายใน 1 วัน');
+    // เวลาตอบกลับอยู่ในแถบสถิติบนการ์ดหัว
+    await expect(page.locator('.mp-stats')).toContainText('ภายใน 1 วัน');
+    await expect(page.getByRole('region', { name: 'ความน่าเชื่อถือ' })).toContainText('ยืนยันอีเมลแล้ว');
+    await page.getByRole('tab', { name: /ประสบการณ์/ }).click();
     const experiences = page.getByRole('region', { name: 'ประสบการณ์แข่งขัน' });
     await expect(experiences.getByRole('listitem').filter({ hasText: fixture.competition.name })).toContainText('ตรวจแล้ว');
     const pending = experiences.getByRole('listitem').filter({ hasText: 'Pending Hack' });
     await expect(pending).toContainText('รอตรวจ');
     // ลิงก์หลักฐานของรายการที่ยังไม่ตรวจไม่เปิดให้คนทั่วไปเห็น
     await expect(page.locator('a[href="https://example.com/hidden"]')).toHaveCount(0);
-    await expect(page.getByRole('region', { name: 'ความน่าเชื่อถือ' })).toContainText('ยืนยันอีเมลแล้ว');
     // เพศไม่แสดงบนหน้าโปรไฟล์
     await expect(page.getByText('หญิง', { exact: true })).toHaveCount(0);
     await page.screenshot({ path: `artifacts/mentor-profile-v2-${test.info().project.name}.png`, fullPage: true });

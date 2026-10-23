@@ -1,248 +1,234 @@
-import { useEffect, useState } from 'react';
-import { ArrowRight, Clock3, FileText, Flag, MessageCircle, ReceiptText, ShieldCheck, Star, Trophy, Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Pause, Play, Plus } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useApi } from '../lib/useApi';
 import { useI18n } from '../i18n';
-import { Avatar, RisingStarPill } from '../components/mentors';
 import type { HelpsWith } from '../data/matching';
-import trophy from '../assets/trophy.png';
-import heroImage from '../assets/landing/hero-columns.webp';
-import ctaImage from '../assets/landing/cta-summit.webp';
+import posterIecu from '../assets/landing2/poster-iecu.webp';
+import posterCaase from '../assets/landing2/poster-caase.webp';
+import posterUhack from '../assets/landing2/poster-uhack.webp';
+import stepNotebook from '../assets/landing2/step-notebook.webp';
+import stepHandshake from '../assets/landing2/step-handshake.webp';
+import stepBubble from '../assets/landing2/step-bubble.webp';
+import stepStars from '../assets/landing2/step-stars.webp';
+import '@fontsource/caveat/latin-600.css';
+import '@fontsource/mali/thai-600.css';
+import '@fontsource/mali/latin-600.css';
 import '../landing.css';
 
-/* หน้าแรกแบบใหม่ (Claude Design: ChampionWays Mentor Landing v4, 21 ต.ค. 2569)
-   hero → เมนเทอร์ใหม่ → วิธีใช้งาน 4 ขั้น → อันดับ Rising Star → ชวนเริ่ม
-   ระบบจับคู่ยังไม่เปิด ปุ่ม "Ready to win the competition?" จึงพาไปหน้ารวมเมนเทอร์ก่อน (spec ข้อ 12, 13) */
-const START = '/mentors';
+/* หน้าแรกแบบใหม่ (Claude Design "ChampionWays", 23 ต.ค. 2569)
+   hero โปสเตอร์งานแข่ง → เมนเทอร์จริง (เลื่อนเอง หยุดได้) → วิธีใช้งาน 4 ขั้น → รีวิวจริงและชวนเป็นเมนเทอร์ → คำถามที่พบบ่อย
+   ไม่มีอันดับ Rising Star (เจ้าของตัดสิน 23 ต.ค. 2569) ปุ่มหาเมนเทอร์พาไปหน้า /match
+   ส่วนที่ยังไม่มีข้อมูลจริงซ่อนไว้ ไม่ใส่ข้อความตัวอย่าง */
 
-type Credit = { result: 'winner' | 'finalist' | 'participant' | 'other'; name: string } | null;
-type NewMentor = {
-  id: string; name: string; initial: string; specialty: string; photoUrl: string | null; headline: string;
-  helpsWith: HelpsWith[]; price: number | null; minutes: number | null; unit: string; joinedAt: string; credit: Credit;
+type LandingMentor = {
+  id: string; name: string; initial: string; photoUrl: string | null; headline: string; bio: string; helpsWith: HelpsWith[];
+  rating: { average: number | null; reviews: number }; events: number;
 };
-type Field = 'business' | 'technology' | 'design';
-type BoardMentor = {
-  rank: number; id: string; name: string; initial: string; photoUrl: string | null; headline: string; field: Field | null;
-  credit: Credit; rating: { average: number | null; reviews: number }; sessions: number;
-};
-type Board = { month: string; closesAt: string | null; items: BoardMentor[]; viewer: { member: boolean } | null; demo: boolean };
+type Story = { comment: string; stars: number; name: string; initial: string; mentor: string };
+type Landing = { mentors: LandingMentor[]; stories: Story[] };
 
-function CreditLine({ credit, className }: { credit: Credit; className: string }) {
-  const { t } = useI18n();
-  if (!credit) return null;
-  const award = credit.result === 'winner' || credit.result === 'finalist';
-  const Icon = award ? Trophy : Flag;
-  return <p className={`${className}${award ? ' is-award' : ''}`}><Icon size={14} aria-hidden="true" />{t.landing.credit[credit.result](credit.name)}</p>;
+const POSTERS = [posterIecu, posterCaase, posterUhack, posterIecu];
+const STEPS = [stepNotebook, stepHandshake, stepBubble, stepStars];
+const BADGES = ['#c2410c', '#c2410c', '#1d4ed8', '#7e22ce'];
+const MATCH = '/match';
+
+const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** คำท้ายหัวข้อเป็นลายมือสีม่วง */
+function Accent({ children }: { children: string }) {
+  return <span className="lp-accent">{children}</span>;
 }
 
-function Price({ mentor }: { mentor: NewMentor }) {
-  const { t } = useI18n();
-  if (mentor.price === null) return <span />;
-  if (mentor.price === 0) return <span className="lp-price"><b>{t.landing.free}</b></span>;
-  const unit = mentor.unit ? ` / ${mentor.unit}` : mentor.minutes ? t.landing.perMinutes(mentor.minutes) : '';
-  return <span className="lp-price"><b>{t.landing.baht(mentor.price)}</b>{unit}</span>;
-}
-
-function NewMentors() {
-  const { t } = useI18n();
-  const s = t.landing;
-  const { data } = useApi<{ items: NewMentor[] }>('/rising-star/newest');
-  const items = (data?.items ?? []).slice(0, 4);
-  if (!items.length) return null;
-  const now = Date.now();
-  return <section className="lp-shell lp-new" id="new" aria-labelledby="lp-new-title">
-    <div className="lp-head">
-      <div>
-        <p className="lp-eyebrow">{s.newEyebrow}</p>
-        <h2 id="lp-new-title">{s.newTitle}</h2>
-        <p className="lp-lead">{s.newLead}</p>
-      </div>
-      <Link className="lp-more" to="/mentors">{s.browseAll}<ArrowRight size={14} aria-hidden="true" /></Link>
-    </div>
-    <div className="lp-new__grid">
-      {items.map((mentor) => <article className="lp-card" key={mentor.id}>
-        <div className="lp-card__top">
-          <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
-          <span className="lp-joined">{s.joined(Math.max(0, Math.floor((now - Date.parse(mentor.joinedAt)) / 86_400_000)))}</span>
-        </div>
-        <h3>{mentor.name}</h3>
-        <p className="lp-card__sub">{mentor.headline || mentor.specialty}</p>
-        <CreditLine credit={mentor.credit} className="lp-credit" />
-        {mentor.helpsWith.length > 0 && <ul className="lp-tags">
-          {mentor.helpsWith.map((topic) => <li key={topic}>{t.mentorProfileV2.helpsWithNames[topic]}</li>)}
-        </ul>}
-        <div className="lp-card__foot">
-          <Price mentor={mentor} />
-          <Link className="lp-btn-outline" to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}>{s.viewProfile}</Link>
-        </div>
-      </article>)}
-    </div>
-  </section>;
-}
-
-const stepIcons = [FileText, Users, MessageCircle, Star];
-
-function HowItWorks() {
-  const { t } = useI18n();
-  const s = t.landing;
-  return <section className="lp-shell lp-how" id="how" aria-labelledby="lp-how-title">
-    <div className="lp-how__head">
-      <p className="lp-eyebrow">{s.howEyebrow}</p>
-      <h2 id="lp-how-title">{s.howTitle}</h2>
-    </div>
-    <div className="lp-steps">
-      <span className="lp-steps__line" aria-hidden="true" />
-      <ol>
-        {s.steps.map((step, index) => {
-          const Icon = stepIcons[index];
-          return <li key={step.title}>
-            <span className={`lp-step__icon lp-step__icon--${index}`}><Icon size={24} aria-hidden="true" /></span>
-            <p className="lp-step__n">{s.step(index + 1)}</p>
-            <h3>{step.title}</h3>
-            <p>{step.text}</p>
-          </li>;
-        })}
-      </ol>
-    </div>
-    <p className="lp-center"><Link className="lp-btn-primary" to={START}>{s.cta}<ArrowRight size={16} aria-hidden="true" /></Link></p>
-  </section>;
-}
-
-const fieldIds = ['all', 'business', 'technology', 'design'] as const;
-
-function Ranking() {
+function Hero() {
   const { t, lang } = useI18n();
   const s = t.landing;
-  const [last, setLast] = useState(false);
-  const [field, setField] = useState<(typeof fieldIds)[number]>('all');
-  const { data } = useApi<Board>(`/rising-star/board${last ? '?period=last' : ''}`);
-  const items = (data?.items ?? []).filter((mentor) => field === 'all' || mentor.field === field);
-  // ตัวเลขอันดับนับใหม่หลังกรองสาย คนแรกของสายนั้นจะเป็น #1
-  const ranked = items.map((mentor, index) => ({ ...mentor, rank: index + 1 }));
-  const top = ranked.slice(0, 3);
-  const rest = ranked.slice(3);
-  const closes = data?.closesAt
-    ? new Intl.DateTimeFormat(lang === 'th' ? 'th-TH' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(Date.parse(data.closesAt) - 1))
-    : null;
-  const empty = field !== 'all' ? s.noField : last ? s.emptyLast : s.emptyMonth;
-  const reviewsLabel = last ? s.reviewsLast : s.reviewsThis;
+  return <section className="lp-hero" aria-labelledby="lp-hero-title">
+    <div className="lp-hero__posters" aria-hidden="true">
+      {POSTERS.map((src, i) => <div key={i} className={`lp-poster is-${i}`}><img src={src} alt="" /></div>)}
+    </div>
+    <div className="lp-hero__copy">
+      <h1 id="lp-hero-title" className={lang === 'th' ? 'is-th' : ''}>
+        <span>{s.h1a}</span>{' '}
+        <span>{s.h1b} <span className="lp-hero__accent">{s.h1accent}</span></span>
+      </h1>
+      <p>{s.heroLead}</p>
+      <div className="lp-hero__cta">
+        <Link className="lp-btn" to={MATCH}>{s.findMentor}</Link>
+        <a className="lp-btn is-light" href="#how">{s.howToUse}</a>
+      </div>
+    </div>
+  </section>;
+}
 
-  return <section className="lp-rank" id="ranking" aria-labelledby="lp-rank-title">
+function MentorCard({ mentor }: { mentor: LandingMentor }) {
+  const { t } = useI18n();
+  const s = t.landing;
+  return <article className="lp-mentor">
+    <div className="lp-mentor__photo">
+      {mentor.photoUrl ? <img src={mentor.photoUrl} alt="" loading="lazy" /> : <span aria-hidden="true">{mentor.initial}</span>}
+    </div>
+    <div className="lp-mentor__head">
+      <div>
+        <h3><Link to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}>{mentor.name}</Link></h3>
+        {mentor.headline && <p className="lp-mentor__sub">{mentor.headline}</p>}
+      </div>
+      <p className="lp-mentor__rating">{mentor.rating.average === null ? s.newMentor : <><span aria-hidden="true">★</span> {mentor.rating.average.toFixed(1)}</>}</p>
+    </div>
+    <p className="lp-mentor__bio">{mentor.bio}</p>
+    {mentor.helpsWith.length > 0 && <ul className="lp-mentor__tags">
+      {mentor.helpsWith.map((id) => <li key={id}>{t.mentorProfileV2.helpsWithNames[id]}</li>)}
+    </ul>}
+    <div className="lp-mentor__foot">
+      <span>{mentor.events > 0 ? s.events(mentor.events) : s.verifiedMentor}</span>
+      <b aria-hidden="true">{s.viewProfile}</b>
+    </div>
+  </article>;
+}
+
+/* แถบเมนเทอร์เลื่อนเองทุก 3.6 วินาที (ตามดีไซน์) หยุดเมื่อชี้หรือโฟกัส มีปุ่มหยุด/เล่น และปุ่มก่อนหน้า/ถัดไป
+   ผู้ใช้ที่ตั้งลดการเคลื่อนไหวไม่เลื่อนเอง */
+function Mentors({ mentors }: { mentors: LandingMentor[] }) {
+  const { t } = useI18n();
+  const s = t.landing;
+  const track = useRef<HTMLDivElement>(null);
+  const [playing, setPlaying] = useState(() => !reduceMotion());
+  const [hovered, setHovered] = useState(false);
+  const step = (dir: 1 | -1) => {
+    const el = track.current;
+    const card = el?.querySelector<HTMLElement>('.lp-mentor');
+    if (!el || !card) return;
+    const width = card.getBoundingClientRect().width + 16;
+    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
+    if (dir === 1 && atEnd) el.scrollTo({ left: 0, behavior: 'smooth' });
+    else el.scrollBy({ left: dir * width, behavior: 'smooth' });
+  };
+  useEffect(() => {
+    if (!playing || hovered || mentors.length < 2) return;
+    const timer = setInterval(() => step(1), 3600);
+    return () => clearInterval(timer);
+  }, [playing, hovered, mentors.length]);
+
+  return <section className="lp-mentors" id="mentors" aria-labelledby="lp-mentors-title">
     <div className="lp-shell">
-      <div className="lp-head">
-        <div>
-          <p className="lp-eyebrow">{s.rankEyebrow}</p>
-          <h2 id="lp-rank-title">{s.rankTitle}</h2>
-          <p className="lp-lead">{last ? s.rankLeadLast : s.rankLead}</p>
-          {closes && <p className="lp-closes"><Clock3 size={13} aria-hidden="true" />{s.closes(closes)}</p>}
-        </div>
-        <div className="lp-periods" role="group" aria-label={s.period}>
-          <button type="button" aria-pressed={!last} onClick={() => setLast(false)}>{s.thisMonth}</button>
-          <button type="button" aria-pressed={last} onClick={() => setLast(true)}>{s.lastMonth}</button>
-        </div>
+      <div className="lp-mentors__head">
+        <h2 id="lp-mentors-title">{s.mentorsA}<br />{s.mentorsB} <Accent>{s.mentorsAccent}</Accent></h2>
+        {mentors.length > 1 && <div className="lp-carousel-controls">
+          <button type="button" aria-label={s.prev} onClick={() => step(-1)}><ArrowLeft size={18} aria-hidden="true" /></button>
+          <button type="button" aria-label={playing ? s.pause : s.play} onClick={() => setPlaying((p) => !p)}>
+            {playing ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+          </button>
+          <button type="button" aria-label={s.next} onClick={() => step(1)}><ArrowRight size={18} aria-hidden="true" /></button>
+        </div>}
       </div>
-      <div className="lp-fields" role="group" aria-label={s.field}>
-        {fieldIds.map((id) => <button type="button" key={id} aria-pressed={field === id} onClick={() => setField(id)}>{s.fields[id]}</button>)}
+      <div ref={track} className="lp-mentors__track" role="region" aria-label={s.mentorsLabel} tabIndex={0}
+        onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)} onBlur={() => setHovered(false)}>
+        {mentors.map((mentor) => <MentorCard key={mentor.id} mentor={mentor} />)}
       </div>
-      {data?.demo && ranked.length > 0 && <p className="lp-demo">{s.demo}</p>}
+      <div className="lp-center"><Link className="lp-btn is-light" to={MATCH}>{s.exploreMatch}</Link></div>
+    </div>
+  </section>;
+}
 
-      {data && ranked.length === 0 && <div className="lp-empty">
-        <span className="lp-empty__icon"><Star size={22} aria-hidden="true" /></span>
-        <p>{empty}</p>
-        <Link className="lp-more" to="/mentors">{s.browseAll}<ArrowRight size={14} aria-hidden="true" /></Link>
-      </div>}
-
-      {top.length > 0 && <div className={top.length === 3 ? 'lp-podium is-full' : 'lp-podium'}>
-        {top.map((mentor) => <article className={mentor.rank === 1 ? 'lp-podium__card is-first' : 'lp-podium__card'} key={mentor.id}>
-          <span className="lp-podium__rank">#{mentor.rank}</span>
-          <span className="lp-podium__pill"><RisingStarPill /></span>
-          <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
-          <h3>{mentor.name}</h3>
-          <p className="lp-card__sub">{mentor.headline}</p>
-          <CreditLine credit={mentor.credit} className="lp-podium__credit" />
-          <div className="lp-podium__stats">
-            <span><b>{mentor.rating.average === null ? '–' : <>★ {mentor.rating.average.toFixed(1)}</>}</b><small>{mentor.rating.average === null ? s.noRating : s.avgRating}</small></span>
-            <span><b>{mentor.rating.reviews}</b><small>{reviewsLabel}</small></span>
+function How() {
+  const { t } = useI18n();
+  const s = t.landing;
+  return <section className="lp-how" id="how" aria-labelledby="lp-how-title">
+    <div className="lp-shell">
+      <div className="lp-how__head">
+        <h2 id="lp-how-title">{s.howA} <Accent>{s.howAccent}</Accent></h2>
+        <p>{s.howLead}</p>
+      </div>
+      <ol className="lp-steps">
+        {s.steps.map((item, i) => <li key={item.title} className={`lp-step is-${i}`}>
+          <div className="lp-step__art" aria-hidden="true">
+            <img src={STEPS[i]} alt="" />
+            <span style={{ background: BADGES[i] }}>{String(i + 1).padStart(2, '0')}</span>
           </div>
-          <p className="lp-podium__sessions">{s.sessionsLine(mentor.sessions, last)}</p>
-          <Link className="lp-podium__btn" to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}>{s.viewProfile}</Link>
-        </article>)}
-      </div>}
-
-      {rest.length > 0 && <ol className="lp-list" start={4}>
-        {rest.map((mentor) => <li key={mentor.id}>
-          <span className="lp-list__rank">{mentor.rank}</span>
-          <Avatar initial={mentor.initial} photoUrl={mentor.photoUrl} />
-          <div className="lp-list__body">
-            <p className="lp-list__name"><b>{mentor.name}</b><RisingStarPill /><span>{mentor.headline}</span></p>
-            <p className="lp-list__meta">
-              {mentor.credit && <span className={mentor.credit.result === 'winner' || mentor.credit.result === 'finalist' ? 'is-award' : ''}>{s.credit[mentor.credit.result](mentor.credit.name)}</span>}
-              <b>{mentor.rating.average === null ? s.noRating : <>★ {mentor.rating.average.toFixed(1)} · {s.reviewsLine(mentor.rating.reviews, last)}</>}</b>
-              <span className="lp-list__muted">{s.sessionsLine(mentor.sessions, last)}</span>
-            </p>
+          <div>
+            <span className="lp-step__word">{s.stepWords[i]}</span>
+            <h3>{item.title}</h3>
+            <p>{item.text}</p>
           </div>
-          <Link className="lp-btn-outline" to={`/mentors/${mentor.id}`} aria-label={s.viewProfileOf(mentor.name)}>{s.view}</Link>
         </li>)}
-      </ol>}
+      </ol>
+    </div>
+  </section>;
+}
 
-      {data?.viewer && !data.viewer.member && <div className="lp-become">
-        <div>
-          <span className="lp-become__icon"><Star size={18} aria-hidden="true" /></span>
-          <div><b>{s.becomeTitle}</b><span>{s.becomeLead}</span></div>
-        </div>
-        <Link className="lp-btn-outline" to="/mentors">{s.becomeBtn}</Link>
-      </div>}
+function Stories({ stories }: { stories: Story[] }) {
+  const { t } = useI18n();
+  const s = t.landing;
+  return <section className="lp-stories" id="stories" aria-labelledby="lp-stories-title">
+    <div className="lp-shell">
+      <div className="lp-stories__head">
+        <h2 id="lp-stories-title">{s.storiesA}<br />{s.storiesB} <Accent>{s.storiesAccent}</Accent></h2>
+        <p>{s.storiesLead}</p>
+      </div>
+      {stories.length > 0 && <ul className="lp-quotes">
+        {stories.map((story, i) => <li key={i} className={i === 0 ? 'is-solid' : ''}>
+          <span className="lp-quotes__mark" aria-hidden="true">“</span>
+          <blockquote>{story.comment}</blockquote>
+          <p className="lp-quotes__who">
+            <span className="lp-quotes__avatar" aria-hidden="true">{story.initial}</span>
+            <span><b>{story.name}</b><span>{s.reviewOf(story.mentor)} · <span className="sr-only">{t.rating.outOf(story.stars)}</span><span aria-hidden="true">{'★'.repeat(story.stars)}</span></span></span>
+          </p>
+        </li>)}
+      </ul>}
+      <div className="lp-become">
+        <p>{s.becomeA}<br />{s.becomeB}</p>
+        <Link className="lp-btn is-gold" to="/mentors/apply">{s.becomeCta}</Link>
+      </div>
+    </div>
+  </section>;
+}
+
+function Faq() {
+  const { t } = useI18n();
+  const s = t.landing;
+  const [open, setOpen] = useState<boolean[]>(() => s.faqs.map((_, i) => i === 0));
+  return <section className="lp-faq" id="faq" aria-labelledby="lp-faq-title">
+    <div className="lp-shell lp-faq__grid">
+      <div>
+        <h2 id="lp-faq-title">{s.faqA}<br /><Accent>{s.faqAccent}</Accent></h2>
+        <p>{s.faqLead}</p>
+      </div>
+      <div className="lp-faq__list">
+        {s.faqs.map((item, i) => <div key={i} className="lp-faq__item">
+          <h3>
+            <button type="button" aria-expanded={open[i]} aria-controls={`lp-faq-${i}`} onClick={() => setOpen((o) => o.map((v, j) => (j === i ? !v : v)))}>
+              <span>{item.q}</span><span className="lp-faq__icon" aria-hidden="true"><Plus size={16} /></span>
+            </button>
+          </h3>
+          <div id={`lp-faq-${i}`} hidden={!open[i]}><p>{item.a}</p></div>
+        </div>)}
+      </div>
     </div>
   </section>;
 }
 
 export function Home() {
   const { t } = useI18n();
-  const s = t.landing;
   const { search, hash } = useLocation();
-  useEffect(() => { document.title = `ChampionWays — ${s.pageTitle}`; }, [s.pageTitle]);
-  /* ลิงก์ "/#ranking" และ "/#how" จากหน้าอื่น: เลื่อนไปส่วนนั้นหลังการ์ดโหลดเสร็จ ตำแหน่งจะได้ไม่เลื่อนหนีอีก */
+  const { data } = useApi<Landing>('/landing');
+
+  useEffect(() => { document.title = `ChampionWays — ${t.landing.pageTitle}`; }, [t.landing.pageTitle]);
+  // ลิงก์ที่มี #how #faq หรือ #stories จากหน้าอื่น เลื่อนไปส่วนนั้นหลังหน้าวาดเสร็จ
   useEffect(() => {
     if (!hash) return;
-    const timer = window.setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView(), 350);
-    return () => window.clearTimeout(timer);
-  }, [hash]);
-  // ลิงก์ค้นหางานแข่งเดิม (/?q=…, /?cat=…, /?saved=1) ไปหน้ารวมงานแข่งที่ย้ายไป /explore
+    const timer = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth' }), 350);
+    return () => clearTimeout(timer);
+  }, [hash, data]);
+
+  // ลิงก์ค้นหางานแข่งแบบเดิม (/?q=…) ย้ายไปหน้ารวมงานแข่ง
   if (search) return <Navigate to={`/explore${search}`} replace />;
 
   return <main id="main" tabIndex={-1} className="lp">
-    <section className="lp-hero">
-      <div className="lp-hero__art" aria-hidden="true">
-        <img src={heroImage} alt="" width={1916} height={821} />
-      </div>
-      <div className="lp-hero__inner">
-        <p className="lp-badge"><img src={trophy} alt="" width={18} height={18} />{s.heroBadge}</p>
-        <h1>{s.h1a} <span>{s.h1b}</span></h1>
-        <p className="lp-hero__lead">{s.heroLead}</p>
-        <div className="lp-hero__actions">
-          <Link className="lp-btn-dark" to={START}>{s.cta}<ArrowRight size={16} aria-hidden="true" /></Link>
-          <a className="lp-link" href="#how">{s.seeHow}</a>
-        </div>
-        <ul className="lp-bullets">
-          <li><ShieldCheck size={15} aria-hidden="true" />{s.b1}</li>
-          <li><Clock3 size={15} aria-hidden="true" />{s.b2}</li>
-          <li><ReceiptText size={15} aria-hidden="true" />{s.b3}</li>
-        </ul>
-      </div>
-    </section>
-
-    <NewMentors />
-    <HowItWorks />
-    <Ranking />
-
-    <section className="lp-cta" aria-labelledby="lp-cta-title">
-      <img className="lp-cta__art" src={ctaImage} alt="" width={1584} height={672} loading="lazy" />
-      <div className="lp-cta__inner">
-        <h2 id="lp-cta-title">{s.ctaTitle}</h2>
-        <p>{s.ctaLead}</p>
-        <Link className="lp-btn-gold" to={START}>{s.cta}<ArrowRight size={16} aria-hidden="true" /></Link>
-        <small>{s.ctaNote}</small>
-      </div>
-    </section>
+    <Hero />
+    {data && data.mentors.length > 0 && <Mentors mentors={data.mentors} />}
+    <How />
+    <Stories stories={data?.stories ?? []} />
+    <Faq />
   </main>;
 }

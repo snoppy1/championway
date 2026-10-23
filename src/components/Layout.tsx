@@ -8,6 +8,7 @@ import { CHAT_CHANGED } from './ChatPanel';
 import { UnreadBadge } from './hire';
 import { useHiring } from '../data/hiring';
 import trophy from '../assets/trophy.png';
+import wordmark from '../assets/brand/wordmark.webp';
 import { useI18n } from '../i18n';
 
 /** The text beside it says what this is (admin), so the image is decorative. */
@@ -23,6 +24,11 @@ export function LangToggle() {
     <button type="button" aria-pressed={lang === 'en'} lang="en" onClick={() => setLang('en')}>EN</button>
     <button type="button" aria-pressed={lang === 'th'} lang="en" onClick={() => setLang('th')}>TH</button>
   </div>;
+}
+
+/** โลโก้ตัวอักษร Champion + ถ้วย + Ways (Claude Design "ChampionWays") ชื่ออยู่ที่ aria-label ของลิงก์ */
+export function Wordmark() {
+  return <img className="brand-wordmark" src={wordmark} alt="" width={135} height={60} />;
 }
 
 function Header() {
@@ -67,26 +73,34 @@ function Header() {
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [menuOpen]);
+  /* หน้าแรก: แถบบนลอยโปร่งเหนือ hero เลื่อนลงแล้วหดเป็นแคปซูลลอย (ตามดีไซน์) หน้าอื่นเป็นแถบปกติ */
+  const home = pathname === '/';
+  const [pill, setPill] = useState(false);
+  useEffect(() => {
+    if (!home) { setPill(false); return; }
+    const update = () => setPill(window.scrollY > window.innerHeight * 0.6);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, [home]);
   // กลับมาที่หน้าเดิมหลังเข้าสู่ระบบ แต่ไม่วนกลับมาหน้าเข้าสู่ระบบเอง
   const next = pathname.startsWith('/signin') || pathname.startsWith('/signup') ? '/' : `${pathname}${search}`;
 
-  return <header className="site-header">
+  return <header className={`site-header${home ? ' is-floating' : ''}${pill ? ' is-pill' : ''}`}>
     <div className="shell header-inner">
-      {/* หัวเว็บตาม Landing v4: ถ้วยกับชื่อเป็นตัวอักษร */}
-      <Link to="/" className="brand-link" aria-label={t.common.homeLink}>
-        <BrandMark /><span className="brand-name" aria-hidden="true">ChampionWays</span>
-      </Link>
+      <Link to="/" className="brand-link" aria-label={t.common.homeLink}><Wordmark /></Link>
       {/* จอกว้างใช้ display: contents ให้ลูกเรียงอยู่ในแถบเดียวกับโลโก้ตามเดิม
           จอแคบกลายเป็นแผงเมนูที่เปิดจากปุ่มสามขีด หัวเว็บจึงเหลือแถวเดียว */}
       <div className={menuOpen ? 'header-menu is-open' : 'header-menu'} id="site-menu">
         <nav className="main-nav" aria-label={t.nav.mainMenu}>
-          {/* เมนูตาม Landing v4 (spec ข้อ 12): งานแข่ง คลังความรู้ และรายการที่บันทึกออกจากเมนูแล้ว
-              Consulting อยู่แทน My Projects ไปก่อนจนกว่าระบบจับคู่จะเปิด */}
-          <NavLink to="/mentors" end>{t.nav.findMentor}</NavLink>
-          <Link to="/#ranking">{t.nav.ranking}</Link>
-          {user && consultMe && (consultMe.mentorId
+          {/* เมนูตามดีไซน์ "ChampionWays" (23 ต.ค. 2569): โปรเจกต์ของฉัน (หน้า หา Mentor ให้ฉัน) และสมัครเมนเทอร์
+              เมนเทอร์ที่ผ่านอนุมัติเห็น Mentor zone แทนสมัครเมนเทอร์ คนอื่นที่เข้าสู่ระบบเห็น Consulting ไว้ปิดงานและรีวิว
+              ไม่มีอันดับ Rising Star (พักไว้) */}
+          <NavLink to="/match">{t.nav.myProjects}</NavLink>
+          {user && consultMe?.mentorId
             ? <NavLink to="/mentor-zone">{t.nav.mentorZone}<UnreadBadge count={unread} /></NavLink>
-            : <NavLink to="/consulting">{t.nav.consulting}<UnreadBadge count={unread} /></NavLink>)}
+            : <NavLink to="/mentors/apply">{t.nav.becomeMentor}</NavLink>}
+          {user && consultMe && !consultMe.mentorId && <NavLink to="/consulting">{t.nav.consulting}<UnreadBadge count={unread} /></NavLink>}
         </nav>
         <div className="header-actions">
           <LangToggle />
@@ -139,31 +153,30 @@ export function Layout() {
     <footer className="site-footer">
       <div className="shell footer-grid">
         <div className="footer-brand">
-          <Link to="/" className="brand-link" aria-label={t.common.homeLink}>
-            <BrandMark /><span className="brand-name" aria-hidden="true">ChampionWays</span>
-          </Link>
-          <p>{t.footer.tagline}</p>
+          <Link to="/" className="brand-link" aria-label={t.common.homeLink}><Wordmark /></Link>
+          <p className="footer-closing">{t.footer.closingA}{t.footer.closingB ? <> <br />{t.footer.closingB} </> : <br />}<em>{t.footer.closingAccent}</em></p>
         </div>
         <div className="footer-links">
           <div>
-            <strong>{t.footer.forTeams}</strong>
-            <Link to="/mentors">{t.footer.match}</Link>
-            <Link to="/#ranking">{t.footer.ranking}</Link>
+            <strong>{t.footer.explore}</strong>
+            <Link to="/mentors">{t.nav.findMentor}</Link>
             <Link to="/#how">{t.footer.how}</Link>
+            <Link to="/#stories">{t.footer.stories}</Link>
           </div>
           <div>
-            <strong>{t.footer.forMentors}</strong>
+            <strong>ChampionWays</strong>
+            <Link to="/#faq">{t.footer.faqs}</Link>
+            <a href="mailto:support@championways.space">{t.footer.contact}</a>
             <Link to="/mentors/apply">{t.footer.become}</Link>
           </div>
         </div>
       </div>
       <div className="shell footer-bottom">
-        <span>{t.footer.copyright}</span>
+        <span>{t.footer.copyright}. {t.footer.builtFor}</span>
         <span className="footer-legal">
           <Link to="/privacy">{t.footer.privacy}</Link>
           <Link to="/terms">{t.footer.terms}</Link>
           <Link to="/refunds">{t.footer.refunds}</Link>
-          <a href="mailto:support@championways.space">{t.footer.contact}</a>
         </span>
       </div>
     </footer>

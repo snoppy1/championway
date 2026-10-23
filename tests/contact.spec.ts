@@ -155,6 +155,8 @@ test('a member contacts a mentor, tells us they got guidance, the mentor confirm
 
   // รีวิวขึ้นบนโปรไฟล์ของเมนเทอร์ และติดต่อใหม่ได้
   await page.goto(`/mentors/${fixture.mentorId}`);
+  // รีวิวอยู่ในแท็บรีวิวของโปรไฟล์
+  await page.getByRole('tab', { name: /รีวิว/ }).click();
   await expect(page.getByText('ช่วยตีโจทย์ได้ชัดมาก')).toBeVisible();
   await expect(page.getByRole('button', { name: 'ติดต่ออีกครั้ง' })).toBeVisible();
 });

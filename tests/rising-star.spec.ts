@@ -117,7 +117,7 @@ test('the mentor profile shows the mentor photo', async ({ page }) => {
   json.mentor.photoUrl = photo;
   await page.route(`**/api/consult/mentors/${mentor.id}`, (route) => route.fulfill({ json }));
   await page.goto(`/mentors/${mentor.id}`);
-  await expect(page.locator('.cx-hero img.rs-avatar--photo')).toHaveAttribute('src', photo);
+  await expect(page.locator('.mp-hero img.mp-avatar')).toHaveAttribute('src', photo);
 });
 
 test('the old competition link still lands on the competition page', async ({ page }) => {

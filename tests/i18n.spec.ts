@@ -28,11 +28,11 @@ test('a first visit is in English, and the choice of Thai is remembered', async 
   await openMenu(page, 'Open menu');
   const language = page.getByRole('group', { name: 'Language' });
   await expect(language.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('link', { name: 'Find a mentor' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'My projects' }).first()).toBeVisible();
 
   await language.getByRole('button', { name: 'TH' }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'th');
-  await expect(page.getByRole('link', { name: 'หาเมนเทอร์' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'โปรเจกต์ของฉัน' }).first()).toBeVisible();
 
   // เปิดหน้าใหม่แล้วต้องยังเป็นภาษาไทย ไม่เด้งกลับเป็นอังกฤษ
   await page.reload();
@@ -101,13 +101,10 @@ async function signInEnglish(page: Page, account: TestAccount, next: string) {
 }
 
 test('the landing page has no Thai in English', async ({ page }) => {
-  const content = await contentFrom(page, '/api/rising-star/newest', '/api/rising-star/board', '/api/rising-star/board?period=last');
+  const content = await contentFrom(page, '/api/landing');
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 2, name: 'Just joined ChampionWays' })).toBeVisible();
-  await expect(page.locator('.lp-podium__card').first()).toBeVisible();
-  await expectNoThai(page, content);
-  await page.getByRole('button', { name: 'Last month' }).click();
-  await expect(page.locator('#ranking')).toContainText('reviews last month');
+  await expect(page.getByRole('heading', { level: 2, name: /Winning isn’t magic/ })).toBeVisible();
+  await expect(page.locator('#faq')).toContainText('Curious?');
   await expectNoThai(page, content);
 });
 
@@ -406,7 +403,7 @@ test('the Hall of Fame and the email verification pages have no Thai in English'
   await page.goto('/mentors');
   await expect(page.getByRole('heading', { level: 1, name: 'Mentors' })).toBeVisible();
   await expect(page.locator('.rs-rank-row__count').first()).toContainText('reviews');
-  await expect(page.locator('.main-nav a[href="/mentors"]')).toHaveText('Find a mentor');
+  await expect(page.locator('.main-nav a[href="/match"]')).toHaveText('My projects');
   await expectNoThai(page, content);
 
   await page.goto('/verify-email');
@@ -430,6 +427,8 @@ test('the contact flow pages have no Thai in English: profile, Consulting, Mento
     await expect(page.getByRole('heading', { level: 1, name: fixture.name })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Contact this mentor' })).toBeVisible();
     await expect(page.getByText('Sign in to see how to contact this mentor.')).toBeVisible();
+    // รีวิวอยู่ในแท็บรีวิวของโปรไฟล์
+    await page.getByRole('tab', { name: 'Reviews' }).click();
     await expect(page.getByText('No reviews yet. Reviews appear after a mentor confirms a consultation.')).toBeVisible();
     await expectNoThai(page);
 

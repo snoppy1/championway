@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, RefObject } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, CalendarClock, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BadgeCheck, CalendarClock, Check, Clock3, ExternalLink, MapPin, Star, Trophy, Users, X } from 'lucide-react';
 import { post } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { consultError, hireTotal } from '../data/consult';
@@ -9,7 +9,7 @@ import type { Contacts, HireStatus, MentorCard, Rating as RatingValue } from '..
 import { useHiring } from '../data/hiring';
 import { HireSteps } from '../components/hire';
 import { ContactPanel } from '../components/ContactPanel';
-import { Avatar, Rating, RisingStarPill, StarIcon } from '../components/mentors';
+import { RisingStarPill, StarIcon } from '../components/mentors';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useAuth } from '../data/auth';
 import { useI18n } from '../i18n';
@@ -18,6 +18,7 @@ import type { MentorProfileV2 } from '../data/matching';
 import { experienceLine } from '../components/ExperienceList';
 import type { ExperienceRow } from '../components/ExperienceList';
 import '../consult.css';
+import '../mentor-profile.css';
 
 /* โปรไฟล์เมนเทอร์สาธารณะ กับฟอร์มจ้าง (1 ต.ค. 2569: จ้างผ่านเว็บและคุยในแชตของเว็บ)
    นักเรียนเลือกเวทีที่เมนเทอร์เปิดรับ ใส่จำนวนชั่วโมง เวลาที่อยากนัด และสิ่งที่อยากให้ช่วย → เห็นราคารวมสด → ส่งคำขอ
@@ -43,61 +44,6 @@ type Payload = {
   experiences: (Omit<ExperienceRow, 'evidenceUrl' | 'reason' | 'createdAt'> & { evidenceUrl?: string })[];
   stats: { emailVerified: boolean; completedSessions: number; responseRate: number | null; evidenceLinks: number };
 };
-
-/** ส่วนโปรไฟล์แบบใหม่: ความถนัด การให้คำปรึกษา ประสบการณ์แข่งขัน และความน่าเชื่อถือ ส่วนที่ยังไม่ได้กรอกไม่แสดง */
-function ProfileSections({ data }: { data: Payload }) {
-  const { t } = useI18n();
-  const v = t.mentorProfileV2;
-  const p = data.profile;
-  const mentoring = [
-    ...p.helpsWith.map((id) => v.helpsWithNames[id]), ...p.teachingStyles.map((id) => v.teachingStyleNames[id]),
-    ...p.formats.map((id) => v.formatNames[id]), ...p.learnerLevels.map((id) => v.learnerLevelNames[id]),
-  ];
-  const availability = [
-    p.languages.map((id) => v.languageNames[id]).join(', '),
-    p.replyHours ? v.replyOptions[p.replyHours] : '',
-    p.mode ? v.modeNames[p.mode] : '',
-    p.sessionMinutes.map((n) => v.minutes(n)).join(' / '),
-  ].filter(Boolean);
-  const stats = data.stats;
-  return <>
-    {p.skills.length > 0 && <section className="panel" aria-labelledby="pv2-skills-title">
-      <h2 id="pv2-skills-title">{v.publicSkills}</h2>
-      <ul className="pv2-tags">{p.skills.map((skill) => <li key={skill.tag}>{v.skillNames[skill.tag]} · {v.levelNames[skill.level]}</li>)}</ul>
-    </section>}
-
-    {(mentoring.length > 0 || p.deliverables || availability.length > 0) && <section className="panel" aria-labelledby="pv2-mentoring-title">
-      <h2 id="pv2-mentoring-title">{v.publicHelps}</h2>
-      {mentoring.length > 0 && <ul className="pv2-tags">{mentoring.map((label) => <li key={label}>{label}</li>)}</ul>}
-      {p.deliverables && <><h3>{v.deliverables}</h3><p className="cx-prose">{p.deliverables}</p></>}
-      {availability.length > 0 && <><h3>{v.publicAvailability}</h3><p className="cx-prose">{availability.join(' · ')}</p></>}
-    </section>}
-
-    <section className="panel" aria-labelledby="pv2-exp-title">
-      <h2 id="pv2-exp-title">{v.experiencesTitle}</h2>
-      {data.experiences.length === 0 ? <p className="cx-lead">{v.experiencesEmpty}</p> : <ul className="cx-list">
-        {data.experiences.map((row) => <li key={row.id}><div>
-          <p className="cx-list__title">{row.name} · {row.year}
-            <span className={`cx-pill pv2-status is-${row.status}`}>{v.statusNames[row.status]}</span></p>
-          <p className="cx-hint">{experienceLine(row, v)}</p>
-          {row.responsibility && <p className="cx-prose">{row.responsibility}</p>}
-          {row.lessons && <p className="cx-prose">{row.lessons}</p>}
-          {row.evidenceUrl && <a className="cx-link" href={row.evidenceUrl} target="_blank" rel="noreferrer noopener">{v.evidenceUrl}</a>}
-        </div></li>)}
-      </ul>}
-    </section>
-
-    <section className="panel" aria-labelledby="pv2-trust-title">
-      <h2 id="pv2-trust-title">{v.publicTrust}</h2>
-      <ul className="pv2-tags">
-        {stats.emailVerified && <li>{v.statEmail}</li>}
-        <li>{v.statSessions(stats.completedSessions)}</li>
-        <li>{stats.responseRate === null ? v.statResponseNone : v.statResponse(stats.responseRate)}</li>
-        {stats.evidenceLinks > 0 && <li>{v.statEvidence(stats.evidenceLinks)}</li>}
-      </ul>
-    </section>
-  </>;
-}
 
 function StarsRow({ stars }: { stars: number }) {
   const { t } = useI18n();
@@ -276,6 +222,7 @@ export function MentorProfile() {
   // จ้างพักไว้ (ตอนนี้) = โหมดตัวกลาง กล่องติดต่อเมนเทอร์แทนฟอร์มจ้าง
   const hiring = useHiring();
 
+  const [active, setActive] = useState<'about' | 'experience' | 'reviews'>('about');
   const { data, error, loading, reload } = useApi<Payload>(id ? `/consult/mentors/${encodeURIComponent(id)}` : null);
 
   // ยืนยันอีเมลเสร็จในอีกแท็บ หรือสลับบัญชี ต้องอ่านหน้านี้ใหม่ ไม่อย่างนั้นยังเห็นว่า "ยังไม่ยืนยัน"
@@ -297,84 +244,173 @@ export function MentorProfile() {
   if (!data || !mentor) return <main id="main" tabIndex={-1} className="shell page cx-page">
     <h1>{s.notFoundTitle}</h1>
     <p className="cx-lead">{error || s.notFoundText}</p>
-    <p><Link className="primary-button cx-button" to="/explore"><ArrowLeft size={17} aria-hidden="true" />{s.backToPick}</Link></p>
+    <p><Link className="primary-button cx-button" to="/mentors"><ArrowLeft size={17} aria-hidden="true" />{s.backToMentors}</Link></p>
   </main>;
 
   const from = data.competitions.find((item) => item.slug === competition);
   const reloadAsync = async () => { reload(); };
+  const v = t.mentorProfileV2;
+  const p = data.profile;
+  const languages = p.languages.map((code) => v.languageNames[code]).join(', ');
+  const rating = mentor.allTime;
+  const offers = data.competitions;
+  const back = from ? { to: `/competitions/${from.slug}#mentors`, label: s.backTo(from.name) } : { to: '/mentors', label: s.backToMentors };
+  const tabs = [
+    { id: 'about', label: s.tabAbout, count: null },
+    { id: 'experience', label: s.tabExperience, count: data.experiences.length || null },
+    { id: 'reviews', label: s.tabReviews, count: data.reviews.length || null },
+  ] as const;
+  const mentoring = [
+    ...p.teachingStyles.map((id) => v.teachingStyleNames[id]), ...p.learnerLevels.map((id) => v.learnerLevelNames[id]),
+    ...p.sessionMinutes.map((n) => v.minutes(n)), ...(p.mode ? [v.modeNames[p.mode]] : []),
+  ];
 
-  return <main id="main" tabIndex={-1} className="shell page cx-page">
-    <p className="detail-breadcrumb">
-      <Link to={from ? `/competitions/${from.slug}#mentors` : '/explore'}><ArrowLeft size={16} aria-hidden="true" />
-        {from ? s.backTo(from.name) : s.backToPick}
-      </Link>
-    </p>
+  /* โปรไฟล์ตามดีไซน์ (redesign-mentor-profile, 23 ต.ค. 2569): การ์ดหัว สถิติสามช่อง แท็บ เกี่ยวกับ / ประสบการณ์ / รีวิว
+     กล่องข้างมีราคา รูปแบบ และขั้นตอนติดต่อเดิม (ContactPanel) ปุ่มบันทึกเมนเทอร์ในดีไซน์ยังไม่มีระบบรองรับจึงไม่ใส่ */
+  return <main id="main" tabIndex={-1} className="mp">
+    <div className="mp-shell">
+      <p className="mp-back"><Link to={back.to}><ArrowLeft size={16} aria-hidden="true" />{back.label}</Link></p>
+      <div className="mp-grid">
+        <div className="mp-main">
+          <header className="mp-hero">
+            <div className="mp-hero__top">
+              {mentor.photoUrl ? <img className="mp-avatar" src={mentor.photoUrl} alt="" /> : <span className="mp-avatar" aria-hidden="true">{mentor.initial}</span>}
+              <div className="mp-hero__copy">
+                <p className="mp-verified"><BadgeCheck size={15} aria-hidden="true" />{s.verifiedMentor}{mentor.risingStar && <RisingStarPill />}</p>
+                <h1>{mentor.name}</h1>
+                {p.headline && <p className="mp-role">{p.headline}</p>}
+                {(p.country || languages) && <p className="mp-location">
+                  {p.country && <><MapPin size={15} aria-hidden="true" />{v.countries[p.country]}</>}
+                  {p.country && languages && <span aria-hidden="true">·</span>}
+                  {languages && s.speaks(languages)}
+                </p>}
+              </div>
+            </div>
+            <dl className="mp-stats">
+              <div><Star size={17} aria-hidden="true" /><dt>{rating.average === null ? s.newMentor : <>★ {rating.average.toFixed(1)}</>}</dt><dd>{rating.average === null ? s.noReviewsYet : s.reviewsLine(rating.reviews)}</dd></div>
+              <div><Clock3 size={17} aria-hidden="true" /><dt>{s.usuallyReplies}</dt><dd>{p.replyHours ? v.replyOptions[p.replyHours] : s.replyUnknown}</dd></div>
+              <div><Users size={17} aria-hidden="true" /><dt>{s.sessionsDone(data.stats.completedSessions)}</dt><dd>{s.completedHere}</dd></div>
+            </dl>
+          </header>
 
-    <header className="cx-hero">
-      <span className="rs-avatar-wrap"><Avatar initial={mentor.initial} plain={!mentor.risingStar} photoUrl={mentor.photoUrl} /></span>
-      <div className="cx-hero__who">
-        <h1>{mentor.name}</h1>
-        {data.profile?.headline && <p className="cx-hero__headline">{data.profile.headline}</p>}
-        <p className="cx-badges">
-          {mentor.verified && <span className="cx-badge"><BadgeCheck size={15} aria-hidden="true" />{s.verifiedBadge}</span>}
-          {mentor.risingStar && <RisingStarPill />}
-        </p>
-        <p className="cx-hero__spec">{mentor.specialty}</p>
-        <dl className="cx-facts">
-          {mentor.rating.average === null && mentor.allTime.average === null
-            ? <div><dt>{t.rating.label}</dt><dd><Rating rating={mentor.rating} /></dd></div>
-            : <>
-              <div><dt>{s.ratingThisMonth}</dt><dd><Rating rating={mentor.rating} /></dd></div>
-              <div><dt>{s.ratingAllTime}</dt><dd><Rating rating={mentor.allTime} /></dd></div>
+          <div className="mp-tabs" role="tablist" aria-label={s.sections}>
+            {tabs.map((tab) => <button key={tab.id} type="button" role="tab" id={`mp-tab-${tab.id}`} aria-controls={`mp-panel-${tab.id}`}
+              aria-selected={active === tab.id} tabIndex={active === tab.id ? 0 : -1} className={active === tab.id ? 'is-active' : ''}
+              onClick={() => setActive(tab.id)}
+              onKeyDown={(event) => {
+                const i = tabs.findIndex((x) => x.id === tab.id);
+                const next = event.key === 'ArrowRight' ? tabs[(i + 1) % tabs.length] : event.key === 'ArrowLeft' ? tabs[(i + tabs.length - 1) % tabs.length] : null;
+                if (next) { setActive(next.id); document.getElementById(`mp-tab-${next.id}`)?.focus(); }
+              }}>
+              {tab.label}{tab.count !== null && <span>{tab.count}</span>}
+            </button>)}
+          </div>
+
+          <div role="tabpanel" id="mp-panel-about" aria-labelledby="mp-tab-about" hidden={active !== 'about'}>
+            <section className="mp-section" aria-labelledby="mp-about-title">
+              <h2 id="mp-about-title">{s.about}</h2>
+              <p>{mentor.experience}</p>
+              {p.background && <p className="mp-muted">{p.background}</p>}
+            </section>
+            {p.skills.length > 0 && <section className="mp-section" aria-labelledby="mp-skills-title">
+              <h2 id="mp-skills-title">{s.focusAreas}</h2>
+              <ul className="mp-chips">{p.skills.map((skill) => <li key={skill.tag}>{v.skillNames[skill.tag]} · {v.levelNames[skill.level]}</li>)}</ul>
+            </section>}
+            <section className="mp-section mp-help">
+              <div>
+                <h2>{s.canHelp}</h2>
+                {p.helpsWith.map((id) => <p className="mp-check" key={id}><Check size={15} aria-hidden="true" />{v.helpsWithNames[id]}</p>)}
+                {mentor.best && <p className="mp-check"><Check size={15} aria-hidden="true" />{mentor.best}</p>}
+              </div>
+              <div>
+                <h2>{s.cannotHelpMe}</h2>
+                {mentor.cannot && <p className="mp-check is-muted"><span aria-hidden="true">—</span>{mentor.cannot}</p>}
+              </div>
+            </section>
+            {(mentoring.length > 0 || p.deliverables) && <section className="mp-section" aria-labelledby="mp-how-title">
+              <h2 id="mp-how-title">{s.howIMentor}</h2>
+              {mentoring.length > 0 && <ul className="mp-chips is-soft">{mentoring.map((label) => <li key={label}>{label}</li>)}</ul>}
+              {p.deliverables && <><h3>{s.afterSession}</h3><p>{p.deliverables}</p></>}
+            </section>}
+            <section className="mp-section" aria-labelledby="mp-trust-title">
+              <h2 id="mp-trust-title">{v.publicTrust}</h2>
+              <ul className="mp-chips is-soft">
+                {data.stats.emailVerified && <li>{v.statEmail}</li>}
+                <li>{v.statSessions(data.stats.completedSessions)}</li>
+                <li>{data.stats.responseRate === null ? v.statResponseNone : v.statResponse(data.stats.responseRate)}</li>
+                {data.stats.evidenceLinks > 0 && <li>{v.statEvidence(data.stats.evidenceLinks)}</li>}
+              </ul>
+            </section>
+          </div>
+
+          <div role="tabpanel" id="mp-panel-experience" aria-labelledby="mp-tab-experience" hidden={active !== 'experience'}>
+            <section className="mp-section" aria-labelledby="pv2-exp-title">
+              <h2 id="pv2-exp-title">{v.experiencesTitle}</h2>
+              {data.experiences.length === 0 ? <p className="mp-muted">{v.experiencesEmpty}</p> : <ul className="mp-exp">
+                {data.experiences.map((row) => <li key={row.id}>
+                  <span className="mp-exp__icon" aria-hidden="true"><Trophy size={17} /></span>
+                  <div>
+                    <strong>{row.name} · {row.year}</strong>
+                    <p>{experienceLine(row, v)}</p>
+                    {row.responsibility && <p>{row.responsibility}</p>}
+                    {row.lessons && <p className="mp-muted">{row.lessons}</p>}
+                    {row.evidenceUrl && <a className="mp-link" href={row.evidenceUrl} target="_blank" rel="noreferrer noopener">{v.evidenceUrl}<ExternalLink size={13} aria-hidden="true" /></a>}
+                  </div>
+                  <span className={`mp-status is-${row.status}`}>{v.statusNames[row.status]}</span>
+                </li>)}
+              </ul>}
+            </section>
+            <section className="mp-section" aria-labelledby="competitions-title">
+              <h2 id="competitions-title">{s.competitionsTitle}</h2>
+              {offers.length === 0 ? <p className="mp-muted">{s.competitionsEmpty}</p> : <ul className="mp-exp">
+                {offers.map((item) => <li key={item.slug}>
+                  <span className="mp-exp__icon" aria-hidden="true"><Trophy size={17} /></span>
+                  <div>
+                    <Link className="mp-link" to={`/competitions/${item.slug}#mentors`}>{item.name}</Link>
+                    <p>{s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))}</p>
+                  </div>
+                  <span className="mp-price">{t.price.line(item.price, item.minutes, item.unit)}</span>
+                </li>)}
+              </ul>}
+            </section>
+          </div>
+
+          <div role="tabpanel" id="mp-panel-reviews" aria-labelledby="mp-tab-reviews" hidden={active !== 'reviews'}>
+            <section className="mp-section" aria-labelledby="reviews-title">
+              <h2 id="reviews-title">{s.reviewsTitle}</h2>
+              {rating.average !== null && <p className="mp-score"><strong>{rating.average.toFixed(1)}</strong><span aria-hidden="true">★★★★★</span><small>{s.reviewsLine(rating.reviews)}</small></p>}
+              {data.reviews.length === 0 ? <p className="mp-muted">{s.reviewsEmpty}</p> : <ul className="mp-reviews">
+                {data.reviews.map((review, index) => <li key={`${review.createdAt}-${index}`}>
+                  <span className="mp-reviews__avatar" aria-hidden="true">{review.name.slice(0, 1)}</span>
+                  <div>
+                    <StarsRow stars={review.stars} />
+                    <p className="mp-muted">{s.reviewMeta(review.name, formatDate(review.createdAt, lang))}</p>
+                    {review.comment && <p>{review.comment}</p>}
+                  </div>
+                </li>)}
+              </ul>}
+            </section>
+          </div>
+        </div>
+
+        <aside className="mp-side">
+          <div className="mp-card">
+            <h2>{s.readyTitle}</h2>
+            <p className="mp-muted">{s.readyText(mentor.name)}</p>
+            <div className="mp-rate"><span>{s.rate}</span><strong>{t.price.line(mentor.price, mentor.minutes, mentor.unit)}</strong></div>
+            {p.formats.length > 0 && <>
+              <p className="mp-label">{s.formatLabel}</p>
+              <ul className="mp-formats">{p.formats.map((id) => <li key={id}>{v.formatNames[id]}</li>)}</ul>
             </>}
-          <div><dt>{s.usually}</dt><dd>{t.price.line(mentor.price, mentor.minutes, mentor.unit)}</dd></div>
-        </dl>
-      </div>
-    </header>
-
-    <div className="cx-layout">
-      {hiring
-        ? <HirePanel data={data} competition={competition} reload={reloadAsync} />
-        : <ContactPanel data={data} competition={competition} reload={reloadAsync} />}
-
-      <div className="cx-main">
-        <section className="panel" aria-labelledby="about-title">
-          <h2 id="about-title">{s.experience}</h2>
-          <p className="cx-prose">{mentor.experience}</p>
-          <h3>{s.helpsWith}</h3>
-          <p className="cx-prose">{mentor.best}</p>
-          <h3>{s.cannotHelp}</h3>
-          <p className="cx-prose">{mentor.cannot}</p>
-          {data.profile?.background && <p className="cx-hint">{data.profile.background}</p>}
-        </section>
-
-        {data.profile && <ProfileSections data={data} />}
-
-        <section className="panel" aria-labelledby="competitions-title">
-          <h2 id="competitions-title">{s.competitionsTitle}</h2>
-          {data.competitions.length === 0 ? <p className="cx-lead">{s.competitionsEmpty}</p> : <ul className="cx-list">
-            {data.competitions.map((item) => <li key={item.slug}>
-              <div>
-                <Link className="cx-list__title" to={`/competitions/${item.slug}#mentors`}>{item.name}</Link>
-                <p className="cx-hint">{s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))}</p>
-              </div>
-              <p className="cx-list__price">{t.price.line(item.price, item.minutes, item.unit)}</p>
-            </li>)}
-          </ul>}
-        </section>
-
-        <section className="panel" aria-labelledby="reviews-title">
-          <h2 id="reviews-title">{s.reviewsTitle}</h2>
-          {data.reviews.length === 0 ? <p className="cx-lead">{s.reviewsEmpty}</p> : <ul className="cx-list cx-reviews">
-            {data.reviews.map((review, index) => <li key={`${review.createdAt}-${index}`}>
-              <div>
-                <StarsRow stars={review.stars} />
-                <p className="cx-hint">{s.reviewMeta(review.name, formatDate(review.createdAt, lang))}</p>
-                {review.comment && <p className="cx-prose">{review.comment}</p>}
-              </div>
-            </li>)}
-          </ul>}
-        </section>
+            {hiring
+              ? <HirePanel data={data} competition={competition} reload={reloadAsync} />
+              : <ContactPanel data={data} competition={competition} reload={reloadAsync} />}
+          </div>
+          <div className="mp-card is-soft">
+            <p className="mp-muted">{s.findMatch}</p>
+            <Link className="mp-match" to="/match">{t.match.pageTitle}<ArrowRight size={15} aria-hidden="true" /></Link>
+          </div>
+        </aside>
       </div>
     </div>
   </main>;

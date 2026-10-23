@@ -561,6 +561,7 @@ export const th: Messages = {
   },
   landing: {
     pageTitle: 'จับคู่เมนเทอร์สำหรับ Hackathon และ Case competition',
+    replay: 'เล่นฉากเปิดอีกครั้ง',
     h1a: 'ผู้ชนะงานแข่ง',
     h1b: 'เขา',
     h1accent: 'ทำได้ยังไงนะ?',

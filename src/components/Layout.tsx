@@ -78,7 +78,10 @@ function Header() {
   const [pill, setPill] = useState(false);
   useEffect(() => {
     if (!home) { setPill(false); return; }
-    const update = () => setPill(window.scrollY > window.innerHeight * 0.6);
+    const update = () => {
+      const mentors = document.getElementById('mentors') ?? document.getElementById('how');
+      setPill(mentors ? mentors.getBoundingClientRect().top < window.innerHeight * 0.78 : window.scrollY > window.innerHeight);
+    };
     update();
     window.addEventListener('scroll', update, { passive: true });
     return () => window.removeEventListener('scroll', update);

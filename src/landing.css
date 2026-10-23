@@ -33,29 +33,65 @@
 .lp-btn.is-gold:hover { background: transparent; color: #fff4c8; }
 .lp-btn:focus-visible, .lp a:focus-visible, .lp button:focus-visible { outline: 2px solid var(--lp-purple); outline-offset: 3px; }
 
-/* ---------- hero: โปสเตอร์งานแข่งสี่ใบรอบหัวข้อ ---------- */
-.lp-hero {
-  position: relative; min-height: max(640px, calc(100vh - 72px)); display: flex; align-items: center; justify-content: center; padding: 96px 20px 80px;
+/* ---------- ฉากเปิด: ภาพปะติดการ์ด (สูง 200vh เวทีตรึงไว้ 100vh) แล้วกลายเป็น hero ---------- */
+.lp-glow {
+  position: fixed; z-index: 4; left: -400px; top: -400px; width: 280px; height: 280px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(173, 145, 255, .13), rgba(173, 145, 255, 0) 68%); transform: translate(-50%, -50%); mix-blend-mode: multiply;
+}
+.lp-intro { position: relative; height: 200vh; }
+.lp-intro.is-static { height: 100vh; }
+.lp-intro__stage {
+  position: sticky; top: 0; height: 100vh; overflow: hidden;
   background-image:
     radial-gradient(ellipse at 14% 8%, rgba(216, 201, 255, .42), transparent 30%),
     radial-gradient(ellipse at 88% 26%, rgba(255, 226, 174, .28), transparent 26%),
     radial-gradient(ellipse at 70% 92%, rgba(216, 201, 255, .3), transparent 34%);
 }
-.lp-hero__posters { position: absolute; inset: 0; pointer-events: none; }
-.lp-poster {
-  position: absolute; width: clamp(118px, 12.2vw, 164px); padding: 7px; border-radius: 15px; background: rgba(255, 255, 255, .9);
-  border: 1px solid rgba(255, 255, 255, .9); box-shadow: 0 20px 60px rgba(60, 42, 102, .14);
-  animation: lp-deal 1.1s cubic-bezier(.2, 1.15, .36, 1) both, lp-drift 7s ease-in-out 1.2s infinite;
+.lp-intro__cards { position: absolute; inset: 78px 2vw 2vh; z-index: 2; }
+.lp-layer { position: absolute; inset: 0; }
+.lp-c { position: absolute; }
+.lp-c--poster { width: clamp(92px, 10vw, 150px); padding: 7px; border-radius: 15px; background: rgba(255, 255, 255, .86); border: 1px solid rgba(255, 255, 255, .9); box-shadow: 0 20px 60px rgba(60, 42, 102, .12); }
+.lp-c--poster img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; background: #e8e0ff; }
+.lp-c--step { width: clamp(64px, 7vw, 104px); padding: 6px; border-radius: 16px; background: #fff; border: 1.5px solid #dcd3f1; box-shadow: 5px 6px 0 rgba(80, 57, 130, .045), 0 15px 35px rgba(36, 26, 58, .075); }
+.lp-c--step img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+.lp-badge {
+  position: absolute; top: -10px; left: -9px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  border: 2px solid #fff; font: 700 16px 'Caveat', cursive; box-shadow: 0 4px 10px rgba(33, 29, 43, .1); transform: rotate(-8deg);
 }
-.lp-poster img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; background: #e8e0ff; }
-.lp-poster.is-0 { left: max(2%, calc(50% - 505px)); top: 120px; rotate: -7deg; --dx: 360px; --dy: 180px; animation-delay: .1s, 1.2s; }
-.lp-poster.is-1 { right: max(2%, calc(50% - 505px)); top: 150px; rotate: 6deg; --dx: -360px; --dy: 150px; animation-delay: .2s, 2.4s; }
-.lp-poster.is-2 { left: max(3%, calc(50% - 590px)); bottom: 42px; rotate: -7deg; --dx: 440px; --dy: -160px; animation-delay: .3s, 3.4s; }
-.lp-poster.is-3 { right: max(3%, calc(50% - 590px)); bottom: 42px; rotate: 5deg; --dx: -440px; --dy: -160px; animation-delay: .4s, .6s; }
-@keyframes lp-deal { from { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.55); } to { opacity: 1; transform: none; } }
-@keyframes lp-drift { 0%, 100% { translate: 0 0; } 50% { translate: 0 -11px; } }
-.lp-hero__copy { position: relative; z-index: 1; width: min(920px, 100%); text-align: center; animation: lp-rise .8s cubic-bezier(.2, .7, .2, 1) .5s both; }
-@keyframes lp-rise { from { opacity: 0; transform: translateY(24px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.lp-c--chip { padding: 7px 12px; border-radius: 999px; background: rgba(255, 255, 255, .92); border: 1px solid #ebe6f5; color: #5d5470; font-size: 11px; font-weight: 600; white-space: nowrap; box-shadow: 0 8px 20px rgba(43, 28, 81, .06); }
+.lp-c--chip.is-purple { background: #f0ebff; border-color: rgba(109, 66, 239, .14); color: #5b34d6; font-weight: 700; }
+.lp-c--mentor { width: clamp(120px, 13vw, 196px); padding: 8px; border-radius: 20px; background: rgba(255, 255, 255, .94); border: 1px solid rgba(255, 255, 255, .95); box-shadow: 0 20px 60px rgba(60, 42, 102, .13); }
+.lp-c__photo { aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: linear-gradient(135deg, #e8e0ff, #f6e7d8); display: grid; place-items: center; }
+.lp-c__photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lp-c__photo span { font-family: var(--display); font-weight: 700; font-size: clamp(36px, 4vw, 60px); color: #5b34d6; }
+.lp-c__meta { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; padding: 9px 4px 3px; }
+.lp-c__meta > div { flex: 1; min-width: 0; }
+.lp-c__meta b, .lp-c__meta span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-c__meta b { font-size: 12px; }
+.lp-c__meta span { margin-top: 2px; font-size: 9px; color: #6c6479; }
+.lp-c__meta em { font-style: normal; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.lp-c__meta i { font-style: normal; color: #b7791f; }
+.lp-c--quote { width: clamp(170px, 18vw, 250px); padding: 16px 16px 14px; border-radius: 20px; background: #fff; border: 1px solid rgba(255, 255, 255, .95); box-shadow: 0 20px 60px rgba(60, 42, 102, .13); }
+.lp-c--quote > i { display: block; font: 700 36px/.8 Georgia, serif; color: var(--lp-purple); font-style: normal; }
+.lp-c--quote p { margin: 10px 0 14px; font-size: 12px; line-height: 1.7; color: #282135; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.lp-c--quote > div { display: flex; align-items: center; gap: 9px; font-size: 11px; }
+.lp-c--quote > div span { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #e9ddff; color: #3a285d; font-size: 9px; font-weight: 800; }
+.lp-intro__logo { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; pointer-events: none; }
+.lp-intro__logo img { display: block; width: min(360px, 64vw); aspect-ratio: 9 / 4; object-fit: contain; opacity: 0; }
+
+.lp-hero { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 120px 20px 70px; opacity: 0; pointer-events: none; }
+.lp-slot { position: absolute; width: clamp(118px, 12.2vw, 164px); padding: 7px; border: 1px solid transparent; visibility: hidden; }
+.lp-slot > div { aspect-ratio: 3 / 4; }
+.lp-slot.is-0 { left: max(2%, calc(50% - 505px)); top: 190px; rotate: -7deg; }
+.lp-slot.is-1 { right: max(2%, calc(50% - 505px)); top: 220px; rotate: 6deg; }
+.lp-slot.is-2 { left: max(3%, calc(50% - 590px)); bottom: 42px; rotate: -7deg; }
+.lp-slot.is-3 { right: max(3%, calc(50% - 590px)); bottom: 42px; rotate: 5deg; }
+.lp-hero__copy { position: relative; z-index: 2; width: min(920px, 100%); text-align: center; }
+.lp-replay {
+  position: fixed; z-index: 55; right: 18px; bottom: 18px; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 8px 12px; border-radius: 999px;
+  border: 1px solid rgba(48, 35, 79, .1); background: rgba(255, 255, 255, .8); backdrop-filter: blur(12px); color: #5f5870; font: 700 12px var(--body); cursor: pointer;
+}
+.lp-replay:hover { color: var(--lp-purple); background: #fff; }
 .lp-hero h1 { margin: 0 0 22px; font-family: var(--display); font-weight: 600; font-size: clamp(48px, 7.4vw, 94px); line-height: 1; letter-spacing: -.055em; }
 .lp-hero h1 > span { display: block; }
 .lp-hero h1.is-th { font-size: clamp(38px, 6.6vw, 76px); line-height: 1.15; letter-spacing: -.02em; }
@@ -100,7 +136,8 @@
 .lp-mentor__foot b { color: var(--lp-purple-ink); }
 
 /* ---------- วิธีใช้งาน: การ์ดเอียงสลับซ้ายขวา ---------- */
-.lp-how { padding: 105px 0; }
+.lp-stack { position: relative; background: #272033; isolation: isolate; clip-path: inset(0 0 0 0); }
+.lp-how { position: relative; z-index: 2; min-height: calc(100vh + 2px); padding: 105px 0; overflow: clip; background: #f8f7fc; transform-origin: 50% 100%; }
 .lp-how__head { text-align: center; margin-bottom: 54px; }
 .lp-how__head h2 { font-size: clamp(27px, 3.6vw, 48px); }
 .lp-how__head p { color: var(--lp-muted); font-size: 15px; line-height: 1.9; max-width: 520px; margin: 18px auto 0; }
@@ -129,7 +166,14 @@
 .lp-step p { margin: 0; font-size: 14px; line-height: 1.7; color: var(--lp-muted); }
 
 /* ---------- รีวิวจริงและชวนเป็นเมนเทอร์ ---------- */
-.lp-stories { position: relative; padding: 105px 0; color: #fff; background: #272033; overflow: hidden; isolation: isolate; }
+.lp-stories { position: sticky; top: 0; z-index: 1; margin-top: -100vh; min-height: 100vh; display: flex; align-items: center; padding: 105px 0; color: #fff; background: #272033; overflow: hidden; isolation: isolate; }
+.lp-stories > .lp-shell { position: relative; }
+.lp-stories__dim { position: absolute; inset: 0; z-index: 5; background: #1a1524; opacity: 0; pointer-events: none; }
+.lp-cover {
+  position: relative; z-index: 2; margin-top: 90vh; min-height: 100vh; display: flex; flex-direction: column; background: #f8f7fc;
+  border-radius: 32px 32px 0 0; box-shadow: 0 -24px 70px rgba(20, 12, 40, .35); overflow: hidden; transform-origin: 50% 0;
+}
+.lp-cover .lp-faq { flex: 1; display: flex; align-items: center; }
 .lp-stories::before {
   content: ''; position: absolute; inset: 0; z-index: -2; background: #272033 url('./assets/landing2/stories.webp') 60% 50% / cover no-repeat;
 }
@@ -160,7 +204,7 @@
 .lp-become p { margin: 0; color: #f4f1fb; font-size: clamp(17px, 2vw, 23px); font-weight: 600; line-height: 1.3; letter-spacing: -.02em; }
 
 /* ---------- คำถามที่พบบ่อย ---------- */
-.lp-faq { padding: 130px 0 120px; }
+.lp-faq { padding: 150px 0 130px; }
 .lp-faq__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 40px 80px; }
 .lp-faq__grid > div:first-child > p { color: var(--lp-muted); font-size: 14px; line-height: 1.8; margin-top: 18px; max-width: 300px; }
 .lp-faq__list { border-top: 1px solid rgba(48, 35, 79, .1); }
@@ -178,9 +222,8 @@
   .lp-mentor { flex-basis: calc((100% - 32px) / 3); }
 }
 @media (max-width: 900px) {
-  .lp-poster.is-2, .lp-poster.is-3 { display: none; }
-  .lp-poster.is-0 { top: 84px; left: 3%; width: 96px; }
-  .lp-poster.is-1 { top: auto; bottom: 40px; right: 3%; width: 96px; }
+  .lp-slot.is-0 { top: 96px; }
+  .lp-slot.is-1 { top: 110px; }
   .lp-mentor { flex-basis: calc((100% - 16px) / 2); }
   .lp-steps { grid-template-columns: 1fr; }
   .lp-step.is-0, .lp-step.is-1, .lp-step.is-2, .lp-step.is-3 { grid-column: 1; grid-row: auto; transform: rotate(0); }
@@ -188,16 +231,17 @@
   .lp-step:nth-child(even) { transform: rotate(1.5deg); }
 }
 @media (max-width: 600px) {
-  .lp-hero { padding: 140px 16px 150px; }
-  .lp-poster.is-0 { top: 40px; width: 80px; }
-  .lp-poster.is-1 { bottom: 30px; width: 80px; }
+  .lp-hero { padding: 120px 16px 120px; }
+  .lp-slot { width: 84px; }
+  .lp-slot.is-0 { top: 76px; }
+  .lp-slot.is-1 { top: 84px; }
+  .lp-slot.is-2, .lp-slot.is-3 { bottom: 24px; }
   .lp-mentor { flex-basis: 82%; min-width: 0; }
   .lp-step { flex-direction: column; align-items: flex-start; min-height: 0; }
   .lp-mentors, .lp-how, .lp-stories { padding: 72px 0; }
   .lp-faq { padding: 80px 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lp-poster, .lp-hero__copy { animation: none; }
   .lp-step, .lp-mentor { transition: none; }
 }
 

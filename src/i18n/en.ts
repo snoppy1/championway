@@ -565,6 +565,7 @@ export const en = {
   },
   landing: {
     pageTitle: 'Mentor matching for hackathons and case competitions',
+    replay: 'Replay intro',
     h1a: 'Ready to win?',
     h1b: 'meet your',
     h1accent: 'Mentor',

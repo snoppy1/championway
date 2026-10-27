@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '../server/db/client';
 import { consultationConfirmTokens, consultations, emailLog, mentors } from '../server/db/schema';
-import { createAccount, createMentorFixture, removeAccount, signIn } from './helpers';
+import { createAccount, createMentorFixture, removeAccount, signIn, acceptSafety } from './helpers';
 import type { MentorFixture, TestAccount } from './helpers';
 
 /* โหมดตัวกลาง (ใช้อยู่ตอนนี้): ติดต่อเมนเทอร์ → เห็นช่องทาง → ได้รับคำแนะนำ → เมนเทอร์ยืนยัน (ลิงก์ในอีเมลหรือ Mentor zone) → รีวิว
@@ -62,6 +62,7 @@ async function anonymousPage(browser: Browser, baseURL: string, size?: { width: 
 async function contactAndClaim(page: Page, learner: TestAccount) {
   await signIn(page, learner, `/mentors/${fixture.mentorId}?competition=${fixture.competition.slug}`);
   await page.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
+  await acceptSafety(page);
   await expect(page.getByRole('heading', { name: 'ช่องทางติดต่อเมนเทอร์' })).toBeVisible();
   await page.getByRole('button', { name: 'ฉันได้รับคำแนะนำแล้ว' }).click();
   await expect(page.getByText('เราส่งอีเมลให้เมนเทอร์ยืนยันแล้ว')).toBeVisible();
@@ -86,6 +87,7 @@ test('a member contacts a mentor, tells us they got guidance, the mentor confirm
   // กดติดต่อ: เห็นครบห้าช่อง ช่องที่ว่างเป็น "-" ลิงก์สร้างอย่างปลอดภัย โฟกัสไปที่ช่องทางที่เพิ่งขึ้น
   await panel.getByLabel('ติดต่อเรื่องเวทีไหน').selectOption(fixture.competition.slug);
   await panel.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
+  await acceptSafety(page);
   const channels = panel.locator('.cx-contacts');
   await expect(channels.locator('> div')).toHaveCount(5);
   await expect(channels.locator('div').filter({ hasText: 'LINE ID' }).getByRole('link', { name: 'fixture.line' }))
@@ -191,6 +193,7 @@ test('"No, that was not me" asks again, then the member sees neutral wording and
   // ติดต่อใหม่ได้จากโปรไฟล์ และได้รายการใหม่
   await page.goto(`/mentors/${fixture.mentorId}`);
   await page.getByRole('button', { name: 'ติดต่ออีกครั้ง' }).click();
+  await acceptSafety(page);
   await expect(page.getByRole('heading', { name: 'ช่องทางติดต่อเมนเทอร์' })).toBeVisible();
   expect((await db.select().from(consultations).where(eq(consultations.userId, learner.id))).length).toBe(2);
 });
@@ -357,6 +360,7 @@ test('cancelling a contact asks first, and the member can contact again', async 
   const learner = await member();
   await signIn(page, learner, `/mentors/${fixture.mentorId}`);
   await page.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
+  await acceptSafety(page);
   await expect(page.getByRole('heading', { name: 'ช่องทางติดต่อเมนเทอร์' })).toBeVisible();
   await page.getByRole('button', { name: 'ยกเลิกการติดต่อ' }).click();
   await expect(page.getByText('ยกเลิกการติดต่อนี้หรือไม่')).toBeVisible();
@@ -367,6 +371,7 @@ test('cancelling a contact asks first, and the member can contact again', async 
   // ยกเลิกแล้วช่องทางติดต่อหายไปจนกว่าจะติดต่อใหม่
   await expect(page.getByText('fixture.line')).toHaveCount(0);
   await page.getByRole('button', { name: 'ติดต่ออีกครั้ง' }).click();
+  await acceptSafety(page);
   await expect(page.getByText('fixture.line')).toBeVisible();
 });
 
@@ -385,6 +390,7 @@ test('the contact pages are captured with realistic Thai data', async ({ page, b
 
   await signIn(page, learner, `/mentors/${thai.mentorId}?competition=${thai.competition.slug}`);
   await page.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
+  await acceptSafety(page);
   await expect(page.getByRole('heading', { name: 'ช่องทางติดต่อเมนเทอร์' })).toBeVisible();
   await audit(page, 'profile with contacts (thai)');
   await capture(page, 'mentor-profile-contacts');

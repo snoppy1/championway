@@ -10,6 +10,7 @@ import { ContactFlow } from './ContactFlow';
 import { ContactSteps } from './hire';
 import { nb } from './nb';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
+import { SafetyDialog } from './SafetyDialog';
 import '../consult.css';
 
 /* กล่อง "ติดต่อเมนเทอร์" บนโปรไฟล์เมนเทอร์ (โหมดตัวกลาง: เว็บแค่ให้ทั้งสองฝั่งติดต่อกัน คุยกันนอกเว็บ)
@@ -55,9 +56,10 @@ function ContactForm({ mentorId, competitions, initial, again, onDone }: {
   const [about, setAbout] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  // ติ๊กรับทราบคำเตือนความปลอดภัยก่อน แล้วจึงเปิดช่องทางติดต่อ
+  const [asking, setAsking] = useState(false);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function submit() {
     setBusy(true);
     setMessage('');
     try {
@@ -70,7 +72,8 @@ function ContactForm({ mentorId, competitions, initial, again, onDone }: {
     }
   }
 
-  return <form className="cx-contact-form" onSubmit={(event) => { void submit(event); }}>
+  return <form className="cx-contact-form" onSubmit={(event: FormEvent) => { event.preventDefault(); setAsking(true); }}>
+    {asking && <SafetyDialog onConfirm={() => { void submit(); }} onCancel={() => setAsking(false)} />}
     {competitions.length > 0 && <div className="cx-field">
       <label htmlFor="contact-about">{s.aboutLabel}</label>
       <select id="contact-about" value={about} disabled={busy} onChange={(event) => setAbout(event.target.value)}>

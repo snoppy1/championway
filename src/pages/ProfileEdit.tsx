@@ -10,6 +10,7 @@ import type { PersonLevel } from '../data/profile';
 import { occupationIds, occupationValues } from '../data/stored-values';
 import { useI18n } from '../i18n';
 import '../journey.css';
+import '../user-profile.css';
 
 /* หน้าแก้ไขโปรไฟล์ของสมาชิกทั่วไป แยกเป็นสามฟอร์มที่บันทึกแยกกัน
    เพราะการเปลี่ยนอีเมลกับรหัสผ่านต้องยืนยันตัวตนซ้ำ ส่วนข้อมูลทั่วไปไม่ต้อง
@@ -30,7 +31,7 @@ export function ProfileEdit() {
   if (loading) return <main id="main" className="shell page">{s.loadingAccount}</main>;
   if (!user) return <Navigate to="/signin?next=/profile/edit" replace />;
 
-  return <main id="main" tabIndex={-1} className="shell page journey-page">
+  return <main id="main" tabIndex={-1} className="shell page journey-page up">
     <p className="detail-breadcrumb">
       <Link to="/profile"><ArrowLeft size={16} aria-hidden="true" />{s.backToProfile}</Link>
     </p>

@@ -28,7 +28,7 @@ export function LangToggle() {
 
 /** โลโก้ตัวอักษร Champion + ถ้วย + Ways (Claude Design "ChampionWays") ชื่ออยู่ที่ aria-label ของลิงก์ */
 export function Wordmark() {
-  return <img className="brand-wordmark" src={wordmark} alt="" width={135} height={60} />;
+  return <img className="brand-wordmark" src={wordmark} alt="" width={174} height={40} />;
 }
 
 function Header() {

@@ -1,0 +1,27 @@
+/* กล่องเตือนความปลอดภัยก่อนติดต่อเมนเทอร์ (components/SafetyDialog.tsx) */
+.sd {
+  width: min(520px, calc(100% - 32px)); max-height: calc(100vh - 32px); overflow: auto; border: 0; border-radius: 22px; padding: 26px;
+  color: #211b3b; background: #fff; box-shadow: 0 30px 80px rgba(20, 12, 40, .3); font-family: var(--body);
+}
+.sd::backdrop { background: rgba(28, 20, 45, .5); }
+.sd-eyebrow { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 8px; padding: 4px 10px; border-radius: 99px; background: #fff5d8; color: #7a5300; font-size: 12px; font-weight: 700; }
+.sd h2 { margin: 0 0 6px; font-family: var(--display); font-size: 24px; line-height: 1.25; }
+.sd p { margin: 0 0 10px; color: #4f4863; font-size: 14px; line-height: 1.65; }
+.sd .sd-lead { color: #211b3b; font-weight: 500; }
+.sd ul { margin: 0 0 16px; padding-left: 20px; color: #4f4863; font-size: 14px; line-height: 1.65; }
+.sd li + li { margin-top: 4px; }
+.sd-note { padding: 12px 14px; border-radius: 12px; background: #f6f2fd; border: 1px solid #ece4fb; margin-bottom: 16px; }
+.sd-note strong { display: block; font-size: 13px; margin-bottom: 4px; }
+.sd-note p { margin: 0; font-size: 13px; }
+.sd-ack { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 0; cursor: pointer; font-size: 14px; font-weight: 600; }
+.sd-ack input { width: 20px; height: 20px; margin: 1px 0 0; flex: 0 0 auto; accent-color: #6d28d9; }
+.sd-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.sd-actions button { min-height: 46px; padding: 0 20px; border-radius: 99px; font: 700 14px var(--body); cursor: pointer; }
+.sd-cancel { border: 1px solid #e3dcef; background: #fff; color: #3b2a63; }
+.sd-confirm { border: 0; background: #6d28d9; color: #fff; box-shadow: 0 8px 18px rgba(109, 40, 217, .22); }
+.sd-confirm:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.sd button:focus-visible, .sd-ack input:focus-visible { outline: 2px solid #7c3aed; outline-offset: 3px; }
+@media (max-width: 520px) {
+  .sd { padding: 20px; }
+  .sd-actions button { flex: 1; }
+}

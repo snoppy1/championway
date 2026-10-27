@@ -1,18 +1,15 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
-import '@fontsource/ibm-plex-sans-thai/thai-400.css';
-import '@fontsource/ibm-plex-sans-thai/thai-500.css';
-import '@fontsource/ibm-plex-sans-thai/thai-600.css';
-import '@fontsource/ibm-plex-sans/latin-400.css';
-import '@fontsource/ibm-plex-sans/latin-500.css';
-import '@fontsource/ibm-plex-sans/latin-600.css';
-import '@fontsource/anuphan/thai-500.css';
-import '@fontsource/anuphan/thai-600.css';
-import '@fontsource/anuphan/thai-700.css';
-import '@fontsource/anuphan/latin-500.css';
-import '@fontsource/anuphan/latin-600.css';
-import '@fontsource/anuphan/latin-700.css';
+// ฟอนต์ทั้งเว็บเป็น Google Sans ทั้งไทยและอังกฤษ (เจ้าของสั่ง 27 ต.ค. 2569) ฟอนต์ลายมือ Caveat / Mali โหลดในหน้าแรก
+import '@fontsource/google-sans/thai-400.css';
+import '@fontsource/google-sans/thai-500.css';
+import '@fontsource/google-sans/thai-600.css';
+import '@fontsource/google-sans/thai-700.css';
+import '@fontsource/google-sans/latin-400.css';
+import '@fontsource/google-sans/latin-500.css';
+import '@fontsource/google-sans/latin-600.css';
+import '@fontsource/google-sans/latin-700.css';
 import { AuthProvider } from './data/auth';
 import { I18nProvider } from './i18n';
 import { Layout } from './components/Layout';

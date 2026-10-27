@@ -12,6 +12,7 @@ import type { PersonLevel } from '../data/profile';
 import { useI18n } from '../i18n';
 import { formatDateTime } from '../i18n/format';
 import '../journey.css';
+import '../user-profile.css';
 
 /* หน้าโปรไฟล์เป็นศูนย์รวมของผู้ใช้คนเดียว: บัญชี สถานะยืนยันอีเมล และใบสมัครเมนเทอร์
    การจองและแชตในเว็บปิดถาวรแล้ว นักเรียนติดต่อเมนเทอร์นอกเว็บ (ดูหน้า Consulting กับ Mentor zone)
@@ -66,7 +67,7 @@ export function Profile() {
 
   const mentor = data?.mentor;
 
-  return <main id="main" tabIndex={-1} className="shell page journey-page">
+  return <main id="main" tabIndex={-1} className="shell page journey-page up">
     <header className="profile-head">
       {user.avatarUrl
         ? <img className="profile-avatar" src={user.avatarUrl} alt="" width={58} height={58} />

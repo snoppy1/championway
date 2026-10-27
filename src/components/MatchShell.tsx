@@ -20,14 +20,13 @@ export function PaperPlane({ className = '' }: { className?: string }) {
   </svg>;
 }
 
-export function MatchShell({ parts, counter, counterLabel, deco = true, children }: {
-  parts?: ProgressPart[]; counter?: string; counterLabel?: string; deco?: boolean; children: ReactNode;
+export function MatchShell({ parts, counter, counterLabel, deco = true, account, children }: {
+  parts?: ProgressPart[]; counter?: string; counterLabel?: string; deco?: boolean; account?: string; children: ReactNode;
 }) {
   const { t, lang, setLang } = useI18n();
   const s = t.match;
   return <div className="mf">
     <div className="mf-wash" aria-hidden="true" />
-    <div className="mf-hill" aria-hidden="true" />
     {deco && <div className="mf-deco" aria-hidden="true">
       <svg className="mf-trail" viewBox="0 0 200 260" focusable="false">
         <path d="M190 40 C 120 50, 110 70, 115 110 S 140 190, 60 200 S 10 240, 5 255" fill="none" stroke="#b9a5f5" strokeWidth="2.4" strokeDasharray="1 9" strokeLinecap="round" />
@@ -36,7 +35,7 @@ export function MatchShell({ parts, counter, counterLabel, deco = true, children
       <PaperPlane />
     </div>}
     <header className="mf-top">
-      <Link to="/" className="mf-logo" aria-label={t.common.homeLink}><img src={wordmark} alt="ChampionWays" width={150} height={67} /></Link>
+      <Link to="/" className="mf-logo" aria-label={t.common.homeLink}><img src={wordmark} alt="ChampionWays" width={174} height={40} /></Link>
       {parts && <div className="mf-progress" aria-label={counterLabel}>
         <div className="mf-progress__parts">
           {parts.map((part) => <div key={part.label} className="mf-progress__part" style={{ flexGrow: part.total }}>
@@ -46,7 +45,10 @@ export function MatchShell({ parts, counter, counterLabel, deco = true, children
         </div>
         {counter && <span className="mf-progress__count" aria-hidden="true">{counter}</span>}
       </div>}
+      <div className="mf-top__end">
+      {account && <span className="mf-account" title={t.match.fromAccount}><span className="mf-account__avatar" aria-hidden="true">{account.slice(0, 1).toUpperCase()}</span><span className="mf-account__name">{account}</span></span>}
       <button type="button" className="mf-lang" lang={lang === 'th' ? 'en' : 'th'} aria-label={s.langToggleLabel} onClick={() => setLang(lang === 'th' ? 'en' : 'th')}>{s.langToggle}</button>
+      </div>
     </header>
     {children}
   </div>;

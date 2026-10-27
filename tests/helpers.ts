@@ -128,6 +128,13 @@ export async function removeAccount(account: TestAccount) {
   await db.delete(users).where(eq(users.id, account.id));
 }
 
+/** กล่องเตือนความปลอดภัยก่อนเริ่มติดต่อเมนเทอร์ ติ๊กรับทราบแล้วกดดำเนินการต่อ */
+export async function acceptSafety(page: Page, lang: 'th' | 'en' = 'th') {
+  const dialog = page.getByRole('dialog', { name: lang === 'th' ? 'ก่อนเริ่มติดต่อ Mentor' : 'Before you contact a mentor' });
+  await dialog.getByRole('checkbox').check();
+  await dialog.getByRole('button', { name: lang === 'th' ? 'รับทราบและดำเนินการต่อ' : 'I understand, continue' }).click();
+}
+
 /** เข้าสู่ระบบผ่านหน้าเว็บจริง เพื่อให้เทสเดินเส้นทางเดียวกับผู้ใช้ */
 export async function signIn(page: Page, account: TestAccount, next = '/') {
   /* ล้าง session เดิมก่อนเสมอ ถ้ายังล็อกอินบัญชีก่อนหน้าค้างอยู่ หน้าเข้าสู่ระบบจะพาไปหน้า next ทันที (ถูกต้องสำหรับผู้ใช้)

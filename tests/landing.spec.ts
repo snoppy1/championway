@@ -10,7 +10,7 @@ test('the hero leads to Find my mentor and the steps', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'หาเมนเทอร์ของคุณ' })).toHaveAttribute('href', '/match');
   await expect(page.getByRole('link', { name: 'วิธีใช้งาน', exact: true }).first()).toHaveAttribute('href', '#how');
   await expect(page.locator('#how li')).toHaveCount(4);
-  await expect(page).toHaveTitle('ChampionWays — จับคู่เมนเทอร์สำหรับ Hackathon และ Case competition');
+  await expect(page).toHaveTitle('ChampionWays — Hackathon/Case Mentoring Platform');
   await expect(page.locator('#ranking')).toHaveCount(0);
 });
 
@@ -27,9 +27,8 @@ test('mentor cards come from approved mentors and open their profile', async ({ 
   const links = await track.locator('.lp-mentor h3 a').evaluateAll((els) => els.map((el) => el.getAttribute('href')));
   expect(links.length).toBeLessThanOrEqual(8);
   for (const href of links) expect(href).toMatch(/^\/mentors\/[\w-]+$/);
-  // หยุดการเลื่อนเองได้
-  await page.getByRole('button', { name: 'หยุดเลื่อนรายชื่อเมนเทอร์' }).click();
-  await expect(page.getByRole('button', { name: 'เลื่อนรายชื่อเมนเทอร์ต่อ' })).toBeVisible();
+  // ไม่มีปุ่มควบคุมแถบเมนเทอร์ (เจ้าของสั่งเอาออก) แถบหยุดเองเมื่อชี้หรือโฟกัส
+  await expect(page.getByRole('button', { name: 'หยุดเลื่อนรายชื่อเมนเทอร์' })).toHaveCount(0);
 });
 
 test('stories invite mentors and the FAQ opens and closes', async ({ page }) => {

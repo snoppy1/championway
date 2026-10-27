@@ -10,6 +10,7 @@ import type { Contacts } from '../data/consult';
 import type { MatchAnswers, SkillLevel, SkillTag } from '../data/matching';
 import { MatchHeading, MatchShell } from '../components/MatchShell';
 import type { EditState } from './Match';
+import { SafetyDialog } from '../components/SafetyDialog';
 
 /* หน้าผลจับคู่ /matches/:id ผลคำนวณและเก็บไว้ตอนส่งคำขอ เปิดซ้ำได้ผลเดิม
    ไม่มีช่อง Rising Star แนะนำ (เจ้าของตัดสิน 23 ต.ค. 2569) เรียงตามเปอร์เซ็นต์จากสูตรอย่างเดียว
@@ -75,6 +76,8 @@ export function MatchResults() {
   const [busy, setBusy] = useState('');
   const [problem, setProblem] = useState<{ mentorId: string; text: string } | null>(null);
   const [dialog, setDialog] = useState<{ name: string; contacts: Contacts } | null>(null);
+  /* เริ่มปรึกษาครั้งแรกต้องผ่านคำเตือนความปลอดภัยก่อน คนที่ปรึกษาอยู่แล้วกดดูช่องทางได้เลย */
+  const [asking, setAsking] = useState<Result | null>(null);
 
   useEffect(() => { document.title = `${s.resultsTitle.join(' ')} — ChampionWays`; }, [s.resultsTitle]);
 
@@ -158,7 +161,7 @@ export function MatchResults() {
               <p className="mf-result__price">{m.price === 0 ? s.free : t.price.line(m.price, null, m.unit)}</p>
               <Link className="mf-linkbtn" to={`/mentors/${m.id}`} aria-label={s.viewProfileOf(m.name)}>{s.viewProfile}</Link>
               <button type="button" className="mf-start" disabled={blocked || busy === m.id || (!mine && !m.acceptingRequests)}
-                aria-label={mine ? s.openConsult : s.startConsultWith(m.name)} onClick={() => void start(result)}>
+                aria-label={mine ? s.openConsult : s.startConsultWith(m.name)} onClick={() => { if (mine) void start(result); else setAsking(result); }}>
                 {busy === m.id ? s.starting : mine ? s.openConsult : s.startConsult}
               </button>
             </div>
@@ -167,6 +170,7 @@ export function MatchResults() {
         })}
       </ol>}
     </main>
+    {asking && <SafetyDialog onConfirm={() => { void start(asking); }} onCancel={() => setAsking(null)} />}
     {dialog && <ContactDialog name={dialog.name} contacts={dialog.contacts} onClose={() => setDialog(null)} />}
   </MatchShell>;
 }

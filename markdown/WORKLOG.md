@@ -413,3 +413,13 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 - 2026-10-24: owner sent the corrected "ChampionWays" landing file. Only the Thai section headings changed: "ชัยชนะไม่ใช่เรื่องดวง / มันเรียนรู้ได้", "จากโปรเจกต์ของคุณ สู่คนที่ใช่", "เป้าหมายใหญ่ / ต้องมีคนหนุนหลัง", "สงสัยใช่ไหม? / เริ่มตรงนี้"; Thai accent words are upright Mali with no space before them. Landing spec no longer counts cards exactly (parallel tests add mentors).
 - 2026-10-24 (review zip): Home now follows the design script itself, not a simplified hero: wordmark intro that flies to the header, cards dealt into a collage (posters, step tiles, chips, real mentors, a real review when there is one), slow auto-scroll that stops on any input, posters flying into the hero slots, header pill when the mentors section arrives, reveal-on-scroll, How it works sheet lifting off the pinned stories and the FAQ sheet covering them, Replay intro button. CIS 2025 poster now self-hosted (src/assets/landing2/poster-cis.webp). Reduced motion shows the final hero at once.
+
+## 2026-10-27 — Owner feedback round (22 items)
+
+- Font: Google Sans (OFL, `@fontsource/google-sans@5.3.2`) for Thai and English site-wide; Caveat / Mali kept for handwritten accents. form.css uses the shared font variables.
+- Home: intro only deals the competition posters and real mentor cards (no wordmark flight, no step tiles, chips or quote), about a second, then auto-scrolls to the hero; once the hero is reached the intro collapses to one screen so you cannot scroll back to the collage. "How to use" scrolls smoothly. Mentor carousel controls removed (still pauses on hover/focus). Wordmark image cropped to its content; header 40px / footer 52px.
+- SEO: title "ChampionWays — Hackathon/Case Mentoring Platform", owner's meta description and og tags (index.html, Home title).
+- Find my mentor: one-line headings, account chip top-right (small), plain gradient background (no hill), animated dots while matching, owner's hand-drawn icon set (`src/assets/icons`, mapped by name) on every question screen except interests and timing, all icon tiles white with a purple shadow and purple icons. Mobile bottom bar keeps Continue inside the screen; dimmed Continue keeps readable contrast.
+- Safety Reminder dialog (`components/SafetyDialog.tsx`, owner's copy in TH + EN) before any new contact: Start Consult on results and Contact mentor on profiles; the acknowledgement checkbox enables the button. Tests use `acceptSafety` helper.
+- Mentor profile: back link "Back to Home" (/), more space above the tabs, space between the contact text and the Sign in button.
+- User Profile and Edit profile restyled to the new look (`user-profile.css`): gradient hero card, glass panels, pill buttons.

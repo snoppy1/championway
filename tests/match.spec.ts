@@ -4,7 +4,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { db } from '../server/db/client';
 import { consultations, learnerProfiles, mentorExperiences, mentorSkills, mentors, projects } from '../server/db/schema';
 import { createSession } from '../server/lib/session';
-import { createAccount, createMentorFixture, removeAccount, signIn } from './helpers';
+import { createAccount, createMentorFixture, removeAccount, signIn, acceptSafety } from './helpers';
 import type { MentorFixture, TestAccount } from './helpers';
 
 /* หา Mentor ให้ฉัน (Claude Design "Find My Mentor"): ครั้งแรก 9 หน้า → ผลจับคู่ → เริ่มปรึกษาแล้วเห็นช่องทางติดต่อ
@@ -49,7 +49,8 @@ test('a first-time learner answers nine screens, gets ranked mentors and starts 
   // 1 เกี่ยวกับคุณ: ยังไม่เลือกแล้วกดถัดไป เห็นข้อความบอก
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('เล่าเกี่ยวกับ ตัวคุณ');
   await expect(page.getByText('1 / 9')).toBeVisible();
-  await expect(page.getByText('Mew S.')).toBeVisible();
+  // ชื่อจากบัญชีอยู่มุมขวาบน (จอแคบเหลือแค่วงกลม ชื่ออยู่ใน title)
+  await expect(page.locator('.mf-account')).toContainText('Mew S.');
   await next.click();
   await expect(page.getByRole('alert').first()).toHaveText('เลือก 1 ข้อเพื่อไปต่อ');
   await page.getByRole('radio', { name: /มือใหม่/ }).click();
@@ -118,6 +119,11 @@ test('a first-time learner answers nine screens, gets ranked mentors and starts 
   await expect(card.getByRole('link', { name: `ดูโปรไฟล์ของ ${mentor.name}` })).toHaveAttribute('href', `/mentors/${mentor.mentorId}`);
   await shot('results');
   await card.getByRole('button', { name: `เริ่มปรึกษากับ ${mentor.name}` }).click();
+  // เตือนความปลอดภัยก่อนเห็นช่องทางติดต่อ ปุ่มกดได้หลังติ๊กรับทราบ
+  const safety = page.getByRole('dialog', { name: 'ก่อนเริ่มติดต่อ Mentor' });
+  await expect(safety).toContainText('ระวังการโอนเงิน');
+  await expect(safety.getByRole('button', { name: 'รับทราบและดำเนินการต่อ' })).toBeDisabled();
+  await acceptSafety(page);
   const dialog = page.getByRole('dialog', { name: `ติดต่อ ${mentor.name}` });
   await expect(dialog).toContainText('fixture.line');
   await dialog.getByRole('button', { name: 'ปิด' }).click();

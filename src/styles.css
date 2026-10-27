@@ -97,8 +97,8 @@
   --shadow-lift: 0 2px 4px rgb(28 25 23 / 5%), 0 30px 50px -28px rgb(109 40 217 / 42%);
   --radius: 12px;
   --radius-lg: 20px;
-  --display: 'Anuphan', 'IBM Plex Sans Thai', sans-serif;
-  --body: 'IBM Plex Sans Thai', 'IBM Plex Sans', sans-serif;
+  --display: 'Google Sans', 'Anuphan', 'IBM Plex Sans Thai', sans-serif;
+  --body: 'Google Sans', 'IBM Plex Sans Thai', 'IBM Plex Sans', sans-serif;
   /* เว็บออกแบบมาเป็นโทนสว่างอย่างเดียว บอกเบราว์เซอร์ที่มีโหมดมืดอัตโนมัติ
      (Chrome/Opera/Samsung บนมือถือ) ว่าอย่ากลับสีเอง ไม่อย่างนั้นโลโก้พื้นขาว
      กับภาพปกจะถูกกลับสีจนดูพัง */
@@ -182,7 +182,9 @@ main:focus { outline: none; }
 
 .brand-link { display: flex; align-items: center; gap: 10px; color: var(--ink); }
 .brand-mark { width: 36px; height: 36px; display: block; flex-shrink: 0; }
-.brand-wordmark { display: block; width: auto; height: 38px; flex-shrink: 0; }
+/* โลโก้ตัดขอบว่างออกแล้ว (สัดส่วนราว 4.3:1) ใหญ่ขึ้นตามที่เจ้าของขอ 27 ต.ค. 2569 */
+.brand-wordmark { display: block; width: auto; height: 40px; flex-shrink: 0; }
+.site-footer .brand-wordmark { height: 52px; }
 .brand-name { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.2px; }
 
 .header-menu { display: contents; }
@@ -1142,7 +1144,8 @@ a.account-name:hover { border-color: #d9c6f3; color: var(--ink-deep); }
 
 @media (max-width: 700px) {
   .brand-name { font-size: 17px; }
-  .brand-wordmark { height: 30px; }
+  .brand-wordmark { height: 32px; }
+  .site-footer .brand-wordmark { height: 44px; }
   .hero-wordmark { max-width: 92%; }
   .hero-tagline { margin-top: 14px; }
   .hero-lead { margin-top: 12px; font-size: 14.5px; line-height: 1.75; text-wrap: balance; }

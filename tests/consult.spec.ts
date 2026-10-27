@@ -7,7 +7,7 @@ import { db } from '../server/db/client';
 import { consultations, mentorCompetitionChoices, mentorPayouts, users } from '../server/db/schema';
 import { competitions as demoCompetitions } from '../src/data/competitions';
 import {
-  addFileMessage, addMessage, createAccount, createHire, createMentorFixture, createVerifyToken, removeAccount, signIn, verifyEmail,
+  addFileMessage, addMessage, createAccount, createHire, createMentorFixture, createVerifyToken, removeAccount, signIn, verifyEmail, acceptSafety,
 } from './helpers';
 import type { MentorFixture, TestAccount } from './helpers';
 
@@ -829,6 +829,7 @@ test('touch targets on the new pages are at least 44px tall on phones', async ({
     // โหมดตัวกลาง: โปรไฟล์ที่กดติดต่อแล้ว และรายการ Consulting
     await signIn(page, learner, `/mentors/${fixture.mentorId}`);
     await page.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
+    await acceptSafety(page);
     await expect(page.getByRole('heading', { name: 'ช่องทางติดต่อเมนเทอร์' })).toBeVisible();
     for (const box of await page.locator('main button:not([disabled]), main a.cx-button, .cx-contacts a').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height).filter((height) => height > 0))) {
       expect(box).toBeGreaterThanOrEqual(44);

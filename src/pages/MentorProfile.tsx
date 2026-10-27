@@ -244,7 +244,7 @@ export function MentorProfile() {
   if (!data || !mentor) return <main id="main" tabIndex={-1} className="shell page cx-page">
     <h1>{s.notFoundTitle}</h1>
     <p className="cx-lead">{error || s.notFoundText}</p>
-    <p><Link className="primary-button cx-button" to="/mentors"><ArrowLeft size={17} aria-hidden="true" />{s.backToMentors}</Link></p>
+    <p><Link className="primary-button cx-button" to="/"><ArrowLeft size={17} aria-hidden="true" />{s.backToMentors}</Link></p>
   </main>;
 
   const from = data.competitions.find((item) => item.slug === competition);
@@ -254,7 +254,7 @@ export function MentorProfile() {
   const languages = p.languages.map((code) => v.languageNames[code]).join(', ');
   const rating = mentor.allTime;
   const offers = data.competitions;
-  const back = from ? { to: `/competitions/${from.slug}#mentors`, label: s.backTo(from.name) } : { to: '/mentors', label: s.backToMentors };
+  const back = from ? { to: `/competitions/${from.slug}#mentors`, label: s.backTo(from.name) } : { to: '/', label: s.backToMentors };
   const tabs = [
     { id: 'about', label: s.tabAbout, count: null },
     { id: 'experience', label: s.tabExperience, count: data.experiences.length || null },

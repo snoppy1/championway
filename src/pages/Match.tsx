@@ -2,8 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
-  AlarmClock, AppWindow, ArrowLeft, ArrowRight, BarChart3, Brain, Briefcase, Check, ChevronDown, Clock, Clock3, Cpu, Folder, Footprints, Lightbulb,
-  Lock, Medal, MessagesSquare, MoreHorizontal, PenTool, Pencil, Plus, Rocket, Search, ShieldCheck, Shuffle, Sparkles, Sprout, TrendingUp, Trophy, X, Zap,
+  AlarmClock, AppWindow, ArrowLeft, ArrowRight, BarChart3, Brain, Briefcase, Check, ChevronDown, Clock, Clock3, Cpu, Folder, MoreHorizontal, PenTool, Pencil, Plus, Search, ShieldCheck, Sparkles, Trophy, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ApiError, api, post } from '../lib/api';
@@ -19,6 +18,17 @@ import type {
   RequestLanguage, RequestStyle, SkillTag, Urgency,
 } from '../data/matching';
 import { suggestTags } from '../data/note-keywords';
+import iconIdea from '../assets/icons/idea.webp';
+import iconLightning from '../assets/icons/lightning.webp';
+import iconMedal from '../assets/icons/medal.webp';
+import iconMix from '../assets/icons/mix.webp';
+import iconRocket from '../assets/icons/rocket.webp';
+import iconSearch from '../assets/icons/search.webp';
+import iconSeeding from '../assets/icons/seeding.webp';
+import iconSparkle from '../assets/icons/sparkle.webp';
+import iconSteps from '../assets/icons/steps.webp';
+import iconTrophy from '../assets/icons/trophy.webp';
+import iconUp from '../assets/icons/up.webp';
 import { MatchHeading, MatchShell, PaperPlane } from '../components/MatchShell';
 import type { ProgressPart } from '../components/MatchShell';
 
@@ -29,7 +39,6 @@ import type { ProgressPart } from '../components/MatchShell';
 
 type Screen = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 const PART: Record<Screen, number> = { 0: 1, 1: 0, 2: 0, 3: 1, 4: 1, 5: 1, 6: 2, 7: 2, 8: 2, 9: 2 };
-type Tint = 'purple' | 'gold' | 'pink' | 'blue';
 
 type ProjectItem = {
   id: string; name: string; start: ProjectStart; competitionKind: CompetitionKind | null; competitionName: string | null;
@@ -56,16 +65,25 @@ const empty: Draft = {
   helpAreas: [], skillLevel: null, style: null, format: null, urgency: null, language: null, gender: 'any', note: '', noteTags: [],
 };
 
-const levelIcon: Record<LearnerLevel, [LucideIcon, Tint]> = { beginner: [Sprout, 'blue'], intermediate: [TrendingUp, 'purple'], advanced: [Medal, 'gold'] };
-const fieldIcon: Record<InterestField, [LucideIcon, Tint]> = {
-  ai: [Brain, 'purple'], web: [AppWindow, 'blue'], hardware: [Cpu, 'gold'], design: [PenTool, 'pink'],
-  data: [BarChart3, 'blue'], security: [ShieldCheck, 'purple'], business: [Briefcase, 'gold'], other: [MoreHorizontal, 'pink'],
+/* ไอคอนวาดมือ (ชุด New ICON ของเจ้าของ 27 ต.ค. 2569) ใช้กับทุกหน้าคำถาม ยกเว้นหน้าความสนใจ (2) และช่วงเวลา (8)
+   ที่ยังใช้ไอคอนเส้น พื้นขาว เงาม่วง ไอคอนม่วงเหมือนกันทุกช่อง */
+type Icon = LucideIcon | string;
+const levelIcon: Record<LearnerLevel, Icon> = { beginner: iconSeeding, intermediate: iconUp, advanced: iconMedal };
+const fieldIcon: Record<InterestField, Icon> = {
+  ai: Brain, web: AppWindow, hardware: Cpu, design: PenTool, data: BarChart3, security: ShieldCheck, business: Briefcase, other: MoreHorizontal,
 };
-const startIcon: Record<ProjectStart, [LucideIcon, Tint]> = { has_competition: [Trophy, 'gold'], has_idea: [Rocket, 'purple'], build_skills: [Lightbulb, 'blue'] };
-const styleIcon: Record<RequestStyle, [LucideIcon, Tint]> = {
-  step_by_step: [Footprints, 'purple'], guided_questions: [MessagesSquare, 'blue'], review: [Search, 'gold'], direct_feedback: [Zap, 'pink'], mixed: [Shuffle, 'purple'],
+const startIcon: Record<ProjectStart, Icon> = { has_competition: iconTrophy, has_idea: iconRocket, build_skills: iconIdea };
+const styleIcon: Record<RequestStyle, Icon> = {
+  step_by_step: iconSteps, guided_questions: iconIdea, review: iconSearch, direct_feedback: iconLightning, mixed: iconMix,
 };
-const urgencyIcon: Record<Urgency, [LucideIcon, Tint]> = { '48h': [AlarmClock, 'pink'], week: [Clock, 'gold'], flexible: [Clock3, 'blue'] };
+const urgencyIcon: Record<Urgency, Icon> = { '48h': AlarmClock, week: Clock, flexible: Clock3 };
+
+function IconTile({ icon, size, small }: { icon: Icon; size: number; small?: boolean }) {
+  const Glyph = icon;
+  return <span className={`mf-icon${small ? ' is-small' : ''}${typeof icon === 'string' ? ' is-art' : ''}`} aria-hidden="true">
+    {typeof Glyph === 'string' ? <img src={Glyph} alt="" /> : <Glyph size={size} strokeWidth={2.2} />}
+  </span>;
+}
 
 const MIN_MATCHING_MS = 1600;
 
@@ -94,12 +112,12 @@ function Field({ label, optional, hint, error, children, half, center, id }: {
   </div>;
 }
 
-function OptionCard({ icon: [Icon, tint], title, sub, on, multi, onPick, disabled, compact }: {
-  icon: [LucideIcon, Tint]; title: string; sub?: string; on: boolean; multi?: boolean; onPick: () => void; disabled?: boolean; compact?: boolean;
+function OptionCard({ icon, title, sub, on, multi, onPick, disabled, compact }: {
+  icon: Icon; title: string; sub?: string; on: boolean; multi?: boolean; onPick: () => void; disabled?: boolean; compact?: boolean;
 }) {
   return <button type="button" role={multi ? 'checkbox' : 'radio'} aria-checked={on} disabled={disabled}
     className={`mf-card${on ? ' is-on' : ''}${compact ? ' is-tile' : ''}`} onClick={onPick}>
-    <span className={`mf-icon is-${tint}`} aria-hidden="true"><Icon size={compact ? 20 : 22} strokeWidth={2.2} /></span>
+    <IconTile icon={icon} size={compact ? 20 : 22} />
     <span className="mf-card__text"><span className="mf-card__title">{title}</span>{sub && <span className="mf-card__sub">{sub}</span>}</span>
     <span className={multi ? 'mf-check' : 'mf-radio'} aria-hidden="true">{multi && on && <Check size={13} strokeWidth={3} />}</span>
   </button>;
@@ -354,13 +372,13 @@ export function Match() {
       <div className="mf-grid is-2" role="radiogroup" aria-label={s.h[0].join(' ')}>
         <button type="button" role="radio" aria-checked={draft.project === 'new'} disabled={limit}
           className={`mf-card is-new${draft.project === 'new' ? ' is-on' : ''}`} onClick={() => set('project', 'new')}>
-          <span className="mf-icon is-purple" aria-hidden="true"><Plus size={22} strokeWidth={2.4} /></span>
+          <IconTile icon={Plus} size={22} />
           <span className="mf-card__text"><span className="mf-card__title">{s.newProject}</span><span className="mf-card__sub">{limit ? s.projectLimit : s.newProjectSub}</span></span>
           <span className="mf-radio" aria-hidden="true" />
         </button>
         {projectsList.map((item) => <button key={item.id} type="button" role="radio" aria-checked={draft.project === item.id}
           className={`mf-card${draft.project === item.id ? ' is-on' : ''}`} onClick={() => set('project', item.id)}>
-          <span className="mf-icon is-blue" aria-hidden="true"><Folder size={22} strokeWidth={2.2} /></span>
+          <IconTile icon={Folder} size={22} />
           <span className="mf-card__text">
             <span className="mf-card__title">{item.name}</span>
             <span className="mf-card__sub">{item.competitionName ?? s.noCompetition}</span>
@@ -372,10 +390,6 @@ export function Match() {
     </Field>;
   } else if (sc === 1) {
     body = <>
-      <div className="mf-identity">
-        <span className="mf-identity__avatar" aria-hidden="true">{firstName.slice(0, 1).toUpperCase()}</span>
-        <span><strong>{firstName}</strong><span><Lock size={12} aria-hidden="true" />{s.fromAccount}</span></span>
-      </div>
       <Field label={s.level} id={labelId('level')} error={err('level')}>
         <div className="mf-grid is-3" role="radiogroup" aria-labelledby={labelId('level')}>
           {learnerLevels.map((level) => <OptionCard key={level} icon={levelIcon[level]} title={s.levels[level][0]} sub={s.levels[level][1]}
@@ -543,9 +557,9 @@ export function Match() {
       ...(draft.note.trim() ? [[s.rows.note, draft.note.trim()] as [string, string]] : []),
     ];
     const addable = helpAreas.filter((area) => !draft.helpAreas.includes(area) && !draft.noteTags.includes(area));
-    const summary = (title: string, Icon: LucideIcon, tint: Tint, rows: [string, string][], target: Screen) => <section className="mf-summary" aria-label={title}>
+    const summary = (title: string, icon: Icon, rows: [string, string][], target: Screen) => <section className="mf-summary" aria-label={title}>
       <header>
-        <span className={`mf-icon is-${tint} is-small`} aria-hidden="true"><Icon size={18} /></span>
+        <IconTile icon={icon} size={18} small />
         <h2>{title}</h2>
         <button type="button" className="mf-edit" aria-label={s.editSection(title)} onClick={() => goTo(target)}><Pencil size={13} aria-hidden="true" />{s.edit}</button>
       </header>
@@ -553,8 +567,8 @@ export function Match() {
     </section>;
     body = <>
       <div className="mf-grid is-2 is-top">
-        {summary(s.summaryProject, Rocket, 'purple', projectRows, existing ? 0 : 3)}
-        {summary(s.summaryNeeds, Sparkles, 'gold', needRows, 6)}
+        {summary(s.summaryProject, iconRocket, projectRows, existing ? 0 : 3)}
+        {summary(s.summaryNeeds, iconSparkle, needRows, 6)}
       </div>
       {(draft.noteTags.length > 0 || addOpen) && draft.note.trim() && <section className="mf-tags" aria-label={s.tagsTitle}>
         <p className="mf-tags__title"><Sparkles size={15} aria-hidden="true" />{s.tagsTitle}</p>
@@ -576,7 +590,7 @@ export function Match() {
   const hard = (sc === 9 && requestLimit) || saving;
   const width = sc === 4 || sc === 5 ? 'is-narrow' : '';
 
-  return <MatchShell parts={parts} counter={`${at + 1} / ${steps.length}`} counterLabel={s.stepOf(at + 1, steps.length)}>
+  return <MatchShell parts={parts} counter={`${at + 1} / ${steps.length}`} counterLabel={s.stepOf(at + 1, steps.length)} account={firstName}>
     <main id="main" tabIndex={-1} className={`mf-main ${width}`}>
       <div ref={headingRef}><MatchHeading lines={s.h[sc]} helper={s.helper[sc]} /></div>
       <form className="mf-form" noValidate onSubmit={(event) => { event.preventDefault(); void next(); }}>
@@ -598,7 +612,7 @@ export function Match() {
           </svg>
           <PaperPlane className="is-flying" />
         </div>
-        <p className="mf-overlay__title" id="mf-overlay-title">{s.matching}</p>
+        <p className="mf-overlay__title" id="mf-overlay-title">{s.matching.replace(/…$/, '')}<span className="mf-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p>
       </> : <>
         <p className="mf-overlay__title" id="mf-overlay-title">{s.errorTitle}</p>
         <p className="mf-overlay__text">{s.errorText}</p>

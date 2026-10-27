@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, RefObject } from 'react';
-import { ArrowLeft, ArrowRight, Pause, Play, Plus, RotateCcw } from 'lucide-react';
+import { Plus, RotateCcw } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useApi } from '../lib/useApi';
 import { useI18n } from '../i18n';
 import type { HelpsWith } from '../data/matching';
-import wordmark from '../assets/brand/wordmark.webp';
 import posterCis from '../assets/landing2/poster-cis.webp';
 import posterIecu from '../assets/landing2/poster-iecu.webp';
 import posterCaase from '../assets/landing2/poster-caase.webp';
@@ -55,23 +54,11 @@ const POSTER_CARDS: (CardPos & { src: string })[] = [
   { src: posterCaase, left: '36%', top: '63%', rotate: -6, depth: 0.7, target: 2 },
   { src: posterUhack, left: '79%', top: '55%', rotate: 6, depth: 0.75, target: 3 },
 ];
-const STEP_CARDS: (CardPos & { step: number })[] = [
-  { step: 0, left: '22%', top: '13%', rotate: -7, depth: 0.9 },
-  { step: 1, left: '46%', top: '44%', rotate: 8, depth: 0.95 },
-  { step: 3, left: '66%', top: '16%', rotate: 9, depth: 0.85 },
-  { step: 2, left: '10%', top: '77%', rotate: -5, depth: 0.9 },
-];
-const CHIP_CARDS: (CardPos & { label: string; purple?: boolean })[] = [
-  { label: 'AI / ML', left: '24%', top: '35%', rotate: -4, depth: 1.1 },
-  { label: 'MVP', left: '63%', top: '38%', rotate: 5, depth: 1.2, purple: true },
-  { label: 'Pitching', left: '68%', top: '84%', rotate: -6, depth: 1.15 },
-];
 const MENTOR_SPOTS: CardPos[] = [
   { left: '33%', top: '18%', rotate: 5, depth: 1.4 },
   { left: '77%', top: '12%', rotate: -4, depth: 1.5 },
   { left: '57%', top: '50%', rotate: 3, depth: 1.35 },
 ];
-const QUOTE_SPOT: CardPos = { left: '9%', top: '45%', rotate: -3, depth: 1.3 };
 
 const place = (p: CardPos): CSSProperties => ({ left: p.left, top: p.top, rotate: `${p.rotate}deg` });
 
@@ -84,10 +71,10 @@ function StepTile({ step }: { step: number }) {
 
 type IntroRefs = {
   intro: RefObject<HTMLElement | null>; stage: RefObject<HTMLDivElement | null>; far: RefObject<HTMLDivElement | null>;
-  near: RefObject<HTMLDivElement | null>; hero: RefObject<HTMLDivElement | null>; logo: RefObject<HTMLImageElement | null>;
+  near: RefObject<HTMLDivElement | null>; hero: RefObject<HTMLDivElement | null>;
 };
 
-function Intro({ refs, mentors, story }: { refs: IntroRefs; mentors: LandingMentor[]; story: Story | null }) {
+function Intro({ refs, mentors }: { refs: IntroRefs; mentors: LandingMentor[] }) {
   const { t, lang } = useI18n();
   const s = t.landing;
   return <section ref={refs.intro} id="intro" className="lp-intro" aria-labelledby="lp-hero-title">
@@ -97,8 +84,6 @@ function Intro({ refs, mentors, story }: { refs: IntroRefs; mentors: LandingMent
           {POSTER_CARDS.map((card) => <div key={card.src} data-card="" data-target={card.target} data-depth={card.depth} className="lp-c lp-c--poster" style={place(card)}>
             <img src={card.src} alt="" />
           </div>)}
-          {STEP_CARDS.map((card) => <div key={card.step} data-card="" data-depth={card.depth} className="lp-c lp-c--step" style={place(card)}><StepTile step={card.step} /></div>)}
-          {CHIP_CARDS.map((card) => <div key={card.label} data-card="" data-depth={card.depth} className={`lp-c lp-c--chip${card.purple ? ' is-purple' : ''}`} style={place(card)}>{card.label}</div>)}
         </div>
         <div ref={refs.near} className="lp-layer">
           {mentors.slice(0, 3).map((mentor, i) => <div key={mentor.id} data-card="" data-depth={MENTOR_SPOTS[i].depth} className="lp-c lp-c--mentor" style={place(MENTOR_SPOTS[i])}>
@@ -108,11 +93,6 @@ function Intro({ refs, mentors, story }: { refs: IntroRefs; mentors: LandingMent
               {mentor.rating.average !== null && <em><i>★</i> {mentor.rating.average.toFixed(1)}</em>}
             </div>
           </div>)}
-          {story && <div data-card="" data-depth={QUOTE_SPOT.depth} className="lp-c lp-c--quote" style={place(QUOTE_SPOT)}>
-            <i>“</i>
-            <p>{story.comment}</p>
-            <div><span>{story.initial}</span><b>{story.name}</b></div>
-          </div>}
         </div>
       </div>
       <div ref={refs.hero} className="lp-hero">
@@ -127,12 +107,14 @@ function Intro({ refs, mentors, story }: { refs: IntroRefs; mentors: LandingMent
           <p>{s.heroLead}</p>
           <div className="lp-hero__cta">
             <Link className="lp-btn" to={MATCH}>{s.findMentor}</Link>
-            <a className="lp-btn is-light" href="#how">{s.howToUse}</a>
+            <a className="lp-btn is-light" href="#how" onClick={(event) => {
+              event.preventDefault();
+              document.getElementById('how')?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+            }}>{s.howToUse}</a>
           </div>
         </div>
       </div>
     </div>
-    <div className="lp-intro__logo" aria-hidden="true"><img ref={refs.logo} src={wordmark} alt="" /></div>
   </section>;
 }
 
@@ -163,20 +145,21 @@ function MentorCard({ mentor }: { mentor: LandingMentor }) {
   </article>;
 }
 
-/* เลื่อนเองทุก 3.6 วินาทีตามดีไซน์ หยุดเมื่อชี้หรือโฟกัส มีปุ่มหยุด/เล่น ก่อนหน้า/ถัดไป */
+/* เลื่อนเองทุก 3.6 วินาทีตามดีไซน์ หยุดเมื่อชี้หรือโฟกัส ไม่มีปุ่มควบคุม (เจ้าของสั่งเอาออก 27 ต.ค. 2569)
+   ผู้ใช้ที่ตั้งลดการเคลื่อนไหวไม่เลื่อนเอง เลื่อนด้วยมือหรือแป้นพิมพ์ได้ */
 function Mentors({ mentors }: { mentors: LandingMentor[] }) {
   const { t } = useI18n();
   const s = t.landing;
   const track = useRef<HTMLDivElement>(null);
-  const [playing, setPlaying] = useState(() => !reduceMotion());
+  const playing = !reduceMotion();
   const [hovered, setHovered] = useState(false);
-  const step = (dir: 1 | -1) => {
+  const step = (dir: 1) => {
     const el = track.current;
     const card = el?.querySelector<HTMLElement>('.lp-mentor');
     if (!el || !card) return;
     const width = card.getBoundingClientRect().width + 16;
     const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
-    if (dir === 1 && atEnd) el.scrollTo({ left: 0, behavior: 'smooth' });
+    if (atEnd) el.scrollTo({ left: 0, behavior: 'smooth' });
     else el.scrollBy({ left: dir * width, behavior: 'smooth' });
   };
   useEffect(() => {
@@ -189,13 +172,6 @@ function Mentors({ mentors }: { mentors: LandingMentor[] }) {
     <div className="lp-shell">
       <div className="lp-mentors__head" data-rv="1">
         <h2 id="lp-mentors-title">{s.mentorsA}<br />{s.mentorsB}<Accent>{s.mentorsAccent}</Accent></h2>
-        {mentors.length > 1 && <div className="lp-carousel-controls">
-          <button type="button" aria-label={s.prev} onClick={() => step(-1)}><ArrowLeft size={18} aria-hidden="true" /></button>
-          <button type="button" aria-label={playing ? s.pause : s.play} onClick={() => setPlaying((p) => !p)}>
-            {playing ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
-          </button>
-          <button type="button" aria-label={s.next} onClick={() => step(1)}><ArrowRight size={18} aria-hidden="true" /></button>
-        </div>}
       </div>
       <div ref={track} className="lp-mentors__track" role="region" aria-label={s.mentorsLabel} tabIndex={0}
         onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}
@@ -316,7 +292,18 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
     };
     // ลดการเคลื่อนไหว: ฉากเปิดสูงแค่หนึ่งจอและเป็นภาพสุดท้าย (hero) ทันที
     intro.classList.toggle('is-static', reduce);
-    const progress = () => (reduce ? 1 : clamp(window.scrollY / Math.max(1, intro.offsetHeight - window.innerHeight)));
+    let finished = reduce;
+    const progress = () => (finished ? 1 : clamp(window.scrollY / Math.max(1, intro.offsetHeight - window.innerHeight)));
+    /* ถึง hero แล้วยุบฉากเปิดเหลือหนึ่งจอ ตำแหน่งที่เห็นไม่ขยับ แต่เลื่อนขึ้นกลับไปภาพปะติดไม่ได้อีก (เจ้าของสั่ง 27 ต.ค. 2569) */
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      stopAuto?.();
+      const before = intro.offsetHeight;
+      intro.classList.add('is-static');
+      window.scrollTo({ top: Math.max(0, window.scrollY - (before - intro.offsetHeight)), behavior: 'instant' });
+      applyScroll(1);
+    };
     const layerT = (layer: HTMLElement | null) => { const t = (layer?.style.translate || '0 0').split(' ').map(parseFloat); return [t[0] || 0, t[1] || 0]; };
 
     // จุดตั้งต้นของการ์ดแต่ละใบ และสำหรับโปสเตอร์ ระยะไปยังช่องของมันใน hero
@@ -382,7 +369,11 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
       if (refs.dim.current) refs.dim.current.style.opacity = String(0.6 * c);
       cover.style.transform = c < 1 ? `scale(${0.94 + 0.06 * c})` : '';
     };
-    const onScroll = () => { applyStack(); applyScroll(progress()); };
+    const onScroll = () => {
+      applyStack();
+      if (!finished && dealt && progress() >= 1) finish();
+      applyScroll(progress());
+    };
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return;
       const g = refs.glow.current;
@@ -396,7 +387,7 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
     // เลื่อนลงเองช้า ๆ จากภาพปะติดไปที่ hero ผู้ใช้เลื่อน แตะ หรือกดปุ่มเมื่อไหร่ก็หยุด
     const autoScroll = () => {
       if (window.scrollY > 40) return;
-      const to = intro.offsetHeight - window.innerHeight, from = window.scrollY, dur = 4000;
+      const to = intro.offsetHeight - window.innerHeight, from = window.scrollY, dur = 900;
       let t0: number | null = null, raf = 0;
       const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
       const stop = () => { cancelAnimationFrame(raf); events.forEach((ev) => window.removeEventListener(ev, stop)); };
@@ -406,7 +397,7 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
         if (t0 === null) t0 = now;
         const t = Math.min(1, (now - t0) / dur);
         window.scrollTo({ top: from + (to - from) * ease(t), behavior: 'instant' });
-        if (t < 1) raf = requestAnimationFrame(tick); else stop();
+        if (t < 1) raf = requestAnimationFrame(tick); else { stop(); finish(); }
       };
       raf = requestAnimationFrame(tick);
     };
@@ -417,7 +408,6 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
       timers.forEach(clearTimeout); timers.length = 0;
     };
     const header = () => document.querySelector<HTMLElement>('.site-header');
-    const navLogo = () => document.querySelector<HTMLElement>('.site-header .brand-wordmark');
 
     const play = () => {
       stopAuto?.();
@@ -435,28 +425,16 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
       });
       if (reduce || window.scrollY > window.innerHeight * 0.5) { dealt = true; measure(); applyScroll(progress()); return; }
 
-      // โลโก้ใหญ่กลางจอบินไปเป็นโลโก้บนแถบบน
-      const logo = refs.logo.current, nav = navLogo(), bar = header();
-      if (logo && nav) {
-        const a = logo.getBoundingClientRect(), b = nav.getBoundingClientRect();
-        const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2), sc = b.width / a.width;
-        run(logo, [
-          { opacity: 0, scale: 0.82, translate: '0 10px', offset: 0 },
-          { opacity: 1, scale: 1, translate: '0 0', offset: 0.16, easing: 'cubic-bezier(.2,.8,.2,1)' },
-          { opacity: 1, scale: 1, translate: '0 0', offset: 0.58, easing: 'cubic-bezier(.65,0,.25,1)' },
-          { opacity: 1, scale: sc, translate: `${dx}px ${dy}px`, offset: 0.97 },
-          { opacity: 0, scale: sc, translate: `${dx}px ${dy}px`, offset: 1 },
-        ], { duration: 2300 });
-        run(nav, [{ opacity: 0 }, { opacity: 1 }], { duration: 120, delay: 2200 });
-      }
-      if (bar) run(bar, [{ opacity: 0, translate: '0 -10px' }, { opacity: 1, translate: '0 0' }], { duration: 600, delay: 2150, easing: 'cubic-bezier(.2,.7,.2,1)' });
+      const bar = header();
+      if (bar) run(bar, [{ opacity: 0, translate: '0 -10px' }, { opacity: 1, translate: '0 0' }], { duration: 400, delay: 200, easing: 'cubic-bezier(.2,.7,.2,1)' });
 
       // การ์ดกองรวมกลางจอ แล้วแจกออกไปที่ของตัวเอง
       const order = cards.map((_, i) => i).sort(() => Math.random() - 0.5);
       let longest = 0;
       cards.forEach((el, i) => {
         const v = vec[i], jit = (Math.random() - 0.5) * 26;
-        const inStart = 280 + i * 42, inEnd = inStart + 440, dealStart = 1400 + order[i] * 60, total = dealStart + 1000;
+        // ลำดับเฟรมต้องไม่ย้อนกลับ: แจกออกหลังเข้ากองเสร็จเสมอ
+        const inStart = 40 + i * 25, inEnd = inStart + 260, dealStart = Math.max(inEnd + 40, 360 + order[i] * 35), total = dealStart + 520;
         longest = Math.max(longest, total);
         const stack = { translate: `${v.dx}px ${v.dy}px`, rotate: `${jit}deg`, scale: 0.62, opacity: 1 };
         run(el, [
@@ -472,10 +450,15 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
       timers.push(window.setTimeout(() => {
         dealAnims.forEach((a) => a.cancel()); dealAnims = [];
         dealt = true; measure(); applyScroll(progress());
-        timers.push(window.setTimeout(autoScroll, 700));
+        timers.push(window.setTimeout(autoScroll, 120));
       }, longest + 60));
     };
-    replayRef.current = () => { window.scrollTo({ top: 0, behavior: 'auto' }); timers.push(window.setTimeout(play, 30)); };
+    replayRef.current = () => {
+      finished = reduce;
+      intro.classList.toggle('is-static', reduce);
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      timers.push(window.setTimeout(play, 30));
+    };
 
     // ส่วนอื่นค่อย ๆ ขึ้นเมื่อเลื่อนมาถึง
     let io: IntersectionObserver | null = null;
@@ -522,7 +505,7 @@ export function Home() {
   const { data, error } = useApi<Landing>('/landing');
   const refs = {
     root: useRef<HTMLElement>(null), intro: useRef<HTMLElement>(null), stage: useRef<HTMLDivElement>(null), far: useRef<HTMLDivElement>(null),
-    near: useRef<HTMLDivElement>(null), hero: useRef<HTMLDivElement>(null), logo: useRef<HTMLImageElement>(null), glow: useRef<HTMLDivElement>(null),
+    near: useRef<HTMLDivElement>(null), hero: useRef<HTMLDivElement>(null), glow: useRef<HTMLDivElement>(null),
     lift: useRef<HTMLElement>(null), cover: useRef<HTMLDivElement>(null), dim: useRef<HTMLDivElement>(null),
   };
   /* ฉากเปิดรอข้อมูลเมนเทอร์ไม่เกิน 1.2 วินาที (เซิร์ฟเวอร์ที่เพิ่งตื่นอาจช้า) ถ้าไม่ทันก็เล่นโดยไม่มีการ์ดเมนเทอร์
@@ -531,7 +514,7 @@ export function Home() {
   useEffect(() => {
     if (introData) return;
     if (data || error) { setIntroData(data ?? { mentors: [], stories: [] }); return; }
-    const timer = setTimeout(() => setIntroData({ mentors: [], stories: [] }), 1200);
+    const timer = setTimeout(() => setIntroData({ mentors: [], stories: [] }), 500);
     return () => clearTimeout(timer);
   }, [data, error, introData]);
   const ready = introData !== null;
@@ -552,7 +535,7 @@ export function Home() {
   const stories = data?.stories ?? [];
   return <main ref={refs.root} id="main" tabIndex={-1} className="lp">
     <div ref={refs.glow} className="lp-glow" aria-hidden="true" />
-    {introData && <Intro refs={refs} mentors={introData.mentors} story={introData.stories[0] ?? null} />}
+    {introData && <Intro refs={refs} mentors={introData.mentors} />}
     {!ready && <div className="lp-intro" aria-busy="true" />}
     <div className="lp-after">
       {mentors.length > 0 && <Mentors mentors={mentors} />}

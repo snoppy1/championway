@@ -4,7 +4,7 @@ import { desc, eq } from 'drizzle-orm';
 import { db } from '../server/db/client';
 import { emailLog } from '../server/db/schema';
 import { competitions as demoCompetitions } from '../src/data/competitions';
-import { createAccount, createHire, createMentorFixture, removeAccount, verifyEmail } from './helpers';
+import { createAccount, createHire, createMentorFixture, removeAccount, verifyEmail, acceptSafety } from './helpers';
 import type { TestAccount } from './helpers';
 
 /* ภาษาตั้งต้นคืออังกฤษ ผู้ใช้สลับเป็นไทยได้ และเว็บจำตัวเลือกไว้
@@ -101,8 +101,12 @@ async function signInEnglish(page: Page, account: TestAccount, next: string) {
 }
 
 test('the landing page has no Thai in English', async ({ page }) => {
-  const content = await contentFrom(page, '/api/landing');
+  // ใช้ข้อมูลชุดเดียวกับที่หน้าเว็บได้รับจริง เทสอื่นที่รันขนานกันอาจเพิ่มเมนเทอร์ชื่อไทยระหว่างทาง
+  const landing = page.waitForResponse((response) => response.url().endsWith('/api/landing'));
   await page.goto('/');
+  const found: string[] = [];
+  strings(await (await landing).json(), found);
+  const content = found.filter((text) => text.length > 1 || /[฀-๿]/.test(text));
   await expect(page.getByRole('heading', { level: 2, name: /Winning isn’t magic/ })).toBeVisible();
   await expect(page.locator('#faq')).toContainText('Curious?');
   await expectNoThai(page, content);
@@ -446,6 +450,7 @@ test('the contact flow pages have no Thai in English: profile, Consulting, Mento
     await expect(panel.getByText('ChampionWays only puts you in touch.')).toBeVisible();
     await expectNoThai(page);
     await panel.getByRole('button', { name: 'Contact mentor' }).click();
+    await acceptSafety(page, 'en');
     await expect(page.getByRole('heading', { name: 'How to reach this mentor' })).toBeVisible();
     await expect(page.locator('.cx-contacts').getByText('LINE ID')).toBeVisible();
     await expect(page.locator('.cx-contacts dd span.sr-only').first()).toHaveText('Not provided');

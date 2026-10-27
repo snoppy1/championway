@@ -1,0 +1,64 @@
+/* หน้าโปรไฟล์ของผู้ใช้ทุกคน (Profile, ProfileEdit) ให้เข้ากับดีไซน์ใหม่ (27 ต.ค. 2569)
+   ใช้หน้าตาเดียวกับโปรไฟล์เมนเทอร์: การ์ดหัวไล่สีม่วงทอง การ์ดขาวโปร่ง ปุ่มทรงแคปซูล */
+
+.up {
+  --up-ink: #211b3b;
+  --up-muted: #625c70;
+  max-width: 1040px;
+  padding-top: 34px;
+  padding-bottom: 72px;
+  background-image: radial-gradient(ellipse at 6% 6%, rgba(216, 201, 255, .42), transparent 32%), radial-gradient(ellipse at 96% 20%, rgba(255, 226, 174, .28), transparent 28%);
+  color: var(--up-ink);
+}
+.up h1, .up h2 { font-family: var(--display); letter-spacing: -.02em; }
+:lang(th) .up h1, :lang(th) .up h2 { letter-spacing: 0; }
+
+.up .profile-head {
+  position: relative; overflow: hidden; align-items: center; gap: 20px; padding: 28px; margin-bottom: 24px; border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, .9);
+  background: linear-gradient(135deg, rgba(232, 224, 255, .96), rgba(255, 249, 239, .9) 72%, rgba(242, 214, 109, .34));
+  box-shadow: 0 22px 60px rgba(60, 42, 102, .1);
+}
+.up .profile-head::after {
+  content: ''; position: absolute; width: 190px; height: 190px; right: -48px; top: -72px; border: 1px dashed rgba(109, 66, 239, .24); border-radius: 50%;
+  box-shadow: 0 0 0 24px rgba(109, 66, 239, .05), 0 0 0 48px rgba(109, 66, 239, .035); pointer-events: none;
+}
+.up .profile-head > * { position: relative; z-index: 1; }
+.up .profile-avatar {
+  width: 84px; height: 84px; border-radius: 50%; font-size: 30px; background: #e2d4ff; color: #4c1d95; box-shadow: 0 10px 24px rgba(76, 29, 149, .18);
+}
+.up .profile-head h1 { font-size: 34px; line-height: 1.15; }
+.up .profile-head .eyebrow { color: #5b34d6; }
+.up .profile-head .muted { color: var(--up-muted); }
+
+.up .primary-button, .up .ghost-button { border-radius: 999px; min-height: 44px; padding-inline: 18px; }
+.up .primary-button { box-shadow: 0 8px 18px rgba(109, 40, 217, .2); }
+.up .ghost-button { background: rgba(255, 255, 255, .85); }
+.up .profile-head-actions a, .up p > a.primary-button, .up p > a.ghost-button { text-decoration: none; }
+
+.up .panel {
+  border-radius: 20px; border: 1px solid rgba(255, 255, 255, .95); background: rgba(255, 255, 255, .82);
+  box-shadow: 0 14px 40px rgba(43, 28, 81, .06); padding: 24px 26px;
+}
+.up .panel h2 { font-size: 19px; }
+.up .profile-block h2 svg { color: #6d42ef; }
+.up .fact-list > div { padding-block: 12px; border-bottom: 1px solid #efeaf6; }
+.up .fact-list > div:last-child { border-bottom: 0; }
+.up .fact-list dt { color: var(--up-muted); }
+
+/* ฟอร์มแก้ไขโปรไฟล์ */
+.up input:not([type='checkbox']):not([type='radio']), .up select, .up textarea {
+  border-radius: 12px; border-color: #dcd2e6; background: #fff;
+}
+.up input:focus, .up select:focus, .up textarea:focus { border-color: #7c3aed; box-shadow: 0 0 0 4px rgba(124, 58, 237, .12); outline: 0; }
+
+@media (max-width: 760px) {
+  .up { padding-top: 22px; }
+  .up .profile-head { padding: 20px; border-radius: 18px; }
+  .up .profile-avatar { width: 64px; height: 64px; font-size: 24px; }
+  .up .profile-head h1 { font-size: 26px; }
+  .up .panel { padding: 18px; }
+}
+
+/* หน้าเหล่านี้ไม่มีช่องว่างแปลก ๆ ก่อน footer */
+.up + .site-footer { margin-top: 0; }

@@ -564,7 +564,7 @@ export const en = {
     requestNew: 'Request a new link',
   },
   landing: {
-    pageTitle: 'Mentor matching for hackathons and case competitions',
+    pageTitle: 'Hackathon/Case Mentoring Platform',
     replay: 'Replay intro',
     h1a: 'Ready to win?',
     h1b: 'meet your',
@@ -613,6 +613,23 @@ export const en = {
       { q: 'Have the mentors competed themselves?', a: 'Yes. Every mentor lists the competitions they entered, and our team checks the evidence before an entry counts toward matching.' },
       { q: 'Can I save a match and decide later?', a: 'Yes. Your projects and their matches stay in your account. Open Find my mentor again and pick the project to continue.' },
     ],
+  },
+  safety: {
+    eyebrow: 'Safety Reminder',
+    title: 'Before you contact a mentor',
+    lead: 'You are about to connect with a mentor directly, through channels outside ChampionWays.',
+    intro: 'For your safety, be careful when you talk and agree on the consultation.',
+    tips: [
+      'Make sure you are contacting the right mentor.',
+      'Agree on the details clearly: the scope of the consultation, the time and the fee (if any).',
+      'Be careful with money transfers, and never share passwords, OTPs or other important personal information.',
+      'Keep a record of your conversations and payments in case you need to check them later.',
+    ],
+    noteTitle: 'Please note',
+    note: 'ChampionWays cannot control or check every conversation outside the platform, and may be limited in how it can help if a dispute comes from such contact.',
+    ack: 'I understand the risks and want to continue',
+    confirm: 'I understand, continue',
+    cancel: 'Cancel',
   },
   match: {
     pageTitle: 'Find my mentor',
@@ -854,7 +871,7 @@ export const en = {
     backToExplore: 'Back to explore competitions',
   },
   mentorProfile: {
-    backToMentors: 'Back to mentors',
+    backToMentors: 'Back to Home',
     verifiedMentor: 'Verified mentor',
     speaks: (langs: string) => `Speaks ${langs}`,
     newMentor: 'New mentor',

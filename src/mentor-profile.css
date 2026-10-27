@@ -46,7 +46,7 @@
 .mp-stats dt { font-size: 13px; font-weight: 600; }
 .mp-stats dd { margin: 3px 0 0; color: #625c70; font-size: 12px; }
 
-.mp-tabs { display: flex; gap: 27px; height: 59px; border-bottom: 1px solid rgba(77, 61, 109, .12); margin-bottom: 7px; }
+.mp-tabs { display: flex; gap: 27px; height: 59px; border-bottom: 1px solid rgba(77, 61, 109, .12); margin: 22px 0 7px; }
 .mp-tabs button { position: relative; height: 100%; min-height: 44px; border: 0; background: transparent; color: #6f6980; cursor: pointer; font: 600 14px var(--body); padding: 0 0 2px; }
 .mp-tabs button.is-active { color: var(--mp-purple-dark); }
 .mp-tabs button.is-active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--mp-purple); border-radius: 5px; }
@@ -109,6 +109,9 @@
 .mp-formats li { background: #f4efff; border: 1px solid #e6dafb; border-radius: 999px; padding: 7px 10px; color: #4f4863; font-size: 12px; }
 /* กล่องติดต่อเดิม (ContactPanel / HirePanel) อยู่ในการ์ดนี้ ไม่ต้องมีกรอบซ้อน */
 .mp-card .panel.cx-contact { margin: 12px 0 0; padding: 0; border: 0; background: none; box-shadow: none; }
+/* ระยะระหว่างข้อความกับปุ่มในกล่องติดต่อ */
+.mp-card .cx-contact > * + * { margin-top: 14px; }
+.mp-card .cx-contact p { margin-bottom: 0; }
 .mp-card .cx-contact > h2 { font-family: var(--display); font-size: 15px; color: var(--mp-ink); margin: 6px 0 8px; line-height: 1.4; }
 
 @media (max-width: 900px) {

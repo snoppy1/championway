@@ -227,6 +227,12 @@ function Stories({ stories, dimRef }: { stories: Story[]; dimRef: RefObject<HTML
           </p>
         </li>)}
       </ul>}
+      {/* ยังไม่มีรีวิวที่เข้าเกณฑ์ บอกตรง ๆ แทนการปล่อยช่องว่าง ไม่แต่งรีวิวตัวอย่าง (28 ต.ค. 2569) */}
+      {stories.length === 0 && <div className="lp-quotes-empty" data-rv="1">
+        <span className="lp-quotes__mark" aria-hidden="true">“</span>
+        <p>{s.storiesEmpty}</p>
+        <Link className="lp-btn is-light" to="/match">{s.storiesEmptyCta}</Link>
+      </div>}
       <div className="lp-become" data-rv="1">
         <p>{s.becomeA}<br />{s.becomeB}</p>
         <Link className="lp-btn is-gold" to="/mentors/apply">{s.becomeCta}</Link>

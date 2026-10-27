@@ -433,3 +433,6 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - UI pass: mobile application steps in 3 even columns, stacked fields without double gaps, footer sticks to the bottom on short pages (#root flex column).
 - Open: item 9 (seed list of competition names) is waiting for the owner's list; the message was cut off.
 - Checks: API 135/135, full Playwright 378 passed, build and check:i18n OK.
+
+## 2026-10-28 — Landing stories empty state
+- Dev has no review that qualifies as a story (4+ stars, 20+ characters), so the dark Stories section showed only its heading over a large blank area. It now shows an honest card ("Stories from real teams appear here after they review their mentors…") with a Find your mentor button. No sample reviews are made up.

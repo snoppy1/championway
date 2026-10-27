@@ -601,7 +601,7 @@ export const en = {
     storiesAccent: 'backup.',
     storiesLead: 'A little guidance can change how far an idea goes.',
     storiesEmpty: 'Stories from real teams appear here after they review their mentors. Yours could be the first.',
-    storiesEmptyCta: 'Find your mentor',
+    storiesEmptyCta: 'Start matching',
     reviewOf: (mentor: string) => `Session with ${mentor}`,
     becomeA: 'You’ve been there.',
     becomeB: 'Help someone get there.',

@@ -435,4 +435,4 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Checks: API 135/135, full Playwright 378 passed, build and check:i18n OK.
 
 ## 2026-10-28 — Landing stories empty state
-- Dev has no review that qualifies as a story (4+ stars, 20+ characters), so the dark Stories section showed only its heading over a large blank area. It now shows an honest card ("Stories from real teams appear here after they review their mentors…") with a Find your mentor button. No sample reviews are made up.
+- Dev has no review that qualifies as a story (4+ stars, 20+ characters), so the dark Stories section showed only its heading over a large blank area. It now shows an honest card ("Stories from real teams appear here after they review their mentors…") with a Start matching button (its own name, so it does not clash with the hero link). No sample reviews are made up.

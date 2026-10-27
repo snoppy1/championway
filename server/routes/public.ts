@@ -22,7 +22,7 @@ import { monthEdge } from '../lib/dates.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
 import { topicValues } from '../../src/data/stored-values.js';
 import { experienceKinds, missingSections, teamRoles } from '../../src/data/matching.js';
-import { beYear, issueCode, profileFields, profileMessage } from './mentor-profile.js';
+import { beYear, issueCode, profileFields, profileMessage, resolveCompetitionName } from './mentor-profile.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
 
 export const publicApi = new Hono<AppEnv>();
@@ -419,7 +419,8 @@ const mentorSubmissionBody = z.object({
     role: z.enum(teamRoles),
     roleOther: z.string().trim().max(80).default(''),
     responsibility: z.string().trim().min(1, 'responsibility').max(1000),
-    lessons: z.string().trim().max(1000).default(''),
+    // บังคับกรอก (เจ้าของสั่ง 28 ต.ค. 2569)
+    lessons: z.string().trim().min(1, 'lessons').max(1000),
     // ลิงก์ต้องเป็น https ห้าม javascript: data: (หน้า admin ทำเป็นลิงก์) มีลิงก์หรือไฟล์อย่างใดอย่างหนึ่งก็พอ
     evidence: z.string().trim().max(400).refine((v) => !v || /^https:\/\/\S+$/i.test(v), 'https').default(''),
     /** ไฟล์หลักฐานที่อัปโหลดผ่าน /api/files ก่อนส่งใบ แนบได้สูงสุดห้าไฟล์ (7 ต.ค.) */
@@ -523,6 +524,11 @@ async function writeMentorAwards(tx: Tx, id: string, userId: string, body: Mento
     responsibility: award.responsibility,
     lessons: award.lessons,
   })));
+  /* ชื่องานที่ยังไม่มีในระบบเข้ารายชื่อเติมคำอัตโนมัติทันทีที่ส่งใบ (แค่ชื่อ ไม่สร้างหน้างานแข่ง) ผู้สมัครคนถัดไปค้นเจอ
+     (เจ้าของสั่ง 28 ต.ค. 2569 เดิมเพิ่มตอนอนุมัติ) */
+  for (const award of body.awards) {
+    if (!(award.competitionSlug && prepared.idOf.has(award.competitionSlug))) await resolveCompetitionName(tx, award.title, userId);
+  }
 }
 
 /** ตรวจใบสมัคร ข้อความ error ที่เป็นรหัสของโปรไฟล์ตอบตามภาษาของหน้าเว็บ ข้อความอื่นตอบแบบเดิม (ชื่อช่อง: ข้อความ) */

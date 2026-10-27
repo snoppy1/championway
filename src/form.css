@@ -125,11 +125,12 @@
 
 @media(max-width:1000px){
   .cw-form .layout{grid-template-columns:1fr;gap:20px}
-  .cw-form .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .cw-form .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 8px}
   .cw-form .step{flex-direction:column;align-items:flex-start;font-size:11px;gap:6px}
   .cw-form .aside-note{display:none}
   .cw-form .sheet{padding:22px}
   .cw-form .grid,.cw-form .topics,.cw-form .queue-grid,.cw-form .price-row{grid-template-columns:1fr}
+  .cw-form .grid:not(.exp-grid){row-gap:0}
   .cw-form .price-preview{text-align:left;min-width:0}
 }
 @media(max-width:480px){

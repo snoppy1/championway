@@ -36,6 +36,7 @@ export const profileMessages = {
   year: ['ปีที่เข้าร่วมเป็น พ.ศ. 4 หลัก', 'Enter a 4-digit B.E. year, for example 2567.'],
   name: ['ใส่ชื่องานแข่ง', 'Enter the competition name.'],
   responsibility: ['บอกสิ่งที่รับผิดชอบในการแข่งขัน', 'Say what you were responsible for.'],
+  lessons: ['บอกประสบการณ์ที่ส่งต่อให้ทีมรุ่นต่อไปได้', 'Say what you can pass on to the next teams.'],
   https: ['ลิงก์หลักฐานต้องขึ้นต้นด้วย https://', 'The evidence link must start with https://'],
   award: ['ระบุรางวัลที่ได้', 'Name the award you won.'],
   resultOther: ['อธิบายผลการแข่งขัน', 'Describe the result.'],

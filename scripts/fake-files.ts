@@ -38,5 +38,5 @@ export const applicationPrice = { amount: 0, unit: '' };
 /** ประสบการณ์หนึ่งรายการ ค่าเริ่มต้นเป็นงานนอกระบบที่เข้ารอบสุดท้าย */
 export const applicationAward = (overrides: object = {}) => ({
   title: 'เวทีนอกระบบ', competitionSlug: null, kind: 'hackathon', result: 'finalist', detail: '', year: '2567',
-  role: 'developer', roleOther: '', responsibility: 'ทำต้นแบบ', lessons: '', evidence: 'https://example.test/proof', ...overrides,
+  role: 'developer', roleOther: '', responsibility: 'ทำต้นแบบ', lessons: 'ซ้อมพิตช์ให้ทันเวลา', evidence: 'https://example.test/proof', ...overrides,
 });

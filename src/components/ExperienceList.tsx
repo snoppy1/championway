@@ -1,8 +1,9 @@
-import { useEffect, useId, useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
+import { useId, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { api, ApiError, post } from '../lib/api';
+import { CompetitionNameField } from './CompetitionNameField';
 import { useApi } from '../lib/useApi';
 import { experienceKinds, experienceResults, teamRoles } from '../data/matching';
 import type { ExperienceKind, ExperienceResult, TeamRole } from '../data/matching';
@@ -18,7 +19,6 @@ export type ExperienceRow = {
   role: TeamRole; roleOther: string; responsibility: string; evidenceUrl: string; lessons: string;
   status: 'pending' | 'verified' | 'rejected'; reason: string; createdAt: string;
 };
-type Suggestion = { id: string | null; slug: string | null; name: string };
 type Draft = {
   name: string; slug: string; year: string; kind: ExperienceKind | ''; result: ExperienceResult | ''; detail: string;
   role: TeamRole | ''; roleOther: string; responsibility: string; evidenceUrl: string; lessons: string;
@@ -31,52 +31,10 @@ export function experienceLine(row: Pick<ExperienceRow, 'kind' | 'result' | 'det
   return [s.kindNames[row.kind], `${s.resultNames[row.result]}${row.detail ? ` (${row.detail})` : ''}`, role].filter(Boolean).join(' · ');
 }
 
-/** ช่องชื่องานแบบ combobox: พิมพ์ 2 ตัวขึ้นไปแล้วเสนอชื่อ ลูกศรขึ้นลงเลือก Enter ยืนยัน Esc ปิด */
-function NameField({ value, onChange, label, hint, disabled }: {
-  value: string; onChange: (name: string, slug: string) => void; label: string; hint: string; disabled: boolean;
-}) {
-  const id = useId();
-  const [items, setItems] = useState<Suggestion[]>([]);
-  const [active, setActive] = useState(-1);
-  const [closed, setClosed] = useState(false);
-  useEffect(() => {
-    const q = value.trim();
-    if (q.length < 2) { setItems([]); return; }
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      api<{ items: Suggestion[] }>(`/hackathon-names?q=${encodeURIComponent(q)}`)
-        .then((result) => { if (!cancelled) { setItems(result.items); setActive(-1); } })
-        .catch(() => { if (!cancelled) setItems([]); });
-    }, 200);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [value]);
-  const open = !closed && items.length > 0 && !items.some((item) => item.name === value);
-  const choose = (item: Suggestion) => { onChange(item.name, item.slug ?? ''); setClosed(true); };
-  function onKey(event: KeyboardEvent<HTMLInputElement>) {
-    if (!open) return;
-    if (event.key === 'ArrowDown') { event.preventDefault(); setActive((i) => (i + 1) % items.length); }
-    else if (event.key === 'ArrowUp') { event.preventDefault(); setActive((i) => (i <= 0 ? items.length - 1 : i - 1)); }
-    else if (event.key === 'Enter' && active >= 0) { event.preventDefault(); choose(items[active]); }
-    else if (event.key === 'Escape') setClosed(true);
-  }
-  return <div className="cx-field pv2-combo">
-    <label htmlFor={id}>{label}</label>
-    <input id={id} role="combobox" aria-expanded={open} aria-controls={`${id}-list`} aria-autocomplete="list" autoComplete="off"
-      aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} aria-describedby={`${id}-hint`}
-      value={value} maxLength={200} disabled={disabled} onKeyDown={onKey}
-      onChange={(event) => { setClosed(false); onChange(event.target.value, ''); }} onBlur={() => setClosed(true)} />
-    <small id={`${id}-hint`} className="cx-hint">{hint}</small>
-    {open && <ul id={`${id}-list`} role="listbox" className="pv2-combo__list" aria-label={label}>
-      {items.map((item, index) => <li key={item.slug ?? item.id} id={`${id}-option-${index}`} role="option" aria-selected={index === active}
-        className={index === active ? 'is-active' : undefined}
-        onMouseDown={(event) => { event.preventDefault(); choose(item); }}>{item.name}</li>)}
-    </ul>}
-  </div>;
-}
-
 export function ExperienceList({ onChanged }: { onChanged: () => void }) {
   const { t } = useI18n();
   const s = t.mentorProfileV2;
+  const uid = useId();
   const { data, error, reload } = useApi<{ items: ExperienceRow[] }>('/consult/zone/experiences');
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Draft>(blank);
@@ -153,7 +111,9 @@ export function ExperienceList({ onChanged }: { onChanged: () => void }) {
 
     {!adding && <button type="button" className="primary-button cx-button" onClick={() => { setNotice(''); setAdding(true); }}>{s.addExperience}</button>}
     {adding && <form className="cx-form pv2-exp-form" aria-label={s.addExperience} onSubmit={(event) => { void submit(event); }} noValidate>
-      <NameField value={draft.name} label={`${s.competitionName} *`} hint={s.competitionNameHint} disabled={busy} onChange={(name, slug) => set({ name, slug })} />
+      <CompetitionNameField className="cx-field" id={`${uid}-name`} value={draft.name} label={`${s.competitionName} *`} disabled={busy} describedBy={`${uid}-name-hint`}
+        after={<small id={`${uid}-name-hint`} className="cx-hint">{s.competitionNameHint}</small>}
+        onChange={({ name, slug }) => set({ name, slug: slug ?? '' })} />
       <div className="cx-grid-2">
         <div className="cx-field">
           <label htmlFor="exp-year">{s.year} *</label>

@@ -102,7 +102,7 @@ function Intro({ refs, mentors }: { refs: IntroRefs; mentors: LandingMentor[] })
         <div className="lp-hero__copy">
           <h1 id="lp-hero-title" className={lang === 'th' ? 'is-th' : ''}>
             <span>{s.h1a}</span>{' '}
-            <span>{s.h1b} <span className="lp-hero__accent">{s.h1accent}</span></span>
+            <span><span className="lp-hero__soft">{s.h1b}</span> <span className="lp-hero__accent">{s.h1accent}</span></span>
           </h1>
           <p>{s.heroLead}</p>
           <div className="lp-hero__cta">
@@ -387,7 +387,7 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
     // เลื่อนลงเองช้า ๆ จากภาพปะติดไปที่ hero ผู้ใช้เลื่อน แตะ หรือกดปุ่มเมื่อไหร่ก็หยุด
     const autoScroll = () => {
       if (window.scrollY > 40) return;
-      const to = intro.offsetHeight - window.innerHeight, from = window.scrollY, dur = 900;
+      const to = intro.offsetHeight - window.innerHeight, from = window.scrollY, dur = 1100;
       let t0: number | null = null, raf = 0;
       const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
       const stop = () => { cancelAnimationFrame(raf); events.forEach((ev) => window.removeEventListener(ev, stop)); };
@@ -434,7 +434,7 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
       cards.forEach((el, i) => {
         const v = vec[i], jit = (Math.random() - 0.5) * 26;
         // ลำดับเฟรมต้องไม่ย้อนกลับ: แจกออกหลังเข้ากองเสร็จเสมอ
-        const inStart = 40 + i * 25, inEnd = inStart + 260, dealStart = Math.max(inEnd + 40, 360 + order[i] * 35), total = dealStart + 520;
+        const inStart = 60 + i * 38, inEnd = inStart + 390, dealStart = Math.max(inEnd + 60, 540 + order[i] * 52), total = dealStart + 780;
         longest = Math.max(longest, total);
         const stack = { translate: `${v.dx}px ${v.dy}px`, rotate: `${jit}deg`, scale: 0.62, opacity: 1 };
         run(el, [
@@ -450,7 +450,7 @@ function useLandingMotion(ready: boolean, refs: IntroRefs & {
       timers.push(window.setTimeout(() => {
         dealAnims.forEach((a) => a.cancel()); dealAnims = [];
         dealt = true; measure(); applyScroll(progress());
-        timers.push(window.setTimeout(autoScroll, 120));
+        timers.push(window.setTimeout(autoScroll, 400));
       }, longest + 60));
     };
     replayRef.current = () => {

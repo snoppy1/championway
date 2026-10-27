@@ -55,6 +55,7 @@ async function addExperience(page: Page, name: string, options: { result?: strin
   await card.locator('.offer-mode__option').filter({ hasText: options.result ?? 'ผู้เข้าร่วมการแข่งขัน' }).click();
   await card.getByLabel('บทบาทในทีม *', { exact: true }).selectOption('business');
   await card.getByLabel('สิ่งที่รับผิดชอบในการแข่งขัน *', { exact: true }).fill('วิเคราะห์โจทย์และทำสไลด์');
+  await card.getByLabel('ประสบการณ์ที่ส่งต่อให้ทีมรุ่นต่อไปได้ *', { exact: true }).fill('เริ่มจากตีโจทย์ให้แคบก่อนทำสไลด์');
   // หลักฐานเป็นไฟล์หรือลิงก์ https อย่างใดอย่างหนึ่งก็พอ
   if (options.link) await card.getByLabel('ลิงก์หลักฐาน', { exact: true }).fill('https://example.com/results');
   else await card.locator('input[type=file]').setInputFiles(PROOF);
@@ -196,19 +197,21 @@ test('each profile step blocks until its section is complete', async ({ page }) 
   await expect(page.locator('#cw-apply .review-group').filter({ hasText: 'ราคาของคุณ' })).toContainText('300 บาท / ชั่วโมง');
 });
 
-test('a competition name typed before the list finishes loading still matches once it loads', async ({ page }) => {
+test('a competition on ChampionWays only says so, and a name that is not found can be added as a new competition', async ({ page }) => {
   const list = await (await page.request.get('/api/consult/open-competitions?all=1')).json() as { items: { name: string }[] };
-  let release: () => void = () => {};
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  await page.route('**/api/consult/open-competitions?all=1', async (route) => { await gate; await route.continue(); });
   await page.goto('/mentors/apply'); await fillIdentity(page); await next(page); await fillSkills(page); await next(page);
   await page.getByRole('button', { name: '+ เพิ่มเวทีที่เคยแข่ง', exact: true }).click();
   const card = page.locator('#cw-apply .exp').first();
-  await card.getByLabel('ชื่อเวที *', { exact: true }).fill(list.items[0].name);
-  await expect(card).toContainText('ยังไม่มีใน ChampionWays');
-  release();
+  const name = card.getByLabel('ชื่อเวที *', { exact: true });
+  // งานที่มีในระบบ บอกแค่ "มีใน ChampionWays" ไม่มีรายละเอียดหรือลิงก์ไปหน้างาน
+  await name.fill(list.items[0].name);
   await expect(card.locator('.exp-match')).toHaveText('มีใน ChampionWays');
-  await expect(card.locator('.exp-info__name')).toHaveText(list.items[0].name);
+  await expect(card.getByRole('link', { name: /ดูหน้าเวที/ })).toHaveCount(0);
+  // ค้นไม่เจอ เลือก "เพิ่มงานแข่งใหม่" ได้
+  const typed = `งานแข่งใหม่ทดสอบ ${Date.now()}`;
+  await name.fill(typed);
+  await page.getByRole('option', { name: `เพิ่มงานแข่งใหม่: “${typed}”` }).click();
+  await expect(card.locator('.exp-match')).toHaveText('งานแข่งใหม่ · ระบบจะเพิ่มชื่อนี้เข้า ChampionWays');
 });
 
 test('experiences are unlimited, show what is missing under each field, fold when done, and can be undone', async ({ page }) => {
@@ -220,7 +223,7 @@ test('experiences are unlimited, show what is missing under each field, fold whe
   await next(page);
   // ข้อความรวมบอกจำนวน และใต้ช่องบอกว่าขาดอะไร
   await expect(page.getByRole('alert').first()).toContainText('ยังกรอกไม่ครบ');
-  for (const text of ['เลือกประเภทการแข่งขัน', 'เลือกผลที่ได้', 'ใส่ปี พ.ศ.', 'เลือกบทบาทในทีม', 'บอกสิ่งที่รับผิดชอบในการแข่งขัน', 'แนบไฟล์หรือใส่ลิงก์']) {
+  for (const text of ['เลือกประเภทการแข่งขัน', 'เลือกผลที่ได้', 'ใส่ปี พ.ศ.', 'เลือกบทบาทในทีม', 'บอกสิ่งที่รับผิดชอบในการแข่งขัน', 'บอกประสบการณ์ที่ส่งต่อให้ทีมรุ่นต่อไปได้', 'แนบไฟล์หรือใส่ลิงก์']) {
     await expect(card).toContainText(text);
   }
   await card.getByLabel('ประเภทการแข่งขัน *', { exact: true }).selectOption('hackathon');
@@ -250,7 +253,7 @@ test('experiences are unlimited, show what is missing under each field, fold whe
   await card.locator('input[type=file]').setInputFiles(['a', 'b', 'c', 'd'].map((name) => ({ name: `${name}.pdf`, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') })));
   await expect(card.locator('.exp-file__list li')).toHaveCount(5);
   await expect(card.getByText('แนบไฟล์เพิ่ม')).toHaveCount(0);
-  await card.getByLabel('ประสบการณ์ที่ส่งต่อให้ทีมรุ่นต่อไปได้ (ไม่บังคับ)', { exact: true }).fill('แบ่งเวลาซ้อมพิตช์');
+  await card.getByLabel('ประสบการณ์ที่ส่งต่อให้ทีมรุ่นต่อไปได้ *', { exact: true }).fill('แบ่งเวลาซ้อมพิตช์');
   // กดเสร็จแล้วพับเหลือบรรทัดเดียว
   await card.getByRole('button', { name: 'เสร็จ', exact: true }).click();
   await expect(card).toContainText('Venture Ignite');
@@ -388,6 +391,8 @@ test('after the team asks for more information, the applicant edits the applicat
     await expect(card.getByLabel('ชื่อรางวัล *', { exact: true })).toHaveValue('ชนะเลิศ');
     await card.locator('input[type=file]').setInputFiles(PROOF);
     await expect(card.locator('.exp-file__list li')).toHaveCount(2);
+    // ใบเก่าไม่มีช่องนี้ ตอนนี้บังคับกรอก (28 ต.ค. 2569)
+    await card.getByLabel('ประสบการณ์ที่ส่งต่อให้ทีมรุ่นต่อไปได้ *', { exact: true }).fill('ทำ moodboard ก่อนออกแบบจริง');
     await next(page);
     await expect(chip(page, 'Coding')).toBeChecked();
     await next(page);

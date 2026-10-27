@@ -112,15 +112,12 @@
 .mf-card__sub { font-size: 13px; color: var(--mf-muted); line-height: 1.5; }
 .mf-card__meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #6f6680; margin-top: 4px; }
 .mf-pill { padding: 2px 9px; border-radius: 99px; background: #f3eefb; color: #5b21b6; font-weight: 600; }
-.mf-icon {
-  flex: 0 0 auto; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: #fff; color: #6d28d9;
-  box-shadow: 0 6px 16px rgba(109, 40, 217, .16), 0 0 0 1px rgba(109, 40, 217, .07);
-}
-.mf-icon.is-art { width: 60px; height: 60px; border-radius: 16px; }
-.mf-icon.is-art img { width: 80%; height: 80%; object-fit: contain; }
-.mf-card.is-on .mf-icon { box-shadow: 0 8px 20px rgba(109, 40, 217, .24), 0 0 0 1px rgba(109, 40, 217, .14); }
-.mf-card.is-tile .mf-icon { width: 44px; height: 44px; border-radius: 12px; }
-.mf-icon.is-small { width: 36px; height: 36px; border-radius: 10px; }
+/* ไอคอนเป็นรูปเปล่า ไม่มีกรอบ ไม่มีเงา (เจ้าของสั่ง 28 ต.ค. 2569) */
+.mf-icon { flex: 0 0 auto; width: 52px; height: 52px; display: grid; place-items: center; color: #6d28d9; }
+.mf-icon.is-art { width: 60px; height: 60px; }
+.mf-icon.is-art img { width: 100%; height: 100%; object-fit: contain; }
+.mf-card.is-tile .mf-icon { width: 44px; height: 44px; }
+.mf-icon.is-small { width: 36px; height: 36px; }
 .mf-radio, .mf-check {
   flex: 0 0 auto; width: 22px; height: 22px; border: 1.5px solid #d3ccdd; background: #fff; display: grid; place-items: center; color: #fff;
   transition: background .2s, border-color .2s;

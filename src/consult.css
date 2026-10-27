@@ -687,3 +687,12 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
 .cx-hero__headline { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--purple-deep); }
 .pv2-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3); padding: 0; list-style: none; }
 .pv2-tags li { padding: var(--space-1) var(--space-3); border: 1px solid var(--line-purple); border-radius: var(--radius-pill); background: var(--purple-tint); color: var(--ink-deep); font-size: var(--text-sm); }
+
+/* ช่องชื่องานแข่งแบบค้นหา (ใบสมัครเมนเทอร์และ Mentor zone) รายการลอยใต้ช่องพิมพ์ */
+.cn-field__box { position: relative; }
+.cn-field__list { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5; max-height: 280px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; background: #fff; border: 1px solid #ddd3ea; border-radius: 10px; box-shadow: 0 12px 28px -12px rgb(46 16 101 / 25%); }
+.cn-field__list li { padding: 9px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.cn-field__list li:hover, .cn-field__list li.is-active { background: #f3eefb; color: #4c1d95; }
+.cn-field__add { display: flex; align-items: center; gap: 8px; color: #6d28d9; font-weight: 600; border-top: 1px solid #efeaf6; }
+.cw-form .cn-field > label { margin-bottom: 0; }
+.cw-form .cn-field { margin-bottom: 4px; }

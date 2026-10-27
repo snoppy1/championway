@@ -30,7 +30,7 @@ test('mentor completes profile sections A, B, D, E from Mentor zone', async ({ p
     await form.getByLabel('จำนวน Session ต่อสัปดาห์').fill('3');
     await form.getByRole('checkbox', { name: '60 นาที' }).check();
     await form.getByLabel('เวลาตอบกลับโดยประมาณ').selectOption('24');
-    await form.getByLabel('รูปแบบ', { exact: true }).selectOption('online');
+    await form.getByLabel('รูปแบบ *', { exact: true }).selectOption('online');
     await form.getByRole('button', { name: 'บันทึกโปรไฟล์' }).click();
     await expect(form.getByRole('status')).toContainText('บันทึกโปรไฟล์แล้ว');
     await expect(banner).toHaveCount(0);

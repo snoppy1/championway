@@ -1,7 +1,7 @@
-import { Fragment, useId } from 'react';
-import { AlertCircle, Check, CircleCheck, ExternalLink, FileText, Info, Paperclip, X } from 'lucide-react';
+import { useId } from 'react';
+import { AlertCircle, Check, CircleCheck, FileText, Info, Paperclip, X } from 'lucide-react';
+import { CompetitionNameField } from './CompetitionNameField';
 import { useI18n } from '../i18n';
-import { formatInputDate } from '../i18n/format';
 import { priceProblem } from '../data/consult';
 import type { Price } from '../data/consult';
 import { experienceKinds, experienceResults, teamRoles } from '../data/matching';
@@ -19,7 +19,9 @@ export const results = experienceResults;
 export type Proof = { key: string; name: string; file?: File; id?: string };
 export const maxProofs = 5;
 export type Experience = {
-  id: number; name: string; slug: string | null; kind: ExperienceKind | ''; result: Result | ''; detail: string; year: string;
+  id: number; name: string; slug: string | null;
+  /** ชื่อนี้มีในระบบแล้ว (มีหน้างานแข่ง หรือมีแค่ชื่อ) ไม่ส่งไปเซิร์ฟเวอร์ */
+  listed: boolean; kind: ExperienceKind | ''; result: Result | ''; detail: string; year: string;
   role: TeamRole | ''; roleOther: string; responsibility: string; lessons: string; url: string; proofs: Proof[];
   /** การ์ดที่กรอกครบแล้วพับเหลือบรรทัดเดียว หน้าจะได้ไม่ยาวเกินเมื่อมีหลายเวที */
   open: boolean;
@@ -33,11 +35,11 @@ export const matchCompetition = (known: KnownCompetition[], name: string) =>
 export { priceProblem };
 export type { Price };
 
-export type ExperienceProblem = 'name' | 'kind' | 'result' | 'detail' | 'year' | 'role' | 'roleOther' | 'responsibility' | 'proof' | 'url' | 'file';
+export type ExperienceProblem = 'name' | 'kind' | 'result' | 'detail' | 'year' | 'role' | 'roleOther' | 'responsibility' | 'lessons' | 'proof' | 'url' | 'file';
 const evidenceTypes = ['application/pdf', 'image/jpeg', 'image/png'];
 /** การ์ดใหม่ว่าง ๆ */
 export const blankExperience = (id: number): Experience => ({
-  id, name: '', slug: null, kind: '', result: '', detail: '', year: '', role: '', roleOther: '', responsibility: '', lessons: '', url: '', proofs: [], open: true,
+  id, name: '', slug: null, listed: false, kind: '', result: '', detail: '', year: '', role: '', roleOther: '', responsibility: '', lessons: '', url: '', proofs: [], open: true,
 });
 /** อะไรในการ์ดนี้ยังไม่ครบหรือไม่ถูก ว่าง = ครบแล้ว (กฎเดียวกับเซิร์ฟเวอร์) */
 export function experienceProblems(item: Experience): ExperienceProblem[] {
@@ -51,6 +53,7 @@ export function experienceProblems(item: Experience): ExperienceProblem[] {
   if (!item.role) problems.push('role');
   if (item.role === 'other' && !item.roleOther.trim()) problems.push('roleOther');
   if (!item.responsibility.trim()) problems.push('responsibility');
+  if (!item.lessons.trim()) problems.push('lessons');
   if (!item.proofs.length && !item.url.trim()) problems.push('proof');
   if (item.url.trim() && !/^https:\/\/\S+$/i.test(item.url.trim())) problems.push('url');
   if (item.proofs.some(({ file }) => file && (file.size > 4 * 1024 * 1024 || !evidenceTypes.includes(file.type)))) problems.push('file');
@@ -71,43 +74,21 @@ function Segmented<T extends string>({ name, label, value, options, invalid, des
   </div>;
 }
 
-function CompetitionInfo({ competition }: { competition: KnownCompetition }) {
-  const { t, lang } = useI18n();
-  const s = t.mentorApply.exp;
-  const facts = [
-    competition.org,
-    s.closes(formatInputDate(competition.closesAt.slice(0, 10), lang)),
-    t.taxonomy.types[competition.type as keyof typeof t.taxonomy.types] ?? competition.type,
-    competition.levels.map((level) => t.taxonomy.levels[level as keyof typeof t.taxonomy.levels] ?? level).join(', '),
-    competition.teamMax <= 1 ? s.solo : s.team(competition.teamMin, competition.teamMax),
-  ].filter(Boolean);
-  return <div className="exp-info">
-    <p className="exp-info__name">{competition.name}</p>
-    {/* แต่ละข้อไม่ตัดกลางคำ ตัดบรรทัดได้เฉพาะระหว่างข้อ */}
-    <p className="exp-info__facts">{facts.map((fact, index) => <Fragment key={index}>{index > 0 && ' '}<span>{fact}{index < facts.length - 1 && ' ·'}</span></Fragment>)}</p>
-    <a className="exp-info__link" href={`/competitions/${encodeURIComponent(competition.slug)}`} target="_blank" rel="noreferrer">
-      {s.openDetails}<ExternalLink aria-hidden="true" size={14} />
-    </a>
-  </div>;
-}
-
 let nextProof = 0;
 
 function FieldError({ id, text }: { id: string; text: string }) {
   return <p className="offer-error exp-error" id={id}><AlertCircle aria-hidden="true" size={16} />{text}</p>;
 }
 
-export function ExperienceCard({ index, item, known, listId, problems, onChange, onRemove, onDone }: {
-  index: number; item: Experience; known: KnownCompetition[]; listId: string; problems: ExperienceProblem[];
+export function ExperienceCard({ index, item, problems, onChange, onRemove, onDone }: {
+  index: number; item: Experience; problems: ExperienceProblem[];
   onChange: (patch: Partial<Experience>) => void; onRemove: () => void; onDone: () => void;
 }) {
   const { t } = useI18n();
   const s = t.mentorApply.exp;
   const v = t.mentorProfileV2;
   const uid = useId();
-  const match = (name: string) => matchCompetition(known, name);
-  const inSystem = Boolean(item.slug);
-  const found = item.slug ? known.find((row) => row.slug === item.slug) ?? null : null;
+  const inSystem = Boolean(item.slug) || item.listed;
   const year = new Date().getFullYear() + 543;
   const has = (problem: ExperienceProblem) => problems.includes(problem);
   const remove = <button className="plain exp-remove" type="button" aria-label={s.removeAria(index + 1)} onClick={onRemove}>{s.remove}</button>;
@@ -132,22 +113,18 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
       <h4>{s.heading(index + 1)}</h4>
       {remove}
     </div>
-    <label htmlFor={`${uid}-name`}>{s.competition}
-      <input id={`${uid}-name`} list={listId} maxLength={200} value={item.name} autoComplete="off" placeholder={s.competitionPlaceholder}
-        aria-invalid={has('name') || undefined} aria-describedby={`${uid}-name-hint${has('name') ? ` ${uid}-name-error` : ''}`}
-        onChange={(event) => {
-          const found = match(event.target.value);
-          onChange({ name: event.target.value, slug: found?.slug ?? null });
-        }} />
-    </label>
-    {has('name') && <FieldError id={`${uid}-name-error`} text={s.errors.name} />}
-    <p className={`exp-match${inSystem ? ' is-known' : ''}`} id={`${uid}-name-hint`}>
-      {item.name.trim()
-        ? inSystem ? <><CircleCheck aria-hidden="true" size={16} />{s.inSystem}</> : <><Info aria-hidden="true" size={16} />{s.notInSystem}</>
-        : s.competitionHint}
-    </p>
-    {/* เวทีที่จับคู่ได้ แสดงรายละเอียดให้แน่ใจว่าเลือกถูกเวที (ชื่อคล้ายกันได้) พร้อมลิงก์เปิดหน้าเวทีในแท็บใหม่ */}
-    {found && <CompetitionInfo competition={found} />}
+    {/* มีในระบบแล้ว (มีหน้าหรือแค่ชื่อ) บอกแค่ "มีใน ChampionWays" ไม่ต้องมีรายละเอียดหรือลิงก์ (เจ้าของสั่ง 28 ต.ค. 2569) */}
+    <CompetitionNameField id={`${uid}-name`} value={item.name} label={s.competition} placeholder={s.competitionPlaceholder}
+      invalid={has('name')} describedBy={`${uid}-name-hint${has('name') ? ` ${uid}-name-error` : ''}`}
+      onChange={({ name, slug, listed }) => onChange({ name, slug, listed })}
+      after={<>
+        {has('name') && <FieldError id={`${uid}-name-error`} text={s.errors.name} />}
+        <p className={`exp-match${inSystem ? ' is-known' : ''}`} id={`${uid}-name-hint`}>
+          {item.name.trim()
+            ? inSystem ? <><CircleCheck aria-hidden="true" size={16} />{s.inSystem}</> : <><Info aria-hidden="true" size={16} />{s.notInSystem}</>
+            : s.competitionHint}
+        </p>
+      </>} />
     <div className="grid exp-grid">
       <div className="exp-field">
         <label className="exp-label" htmlFor={`${uid}-kind`}>{s.kind}</label>
@@ -236,7 +213,10 @@ export function ExperienceCard({ index, item, known, listId, problems, onChange,
     {has('url') && <FieldError id={`${uid}-url-error`} text={s.errors.badUrl} />}
     <div className="exp-field exp-gap">
       <label className="exp-label" htmlFor={`${uid}-lessons`}>{s.lessons}</label>
-      <textarea id={`${uid}-lessons`} maxLength={1000} rows={2} value={item.lessons} onChange={(event) => onChange({ lessons: event.target.value })} />
+      <textarea id={`${uid}-lessons`} maxLength={1000} rows={2} value={item.lessons} placeholder={s.lessonsPlaceholder}
+        aria-invalid={has('lessons') || undefined} aria-describedby={has('lessons') ? `${uid}-lessons-error` : undefined}
+        onChange={(event) => onChange({ lessons: event.target.value })} />
+      {has('lessons') && <FieldError id={`${uid}-lessons-error`} text={s.errors.lessons} />}
     </div>
     <button type="button" className="exp-done" onClick={onDone}>{s.done}</button>
   </div>;

@@ -27,7 +27,7 @@
 .up .profile-avatar {
   width: 84px; height: 84px; border-radius: 50%; font-size: 30px; background: #e2d4ff; color: #4c1d95; box-shadow: 0 10px 24px rgba(76, 29, 149, .18);
 }
-.up .profile-head h1 { font-size: 34px; line-height: 1.15; }
+.up .profile-head h1 { font-size: 34px; line-height: 1.3; margin: 2px 0 6px; }
 .up .profile-head .eyebrow { color: #5b34d6; }
 .up .profile-head .muted { color: var(--up-muted); }
 
@@ -62,3 +62,9 @@
 
 /* หน้าเหล่านี้ไม่มีช่องว่างแปลก ๆ ก่อน footer */
 .up + .site-footer { margin-top: 0; }
+
+/* ระยะห่างระหว่างหัวข้อ ข้อความ และปุ่มในแต่ละแผง (เจ้าของสั่ง 28 ต.ค. 2569) */
+.up .panel > h2 { margin: 0; }
+.up .panel > * + * { margin-top: 10px; }
+.up .panel > p:has(> .primary-button, > .ghost-button) { margin-top: 20px; margin-bottom: 0; }
+.up .panel > p:last-child, .up .panel > ul:last-child { margin-bottom: 0; }

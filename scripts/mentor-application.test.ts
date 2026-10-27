@@ -67,6 +67,9 @@ test('the new mentor application: validation, approval, and a mentor who can be 
       assert.equal((await post({ awards: [applicationAward({ result: 'winner' })] })).status, 400);
       assert.equal((await post({ awards: [applicationAward({ role: 'other' })] })).status, 400);
       assert.equal((await post({ awards: [applicationAward({ responsibility: '' })] })).status, 400);
+      // ประสบการณ์ที่ส่งต่อให้ทีมรุ่นต่อไปบังคับกรอก
+      const noLessons = await post({ awards: [applicationAward({ lessons: '' })] }, 'en');
+      assert.equal((await noLessons.json()).error, 'Say what you can pass on to the next teams.');
       assert.equal((await post({ awards: [applicationAward({ kind: 'sports' })] })).status, 400);
       // ปีในอนาคตไม่ได้
       assert.equal((await post({ awards: [applicationAward({ year: '2599' })] })).status, 400);
@@ -105,8 +108,8 @@ test('the new mentor application: validation, approval, and a mentor who can be 
       const awards = await db.select().from(mentorAwards).where(eq(mentorAwards.submissionId, submissionId));
       const typed = awards.find((award) => award.title === typedName)!;
       assert.deepEqual([typed.kind, typed.result, typed.role, typed.roleOther, typed.lessons, typed.wantsMentor], ['case', 'other', 'other', 'Analyst', 'วางโครงก่อนทำสไลด์', false]);
-      // ยังไม่อนุมัติ ชื่องานนอกระบบยังไม่เข้ารายชื่อ
-      assert.equal((await db.select().from(hackathonNames).where(eq(hackathonNames.name, typedName))).length, 0);
+      // ชื่องานนอกระบบเข้ารายชื่อทันทีที่ส่งใบ (แค่ชื่อ) ผู้สมัครคนถัดไปค้นเจอ (เจ้าของสั่ง 28 ต.ค. 2569)
+      assert.equal((await db.select().from(hackathonNames).where(eq(hackathonNames.name, typedName))).length, 1);
     });
 
     await t.test('the admin sees the profile; approval makes a complete, matchable mentor', async () => {

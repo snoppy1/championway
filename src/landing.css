@@ -94,6 +94,7 @@
 .lp-replay:hover { color: var(--lp-purple); background: #fff; }
 .lp-hero h1 { margin: 0 0 22px; font-family: var(--display); font-weight: 600; font-size: clamp(48px, 7.4vw, 94px); line-height: 1; letter-spacing: -.055em; }
 .lp-hero h1 > span { display: block; }
+.lp-hero h1 .lp-hero__soft { font-size: .75em; }
 .lp-hero h1.is-th { font-size: clamp(38px, 6.6vw, 76px); line-height: 1.15; letter-spacing: -.02em; }
 .lp-hero__accent { display: inline-block; font-family: 'Caveat', cursive; font-weight: 600; font-size: 1.06em; line-height: .8; color: var(--lp-purple); transform: rotate(-5deg); letter-spacing: -.02em; }
 .lp-hero h1.is-th .lp-hero__accent { font-family: 'Mali', var(--display); font-size: 1em; line-height: 1.1; transform: none; }

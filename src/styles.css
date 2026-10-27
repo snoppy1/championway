@@ -1377,3 +1377,7 @@ a.account-name:hover { border-color: #d9c6f3; color: var(--ink-deep); }
 .cw-form .cx-price__option input { width: auto; margin: 0; padding: 0; }
 .cw-form .cx-price-fields label { margin-bottom: 0; }
 .cw-form .cx-price-fields input { margin-top: 0; }
+
+/* หน้าที่เนื้อหาสั้น footer อยู่ล่างสุดของจอ ไม่มีพื้นว่างใต้ footer (28 ต.ค. 2569) */
+#root { min-height: 100vh; display: flex; flex-direction: column; }
+#root > main { flex: 1 0 auto; width: 100%; }

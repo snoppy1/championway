@@ -69,12 +69,6 @@ export function MentorApplication() {
   const [showPriceError, setShowPriceError] = useState(false);
   // รายชื่อเวทีทั้งหมดในระบบ (รวมที่ปิดแล้ว) ใช้จับคู่ชื่อเวทีในประสบการณ์ โหลดไม่ได้ก็ยังพิมพ์ชื่อเองได้
   const knownList = useApi<{ items: KnownCompetition[] }>('/consult/open-competitions?all=1');
-  const known = knownList.data?.items ?? [];
-  // ชื่องานที่เมนเทอร์คนอื่นเคยพิมพ์ไว้ (รายชื่อเดียวกับประสบการณ์ใน Mentor zone) เติมคำอัตโนมัติตามที่พิมพ์อยู่
-  const typing = experiences.find((item) => item.open)?.name.trim() ?? '';
-  const typed = useApi<{ items: { id: string | null; slug: string | null; name: string }[] }>(
-    typing.length >= 2 ? `/hackathon-names?q=${encodeURIComponent(typing)}` : null);
-  const suggestions = [...new Set([...known.map((row) => row.name), ...(typed.data?.items ?? []).map((row) => row.name)])];
   /* รายชื่อเวทีโหลดเสร็จทีหลังได้ (เน็ตช้า หรือวางชื่อก่อนโหลดเสร็จ) จับคู่ชื่อที่พิมพ์ไว้แล้วใหม่ทุกครั้งที่รายชื่อเปลี่ยน */
   useEffect(() => {
     if (!knownList.data) return;
@@ -106,7 +100,7 @@ export function MentorApplication() {
     if (data.price) setPrice(priceOf(data.price.amount, data.price.unit));
     setExperiences(data.awards.map((award) => ({
       ...blankExperience(++nextExperience.current), open: false,
-      name: award.title, slug: award.competitionSlug, kind: award.kind, result: award.result, detail: award.detail, year: award.year,
+      name: award.title, slug: award.competitionSlug, listed: Boolean(award.competitionSlug), kind: award.kind, result: award.result, detail: award.detail, year: award.year,
       role: award.role, roleOther: award.roleOther, responsibility: award.responsibility, lessons: award.lessons, url: award.evidence,
       proofs: award.files.map((file) => ({ key: file.id, id: file.id, name: file.name })),
     })));
@@ -334,7 +328,7 @@ export function MentorApplication() {
           </fieldset>
 
           <fieldset data-stage="1" hidden={stage !== 1} disabled={stage !== 1}>
-            {intro(1, s.skillsTitle, s.skillsLead)}
+            {intro(1, `${s.skillsTitle} *`, s.skillsLead)}
             <div className="apply-profile cx-form"><SkillFields {...profileProps} /></div>
           </fieldset>
 
@@ -342,8 +336,7 @@ export function MentorApplication() {
             {intro(2, s.stage1Title, s.stage1Lead)}
             {group(s.journeyGroup, <label htmlFor="apply-experience">{s.experience}<textarea id="apply-experience" required maxLength={600} value={values.experience} onChange={(event) => set('experience', event.target.value)} placeholder={s.experiencePlaceholder} /></label>, s.journeyHint)}
             {group(s.awardsGroup, <>
-              <datalist id="apply-known-competitions">{suggestions.map((name) => <option key={name} value={name} />)}</datalist>
-              {experiences.map((item, index) => <ExperienceCard key={item.id} index={index} item={item} known={known} listId="apply-known-competitions"
+              {experiences.map((item, index) => <ExperienceCard key={item.id} index={index} item={item}
                 problems={checkedExperiences.includes(item.id) ? experienceProblems(item) : []} onChange={(patch) => updateExperience(item.id, patch)}
                 onRemove={() => removeExperience(item, index)} onDone={() => finishExperience(item)} />)}
               {removed && <p className="exp-undo" role="status">{s.exp.removed(removed.item.name || s.exp.heading(removed.index + 1))}
@@ -368,7 +361,7 @@ export function MentorApplication() {
           <fieldset data-stage="4" hidden={stage !== 4} disabled={stage !== 4}>
             {intro(4, s.timeTitle, s.timeLead)}
             {group(s.timeGroup, <div className="apply-profile cx-form"><AvailabilityFields {...profileProps} accepting={false} /></div>)}
-            {group(s.priceGroup, <ul className="offers-list"><PriceCard name={s.priceName} price={price} invalid={showPriceError}
+            {group(`${s.priceGroup} *`, <ul className="offers-list"><PriceCard name={s.priceName} price={price} invalid={showPriceError}
               onChange={(next) => { reviewAgain(); setPrice(next); }} /></ul>, s.priceHint)}
             {group(s.contactsGroup, <div className="grid">
               {field('contactEmail', s.contactEmail, { type: 'email', maxLength: 200, autoComplete: 'off' })}

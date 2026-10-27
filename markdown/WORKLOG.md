@@ -423,3 +423,13 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Safety Reminder dialog (`components/SafetyDialog.tsx`, owner's copy in TH + EN) before any new contact: Start Consult on results and Contact mentor on profiles; the acknowledgement checkbox enables the button. Tests use `acceptSafety` helper.
 - Mentor profile: back link "Back to Home" (/), more space above the tabs, space between the contact text and the Sign in button.
 - User Profile and Edit profile restyled to the new look (`user-profile.css`): gradient hero card, glass panels, pill buttons.
+
+## 2026-10-28 — Owner feedback round 3 (11 items)
+- Home: "meet your" line 25% smaller; intro slowed back to about 3 s (deal ×1.5, 400 ms hold, 1.1 s auto-scroll).
+- Find my mentor: icons are bare images, no tile or shadow.
+- Profile: spacing between text and buttons inside panels; the edit-page heading no longer overlaps its lead.
+- Mentor application: every required field has *; "Education or current field" has an example; "What you can pass on to the next teams" is required (client, server code `lessons`).
+- Competition name (application + Mentor zone): shared `CompetitionNameField` combobox. A listed name shows only "On ChampionWays" (no details card, no link). Not found → "Add new competition: …" option. New names go into `hackathon_names` when the application is submitted (before: on approval).
+- UI pass: mobile application steps in 3 even columns, stacked fields without double gaps, footer sticks to the bottom on short pages (#root flex column).
+- Open: item 9 (seed list of competition names) is waiting for the owner's list; the message was cut off.
+- Checks: API 135/135, full Playwright 378 passed, build and check:i18n OK.

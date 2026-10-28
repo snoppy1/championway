@@ -213,7 +213,7 @@ export function MemberHireActions({ hire, onChange, extra, paymentsOpen }: {
           onDone={async () => { await onChange(); rootRef.current?.focus({ preventScroll: true }); }} />}
       </>)}
     {(status === 'declined' || status === 'cancelled') && <div className="cx-row">
-      <Link className="ghost-button cx-button" to={`/mentors/${hire.mentor.id}${hire.competition ? `?competition=${encodeURIComponent(hire.competition.slug)}` : ''}`}>{s.hireAgain}</Link>
+      <Link className="ghost-button cx-button" to={`/mentors/${hire.mentor.id}${hire.competition ? `?competition=${encodeURIComponent(hire.competition.slug ?? hire.competition.name)}` : ''}`}>{s.hireAgain}</Link>
       {extra}
     </div>}
     <p className="cx-message cx-message--error" role="alert">{message}</p>

@@ -16,6 +16,9 @@ import stepStars from '../assets/landing2/step-stars.webp';
 import '@fontsource/caveat/latin-600.css';
 import '@fontsource/mali/thai-600.css';
 import '@fontsource/mali/latin-600.css';
+import '@fontsource/caveat/latin-700.css';
+import '@fontsource/mali/thai-700.css';
+import '@fontsource/mali/latin-700.css';
 import '../landing.css';
 
 /* หน้าแรก (Claude Design "ChampionWays", ฉบับแก้ 24 ต.ค. 2569) ทำตามสคริปต์ของไฟล์ดีไซน์

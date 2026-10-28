@@ -5,7 +5,7 @@ import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
 import { app } from '../server/app';
 import { db, client } from '../server/db/client';
 import {
-  competitions, consultationConfirmTokens, consultations, emailLog, mentorSubmissions, mentors, sessions, users,
+  competitions, consultationConfirmTokens, consultations, emailLog, mentorExperiences, mentorSubmissions, mentors, sessions, users,
 } from '../server/db/schema';
 import { testDatabase } from '../server/lib/database-safety';
 import { createSession } from '../server/lib/session';
@@ -199,6 +199,31 @@ test('contact a mentor, confirm by email link or in the Mentor zone, then review
       assert.equal((await call('/consult/zone/contacts', mentorUser.cookie, 'PATCH', { ...empty, contactLink: 'javascript:alert(1)' })).status, 400);
       assert.equal((await call('/consult/zone/contacts', mentorUser.cookie, 'PATCH', { ...empty, contactInstagram: 'mentor.ig' })).status, 200);
       assert.equal((await call('/consult/zone/contacts', student.cookie, 'PATCH', { ...empty, contactInstagram: 'x' })).status, 403);
+    });
+
+    await t.test('competitions a mentor can help with come from their experiences, name-only ones too', async () => {
+      const other = `${mentorId}-2`;
+      await db.insert(mentorExperiences).values([
+        { id: `${prefix}-x1`, mentorId: other, competitionId: `${prefix}-cmp`, name: 'เวทีทดสอบ', result: 'winner', year: '2567' },
+        { id: `${prefix}-x2`, mentorId: other, name: 'Shanghai Expo ทดสอบ', result: 'finalist', year: '2568', status: 'pending' },
+        { id: `${prefix}-x3`, mentorId: other, name: 'งานที่ไม่ผ่าน', result: 'participant', year: '2566', status: 'rejected' },
+      ]);
+      const page = await (await call(`/consult/mentors/${other}`, student.cookie)).json();
+      assert.deepEqual(page.helpsAt.map((x: { slug: string | null; name: string }) => [x.slug, x.name]).sort(),
+        [[null, 'Shanghai Expo ทดสอบ'], [slug, 'เวทีทดสอบ']]);
+      // ติดต่อเรื่องงานที่มีแค่ชื่อ: เก็บชื่อไว้ ทั้งฝั่งนักเรียนและเมนเทอร์เห็นชื่อนั้น
+      const made = await call(`/consult/mentors/${other}/contact`, student.cookie, 'POST', { competitionName: 'shanghai  expo ทดสอบ' });
+      assert.equal(made.status, 201);
+      const mine = await (await call('/consult/mine', student.cookie)).json();
+      const entry = mine.items.find((x: { mentor: { id: string } }) => x.mentor.id === other);
+      assert.deepEqual(entry.competition, { slug: null, name: 'Shanghai Expo ทดสอบ' });
+      const zone = await (await call('/consult/zone', otherMentorUser.cookie)).json();
+      assert.equal(zone.hires[0].competition.name, 'Shanghai Expo ทดสอบ');
+      // ชื่อที่ไม่อยู่ในประสบการณ์ของเมนเทอร์คนนี้ไม่ถูกเก็บ
+      await db.delete(consultations).where(eq(consultations.mentorId, other));
+      await call(`/consult/mentors/${other}/contact`, student.cookie, 'POST', { competitionName: 'งานที่ไม่ผ่าน' });
+      const [row] = await db.select().from(consultations).where(eq(consultations.mentorId, other));
+      assert.deepEqual([row.competitionId, row.competitionName], [null, '']);
     });
   } finally {
     await db.delete(mentorSubmissions).where(like(mentorSubmissions.id, `${prefix}-%`));

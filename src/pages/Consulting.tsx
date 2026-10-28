@@ -97,7 +97,7 @@ function HireConsulting() {
       reviewedOf={(hire) => Boolean(hire.review)}
       noteFor={noteFor}
       renderActions={(hire) => <MemberHireActions key={`${hire.id}-${hire.status}`} hire={hire} onChange={reloadAsync} paymentsOpen={data?.paymentsOpen ?? false}
-        extra={<Link className="cx-link cx-link--text" to={`/mentors/${hire.mentor.id}${hire.competition ? `?competition=${encodeURIComponent(hire.competition.slug)}` : ''}`}
+        extra={<Link className="cx-link cx-link--text" to={`/mentors/${hire.mentor.id}${hire.competition ? `?competition=${encodeURIComponent(hire.competition.slug ?? hire.competition.name)}` : ''}`}
           aria-label={s.viewMentorOf(hire.mentor.name)}>{s.viewMentor}</Link>} />}
       labels={{ list: s.listLabel, back: s.backToList, detail: s.detailLabel, chat: s.chatTitle, noChat: (status) => (status === 'accepted' ? s.noChatPay : s.noChatYet) }}
       closedNote={s.chatClosedNote}

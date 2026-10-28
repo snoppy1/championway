@@ -255,5 +255,8 @@ mentorProfile.get('/hackathon-names', async (c) => {
     db.select({ slug: competitions.slug, name: competitions.name }).from(competitions).where(ilike(competitions.name, pattern)).orderBy(competitions.name).limit(8),
     db.select({ id: hackathonNames.id, name: hackathonNames.name }).from(hackathonNames).where(ilike(hackathonNames.normalized, pattern)).orderBy(hackathonNames.name).limit(8),
   ]);
-  return c.json({ items: [...listed.map((r) => ({ id: null, slug: r.slug, name: r.name })), ...typed.map((r) => ({ id: r.id, slug: null, name: r.name }))].slice(0, 8) });
+  // ชื่อที่ตรงกับงานที่มีหน้าในระบบแล้ว แสดงครั้งเดียว (แบบมีหน้า)
+  const pages = new Set(listed.map((r) => normalizeName(r.name)));
+  const names = typed.filter((r) => !pages.has(normalizeName(r.name)));
+  return c.json({ items: [...listed.map((r) => ({ id: null, slug: r.slug, name: r.name })), ...names.map((r) => ({ id: r.id, slug: null, name: r.name }))].slice(0, 8) });
 });

@@ -65,12 +65,12 @@
 .mf-status { text-align: center; color: var(--mf-muted); padding: 80px 0; }
 .mf-head { text-align: center; margin-bottom: 40px; }
 .mf-head h1 {
-  margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(30px, 3.4vw, 46px); line-height: 1.15; letter-spacing: -.025em; color: var(--mf-ink);
+  margin: 0; font-family: var(--display); font-weight: 600; font-size: clamp(30px, 3.4vw, 46px); line-height: 1.15; letter-spacing: -.025em; color: var(--mf-ink);
 }
 :lang(th) .mf-head h1 { line-height: 1.3; letter-spacing: 0; }
 .mf-head h1:focus { outline: none; }
 .mf-head h1 > span { display: inline; }
-.mf-head__accent { background: linear-gradient(90deg, var(--mf-purple), var(--mf-purple-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mf-head__accent { font-weight: 700; background: linear-gradient(90deg, var(--mf-purple), var(--mf-purple-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .mf-head p { margin: 14px 0 0; color: var(--mf-muted); font-size: 15px; }
 
 .mf-form { display: flex; flex-direction: column; gap: 28px; }
@@ -289,7 +289,7 @@ button.mf-group__head svg { margin-left: auto; transition: transform .2s; }
 .mf-fly svg:first-child { position: absolute; inset: 0; width: 100%; height: 100%; }
 .mf-fly .mf-plane { position: absolute; left: 0; top: 0; offset-path: path('M40 230 C 200 210, 270 100, 420 110 S 680 40, 860 50'); offset-rotate: auto 45deg; animation: mf-fly 2.6s cubic-bezier(.6, 0, .3, 1) infinite; }
 @keyframes mf-fly { 0% { offset-distance: 0%; opacity: 0; } 8% { opacity: 1; } 90% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
-.mf-overlay__title { margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(24px, 3vw, 32px); max-width: 420px; line-height: 1.3; }
+.mf-overlay__title { margin: 0; font-family: var(--display); font-weight: 600; font-size: clamp(24px, 3vw, 32px); max-width: 420px; line-height: 1.3; }
 .mf-dots i { font-style: normal; display: inline-block; animation: mf-dot 1.2s ease-in-out infinite; }
 .mf-dots i:nth-child(2) { animation-delay: .2s; }
 .mf-dots i:nth-child(3) { animation-delay: .4s; }

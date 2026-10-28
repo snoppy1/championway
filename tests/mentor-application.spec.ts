@@ -350,6 +350,8 @@ test('application visual QA and accessibility for every step', async ({ page }, 
 });
 
 test('after the team asks for more information, the applicant edits the application from the profile and sends it back', async ({ page }) => {
+  // เทสยาวหกขั้นพร้อมอัปโหลดและตรวจ axe รันพร้อมกันสามจอแล้วเกิน 30 วินาทีได้
+  test.setTimeout(60000);
   // บัญชีแยก ใบของบัญชีหลักในเทสอื่นจะได้ไม่ปนกัน
   const owner = await createAccount('member');
   const reviewer = await createAccount('admin');

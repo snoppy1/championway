@@ -72,13 +72,13 @@
 .cw-form .profile .tag{display:inline-block;margin:3px 5px 3px 0}
 .cw-form .profile h4{font:600 17px var(--display);margin:0 0 4px}
 .cw-form .application-return{display:inline-block;margin:20px;color:var(--purple-deep)}
-.cw-form .application-local-note{padding:20px 5%;border-top:1px solid var(--line);color:var(--muted-soft);font-size:12px}
+.cw-form .application-local-note{padding:20px 5%;border-top:1px solid var(--line);color:var(--muted-soft);font-size:12px;text-align:center}
 .cw-form .review,.cw-form .profile{overflow-wrap:anywhere}
 
 /* Each step is split into labelled groups divided by hairlines rather than
    nested cards, so a long form still reads as one column. */
 .cw-form .group{border-top:1px solid var(--line);margin-top:26px;padding-top:24px}
-.cw-form fieldset>.group:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.cw-form fieldset>.intro+.group{border-top:0;margin-top:0;padding-top:0}
 .cw-form .group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
 .cw-form .group-head h3{margin:0;font:600 17px var(--display)}
 .cw-form .group-head .plain{min-height:32px;color:var(--purple-deep);font-size:13px}

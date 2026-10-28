@@ -136,9 +136,10 @@ export function MentorApplication() {
     <label htmlFor={`apply-${key}`}>{label}<input id={`apply-${key}`} value={values[key]} onChange={(event) => set(key, event.target.value)} aria-describedby={hint ? `apply-${key}-hint` : undefined} {...props} /></label>
     {hint && <small id={`apply-${key}-hint`}>{hint}</small>}
   </div>;
-  const updateExperience = (id: number, update: Partial<Experience>) => {
-    reviewAgain();
-    setExperiences((current) => current.map((item) => item.id === id ? { ...item, ...update } : item));
+  const updateExperience = (id: number, update: Partial<Experience>, quiet = false) => {
+    // ช่องชื่องานแข่งยืนยันชื่อจากระบบเองหลังโหลดเสร็จ (อาจช้าจนผู้สมัครอยู่ขั้นสุดท้ายแล้ว) ไม่ล้างติ๊กยืนยันข้อมูล
+    if (!quiet) reviewAgain();
+    setExperiences((current) => current.map((row) => row.id === id ? { ...row, ...update } : row));
   };
   const addExperience = () => {
     reviewAgain();
@@ -337,7 +338,7 @@ export function MentorApplication() {
             {group(s.journeyGroup, <label htmlFor="apply-experience">{s.experience}<textarea id="apply-experience" required maxLength={600} value={values.experience} onChange={(event) => set('experience', event.target.value)} placeholder={s.experiencePlaceholder} /></label>, s.journeyHint)}
             {group(s.awardsGroup, <>
               {experiences.map((item, index) => <ExperienceCard key={item.id} index={index} item={item}
-                problems={checkedExperiences.includes(item.id) ? experienceProblems(item) : []} onChange={(patch) => updateExperience(item.id, patch)}
+                problems={checkedExperiences.includes(item.id) ? experienceProblems(item) : []} onChange={(patch, quiet) => updateExperience(item.id, patch, quiet)}
                 onRemove={() => removeExperience(item, index)} onDone={() => finishExperience(item)} />)}
               {removed && <p className="exp-undo" role="status">{s.exp.removed(removed.item.name || s.exp.heading(removed.index + 1))}
                 <button type="button" className="plain" onClick={undoRemove}>{s.exp.undo}</button></p>}

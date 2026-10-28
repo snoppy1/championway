@@ -508,6 +508,7 @@ function AddRow({ item, lang, onAdded }: {
           {item.claimPending && <span className="cx-pill cx-pill--req-pending">{c.pending}</span>}
         </p>
         <p className="cx-hint">{s.organizer(item.org)} · {s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))}</p>
+        <div className="cx-competition__links">
         <details className="cx-details">
           <summary>{s.details}</summary>
           <p className="cx-prose">{item.description || s.noDetails}</p>
@@ -517,6 +518,7 @@ function AddRow({ item, lang, onAdded }: {
         {/* ดูหน้าเวทีเต็มในแท็บใหม่ ฟอร์มที่กรอกค้างไว้ในหน้านี้ไม่หาย */}
         <p><a className="cx-link cx-link--text" href={`/competitions/${encodeURIComponent(item.slug)}`} target="_blank" rel="noopener"
           aria-label={c.viewAria(item.name)}>{c.view}<ExternalLink size={14} aria-hidden="true" /></a></p>
+        </div>
       </div>
       {!picking && !item.claimPending && <button type="button" ref={openRef} className="ghost-button cx-button"
         aria-label={item.verified ? s.addAria(item.name) : c.sendEvidenceAria(item.name)}

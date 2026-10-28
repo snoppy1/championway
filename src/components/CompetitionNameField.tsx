@@ -12,7 +12,8 @@ import { normalizeName } from '../data/matching';
 
 export type NameSuggestion = { id: string | null; slug: string | null; name: string };
 /** listed = ชื่อนี้มีในระบบแล้ว (มีหน้า หรือมีแค่ชื่อ) */
-export type NameChange = { name: string; slug: string | null; listed: boolean };
+/** auto = ระบบยืนยันชื่อที่มีอยู่แล้วเอง ไม่ใช่ผู้ใช้แก้ */
+export type NameChange = { name: string; slug: string | null; listed: boolean; auto?: boolean };
 
 export function CompetitionNameField({ className, id, value, label, placeholder, disabled, invalid, describedBy, after, onChange }: {
   className?: string; id: string; value: string; label: ReactNode; placeholder?: string; disabled?: boolean; invalid?: boolean; describedBy?: string;
@@ -37,7 +38,7 @@ export function CompetitionNameField({ className, id, value, label, placeholder,
           setActive(-1);
           // ชื่อที่พิมพ์ตรงกับชื่อในระบบพอดี ถือว่าเลือกชื่อนั้นแล้ว
           const exact = result.items.find((item) => normalizeName(item.name) === normalizeName(query));
-          if (exact) onChange({ name: value, slug: exact.slug, listed: true });
+          if (exact) onChange({ name: value, slug: exact.slug, listed: true, auto: true });
         })
         .catch(() => { if (!cancelled) setItems([]); });
     }, 200);

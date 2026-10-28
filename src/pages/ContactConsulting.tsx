@@ -19,7 +19,7 @@ import '../consult.css';
 type Item = {
   id: string; status: ContactStatus; createdAt: string; claimedAt: string | null; completedAt: string | null;
   mentor: { id: string; name: string; initial: string; specialty: string; verified: boolean; photoUrl?: string | null };
-  competition: { slug: string; name: string } | null;
+  competition: { slug: string | null; name: string } | null;
   review: { stars: number } | null;
 };
 type Payload = { emailVerified: boolean; items: Item[] };
@@ -77,7 +77,7 @@ export function ContactConsulting() {
 
     {data && data.items.length > 0 && <ul className="cx-consults" aria-label={s.listLabel}>
       {data.items.map((item) => {
-        const to = `/mentors/${item.mentor.id}${item.competition ? `?competition=${encodeURIComponent(item.competition.slug)}` : ''}`;
+        const to = `/mentors/${item.mentor.id}${item.competition ? `?competition=${encodeURIComponent(item.competition.slug ?? item.competition.name)}` : ''}`;
         const stamp = item.status === 'contacted' ? s.stampContacted(formatDate(item.createdAt, lang))
           : item.status === 'claimed' ? s.stampClaimed(formatDate(item.claimedAt ?? item.createdAt, lang))
             : item.status === 'completed' ? s.stampCompleted(formatDate(item.completedAt ?? item.createdAt, lang)) : null;

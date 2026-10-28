@@ -15,7 +15,7 @@
 .lp h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: clamp(34px, 4.3vw, 55px); line-height: 1.05; letter-spacing: -.04em; }
 :lang(th) .lp h2 { font-weight: 500; letter-spacing: 0; line-height: 1.3; }
 .lp-accent {
-  display: inline-block; font-family: var(--lp-hand); font-weight: 600; font-size: 1.08em; line-height: .9; color: var(--lp-purple);
+  display: inline-block; font-family: var(--lp-hand); font-weight: 700; font-size: 1.08em; line-height: .9; color: var(--lp-purple);
   letter-spacing: -.01em; transform: rotate(-4deg); padding: 0 .06em .08em;
 }
 :lang(th) .lp-accent { font-family: 'Mali', var(--display); font-size: 1em; line-height: inherit; transform: none; padding: 0; }
@@ -96,7 +96,7 @@
 .lp-hero h1 > span { display: block; }
 .lp-hero h1 .lp-hero__soft { font-size: .75em; }
 .lp-hero h1.is-th { font-size: clamp(38px, 6.6vw, 76px); line-height: 1.15; letter-spacing: -.02em; }
-.lp-hero__accent { display: inline-block; font-family: 'Caveat', cursive; font-weight: 600; font-size: 1.06em; line-height: .8; color: var(--lp-purple); transform: rotate(-5deg); letter-spacing: -.02em; }
+.lp-hero__accent { display: inline-block; font-family: 'Caveat', cursive; font-weight: 700; font-size: 1.06em; line-height: .8; color: var(--lp-purple); transform: rotate(-5deg); letter-spacing: -.02em; }
 .lp-hero h1.is-th .lp-hero__accent { font-family: 'Mali', var(--display); font-size: 1em; line-height: 1.1; transform: none; }
 .lp-hero__copy > p { max-width: 480px; margin: 0 auto 27px; color: var(--lp-muted); font-size: 15px; line-height: 1.8; }
 .lp-hero__cta { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }

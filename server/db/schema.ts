@@ -606,6 +606,8 @@ export const consultations = pgTable('consultations', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   mentorId: text('mentor_id').notNull().references(() => mentors.id, { onDelete: 'cascade' }),
   competitionId: text('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
+  /** ชื่องานแข่งที่ติดต่อเรื่องนั้น ใช้กับงานที่มีแค่ชื่อในระบบ (ไม่มีหน้า competitions) */
+  competitionName: text('competition_name').notNull().default(''),
   status: text('status').$type<'contacted' | 'claimed' | 'denied' | 'requested' | 'accepted' | 'paid' | 'declined' | 'cancelled' | 'completed'>().notNull().default('requested'),
   /** เวลาที่จ้างเป็นนาที และราคารวมเป็นบาท คิดจากราคาต่องานของเมนเทอร์ตอนส่งคำขอ ไม่เปลี่ยนตามราคาใหม่ */
   minutes: integer('minutes').notNull().default(60),

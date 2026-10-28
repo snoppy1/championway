@@ -48,7 +48,7 @@
 
 .mp-tabs { display: flex; gap: 27px; height: 59px; border-bottom: 1px solid rgba(77, 61, 109, .12); margin: 22px 0 7px; }
 .mp-tabs button { position: relative; height: 100%; min-height: 44px; border: 0; background: transparent; color: #6f6980; cursor: pointer; font: 600 14px var(--body); padding: 0 0 2px; }
-.mp-tabs button.is-active { color: var(--mp-purple-dark); }
+.mp-tabs button.is-active { color: #6d28d9; }
 .mp-tabs button.is-active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--mp-purple); border-radius: 5px; }
 .mp-tabs button:focus-visible { outline: 2px solid var(--mp-purple); outline-offset: 4px; border-radius: 4px; }
 .mp-tabs span { display: inline-grid; place-items: center; font-size: 11px; background: #f0ebf9; color: var(--mp-purple-dark); min-width: 20px; height: 20px; border-radius: 99px; margin-left: 6px; padding: 0 5px; }
@@ -73,7 +73,7 @@
   display: flex; align-items: flex-start; gap: 12px; padding: 13px 15px; border: 1px solid rgba(255, 255, 255, .95); border-radius: 15px;
   background: rgba(255, 255, 255, .8); box-shadow: 0 8px 24px rgba(43, 28, 81, .04);
 }
-.mp-exp__icon { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; color: #8a5a00; background: #fff5d8; }
+.mp-exp__icon { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; color: #6d28d9; }
 .mp-exp li > div { flex: 1; min-width: 0; }
 .mp-exp strong { font-size: 14px; font-weight: 600; }
 .mp-exp p { font-size: 13px !important; margin-top: 3px !important; }
@@ -113,6 +113,10 @@
 .mp-card .cx-contact > * + * { margin-top: 14px; }
 .mp-card .cx-contact p { margin-bottom: 0; }
 .mp-card .cx-contact > h2 { font-family: var(--display); font-size: 15px; color: var(--mp-ink); margin: 6px 0 8px; line-height: 1.4; }
+.mp-card .cx-contact .cx-lead { font-size: 14px; line-height: 1.7; }
+.mp-card .cx-field label { font-size: 14px; }
+/* ช่องเลือกเวทีขนาดเท่าข้อความรอบ ๆ บนจอที่ใช้เมาส์ (มือถือคง 16px กัน iOS ซูมหน้า) */
+@media (hover: hover) and (pointer: fine) { .mp-card .cx-field select { font-size: 14px; } }
 
 @media (max-width: 900px) {
   .mp-grid { grid-template-columns: 1fr; }
@@ -127,7 +131,7 @@
   .mp-role { font-size: 14px; }
   .mp-stats { gap: 15px; }
   .mp-stats > div { min-width: 42%; }
-  .mp-help { grid-template-columns: 1fr; gap: 4px; }
+  .mp-help { grid-template-columns: 1fr; gap: 20px; }
   .mp-tabs { gap: 20px; overflow-x: auto; }
 }
 

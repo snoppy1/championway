@@ -20,7 +20,7 @@ export type HireStatus = 'requested' | 'accepted' | 'paid' | 'declined' | 'cance
 export type HireBase = {
   id: string; status: HireStatus; createdAt: string; acceptedAt: string | null; completedAt: string | null;
   minutes: number; price: number; preferredAt: string | null; note: string; reason: string;
-  roomId: string | null; unread: number; competition: { slug: string; name: string } | null;
+  roomId: string | null; unread: number; competition: { slug: string | null; name: string } | null;
   /** จ่ายเงินแล้วเมื่อไร และนักเรียนแจ้งปัญหาไว้หรือไม่ (งานที่แจ้งปัญหายังเป็น paid จนกว่าทีมงานตัดสิน) */
   paidAt: string | null; disputedAt: string | null;
 };

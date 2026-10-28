@@ -82,7 +82,8 @@ function FieldError({ id, text }: { id: string; text: string }) {
 
 export function ExperienceCard({ index, item, problems, onChange, onRemove, onDone }: {
   index: number; item: Experience; problems: ExperienceProblem[];
-  onChange: (patch: Partial<Experience>) => void; onRemove: () => void; onDone: () => void;
+  /** quiet = ระบบเติมเอง ไม่นับเป็นการแก้ของผู้สมัคร */
+  onChange: (patch: Partial<Experience>, quiet?: boolean) => void; onRemove: () => void; onDone: () => void;
 }) {
   const { t } = useI18n();
   const s = t.mentorApply.exp;
@@ -116,7 +117,7 @@ export function ExperienceCard({ index, item, problems, onChange, onRemove, onDo
     {/* มีในระบบแล้ว (มีหน้าหรือแค่ชื่อ) บอกแค่ "มีใน ChampionWays" ไม่ต้องมีรายละเอียดหรือลิงก์ (เจ้าของสั่ง 28 ต.ค. 2569) */}
     <CompetitionNameField id={`${uid}-name`} value={item.name} label={s.competition} placeholder={s.competitionPlaceholder}
       invalid={has('name')} describedBy={`${uid}-name-hint${has('name') ? ` ${uid}-name-error` : ''}`}
-      onChange={({ name, slug, listed }) => onChange({ name, slug, listed })}
+      onChange={({ name, slug, listed, auto }) => onChange({ name, slug, listed }, auto)}
       after={<>
         {has('name') && <FieldError id={`${uid}-name-error`} text={s.errors.name} />}
         <p className={`exp-match${inSystem ? ' is-known' : ''}`} id={`${uid}-name-hint`}>

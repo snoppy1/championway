@@ -448,3 +448,13 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Results page: "Select a mentor later" (empty state and under the list, hidden while a consultation is open) goes back to My projects with that project selected.
 - My projects (screen 0): each project shows "No mentor yet" or "Consulting with …". The selected project opens a panel with "Find mentors", which re-runs matching on that project with its last answers (no questions again; counts toward the 10/day limit) and "See last matches". A project with no earlier request goes on to the questions.
 - Checks: matching unit tests 10/10, API 135/135, match + i18n e2e (3 viewports) pass, build and check:i18n OK.
+
+## 2026-10-29 — Owner feedback: helps-at from experiences, pilot names, lighter headings, UI pass
+- Mentor profile: experience icons are a purple line trophy, no tile. "Competitions this mentor can help with" now lists every competition in the mentor's experiences (verified + pending), page or name-only, no separate ticking (`helpsAt` on GET /consult/mentors/:id). Name-only items are plain text; ones with a page link to it.
+- Contact "which competition": options are those same names. POST /contact takes `competitionName` (must match one of the mentor's experiences; otherwise stored as none). New column `consultations.competition_name` (migration 0031); lists and the confirm link show the page name or the stored name. `?competition=` accepts a slug or a name.
+- Autocomplete pilot list: migration 0032 seeds 33 well-known competition names into `hackathon_names` (name only, `hkn_seed_*`, ON CONFLICT DO NOTHING). Suggestions no longer show a name twice when it also has a page.
+- Typography: h1–h3 default to 600 (was browser bold 700); purple highlight words (`mf-head__accent`, `lp-hero__accent`, `lp-accent`) are 700. Caveat/Mali 700 loaded.
+- UI pass: Mentor zone competition cards stretch full width again (button right-aligned; "Details" and "View competition" on one row); mentor profile mobile gap between "Can help" and "Won't do"; contact panel text and select sized to match; application: divider above "Mentor profile" group, footnote centred.
+- Bug fixed: the application's competition-name field confirming a known name in the background (slow network) unticked the first consent on the last step. That auto-confirmation is now "quiet".
+- Checks: API 136/136 (new contact/helpsAt test), full Playwright 378 passed, build and check:i18n OK. Dev and test DBs migrated to 0032.
+- Production still needs migrations 0026–0032 before main is pushed.

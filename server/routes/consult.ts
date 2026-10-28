@@ -24,6 +24,7 @@ import { notify } from '../lib/email.js';
 import { bangkokMonth, ratingJson, ratingsBetween } from '../lib/ratings.js';
 import { mentorStats } from '../lib/mentor-stats.js';
 import { loadProfileV2 } from './mentor-profile.js';
+import { normalizeName } from '../../src/data/matching.js';
 
 /* จ้างเมนเทอร์ผ่านเว็บ (ผู้ใช้ตัดสิน 1 ต.ค. 2569 แทนการติดต่อนอกเว็บ)
 
@@ -201,6 +202,8 @@ consult.get('/mentors/:id', async (c) => {
   ]);
   // เพศใช้จับคู่เท่านั้น ไม่ส่งออกบนหน้าโปรไฟล์
   const { gender: _gender, ...publicProfile } = v2.profile;
+  // เวทีที่ช่วยได้: ทุกงานที่เคยแข่ง (ตรวจแล้วหรือรอตรวจ) มีหน้าในระบบหรือมีแค่ชื่อก็ได้ ไม่ต้องติ๊กเลือกแยก (เจ้าของสั่ง 29 ต.ค. 2569)
+  const helpsAt = [...new Map(experienceRows.map(({ row, slug }) => [normalizeName(row.name), { slug, name: row.name }])).values()];
 
   const viewer = c.get('user');
   let hire: { id: string; status: string; reviewed: boolean; roomId: string | null } | null = null;
@@ -224,6 +227,7 @@ consult.get('/mentors/:id', async (c) => {
       price: m.price, minutes: m.minutes, unit: m.priceUnit,
     },
     competitions: offered,
+    helpsAt,
     profile: publicProfile,
     experiences: experienceRows.map(({ row, slug }) => ({
       id: row.id, name: row.name, competitionSlug: slug, year: row.year, kind: row.kind, result: row.result, detail: row.detail,
@@ -243,7 +247,7 @@ consult.get('/mentors/:id', async (c) => {
 
 consult.get('/mine', requireUser, async (c) => {
   const user = c.get('user')!;
-  const rows = await db.select({ consultation: consultations, mentor: mentors, competitionName: competitions.name, competitionSlug: competitions.slug, reviewId: mentorReviews.id, stars: mentorReviews.stars })
+  const rows = await db.select({ consultation: consultations, mentor: mentors, competitionName: sql<string | null>`coalesce(${competitions.name}, nullif(${consultations.competitionName}, ''))`, competitionSlug: competitions.slug, reviewId: mentorReviews.id, stars: mentorReviews.stars })
     .from(consultations)
     .innerJoin(mentors, eq(mentors.id, consultations.mentorId))
     .leftJoin(competitions, eq(competitions.id, consultations.competitionId))
@@ -263,7 +267,7 @@ consult.get('/mine', requireUser, async (c) => {
       note: r.consultation.note, reason: r.consultation.reason,
       roomId: r.consultation.roomId, unread: r.consultation.roomId ? unread.get(r.consultation.roomId) ?? 0 : 0,
       paidAt: r.consultation.paidAt, disputedAt: r.consultation.disputedAt,
-      mentor: card(r.mentor), competition: r.competitionSlug ? { slug: r.competitionSlug, name: r.competitionName } : null,
+      mentor: card(r.mentor), competition: r.competitionName ? { slug: r.competitionSlug, name: r.competitionName } : null,
       review: r.reviewId ? { stars: r.stars } : null,
     })),
   });
@@ -327,7 +331,7 @@ consult.get('/zone', requireUser, async (c) => {
     db.select().from(competitionRequests).where(eq(competitionRequests.mentorId, mentor.id)).orderBy(desc(competitionRequests.createdAt)),
     // ใบเพิ่มเวทีใหม่ที่เมนเทอร์ส่งผ่านฟอร์มเต็ม (เข้าคิวงานแข่งของแอดมิน)
     db.select().from(competitionSubmissions).where(eq(competitionSubmissions.mentorId, mentor.id)).orderBy(desc(competitionSubmissions.submittedAt)),
-    db.select({ hire: consultations, student: users.name, competitionName: competitions.name, competitionSlug: competitions.slug })
+    db.select({ hire: consultations, student: users.name, competitionName: sql<string | null>`coalesce(${competitions.name}, nullif(${consultations.competitionName}, ''))`, competitionSlug: competitions.slug })
       .from(consultations).innerJoin(users, eq(users.id, consultations.userId))
       .leftJoin(competitions, eq(competitions.id, consultations.competitionId))
       .where(eq(consultations.mentorId, mentor.id))
@@ -371,7 +375,7 @@ consult.get('/zone', requireUser, async (c) => {
       paidAt: hire.paidAt, disputedAt: hire.disputedAt,
       payout: payoutOf.has(hire.id) ? { status: payoutOf.get(hire.id)!.status, amount: payoutOf.get(hire.id)!.amount, paidAt: payoutOf.get(hire.id)!.paidAt, reference: payoutOf.get(hire.id)!.status === 'paid' ? payoutOf.get(hire.id)!.note : '' } : null,
       student: student.split(/\s+/)[0],
-      competition: competitionSlug ? { slug: competitionSlug, name: competitionName } : null,
+      competition: competitionName ? { slug: competitionSlug, name: competitionName } : null,
     })),
   });
 });
@@ -729,15 +733,23 @@ consult.post('/mentors/:id/contact', requireUser, async (c) => {
   const [row] = await approvedMentors([c.req.param('id')]);
   if (!row) return fail('ไม่พบเมนเทอร์', 404);
   if (row.userId === user.id) return fail('ติดต่อตัวเองไม่ได้');
-  const body = await parse(c, z.object({ competition: z.string().max(200).nullish() }).nullable()) ?? {};
+  const body = await parse(c, z.object({ competition: z.string().max(200).nullish(), competitionName: z.string().max(200).nullish() }).nullable()) ?? {};
   let competitionId: string | null = null;
-  if (body.competition) {
-    const [event] = await db.select({ id: competitions.id }).from(competitions).where(eq(competitions.slug, body.competition)).limit(1);
+  let competitionName = '';
+  if (body.competitionName) {
+    const wanted = normalizeName(body.competitionName);
+    const mine = await db.select({ name: mentorExperiences.name, competitionId: mentorExperiences.competitionId }).from(mentorExperiences)
+      .where(and(eq(mentorExperiences.mentorId, row.mentor.id), inArray(mentorExperiences.status, ['verified', 'pending'])));
+    const match = mine.find((item) => normalizeName(item.name) === wanted);
+    if (match) { competitionId = match.competitionId; competitionName = match.name; }
+  } else if (body.competition) {
+    const [event] = await db.select({ id: competitions.id, name: competitions.name }).from(competitions).where(eq(competitions.slug, body.competition)).limit(1);
     competitionId = event?.id ?? null;
+    competitionName = event?.name ?? '';
   }
   // เปิดค้างได้รายการเดียวต่อคู่ (unique index) กดซ้ำได้รายการเดิมกลับมา
   const [created] = await db.insert(consultations)
-    .values({ id: newId('cns'), userId: user.id, mentorId: row.mentor.id, competitionId, status: 'contacted', minutes: 0 })
+    .values({ id: newId('cns'), userId: user.id, mentorId: row.mentor.id, competitionId, competitionName, status: 'contacted', minutes: 0 })
     .onConflictDoNothing().returning({ id: consultations.id, status: consultations.status });
   const open = created ?? (await db.select({ id: consultations.id, status: consultations.status }).from(consultations)
     .where(and(eq(consultations.userId, user.id), eq(consultations.mentorId, row.mentor.id), inArray(consultations.status, ['contacted', 'claimed'])))
@@ -793,7 +805,7 @@ consult.post('/:id/deny', requireUser, async (c) => {
 consult.get('/confirm-link', async (c) => {
   const token = c.req.query('token') ?? '';
   if (token.length < 20 || token.length > 200) return fail('ลิงก์ไม่ถูกต้อง', 404);
-  const [row] = await db.select({ token: consultationConfirmTokens, hire: consultations, student: users.name, mentorName: mentors.name, competitionName: competitions.name })
+  const [row] = await db.select({ token: consultationConfirmTokens, hire: consultations, student: users.name, mentorName: mentors.name, competitionName: sql<string | null>`coalesce(${competitions.name}, nullif(${consultations.competitionName}, ''))` })
     .from(consultationConfirmTokens)
     .innerJoin(consultations, eq(consultations.id, consultationConfirmTokens.consultationId))
     .innerJoin(users, eq(users.id, consultations.userId))

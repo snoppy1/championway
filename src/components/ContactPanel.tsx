@@ -20,7 +20,8 @@ import '../consult.css';
 
 export type ContactPanelData = {
   mentor: { id: string };
-  competitions: { slug: string; name: string }[];
+  /** เวทีที่เมนเทอร์ช่วยได้ (จากประสบการณ์) งานที่มีแค่ชื่อไม่มี slug */
+  helpsAt: { slug: string | null; name: string }[];
   viewer: null | { signedIn: boolean; emailVerified: boolean; isSelf: boolean };
   hire: null | { id: string; status: string; reviewed: boolean };
   contacts: Contacts | null;
@@ -49,7 +50,7 @@ function ContactList({ contacts }: { contacts: Contacts }) {
 }
 
 function ContactForm({ mentorId, competitions, initial, again, onDone }: {
-  mentorId: string; competitions: ContactPanelData['competitions']; initial: string; again: boolean; onDone: () => Promise<void>;
+  mentorId: string; competitions: ContactPanelData['helpsAt']; initial: string; again: boolean; onDone: () => Promise<void>;
 }) {
   const { t } = useI18n();
   const s = t.contact.profile;
@@ -63,7 +64,7 @@ function ContactForm({ mentorId, competitions, initial, again, onDone }: {
     setBusy(true);
     setMessage('');
     try {
-      await post(`/consult/mentors/${encodeURIComponent(mentorId)}/contact`, about ? { competition: about } : {});
+      await post(`/consult/mentors/${encodeURIComponent(mentorId)}/contact`, about ? { competitionName: about } : {});
       await onDone();
     } catch (failure) {
       setMessage(consultError(failure, t));
@@ -78,7 +79,7 @@ function ContactForm({ mentorId, competitions, initial, again, onDone }: {
       <label htmlFor="contact-about">{s.aboutLabel}</label>
       <select id="contact-about" value={about} disabled={busy} onChange={(event) => setAbout(event.target.value)}>
         <option value="">{s.aboutNone}</option>
-        {competitions.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}
+        {competitions.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
       </select>
     </div>}
     <p className="cx-message cx-message--error" role="alert">{message}</p>
@@ -94,7 +95,8 @@ export function ContactPanel({ data, competition, reload }: { data: ContactPanel
   const { viewer, hire, contacts, mentor } = data;
   const status = (hire?.status ?? null) as ContactStatus | null;
   const next = `/mentors/${mentor.id}${competition ? `?competition=${encodeURIComponent(competition)}` : ''}`;
-  const initial = data.competitions.some((item) => item.slug === competition) ? competition : '';
+  // ?competition= เป็น slug (มาจากหน้างานแข่ง) หรือชื่องาน (งานที่มีแค่ชื่อ)
+  const initial = data.helpsAt.find((item) => item.slug === competition || item.name === competition)?.name ?? '';
   // ติดต่อใหม่ได้เมื่อรอบก่อนจบแล้ว: ยกเลิก ถูกปฏิเสธ หรือยืนยันและรีวิวแล้ว
   const canContactAgain = status === 'cancelled' || status === 'denied' || (status === 'completed' && Boolean(hire?.reviewed));
 
@@ -123,7 +125,7 @@ export function ContactPanel({ data, competition, reload }: { data: ContactPanel
       <ContactSteps compact status={status === 'denied' || status === 'cancelled' ? null : status} reviewed={Boolean(hire?.reviewed)} />
       {contacts && <ContactList contacts={contacts} />}
       {hire && status && <ContactFlow contact={{ id: hire.id, status, reviewed: hire.reviewed }} onChange={reload} />}
-      {(!hire || canContactAgain) && <ContactForm mentorId={mentor.id} competitions={data.competitions} initial={initial} again={Boolean(hire)} onDone={reload} />}
+      {(!hire || canContactAgain) && <ContactForm mentorId={mentor.id} competitions={data.helpsAt} initial={initial} again={Boolean(hire)} onDone={reload} />}
     </>;
   }
 

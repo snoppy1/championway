@@ -13,7 +13,7 @@ import { RisingStarPill, StarIcon } from '../components/mentors';
 import { VerifyEmailNotice } from '../components/VerifyEmailNotice';
 import { useAuth } from '../data/auth';
 import { useI18n } from '../i18n';
-import { formatDate, formatDateTime, formatInputDate } from '../i18n/format';
+import { formatDate, formatDateTime } from '../i18n/format';
 import type { MentorProfileV2 } from '../data/matching';
 import { experienceLine } from '../components/ExperienceList';
 import type { ExperienceRow } from '../components/ExperienceList';
@@ -34,6 +34,7 @@ type Payload = {
     price: number | null; minutes: number | null; unit: string;
   };
   competitions: Offer[];
+  helpsAt: { slug: string | null; name: string }[];
   reviews: { stars: number; comment: string; createdAt: string; name: string }[];
   viewer: null | { signedIn: boolean; emailVerified: boolean; isSelf: boolean };
   hire: null | { id: string; status: HireStatus; reviewed: boolean; roomId: string | null };
@@ -247,14 +248,13 @@ export function MentorProfile() {
     <p><Link className="primary-button cx-button" to="/"><ArrowLeft size={17} aria-hidden="true" />{s.backToMentors}</Link></p>
   </main>;
 
-  const from = data.competitions.find((item) => item.slug === competition);
+  const from = data.helpsAt.find((item) => item.slug && item.slug === competition);
   const reloadAsync = async () => { reload(); };
   const v = t.mentorProfileV2;
   const p = data.profile;
   const languages = p.languages.map((code) => v.languageNames[code]).join(', ');
   const rating = mentor.allTime;
-  const offers = data.competitions;
-  const back = from ? { to: `/competitions/${from.slug}#mentors`, label: s.backTo(from.name) } : { to: '/', label: s.backToMentors };
+  const back = from?.slug ? { to: `/competitions/${from.slug}#mentors`, label: s.backTo(from.name) } : { to: '/', label: s.backToMentors };
   const tabs = [
     { id: 'about', label: s.tabAbout, count: null },
     { id: 'experience', label: s.tabExperience, count: data.experiences.length || null },
@@ -362,14 +362,10 @@ export function MentorProfile() {
             </section>
             <section className="mp-section" aria-labelledby="competitions-title">
               <h2 id="competitions-title">{s.competitionsTitle}</h2>
-              {offers.length === 0 ? <p className="mp-muted">{s.competitionsEmpty}</p> : <ul className="mp-exp">
-                {offers.map((item) => <li key={item.slug}>
+              {data.helpsAt.length === 0 ? <p className="mp-muted">{s.competitionsEmpty}</p> : <ul className="mp-exp is-names">
+                {data.helpsAt.map((item) => <li key={item.name}>
                   <span className="mp-exp__icon" aria-hidden="true"><Trophy size={17} /></span>
-                  <div>
-                    <Link className="mp-link" to={`/competitions/${item.slug}#mentors`}>{item.name}</Link>
-                    <p>{s.closes(formatInputDate(item.closesAt.slice(0, 10), lang))}</p>
-                  </div>
-                  <span className="mp-price">{t.price.line(item.price, item.minutes, item.unit)}</span>
+                  <div>{item.slug ? <Link className="mp-link" to={`/competitions/${item.slug}#mentors`}>{item.name}</Link> : <strong>{item.name}</strong>}</div>
                 </li>)}
               </ul>}
             </section>

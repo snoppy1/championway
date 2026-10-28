@@ -8,7 +8,7 @@
 
 .cx-page { padding-bottom: var(--space-12); }
 .cx-page-head { margin-bottom: var(--space-6); }
-.cx-page-head h1 { font-size: var(--text-2xl); font-weight: 700; line-height: var(--leading-heading); color: var(--ink-deep); }
+.cx-page-head h1 { font-size: var(--text-2xl); font-weight: 600; line-height: var(--leading-heading); color: var(--ink-deep); }
 .cx-lead { margin-top: var(--space-2); max-width: 44em; color: var(--muted); font-size: var(--text-md); line-height: var(--leading-body); }
 .cx-hint { color: var(--ink); font-size: var(--text-sm); line-height: 1.6; }
 .cx-note { color: var(--ink); font-size: var(--text-base); line-height: var(--leading-body); }
@@ -177,7 +177,7 @@
 }
 .cx-hero .rs-avatar { --avatar-size: 72px; }
 .cx-hero__who { min-width: 0; }
-.cx-hero h1 { font-size: var(--text-2xl); font-weight: 700; line-height: var(--leading-heading); color: var(--ink-deep); overflow-wrap: anywhere; }
+.cx-hero h1 { font-size: var(--text-2xl); font-weight: 600; line-height: var(--leading-heading); color: var(--ink-deep); overflow-wrap: anywhere; }
 .cx-badges { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 .cx-badges:empty { display: none; }
 .cx-badge {
@@ -245,7 +245,12 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
   padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card);
 }
 .cx-list--stack > li:first-child { border-top: 1px solid var(--line); }
-.cx-competition { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+.cx-competition, .cx-list > li.cx-competition { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+/* รายละเอียด กับ ดูข้อมูลงาน อยู่แถวเดียวกัน (กางรายละเอียดแล้วเนื้อหาอยู่ใต้ปุ่มของมันเอง) */
+.cx-competition__links { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 var(--space-4); margin-top: var(--space-1); }
+.cx-competition__links .cx-details { margin-top: 0; }
+.cx-competition__links > p { min-height: 44px; display: flex; align-items: center; }
+.cx-competition__links .cx-details[open] { flex: 1 0 100%; order: 2; }
 .cx-competition__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); min-width: 0; }
 .cx-competition__head { min-width: 0; flex: 1 1 auto; }
 .cx-competition__form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); min-width: 0; }
@@ -285,7 +290,7 @@ a.cx-list__title svg { margin-left: var(--space-1); vertical-align: -0.1em; }
   border: 1px solid var(--line); border-radius: var(--radius-panel);
   background: var(--card); box-shadow: var(--shadow-card); text-align: center;
 }
-.cx-verify h1 { font-size: var(--text-2xl); font-weight: 700; line-height: var(--leading-heading); color: var(--ink-deep); }
+.cx-verify h1 { font-size: var(--text-2xl); font-weight: 600; line-height: var(--leading-heading); color: var(--ink-deep); }
 .cx-verify p { color: var(--muted); font-size: var(--text-md); line-height: var(--leading-body); }
 .cx-verify .cx-row { margin-top: var(--space-2); }
 .cx-verify__icon { width: var(--space-12); height: var(--space-12); color: var(--purple); }

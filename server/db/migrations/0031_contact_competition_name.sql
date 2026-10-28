@@ -1,0 +1,1 @@
+ALTER TABLE "consultations" ADD COLUMN "competition_name" text DEFAULT '' NOT NULL;

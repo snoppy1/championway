@@ -85,7 +85,7 @@ test('a member contacts a mentor, tells us they got guidance, the mentor confirm
   await audit(page, 'profile before contacting');
 
   // กดติดต่อ: เห็นครบห้าช่อง ช่องที่ว่างเป็น "-" ลิงก์สร้างอย่างปลอดภัย โฟกัสไปที่ช่องทางที่เพิ่งขึ้น
-  await panel.getByLabel('ติดต่อเรื่องเวทีไหน').selectOption(fixture.competition.slug);
+  await panel.getByLabel('ติดต่อเรื่องเวทีไหน').selectOption({ label: fixture.competition.name });
   await panel.getByRole('button', { name: 'ติดต่อเมนเทอร์' }).click();
   await acceptSafety(page);
   const channels = panel.locator('.cx-contacts');

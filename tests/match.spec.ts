@@ -97,7 +97,7 @@ test('a first-time learner answers nine screens, gets ranked mentors and starts 
   await next.click();
 
   // 8 ช่วงเวลา ภาษา หมายเหตุ
-  await page.getByRole('radio', { name: /ไม่รีบ/ }).click();
+  await page.getByRole('radio', { name: /ภายในเดือนนี้/ }).click();
   await page.getByRole('radio', { name: 'ไทย', exact: true }).click();
   await page.getByRole('textbox', { name: /มีอะไรเพิ่มเติมไหม/ }).fill('ต้องทำ pitch deck ด้วย');
   await next.click();
@@ -118,6 +118,20 @@ test('a first-time learner answers nine screens, gets ranked mentors and starts 
   await expect(card).toContainText('React · Expert');
   await expect(card.getByRole('link', { name: `ดูโปรไฟล์ของ ${mentor.name}` })).toHaveAttribute('href', `/mentors/${mentor.mentorId}`);
   await shot('results');
+
+  // เลือกเมนเทอร์ทีหลัง: กลับหน้าโปรเจกต์ โปรเจกต์นี้ถูกเลือกไว้ ยังไม่มีเมนเทอร์ หาใหม่ได้ด้วยคำตอบเดิม
+  const firstResults = page.url();
+  await page.getByRole('button', { name: 'เลือกเมนเทอร์ทีหลัง' }).click();
+  await expect(page).toHaveURL(/\/match$/);
+  const project = page.getByRole('radio', { name: /Smart farm sensor/ });
+  await expect(project).toHaveAttribute('aria-checked', 'true');
+  await expect(project).toContainText('ยังไม่มีเมนเทอร์');
+  await expect(page.getByRole('link', { name: 'ดูผลจับคู่ครั้งล่าสุด' })).toHaveAttribute('href', new URL(firstResults).pathname);
+  await shot('project');
+  await page.getByRole('button', { name: 'หาเมนเทอร์', exact: true }).click();
+  await expect(page).toHaveURL(/\/matches\/mrq/, { timeout: 15000 });
+  expect(page.url()).not.toBe(firstResults);
+  await expect(card).toBeVisible();
   await card.getByRole('button', { name: `เริ่มปรึกษากับ ${mentor.name}` }).click();
   // เตือนความปลอดภัยก่อนเห็นช่องทางติดต่อ ปุ่มกดได้หลังติ๊กรับทราบ
   const safety = page.getByRole('dialog', { name: 'ก่อนเริ่มติดต่อ Mentor' });

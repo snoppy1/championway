@@ -442,3 +442,9 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Owner: old-form applications were test data only, and prod has no real mentors yet. Deleted on dev (checked it was not the production URL): 5 old-form submissions (`profile is null`) and their 3 published mentors (cascade: experiences, consultations, reviews, choices, match audit). Dev now has 0 mentors — approve a new-form application to test matching.
 - Not needed: AI digest of competition data. Both sides already pick from the same tag lists; competition data only feeds the "same event / same kind" part.
 - Proposed, waiting for the owner: admin page listing published mentors with "in matching / missing X", and an overview card for match requests with 0 results.
+
+## 2026-10-28 — Timing "This month", select a mentor later, find again from a project
+- Match screen 8: new timing option `month` ("This month" / "ภายในเดือนนี้"), cards now 2×2. Formula (A part): month = 1 if the mentor replies within 3 days, else 0.8. Mentor side link: a mentor whose weekly session cap is full is now dropped only for 48h / this-week requests; for month / flexible they stay in the results with timing capped at 0.6 (they can meet next week). Unit tests updated.
+- Results page: "Select a mentor later" (empty state and under the list, hidden while a consultation is open) goes back to My projects with that project selected.
+- My projects (screen 0): each project shows "No mentor yet" or "Consulting with …". The selected project opens a panel with "Find mentors", which re-runs matching on that project with its last answers (no questions again; counts toward the 10/day limit) and "See last matches". A project with no earlier request goes on to the questions.
+- Checks: matching unit tests 10/10, API 135/135, match + i18n e2e (3 viewports) pass, build and check:i18n OK.

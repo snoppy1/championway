@@ -45,7 +45,10 @@ test('hard filters: incomplete, unverified, paused, no shared language, wrong ge
   assert.equal(eligible(mentor({ languages: ['en'] }), request({ language: 'either' })), true);
   assert.equal(eligible(mentor(), request({ gender: 'female' })), false);
   assert.equal(eligible(mentor({ gender: 'female' }), request({ gender: 'female' })), true);
-  assert.equal(eligible(mentor({ openThisWeek: 3 }), r), false);
+  assert.equal(eligible(mentor({ openThisWeek: 3 }), r), true);
+  // คิวสัปดาห์นี้เต็ม ตัดออกเฉพาะคำขอที่ต้องคุยภายในสัปดาห์นี้
+  assert.equal(eligible(mentor({ openThisWeek: 3 }), request({ urgency: 'week' })), false);
+  assert.equal(eligible(mentor({ openThisWeek: 3 }), request({ urgency: '48h' })), false);
 });
 
 test('skill fit: levels, capability only, and advanced learners count intermediate skills less', () => {
@@ -85,6 +88,9 @@ test('teaching style fit and availability', () => {
   assert.equal(scoreMentor(mentor(), request({ urgency: '48h' })).parts.A, 1);
   assert.equal(scoreMentor(mentor({ acceptsUrgent: false }), request({ urgency: '48h' })).parts.A, 0.46);
   assert.equal(scoreMentor(mentor({ replyHours: 168 }), request({ urgency: 'week' })).parts.A, 0.7);
+  assert.equal(scoreMentor(mentor({ replyHours: 72 }), request({ urgency: 'month' })).parts.A, 1);
+  assert.equal(scoreMentor(mentor({ replyHours: 168 }), request({ urgency: 'month' })).parts.A, 0.88);
+  assert.equal(scoreMentor(mentor({ openThisWeek: 3 }), request({ urgency: 'month' })).parts.A, 0.76);
 });
 
 test('near ties put better-rated mentors first, new mentors only ahead of those under 3.5 stars', () => {

@@ -1,8 +1,8 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
-  AlarmClock, AppWindow, ArrowLeft, ArrowRight, BarChart3, Brain, Briefcase, Check, ChevronDown, Clock, Clock3, Cpu, Folder, MoreHorizontal, PenTool, Pencil, Plus, Search, ShieldCheck, Sparkles, Trophy, X,
+  AlarmClock, AppWindow, ArrowLeft, ArrowRight, BarChart3, Brain, Briefcase, CalendarDays, Check, ChevronDown, Clock, Clock3, Cpu, Folder, MoreHorizontal, PenTool, Pencil, Plus, Search, ShieldCheck, Sparkles, Trophy, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ApiError, api, post } from '../lib/api';
@@ -42,7 +42,7 @@ const PART: Record<Screen, number> = { 0: 1, 1: 0, 2: 0, 3: 1, 4: 1, 5: 1, 6: 2,
 
 type ProjectItem = {
   id: string; name: string; start: ProjectStart; competitionKind: CompetitionKind | null; competitionName: string | null;
-  stage: ProjectStage; updatedAt: string; lastRequestId: string | null;
+  stage: ProjectStage; updatedAt: string; lastRequestId: string | null; open: { mentorName: string } | null;
 };
 type ProjectsPayload = { items: ProjectItem[]; projectLimitReached: boolean; requestLimitReached: boolean; hasProfile: boolean };
 type ProfilePayload = {
@@ -58,6 +58,8 @@ type Draft = {
 };
 /** คำตอบที่หน้าผลส่งกลับมาเมื่อกด "แก้ไขคำตอบ" */
 export type EditState = { projectId: string; answers: Partial<MatchAnswers> };
+/** กด "เลือกเมนเทอร์ทีหลัง" ที่หน้าผล: กลับมาหน้าโปรเจกต์โดยเลือกโปรเจกต์นั้นไว้ */
+export type LaterState = { focusProject: string };
 
 const empty: Draft = {
   level: null, languages: [], country: 'TH', interestsFields: [], skills: [], interests: '',
@@ -76,7 +78,7 @@ const startIcon: Record<ProjectStart, Icon> = { has_competition: iconTrophy, has
 const styleIcon: Record<RequestStyle, Icon> = {
   step_by_step: iconSteps, guided_questions: iconIdea, review: iconSearch, direct_feedback: iconLightning, mixed: iconMix,
 };
-const urgencyIcon: Record<Urgency, Icon> = { '48h': AlarmClock, week: Clock, flexible: Clock3 };
+const urgencyIcon: Record<Urgency, Icon> = { '48h': AlarmClock, week: Clock, month: CalendarDays, flexible: Clock3 };
 
 function IconTile({ icon, size, small }: { icon: Icon; size: number; small?: boolean }) {
   const Glyph = icon;
@@ -189,7 +191,9 @@ export function Match() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const editState = (location.state as EditState | null) ?? null;
+  const routeState = location.state as EditState | LaterState | null;
+  const editState = routeState && 'answers' in routeState ? routeState : null;
+  const focusProject = routeState && 'focusProject' in routeState ? routeState.focusProject : null;
 
   const [profileData, setProfileData] = useState<ProfilePayload | null>(null);
   const [projectsData, setProjectsData] = useState<ProjectsPayload | null>(null);
@@ -205,6 +209,7 @@ export function Match() {
   const [addOpen, setAddOpen] = useState(false);
   const [requestLimit, setRequestLimit] = useState(false);
   const tagsFor = useRef('');
+  const retry = useRef<() => void>(() => {});
   const headingRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
   const narrow = useNarrow();
@@ -232,7 +237,7 @@ export function Match() {
           });
           tagsFor.current = a.note ?? '';
           setPos(4);
-        } else setDraft(base);
+        } else setDraft(focusProject && projects.items.some((item) => item.id === focusProject) ? { ...base, project: focusProject } : base);
       })
       .catch((error: unknown) => { if (alive) setLoadError(error instanceof ApiError ? error.message : t.errors.unreachable); });
     return () => { alive = false; };
@@ -317,13 +322,34 @@ export function Match() {
   async function findMentors() {
     const id = projectId();
     if (!id) return;
+    await runMatch(id, {
+      helpAreas: draft.helpAreas, skillLevel: draft.skillLevel!, style: draft.style!, format: draft.format!, urgency: draft.urgency!,
+      language: draft.language!, gender: draft.gender, note: draft.note.trim(), noteTags: draft.noteTags.filter((tag) => !draft.helpAreas.includes(tag)),
+    });
+  }
+  /** หาเมนเทอร์ให้โปรเจกต์เดิมด้วยคำตอบครั้งล่าสุด ไม่ต้องตอบคำถามใหม่ (คำนวณใหม่กับเมนเทอร์ที่มีตอนนี้) */
+  async function findAgain(item: ProjectItem) {
+    if (!item.lastRequestId) { go(at + 1); return; }
+    setSaving(true);
+    setMessage('');
+    try {
+      const last = await api<{ request: { answers: Partial<MatchAnswers> } }>(`/matches/${encodeURIComponent(item.lastRequestId)}`);
+      const a = last.request.answers;
+      await runMatch(item.id, {
+        helpAreas: a.helpAreas ?? [], skillLevel: a.skillLevel!, style: a.style!, format: a.format!, urgency: a.urgency!,
+        language: a.language!, gender: a.gender ?? 'any', note: a.note ?? '', noteTags: a.noteTags ?? [],
+      });
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : t.errors.unreachable);
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function runMatch(id: string, answers: MatchAnswers) {
+    retry.current = () => void runMatch(id, answers);
     setPhase('matching');
     const started = Date.now();
     try {
-      const answers: MatchAnswers = {
-        helpAreas: draft.helpAreas, skillLevel: draft.skillLevel!, style: draft.style!, format: draft.format!, urgency: draft.urgency!,
-        language: draft.language!, gender: draft.gender, note: draft.note.trim(), noteTags: draft.noteTags.filter((tag) => !draft.helpAreas.includes(tag)),
-      };
       const result = await post<{ requestId: string }>(`/projects/${id}/match`, answers);
       await new Promise((resolve) => setTimeout(resolve, Math.max(0, MIN_MATCHING_MS - (Date.now() - started))));
       navigate(`/matches/${result.requestId}`);
@@ -376,16 +402,30 @@ export function Match() {
           <span className="mf-card__text"><span className="mf-card__title">{s.newProject}</span><span className="mf-card__sub">{limit ? s.projectLimit : s.newProjectSub}</span></span>
           <span className="mf-radio" aria-hidden="true" />
         </button>
-        {projectsList.map((item) => <button key={item.id} type="button" role="radio" aria-checked={draft.project === item.id}
-          className={`mf-card${draft.project === item.id ? ' is-on' : ''}`} onClick={() => set('project', item.id)}>
-          <IconTile icon={Folder} size={22} />
-          <span className="mf-card__text">
-            <span className="mf-card__title">{item.name}</span>
-            <span className="mf-card__sub">{item.competitionName ?? s.noCompetition}</span>
-            <span className="mf-card__meta"><span className="mf-pill">{s.stages[item.stage]}</span>{s.updated(formatDate(item.updatedAt, lang))}</span>
-          </span>
-          <span className="mf-radio" aria-hidden="true" />
-        </button>)}
+        {projectsList.map((item) => <Fragment key={item.id}>
+          <button type="button" role="radio" aria-checked={draft.project === item.id}
+            className={`mf-card${draft.project === item.id ? ' is-on' : ''}`} onClick={() => set('project', item.id)}>
+            <IconTile icon={Folder} size={22} />
+            <span className="mf-card__text">
+              <span className="mf-card__title">{item.name}</span>
+              <span className="mf-card__sub">{item.competitionName ?? s.noCompetition}</span>
+              <span className="mf-card__meta"><span className="mf-pill">{s.stages[item.stage]}</span>{s.updated(formatDate(item.updatedAt, lang))}</span>
+              <span className={`mf-card__mentor${item.open ? ' is-on' : ''}`}>{item.open ? s.consultingWith(item.open.mentorName) : s.noMentorYet}</span>
+            </span>
+            <span className="mf-radio" aria-hidden="true" />
+          </button>
+          {/* โปรเจกต์ที่เลือก: ปุ่มหาเมนเทอร์จากข้อมูลโปรเจกต์นี้ */}
+          {draft.project === item.id && <div className="mf-project">
+            <p>{item.lastRequestId ? s.projectFindLead : s.projectFindFirst}</p>
+            <div className="mf-project__actions">
+              {item.lastRequestId && <Link className="mf-linkbtn" to={`/matches/${item.lastRequestId}`}>{s.projectLastMatches}</Link>}
+              <button type="button" className="mf-start" disabled={saving || requestLimit} onClick={() => void findAgain(item)}>
+                <Search size={15} aria-hidden="true" />{saving ? s.loading : s.projectFind}
+              </button>
+            </div>
+            {requestLimit && <p className="mf-error" role="alert">{s.requestLimit}</p>}
+          </div>}
+        </Fragment>)}
       </div>
     </Field>;
   } else if (sc === 1) {
@@ -519,7 +559,7 @@ export function Match() {
   } else if (sc === 8) {
     body = <>
       <Field label={s.urgencyLabel} id={labelId('urgency')} error={err('urgency')}>
-        <div className="mf-grid is-3" role="radiogroup" aria-labelledby={labelId('urgency')}>
+        <div className="mf-grid is-2" role="radiogroup" aria-labelledby={labelId('urgency')}>
           {urgencies.map((u) => <OptionCard key={u} icon={urgencyIcon[u]} title={s.urgencies[u][0]} sub={s.urgencies[u][1]} on={draft.urgency === u} onPick={one('urgency', u)} />)}
         </div>
       </Field>
@@ -618,7 +658,7 @@ export function Match() {
         <p className="mf-overlay__text">{s.errorText}</p>
         <div className="mf-actions">
           <button type="button" className="mf-back" onClick={() => setPhase('flow')}><span aria-hidden="true"><ArrowLeft size={16} /></span>{s.editAnswers}</button>
-          <button type="button" className="mf-next" onClick={() => void findMentors()}>{s.tryAgain}<span aria-hidden="true"><ArrowRight size={16} /></span></button>
+          <button type="button" className="mf-next" onClick={() => retry.current()}>{s.tryAgain}<span aria-hidden="true"><ArrowRight size={16} /></span></button>
         </div>
       </>}
     </div>}

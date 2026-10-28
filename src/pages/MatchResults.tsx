@@ -9,7 +9,7 @@ import { contactHref, contactKeys } from '../data/consult';
 import type { Contacts } from '../data/consult';
 import type { MatchAnswers, SkillLevel, SkillTag } from '../data/matching';
 import { MatchHeading, MatchShell } from '../components/MatchShell';
-import type { EditState } from './Match';
+import type { EditState, LaterState } from './Match';
 import { SafetyDialog } from '../components/SafetyDialog';
 
 /* หน้าผลจับคู่ /matches/:id ผลคำนวณและเก็บไว้ตอนส่งคำขอ เปิดซ้ำได้ผลเดิม
@@ -92,6 +92,9 @@ export function MatchResults() {
   const helps = [...new Set([...(a.helpAreas ?? []), ...(a.noteTags ?? [])])].map((area) => s.helpAreas[area]).join(', ');
   const summary = [a.projectName, a.stage ? s.stages[a.stage] : '', helps].filter(Boolean).join(' · ');
   const editAnswers = () => navigate('/match', { state: { projectId: data.request.projectId, answers: a } satisfies EditState });
+  // ยังไม่เลือกใคร: เก็บโปรเจกต์ไว้ กลับมาหาใหม่ได้จากหน้าโปรเจกต์
+  const later = () => navigate('/match', { state: { focusProject: data.request.projectId } satisfies LaterState });
+  const laterButton = !data.open && <button type="button" className="mf-linkbtn mf-later" onClick={later}>{s.selectLater}</button>;
 
   const reasonText = (r: Reason) => {
     switch (r.code) {
@@ -137,6 +140,7 @@ export function MatchResults() {
           <button type="button" className="mf-back" onClick={editAnswers}><span aria-hidden="true"><Pencil size={14} /></span>{s.editAnswers}</button>
           <Link className="mf-next" to="/mentors">{s.browse}<span aria-hidden="true"><ArrowRight size={16} /></span></Link>
         </div>
+        {laterButton}
       </section> : <ol className="mf-results" aria-label={s.resultsList}>
         {data.results.map((result, index) => {
           const m = result.mentor;
@@ -169,6 +173,7 @@ export function MatchResults() {
           </li>;
         })}
       </ol>}
+      {data.results.length > 0 && laterButton && <div className="mf-later-row">{laterButton}</div>}
     </main>
     {asking && <SafetyDialog onConfirm={() => { void start(asking); }} onCancel={() => setAsking(null)} />}
     {dialog && <ContactDialog name={dialog.name} contacts={dialog.contacts} onClose={() => setDialog(null)} />}

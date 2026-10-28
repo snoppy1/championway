@@ -151,7 +151,10 @@ function availabilityFit(m: MatchMentor, r: MatchRequest): Best {
   let urgency: number;
   if (r.urgency === '48h') urgency = m.acceptsUrgent && hours <= 24 ? 1 : m.acceptsUrgent ? 0.6 : 0.1;
   else if (r.urgency === 'week') urgency = hours <= 72 ? 1 : 0.5;
+  else if (r.urgency === 'month') urgency = hours <= 72 ? 1 : 0.8;
   else urgency = 1;
+  // คิวสัปดาห์นี้เต็ม แต่คำขอรอถึงสัปดาห์หน้าได้ (month, flexible) จึงยังอยู่ในผลแต่คะแนนส่วนนี้ลดลง
+  if (weekFull(m)) urgency = Math.min(urgency, 0.6);
   // ผ่านตัวกรองภาษามาแล้ว จึงพูดภาษาที่ขอได้เสมอ
   const language = 1;
   const lang: Language = r.language === 'either' ? (m.languages.includes('th') ? 'th' : 'en') : r.language;
@@ -159,13 +162,17 @@ function availabilityFit(m: MatchMentor, r: MatchRequest): Best {
   return { value: 0.6 * urgency + 0.4 * language, reason };
 }
 
+const weekFull = (m: MatchMentor) => m.sessionsPerWeek !== null && m.openThisWeek >= m.sessionsPerWeek;
+/** คำขอที่ต้องได้คุยภายในสัปดาห์นี้ คิวสัปดาห์นี้เต็มจึงตัดออก */
+const needsThisWeek = (r: MatchRequest) => r.urgency === '48h' || r.urgency === 'week';
+
 /** ตัวกรองที่ตัดเมนเทอร์ออกเลย (spec 5.1) */
 export function eligible(m: MatchMentor, r: MatchRequest) {
   if (!m.complete || !m.verified || !m.acceptingRequests) return false;
   const speaks = r.language === 'either' ? m.languages.some((l) => l === 'th' || l === 'en') : m.languages.includes(r.language);
   if (!speaks) return false;
   if (r.gender !== 'any' && m.gender !== r.gender) return false;
-  if (m.sessionsPerWeek !== null && m.openThisWeek >= m.sessionsPerWeek) return false;
+  if (needsThisWeek(r) && weekFull(m)) return false;
   return true;
 }
 

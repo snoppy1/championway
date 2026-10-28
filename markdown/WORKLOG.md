@@ -436,3 +436,9 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 ## 2026-10-28 — Landing stories empty state
 - Dev has no review that qualifies as a story (4+ stars, 20+ characters), so the dark Stories section showed only its heading over a large blank area. It now shows an honest card ("Stories from real teams appear here after they review their mentors…") with a Start matching button (its own name, so it does not clash with the hero link). No sample reviews are made up.
+
+## 2026-10-28 — Why matching returned no mentors on dev; old-form test data removed
+- Cause: the only 3 published mentors on dev came from the old application form (no matching profile: languages, skills, helps-with, style, availability), so `eligible()` dropped them all as incomplete. All 4 test requests stored 0 results. Not a formula bug; there is no score floor.
+- Owner: old-form applications were test data only, and prod has no real mentors yet. Deleted on dev (checked it was not the production URL): 5 old-form submissions (`profile is null`) and their 3 published mentors (cascade: experiences, consultations, reviews, choices, match audit). Dev now has 0 mentors — approve a new-form application to test matching.
+- Not needed: AI digest of competition data. Both sides already pick from the same tag lists; competition data only feeds the "same event / same kind" part.
+- Proposed, waiting for the owner: admin page listing published mentors with "in matching / missing X", and an overview card for match requests with 0 results.

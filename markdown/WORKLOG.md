@@ -54,6 +54,14 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 เพิ่มบันทึกใหม่ไว้บนสุด
 
+### 29 ตุลาคม 2569 — Windows: จัดการเมนเทอร์ในหน้า admin
+
+- เอาปุ่ม "เล่นฉากเปิดอีกครั้ง" ออกจากหน้า landing (ขึ้น main แล้ว a242428)
+- หน้าใบสมัครเมนเทอร์ (`/admin/mentors/:id`) มีกล่อง "จัดการ" (admin เท่านั้น reviewer ได้ 403):
+  - ใบที่ยังไม่เป็นเมนเทอร์: ลบใบสมัคร (`DELETE /api/admin/mentor-submissions/:id`) ใบที่เผยแพร่แล้วต้องลบเมนเทอร์ก่อน (409)
+  - เมนเทอร์แล้ว: ให้ Rising Star เอง 1/3/6/12 เดือน (source `manual` ต่อจากช่วงที่ยังไม่หมด) หยุด Rising Star และลบเมนเทอร์ (ใบกลับเป็น rejected มีการจองอยู่ลบไม่ได้)
+- เทส `scripts/admin-mentor-manage.test.ts` (อยู่ในชุด `npm run test:auth`) ผ่านทั้งชุด 141 ข้อ
+
 ### 10 ตุลาคม 2569 (ต่อ) — MacBook Air: ลืมรหัสผ่าน
 
 - เจ้าของขอระบบ forgot password

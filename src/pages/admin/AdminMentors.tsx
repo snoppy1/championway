@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Eye, EyeOff, Star, Trash2 } from 'lucide-react';
 import { formatDate } from '../../data/competitions';
 import { useApi } from '../../lib/useApi';
-import { ApiError, post } from '../../lib/api';
+import { ApiError, api, post } from '../../lib/api';
 import { themeKeys, themes } from '../../data/focus';
 import type { Theme } from '../../data/focus';
 import { ReviewDecision } from './ReviewDecision';
@@ -121,6 +121,10 @@ type MentorSubmission = {
   /** ใบแบบใหม่: โปรไฟล์หมวด A, B, D, E และราคาเดียว (price ข้างบน หน่วยใน priceUnit) ใบแบบเก่าเป็น null */
   profile: MentorProfileV2 | null;
   priceUnit: string;
+  /** id เมนเทอร์เมื่อใบนี้เผยแพร่แล้ว */
+  publishedMentorId: string | null;
+  /** Rising Star ที่ยังไม่หมด */
+  risingStar: { endsAt: string; source: string } | null;
   awards: Award[];
   files: AttachedFile[];
   events: ReviewEvent[];
@@ -129,6 +133,71 @@ type MentorSubmission = {
 type QueueRow = MentorSubmission & { awardCount: number };
 
 const baht = new Intl.NumberFormat('th-TH');
+
+/* จัดการเมนเทอร์ (admin เท่านั้น): ให้หรือหยุด Rising Star เอง ลบเมนเทอร์ ลบใบสมัคร */
+function ManageMentor({ submission, onDone }: { submission: MentorSubmission; onDone: () => void }) {
+  const navigate = useNavigate();
+  const [months, setMonths] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const mentorId = submission.publishedMentorId;
+
+  async function run(action: () => Promise<unknown>, after: () => void) {
+    setBusy(true);
+    setMessage('');
+    try {
+      await action();
+      after();
+    } catch (failure) {
+      setMessage(failure instanceof ApiError ? failure.message : 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <section className="review-panel manage-panel" aria-labelledby="manage-title">
+    <h2 id="manage-title">จัดการ</h2>
+    {mentorId ? <>
+      <h3><Star size={15} aria-hidden="true" />Rising Star</h3>
+      <p className="admin-muted">{submission.risingStar
+        ? `เป็น Rising Star ถึง ${formatDate(submission.risingStar.endsAt.slice(0, 10))}${submission.risingStar.source === 'manual' ? ' (ทีมงานให้)' : ''}`
+        : 'ยังไม่เป็น Rising Star'}</p>
+      <div className="manage-row">
+        <label className="manage-months">
+          <span>จำนวนเดือน</span>
+          <select value={months} disabled={busy} onChange={(event) => setMonths(Number(event.target.value))}>
+            {[1, 3, 6, 12].map((n) => <option key={n} value={n}>{n} เดือน</option>)}
+          </select>
+        </label>
+        <button type="button" className="primary-button" disabled={busy}
+          onClick={() => run(() => post(`/admin/mentors/${mentorId}/rising-star`, { months }), onDone)}>
+          <Star size={16} aria-hidden="true" />{submission.risingStar ? 'ต่อเวลา' : 'ให้ Rising Star'}
+        </button>
+      </div>
+      {submission.risingStar && <button type="button" className="ghost-button" disabled={busy}
+        onClick={() => window.confirm('หยุด Rising Star ของเมนเทอร์นี้ทันที?')
+          && run(() => api(`/admin/mentors/${mentorId}/rising-star`, { method: 'DELETE' }), onDone)}>
+        หยุด Rising Star
+      </button>}
+      <h3>ลบเมนเทอร์</h3>
+      <p className="admin-muted">เอาออกจากเว็บพร้อมประสบการณ์ ราคา และรีวิว ใบสมัครกลับเป็นไม่ผ่าน กู้คืนไม่ได้</p>
+      <button type="button" className="danger-button" disabled={busy}
+        onClick={() => window.confirm('ลบเมนเทอร์นี้ออกจากเว็บ? กู้คืนไม่ได้')
+          && run(() => api(`/admin/mentors/${mentorId}`, { method: 'DELETE' }), onDone)}>
+        <Trash2 size={16} aria-hidden="true" />ลบเมนเทอร์
+      </button>
+    </> : <>
+      <h3>ลบใบสมัคร</h3>
+      <p className="admin-muted">ลบใบนี้และหลักฐานที่แนบ กู้คืนไม่ได้</p>
+      <button type="button" className="danger-button" disabled={busy}
+        onClick={() => window.confirm('ลบใบสมัครนี้? กู้คืนไม่ได้')
+          && run(() => api(`/admin/mentor-submissions/${submission.id}`, { method: 'DELETE' }), () => navigate('/admin/mentors'))}>
+        <Trash2 size={16} aria-hidden="true" />ลบใบสมัคร
+      </button>
+    </>}
+    <p className="admin-message" role="alert">{message}</p>
+  </section>;
+}
 
 export function AdminMentorQueue() {
   const [status, setStatus] = useState<SubmissionStatus | 'all'>('all');
@@ -296,10 +365,13 @@ export function AdminMentorReview() {
         <AttachedFiles files={submission.files} />
       </div>
 
-      <ReviewDecision
-        checks={checks} noun="ใบสมัคร" onDone={reload}
-        endpoint={`/admin/mentor-submissions/${submission.id}`}
-      />
+      <div className="review-side">
+        <ReviewDecision
+          checks={checks} noun="ใบสมัคร" onDone={reload}
+          endpoint={`/admin/mentor-submissions/${submission.id}`}
+        />
+        <ManageMentor submission={submission} onDone={reload} />
+      </div>
     </div>
   </>;
 }

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import { demoTotals, insertDemoData, presentDemo, removeDemoData } from '../db/demo-data.js';
@@ -9,7 +9,7 @@ import { demoToolsEnabled, env, uploadsUsable } from '../lib/env.js';
 import {
   categoryEnum, competitionCategories, competitionLevels, competitionRewards,
   competitionRequests, competitionSubmissions, competitions, consultations, levelEnum, mentorAwards, mentorCompetitionChoices, mentorExperiences, staffNotifications,
-  mentorPayoutAccounts, mentorPayouts, mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum,
+  mentorPayoutAccounts, mentorPayouts, mentorReviews, mentorSubmissions, mentors, opportunityTypeEnum, regionEnum, reviewEvents, rewardEnum, risingStarPeriods, bookings,
   submissionCategories, submissionLevels, submissionRewards, users, competitionImportSources, competitionImports, files,
 } from '../db/schema.js';
 import type { AppEnv } from '../lib/guards.js';
@@ -377,8 +377,15 @@ async function loadMentorSubmission(id: string) {
     ? await db.select({ id: competitions.id, slug: competitions.slug, name: competitions.name })
       .from(competitions).where(inArray(competitions.id, offerRows.map((offer) => offer.competitionId)))
     : [];
+  // Rising Star ที่ยังไม่หมด (ช่วงที่จบช้าสุด) ของเมนเทอร์ที่เผยแพร่แล้ว
+  const [star] = row.publishedMentorId
+    ? await db.select({ endsAt: risingStarPeriods.endsAt, source: risingStarPeriods.source }).from(risingStarPeriods)
+      .where(and(eq(risingStarPeriods.mentorId, row.publishedMentorId), gt(risingStarPeriods.endsAt, new Date())))
+      .orderBy(desc(risingStarPeriods.endsAt)).limit(1)
+    : [];
   return {
     ...row,
+    risingStar: star ?? null,
     offers: offerRows.flatMap((offer) => {
       const event = named.find((item) => item.id === offer.competitionId);
       return event ? [{ slug: event.slug, name: event.name, price: offer.price, minutes: offer.minutes ?? null, unit: offer.unit ?? '' }] : [];
@@ -529,6 +536,73 @@ admin.post('/mentor-submissions/:id/decision', async (c) => {
   await notify(submission.email, subject, body.note || 'ตรวจครบทุกข้อแล้ว');
 
   return c.json({ ok: true, status: statusOf[body.decision], mentorId });
+});
+
+/* ---------- ลบใบสมัคร ลบเมนเทอร์ ให้ Rising Star เอง (ผู้ใช้ขอ 29 ต.ค. 2569) ----------
+   admin เท่านั้น ลบแล้วกู้คืนไม่ได้ */
+
+/** ลบใบสมัคร ใบที่เผยแพร่แล้วต้องลบเมนเทอร์ก่อน ไม่อย่างนั้นเมนเทอร์จะไม่มีเจ้าของใน Mentor zone */
+admin.delete('/mentor-submissions/:id', async (c) => {
+  requireAdmin(c);
+  const [row] = await db.select({ publishedMentorId: mentorSubmissions.publishedMentorId }).from(mentorSubmissions)
+    .where(eq(mentorSubmissions.id, c.req.param('id'))).limit(1);
+  if (!row) throw new HTTPException(404, { message: 'ไม่พบใบนี้' });
+  if (row.publishedMentorId) throw new HTTPException(409, { message: 'ใบนี้เป็นเมนเทอร์แล้ว ลบเมนเทอร์ก่อนจึงลบใบได้' });
+  await db.transaction(async (tx) => {
+    await tx.delete(reviewEvents).where(and(eq(reviewEvents.target, 'mentor'), eq(reviewEvents.targetId, c.req.param('id'))));
+    await tx.delete(mentorSubmissions).where(eq(mentorSubmissions.id, c.req.param('id')));
+  });
+  return c.json({ ok: true });
+});
+
+/** ลบเมนเทอร์ออกจากเว็บ ข้อมูลที่ผูกกับเมนเทอร์ลบตาม ใบสมัครกลับเป็น "ไม่ผ่าน" */
+admin.delete('/mentors/:mentorId', async (c) => {
+  requireAdmin(c);
+  const mentorId = c.req.param('mentorId');
+  const [mentor] = await db.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentorId)).limit(1);
+  if (!mentor) throw new HTTPException(404, { message: 'ไม่พบเมนเทอร์นี้' });
+  const [booked] = await db.select({ id: bookings.id }).from(bookings).where(eq(bookings.mentorId, mentorId)).limit(1);
+  if (booked) throw new HTTPException(409, { message: 'เมนเทอร์นี้มีการจองอยู่ ลบไม่ได้' });
+  await db.transaction(async (tx) => {
+    const linked = await tx.select({ id: mentorSubmissions.id }).from(mentorSubmissions).where(eq(mentorSubmissions.publishedMentorId, mentorId));
+    await tx.update(mentorSubmissions).set({ status: 'rejected', publishedMentorId: null }).where(eq(mentorSubmissions.publishedMentorId, mentorId));
+    if (linked.length) await tx.insert(reviewEvents).values(linked.map((item) => ({
+      id: newId('rev'), target: 'mentor' as const, targetId: item.id, decision: 'reject' as const,
+      note: 'ทีมงานลบเมนเทอร์ออกจากเว็บ', checks: [], reviewedBy: c.get('user')!.id,
+    })));
+    await tx.delete(mentors).where(eq(mentors.id, mentorId));
+  });
+  return c.json({ ok: true });
+});
+
+/** ให้ Rising Star เอง ต่อจากช่วงที่ยังไม่หมด (ถ้ามี) ไม่อย่างนั้นเริ่มตอนนี้ */
+admin.post('/mentors/:mentorId/rising-star', async (c) => {
+  requireAdmin(c);
+  const parsed = z.object({ months: z.number().int().min(1).max(24) }).safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) throw new HTTPException(400, { message: 'เลือกจำนวนเดือน 1–24' });
+  const mentorId = c.req.param('mentorId');
+  const [mentor] = await db.select({ id: mentors.id }).from(mentors).where(eq(mentors.id, mentorId)).limit(1);
+  if (!mentor) throw new HTTPException(404, { message: 'ไม่พบเมนเทอร์นี้' });
+  const now = new Date();
+  const [current] = await db.select({ endsAt: risingStarPeriods.endsAt }).from(risingStarPeriods)
+    .where(and(eq(risingStarPeriods.mentorId, mentorId), gt(risingStarPeriods.endsAt, now)))
+    .orderBy(desc(risingStarPeriods.endsAt)).limit(1);
+  const startsAt = current?.endsAt ?? now;
+  const endsAt = new Date(startsAt);
+  endsAt.setMonth(endsAt.getMonth() + parsed.data.months);
+  await db.insert(risingStarPeriods).values({ id: newId('rsp'), mentorId, startsAt, endsAt, source: 'manual' });
+  return c.json({ ok: true, endsAt });
+});
+
+/** หยุด Rising Star ทันที (ทุกช่วงที่ยังไม่หมด รวมช่วงที่จ่ายผ่าน Stripe) */
+admin.delete('/mentors/:mentorId/rising-star', async (c) => {
+  requireAdmin(c);
+  const mentorId = c.req.param('mentorId');
+  const now = new Date();
+  // ช่วงที่ต่อคิวไว้แต่ยังไม่เริ่มก็จบไปด้วย (เริ่มไม่เกินตอนนี้ จบตอนนี้)
+  await db.update(risingStarPeriods).set({ endsAt: now, startsAt: sql`least(${risingStarPeriods.startsAt}, ${now.toISOString()}::timestamptz)` })
+    .where(and(eq(risingStarPeriods.mentorId, mentorId), gt(risingStarPeriods.endsAt, now)));
+  return c.json({ ok: true });
 });
 
 /* ---------- เวทีที่ทีมงานกรอกเอง ---------- */

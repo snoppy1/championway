@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { RANKING_SHOWN } from '../src/data/flags';
 
 /* หน้า /mentors (Rising Star) ใช้ข้อมูลตัวอย่างที่ seed ใส่ให้ตามแผนใน server/db/demo-data.ts
    อันดับมาจากค่าเฉลี่ยดาวของรีวิวที่เขียนในเดือนนั้น
@@ -14,6 +15,7 @@ const emptyHall = [
 const payload = (viewer: unknown) => ({ hall: emptyHall, ranked: [], others: [], viewer, demo: false });
 
 test('the Hall of Fame shows three months with this month first in the page', async ({ page }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   await page.goto('/mentors');
   await expect(page.getByRole('heading', { level: 1, name: 'สำรวจ Mentor' })).toBeVisible();
 
@@ -38,6 +40,7 @@ test('the Hall of Fame shows three months with this month first in the page', as
 });
 
 test('on wide screens the months sit in time order with this month in the middle', async ({ page, viewport }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   test.skip((viewport?.width ?? 0) < 701, 'phones stack the months');
   await page.goto('/mentors');
   await expect(page.locator('.rs-month')).toHaveCount(3);
@@ -48,6 +51,7 @@ test('on wide screens the months sit in time order with this month in the middle
 });
 
 test('the ranked list is numbered, and non-members come after it with no rank', async ({ page }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   await page.goto('/mentors');
   const ranked = page.getByRole('region', { name: 'Rising Star เดือนนี้' }).locator('.rs-row');
   await expect(ranked).toHaveCount(4);
@@ -79,6 +83,7 @@ test('the ranked list is numbered, and non-members come after it with no rank', 
 });
 
 test('someone who is not a mentor sees no Rising Star sign-up box', async ({ page }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   // การ์ดชวนสมัคร Rising Star สำหรับเมนเทอร์เท่านั้น (ผู้ใช้ขอ 5 ต.ค. 2569)
   await page.goto('/mentors');
   await expect(page.getByRole('heading', { level: 2, name: 'Rising Star เดือนนี้' })).toBeVisible();
@@ -132,10 +137,11 @@ test('an unreachable API shows an error with a retry that recovers', async ({ pa
   await expect(page.getByRole('alert')).toContainText('โหลดรายชื่อเมนเทอร์ไม่สำเร็จ');
   fail = false;
   await page.getByRole('button', { name: 'ลองใหม่' }).click();
-  await expect(page.getByRole('heading', { level: 2, name: 'Rising Star เดือนนี้' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: RANKING_SHOWN ? 'Rising Star เดือนนี้' : 'เมนเทอร์ทั้งหมด' })).toBeVisible();
 });
 
 test('empty data shows the empty states', async ({ page }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   await page.route('**/api/rising-star', (route) => route.fulfill({ json: payload(null) }));
   await page.goto('/mentors');
   await expect(page.getByText('เดือนนี้ยังไม่มี Rising Star')).toBeVisible();
@@ -145,6 +151,7 @@ test('empty data shows the empty states', async ({ page }) => {
 });
 
 test('a mentor sees their own numbers, and a member sees a note instead of the upsell', async ({ page }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   await page.route('**/api/rising-star', (route) => route.fulfill({
     json: payload({ mentorId: 'x', active: false, activeUntil: null, rating: { average: 4.3, reviews: 7 }, projectedRank: 2 }),
   }));
@@ -176,6 +183,7 @@ test('the page passes axe, has no sideways scroll, and is captured', async ({ pa
 });
 
 test('the sample-data pill shows only when the API says the ranking is demo data', async ({ page }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   await page.route('**/api/rising-star', (route) => route.fulfill({ json: { ...payload(null), demo: true } }));
   await page.goto('/mentors');
   await expect(page.getByText('อันดับตัวอย่าง ยังไม่ใช่ข้อมูลจริง')).toBeVisible();
@@ -187,6 +195,7 @@ test('the sample-data pill shows only when the API says the ranking is demo data
 });
 
 test('touch targets are at least 44px on phones', async ({ page, viewport }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   test.skip((viewport?.width ?? 0) > 700, 'phone layout only');
   await page.goto('/mentors');
   const targets = page.locator('.rs-fold__toggle, .rs-row__action');
@@ -197,6 +206,7 @@ test('touch targets are at least 44px on phones', async ({ page, viewport }) => 
 });
 
 test('ranked and unranked rows share the same right edge, and unranked avatars start at the content edge', async ({ page, viewport }) => {
+  test.skip(!RANKING_SHOWN, 'Rising Star ranking is hidden for now (src/data/flags.ts)');
   test.skip((viewport?.width ?? 0) < 1000, 'compared on desktop');
   await page.goto('/mentors');
   await expect(page.locator('.rs-row').first()).toBeVisible();
@@ -205,4 +215,18 @@ test('ranked and unranked rows share the same right edge, and unranked avatars s
   expect(await edge('.rs-list:not(.rs-list--plain) .rs-row__action')).toBe(await edge('.rs-list--plain .rs-row__action'));
   // avatars of the unranked list start at the content edge, level with the section heading
   expect(await left('.rs-list--plain .rs-avatar')).toBe(await left('#rs-others-title'));
+});
+
+test('with the ranking hidden, /mentors is one list sorted by name with no ranks, badges or sign-up box', async ({ page }) => {
+  test.skip(RANKING_SHOWN, 'only while the ranking is hidden');
+  const mentor = (id: string, name: string) => ({ id, name, initial: name[0], photoUrl: null, specialty: 'Pitching', price: null, minutes: null, rating: { average: 4.5, reviews: 2 } });
+  await page.route('**/api/rising-star', (route) => route.fulfill({ json: {
+    hall: emptyHall, ranked: [{ ...mentor('m1', 'Zed'), rank: 1 }], others: [mentor('m2', 'Anna')],
+    viewer: { mentorId: 'm2', active: false, activeUntil: null, rating: { average: null, reviews: 0 }, projectedRank: 1, billing: null }, demo: false,
+  } }));
+  await page.goto('/mentors');
+  await expect(page.getByRole('heading', { level: 2, name: 'เมนเทอร์ทั้งหมด' })).toBeVisible();
+  await expect(page.locator('.rs-list .rs-row__name')).toHaveText(['Anna', 'Zed']);
+  await expect(page.locator('.rs-months, .rs-row__rank, .rs-upsell, .rs-note')).toHaveCount(0);
+  await expect(page.getByText('Rising Star')).toHaveCount(0);
 });

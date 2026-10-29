@@ -464,3 +464,10 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Import by link works: https://contest-thailand.com/world-soil-day-2026/ → pending draft in about 20 s (name, org กรมพัฒนาที่ดิน, closes 2026-11-23, nationwide, 70,000 บาท). Left pending, not published.
 - The 12 "อ่านไม่สำเร็จ" items all failed on 7 Oct with "AI ตอบ HTTP 400" (the forced tool_choice bug fixed in 1c2db20). Retrying one (EGAT DIGIWAR ปี 8) now works → pending; 11 still need Retry. AI marked it as closed (1 Oct) in its note but it still lands in "รอตรวจ".
 - Gaps: no cron for imports (vercel.json has only release-payments and remind-confirmations), so the two enabled RSS sources last ran 7 Oct and only run on "ดึงตอนนี้". The overview counts only pending competition and mentor submissions, not pending imports (3), experiences or competition requests. National Software Contest on dev closes 2028-10-17, likely a typo.
+
+## 2026-10-29 (cont.) — MacBook Air: overview counts every queue, Rising Star ranking hidden
+- Owner: no daily import cron for now; pasting a link is enough. Fix the overview count, retry the failed imports, hide the Rising Star ranking on the mentors page.
+- Overview: `/api/admin/overview` `waiting` now also counts pending imports, mentor experiences and competition requests (`imports`, `experiences`, `requests`); the card is "รอตรวจ N รายการ" with a link to each queue, and the oldest-days figure covers all five queues.
+- /mentors: `RANKING_SHOWN = false` in `src/data/flags.ts` hides the Hall of Fame, rank numbers, Rising Star pill and the sign-up/upsell box; the page is one "เมนเทอร์ทั้งหมด" list sorted by name. Ranking tests in `tests/rising-star.spec.ts` skip while the flag is off; new test for the plain list; `tests/i18n.spec.ts` follows the flag. Set the flag to true to bring the ranking back.
+- Checks: build OK, screenshot of /mentors checked. Playwright and API tests not run here (no test DB on this Mac). `check:i18n` fails on this Mac on `src/legal/*` (Thai in code), same before this change; Windows reports OK.
+- Astra: 0.

@@ -6,6 +6,7 @@ import { emailLog } from '../server/db/schema';
 import { competitions as demoCompetitions } from '../src/data/competitions';
 import { createAccount, createHire, createMentorFixture, removeAccount, verifyEmail, acceptSafety } from './helpers';
 import type { TestAccount } from './helpers';
+import { RANKING_SHOWN } from '../src/data/flags';
 
 /* ภาษาตั้งต้นคืออังกฤษ ผู้ใช้สลับเป็นไทยได้ และเว็บจำตัวเลือกไว้
    เทสชุดอื่นตั้งภาษาไทยไว้ทั้งหมดใน playwright.config.ts ไฟล์นี้จึงล้างค่านั้นออกก่อน */
@@ -406,7 +407,7 @@ test('the Hall of Fame and the email verification pages have no Thai in English'
   const content = await contentFrom(page, '/api/rising-star');
   await page.goto('/mentors');
   await expect(page.getByRole('heading', { level: 1, name: 'Mentors' })).toBeVisible();
-  await expect(page.locator('.rs-rank-row__count').first()).toContainText('reviews');
+  await expect(page.locator(RANKING_SHOWN ? '.rs-rank-row__count' : '.rs-row').first()).toContainText(RANKING_SHOWN ? 'reviews' : '');
   await expect(page.locator('.main-nav a[href="/match"]')).toHaveText('My projects');
   await expectNoThai(page, content);
 

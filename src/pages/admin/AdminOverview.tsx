@@ -12,7 +12,7 @@ const STALE_AFTER_DAYS = 30;
 
 type Listing = { slug: string; name: string; closesAt?: string; lastVerifiedAt?: string };
 type Overview = {
-  waiting: { competitions: number; mentors: number; total: number; oldestDays: number };
+  waiting: { competitions: number; mentors: number; imports: number; experiences: number; requests: number; total: number; oldestDays: number };
   closingSoon: Listing[];
   stale: Listing[];
   closed: Listing[];
@@ -115,18 +115,21 @@ export function AdminOverview() {
     <div className="stat-grid">
       <Stat
         icon={<ClipboardList size={16} aria-hidden="true" />}
-        title="ใบที่รอตรวจ"
-        value={waiting.total ? `${waiting.total} ใบ` : 'ไม่มี'}
+        title="รอตรวจ"
+        value={waiting.total ? `${waiting.total} รายการ` : 'ไม่มี'}
         tone={waiting.oldestDays > REVIEW_TARGET_DAYS ? 'warn' : undefined}
       >
         {waiting.total > 0
-          ? <p>ใบเก่าสุดรอมาแล้ว {waiting.oldestDays} วัน {waiting.oldestDays > REVIEW_TARGET_DAYS
+          ? <p>รายการเก่าสุดรอมาแล้ว {waiting.oldestDays} วัน {waiting.oldestDays > REVIEW_TARGET_DAYS
             ? <b>เกินเป้าหมาย {REVIEW_TARGET_DAYS} วันทำการ</b>
             : `ยังอยู่ในเป้าหมาย ${REVIEW_TARGET_DAYS} วันทำการ`}</p>
-          : <p>ไม่มีใบค้างในคิว</p>}
+          : <p>ไม่มีอะไรค้างในคิว</p>}
         <p className="stat-links">
           <Link className="detail-link" to="/admin/competitions">งานแข่ง {waiting.competitions} ใบ<ArrowRight size={14} aria-hidden="true" /></Link>
           <Link className="detail-link" to="/admin/mentors">เมนเทอร์ {waiting.mentors} ใบ<ArrowRight size={14} aria-hidden="true" /></Link>
+          <Link className="detail-link" to="/admin/imports">งานแข่งที่ดึงมา {waiting.imports} รายการ<ArrowRight size={14} aria-hidden="true" /></Link>
+          <Link className="detail-link" to="/admin/experiences">ประสบการณ์เมนเทอร์ {waiting.experiences} รายการ<ArrowRight size={14} aria-hidden="true" /></Link>
+          <Link className="detail-link" to="/admin/requests">คำขอเพิ่มเวที {waiting.requests} รายการ<ArrowRight size={14} aria-hidden="true" /></Link>
         </p>
       </Stat>
 

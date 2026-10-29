@@ -127,11 +127,16 @@ const statusOf = { publish: 'published', info: 'info', reject: 'rejected' } as c
 /* ---------- ภาพรวม ---------- */
 
 admin.get('/overview', async (c) => {
-  const [waitingCompetitions, waitingMentors, closingSoon, stale, closed] = await Promise.all([
-    db.select().from(competitionSubmissions)
-      .where(eq(competitionSubmissions.status, 'pending')).orderBy(asc(competitionSubmissions.submittedAt)),
-    db.select().from(mentorSubmissions)
-      .where(eq(mentorSubmissions.status, 'pending')).orderBy(asc(mentorSubmissions.submittedAt)),
+  /* นับทุกคิวที่รอคนตัดสิน ไม่ใช่แค่ใบสมัคร (เจ้าของขอ 29 ต.ค. 2569) งานที่ดึงมา ประสบการณ์เมนเทอร์ และคำขอเพิ่มเวที
+     ก็ค้างได้เหมือนกัน ถ้าไม่นับ หน้านี้จะบอกว่า "ไม่มี" ทั้งที่มีของรออยู่ */
+  const [waitingCompetitions, waitingMentors, waitingImports, waitingExperiences, waitingRequests, closingSoon, stale, closed] = await Promise.all([
+    db.select({ at: competitionSubmissions.submittedAt }).from(competitionSubmissions)
+      .where(eq(competitionSubmissions.status, 'pending')),
+    db.select({ at: mentorSubmissions.submittedAt }).from(mentorSubmissions)
+      .where(eq(mentorSubmissions.status, 'pending')),
+    db.select({ at: competitionImports.createdAt }).from(competitionImports).where(eq(competitionImports.status, 'pending')),
+    db.select({ at: mentorExperiences.createdAt }).from(mentorExperiences).where(eq(mentorExperiences.status, 'pending')),
+    db.select({ at: competitionRequests.createdAt }).from(competitionRequests).where(eq(competitionRequests.status, 'pending')),
     db.select({ slug: competitions.slug, name: competitions.name, closesAt: competitions.closesAt })
       .from(competitions)
       .where(sql`${competitions.closesAt} >= current_date and ${competitions.closesAt} <= current_date + 7`)
@@ -148,7 +153,8 @@ admin.get('/overview', async (c) => {
       .orderBy(desc(competitions.closesAt)),
   ]);
 
-  const submittedAt = [...waitingCompetitions, ...waitingMentors].map((row) => row.submittedAt.getTime());
+  const queues = [waitingCompetitions, waitingMentors, waitingImports, waitingExperiences, waitingRequests];
+  const submittedAt = queues.flat().map((row) => row.at.getTime());
   const oldestDays = submittedAt.length
     ? Math.floor((Date.now() - Math.min(...submittedAt)) / 86400000)
     : 0;
@@ -157,7 +163,10 @@ admin.get('/overview', async (c) => {
     waiting: {
       competitions: waitingCompetitions.length,
       mentors: waitingMentors.length,
-      total: waitingCompetitions.length + waitingMentors.length,
+      imports: waitingImports.length,
+      experiences: waitingExperiences.length,
+      requests: waitingRequests.length,
+      total: queues.reduce((sum, rows) => sum + rows.length, 0),
       oldestDays,
     },
     closingSoon, stale, closed,

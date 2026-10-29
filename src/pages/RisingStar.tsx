@@ -4,6 +4,7 @@ import { post } from '../lib/api';
 import { Check, ChevronDown } from 'lucide-react';
 import { useApi } from '../lib/useApi';
 import { useI18n } from '../i18n';
+import { RANKING_SHOWN } from '../data/flags';
 import type { Lang } from '../i18n';
 import type { ListedMentor, RankedMentor, Rating as RatingValue } from '../data/consult';
 import { Avatar, OtherRow, RankedRow, Rating, RisingStarPill } from '../components/mentors';
@@ -230,6 +231,26 @@ function LoadingList() {
   </div>;
 }
 
+/** รายชื่อเดียว ไม่มีอันดับ เรียงตามชื่อ ไม่ให้ลำดับในรายการบอกใบ้ว่าใครเป็นสมาชิก Rising Star */
+function AllMentors({ mentors }: { mentors: Mentor[] }) {
+  const { t, lang } = useI18n();
+  const s = t.risingStar;
+  const sorted = [...mentors].sort((a, b) => a.name.localeCompare(b.name, locales[lang]));
+  return <div className="shell">
+    <div className="rs-layout rs-layout--solo">
+      <div className="rs-lists">
+        <section className="rs-section" aria-labelledby="rs-all-title">
+          <div className="rs-section-head"><h2 id="rs-all-title">{s.allTitle}</h2></div>
+          {sorted.length > 0 && <p className="rs-section-sub">{s.allSub(sorted.length)}</p>}
+          {sorted.length === 0
+            ? <div className="rs-empty"><p>{s.allEmpty}</p></div>
+            : <ul className="rs-list rs-list--plain">{sorted.map((mentor) => <OtherRow key={mentor.id} mentor={mentor} />)}</ul>}
+        </section>
+      </div>
+    </div>
+  </div>;
+}
+
 export function RisingStar() {
   const { t, lang } = useI18n();
   const s = t.risingStar;
@@ -256,20 +277,20 @@ export function RisingStar() {
         <div className="rs-hall__head">
           <div>
             <h1 id="rs-title">{s.pageTitle}</h1>
-            <p>{s.lead}</p>
+            <p>{RANKING_SHOWN ? s.lead : s.allLead}</p>
             {data?.demo && <p className="rs-sample">{s.sample}</p>}
             {joined && data?.viewer && <p className="rs-joined" role="status">
               {data.viewer.active ? s.joinedActive : waiting ? s.joinedWaiting : s.joinedSlow}
             </p>}
           </div>
         </div>
-        {loading && <LoadingBody />}
+        {loading && RANKING_SHOWN && <LoadingBody />}
         {!loading && error && <div className="rs-state" role="alert">
           <h2>{s.errorTitle}</h2>
           <p>{error}</p>
           <button type="button" className="ghost-button rs-state__action" onClick={reload}>{s.retry}</button>
         </div>}
-        {data && now && last && older && <div className="rs-months">
+        {RANKING_SHOWN && data && now && last && older && <div className="rs-months">
           <MonthPanel data={now} kind="now" />
           <MonthPanel data={last} kind="last" />
           <MonthPanel data={older} kind="older" />
@@ -278,7 +299,8 @@ export function RisingStar() {
     </section>
 
     {loading && <LoadingList />}
-    {data && <div className="shell">
+    {data && !RANKING_SHOWN && <AllMentors mentors={[...data.ranked, ...data.others]} />}
+    {data && RANKING_SHOWN && <div className="shell">
       <div className={data.viewer ? 'rs-layout' : 'rs-layout rs-layout--solo'}>
         <div className="rs-lists">
           <section className="rs-section" aria-labelledby="rs-ranked-title">

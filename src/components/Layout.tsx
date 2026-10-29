@@ -71,7 +71,10 @@ function Header() {
     if (!menuOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
     window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
+    // แผงเมนูเปิดอยู่ หน้าข้างหลังไม่เลื่อนตาม
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', close); document.body.style.overflow = overflow; };
   }, [menuOpen]);
   /* หน้าแรก: แถบบนลอยโปร่งเหนือ hero เลื่อนลงแล้วหดเป็นแคปซูลลอย (ตามดีไซน์) หน้าอื่นเป็นแถบปกติ */
   const home = pathname === '/';
@@ -89,7 +92,7 @@ function Header() {
   // กลับมาที่หน้าเดิมหลังเข้าสู่ระบบ แต่ไม่วนกลับมาหน้าเข้าสู่ระบบเอง
   const next = pathname.startsWith('/signin') || pathname.startsWith('/signup') ? '/' : `${pathname}${search}`;
 
-  return <header className={`site-header${home ? ' is-floating' : ''}${pill ? ' is-pill' : ''}`}>
+  return <header className={`site-header${home ? ' is-floating' : ''}${pill ? ' is-pill' : ''}${menuOpen ? ' menu-open' : ''}`}>
     <div className="shell header-inner">
       <Link to="/" className="brand-link" aria-label={t.common.homeLink}><Wordmark /></Link>
       {/* จอกว้างใช้ display: contents ให้ลูกเรียงอยู่ในแถบเดียวกับโลโก้ตามเดิม
@@ -120,6 +123,8 @@ function Header() {
           </>}
         </div>
       </div>
+      {/* จอแคบ: แผงเมนูเลื่อนออกจากขวา พื้นหลังเบลอ แตะพื้นหลังเพื่อปิด */}
+      {menuOpen && <div className="menu-backdrop" aria-hidden="true" onClick={() => setMenuOpen(false)} />}
       <button
         type="button" className="icon-button menu-toggle"
         aria-expanded={menuOpen} aria-controls="site-menu"

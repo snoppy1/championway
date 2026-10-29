@@ -23,3 +23,21 @@ test('the signed-in admin header stays on one line on wide screens', async ({ pa
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `width ${width}`).toBe(true);
   }
 });
+
+test('on phones the menu slides in from the right over a blurred page and closes from the backdrop', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile', 'phone layout only');
+  await page.goto('/mentors');
+  await page.locator('.menu-toggle').click();
+  const menu = page.locator('#site-menu');
+  await expect(menu).toBeVisible();
+  await page.waitForTimeout(400);
+  const box = await menu.boundingBox();
+  const width = page.viewportSize()!.width;
+  expect(Math.round(box!.x + box!.width)).toBe(width);
+  expect(box!.x).toBeGreaterThan(20);
+  expect(box!.y).toBe(0);
+  await expect(page.locator('.menu-backdrop')).toBeVisible();
+  await page.screenshot({ path: 'artifacts/menu-drawer-mobile.png' });
+  await page.mouse.click(10, 400);
+  await expect(menu).toBeHidden();
+});

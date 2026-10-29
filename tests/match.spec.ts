@@ -143,12 +143,43 @@ test('a first-time learner answers nine screens, gets ranked mentors and starts 
   await dialog.getByRole('button', { name: 'ปิด' }).click();
   await expect(page.getByRole('status').filter({ hasText: `คุณกำลังปรึกษากับ ${mentor.name} อยู่` })).toBeVisible();
 
+  // โปรเจกต์ของฉัน: เมนูพาไปรายการโปรเจกต์ คลิกแล้วเห็นรายละเอียดกับเมนเทอร์ที่ปรึกษาอยู่
+  await page.goto('/');
+  await expect(page.locator('.main-nav a[href="/projects"]')).toHaveCount(1);
+  await page.goto('/projects');
+  const listed = page.locator('.pj-card', { hasText: 'Smart farm sensor' });
+  await expect(listed).toContainText(`กำลังปรึกษากับ ${mentor.name}`);
+  await shot('projects');
+  await listed.click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Smart farm sensor');
+  await expect(page.locator('.pj-mentors')).toContainText(mentor.name);
+  await expect(page.locator('.pj-mentors')).toContainText('กำลังปรึกษา');
+  await expect(page.locator('.pj-grid').getByRole('link', { name: 'หาเมนเทอร์', exact: true })).toHaveCount(0);
+  await shot('project-detail');
+
   // กลับมาอีกครั้ง: เลือกโปรเจกต์เดิมได้ ข้ามหน้าโปรไฟล์
   await page.goto('/match');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('ขอคำแนะนำให้ โปรเจกต์ไหน?');
   await expect(page.getByRole('radio', { name: /Smart farm sensor/ })).toBeVisible();
   await page.getByRole('radio', { name: /Smart farm sensor/ }).click();
   await expect(page.getByText('1 / 5')).toBeVisible();
+});
+
+test('my projects: empty list, and a project without a mentor links to finding one', async ({ page }) => {
+  const learner = await createAccount('member', { verified: true, name: 'Pim K.' });
+  learners.push(learner);
+  await signIn(page, learner, '/projects');
+  await expect(page.getByRole('heading', { name: 'ยังไม่มีโปรเจกต์' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'โปรเจกต์ใหม่' })).toHaveAttribute('href', '/match');
+
+  await db.insert(projects).values({ id: `prj_${learner.id}`, userId: learner.id, name: 'Case deck', start: 'build_skills', stage: 'idea' });
+  await page.reload();
+  await page.locator('.pj-card', { hasText: 'Case deck' }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/prj_${learner.id}$`));
+  await expect(page.getByText('โปรเจกต์นี้ยังไม่มีเมนเทอร์')).toBeVisible();
+  await expect(page.locator('.pj-facts')).toContainText('อยากพัฒนาทักษะ');
+  await page.locator('.pj-grid').getByRole('link', { name: 'หาเมนเทอร์', exact: true }).click();
+  await expect(page).toHaveURL(/\/match$/);
 });
 
 test('the flow has no automatic accessibility violations and no sideways scroll', async ({ page }) => {

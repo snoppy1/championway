@@ -408,7 +408,7 @@ test('the Hall of Fame and the email verification pages have no Thai in English'
   await page.goto('/mentors');
   await expect(page.getByRole('heading', { level: 1, name: 'Mentors' })).toBeVisible();
   await expect(page.locator(RANKING_SHOWN ? '.rs-rank-row__count' : '.rs-row').first()).toContainText(RANKING_SHOWN ? 'reviews' : '');
-  await expect(page.locator('.main-nav a[href="/match"]')).toHaveText('My projects');
+  await expect(page.locator('.main-nav a[href="/projects"]')).toHaveText('My projects');
   await expectNoThai(page, content);
 
   await page.goto('/verify-email');

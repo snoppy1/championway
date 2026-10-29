@@ -176,6 +176,36 @@ matching.get('/projects', requireUser, async (c) => {
   });
 });
 
+/** รายละเอียดโปรเจกต์หนึ่งอัน กับเมนเทอร์ทุกคนที่เคยติดต่อจากผลจับคู่ของโปรเจกต์นี้ (หน้า /projects/:id) */
+matching.get('/projects/:id', requireUser, async (c) => {
+  const user = c.get('user')!;
+  const project = await ownProject(user.id, c.req.param('id'));
+  const [requests, consulted] = await Promise.all([
+    db.select({ id: matchRequests.id, answers: matchRequests.answers, createdAt: matchRequests.createdAt }).from(matchRequests)
+      .where(eq(matchRequests.projectId, project.id)).orderBy(desc(matchRequests.createdAt)),
+    db.select({
+      id: consultations.id, status: consultations.status, createdAt: consultations.createdAt,
+      mentorId: mentors.id, mentorName: mentors.name, avatar: mentors.avatar, photoUrl: mentors.photoUrl, headline: mentors.headline,
+    }).from(consultations)
+      .innerJoin(matchRequests, eq(matchRequests.id, consultations.matchRequestId))
+      .innerJoin(mentors, eq(mentors.id, consultations.mentorId))
+      .where(eq(matchRequests.projectId, project.id))
+      .orderBy(desc(consultations.createdAt)),
+  ]);
+  return c.json({
+    project: {
+      id: project.id, name: project.name, start: project.start, competitionKind: project.competitionKind,
+      competitionName: project.competitionName || null, stage: project.stage, createdAt: project.createdAt, updatedAt: project.updatedAt,
+    },
+    lastRequest: requests[0] ? { id: requests[0].id, answers: requests[0].answers, createdAt: requests[0].createdAt } : null,
+    requestCount: requests.length,
+    mentors: consulted.map((row) => ({
+      consultationId: row.id, status: row.status, since: row.createdAt,
+      mentor: { id: row.mentorId, name: row.mentorName, avatar: row.avatar, photoUrl: row.photoUrl, headline: row.headline },
+    })),
+  });
+});
+
 matching.post('/projects', requireUser, async (c) => {
   const user = c.get('user')!;
   const body = await parse(c, projectBody);

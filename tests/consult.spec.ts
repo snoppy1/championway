@@ -411,7 +411,7 @@ test('the header shows Mentor zone to an approved mentor and Consulting to every
   await page.goto('/');
   await openHeaderMenu(page);
   const nav = page.getByRole('navigation', { name: 'เมนูหลัก' });
-  await expect(nav.getByRole('link', { name: 'โปรเจกต์ของฉัน' })).toHaveAttribute('href', '/match');
+  await expect(nav.getByRole('link', { name: 'โปรเจกต์ของฉัน' })).toHaveAttribute('href', '/projects');
   await expect(nav.getByRole('link', { name: 'การปรึกษา' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'โซนเมนเทอร์' })).toHaveCount(0);
 

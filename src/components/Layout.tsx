@@ -99,7 +99,7 @@ function Header() {
           {/* เมนูตามดีไซน์ "ChampionWays" (23 ต.ค. 2569): โปรเจกต์ของฉัน (หน้า หา Mentor ให้ฉัน) และสมัครเมนเทอร์
               เมนเทอร์ที่ผ่านอนุมัติเห็น Mentor zone แทนสมัครเมนเทอร์ คนอื่นที่เข้าสู่ระบบเห็น Consulting ไว้ปิดงานและรีวิว
               ไม่มีอันดับ Rising Star (พักไว้) */}
-          <NavLink to="/match">{t.nav.myProjects}</NavLink>
+          <NavLink to="/projects">{t.nav.myProjects}</NavLink>
           {user && consultMe?.mentorId
             ? <NavLink to="/mentor-zone">{t.nav.mentorZone}<UnreadBadge count={unread} /></NavLink>
             : <NavLink to="/mentors/apply">{t.nav.becomeMentor}</NavLink>}

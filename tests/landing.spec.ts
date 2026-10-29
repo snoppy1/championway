@@ -53,7 +53,7 @@ test('the header follows the new design: my projects and become a mentor, no ran
   await page.goto('/mentors/apply');
   if ((viewport?.width ?? 0) <= 1100) await page.getByRole('button', { name: 'เปิดเมนู' }).click();
   const nav = page.getByRole('navigation', { name: 'เมนูหลัก' });
-  await expect(nav.getByRole('link', { name: 'โปรเจกต์ของฉัน' })).toHaveAttribute('href', '/match');
+  await expect(nav.getByRole('link', { name: 'โปรเจกต์ของฉัน' })).toHaveAttribute('href', '/projects');
   await expect(nav.getByRole('link', { name: 'สมัครเมนเทอร์' })).toHaveAttribute('href', '/mentors/apply');
   await expect(nav.getByRole('link', { name: 'อันดับ Rising Star' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'สำรวจการแข่งขัน' })).toHaveCount(0);

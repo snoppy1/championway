@@ -20,6 +20,7 @@ import { MentorsRoute } from './pages/MentorsRoute';
 import { MentorApplication } from './pages/MentorApplication';
 import { Match } from './pages/Match';
 import { MatchResults } from './pages/MatchResults';
+import { ProjectPage, Projects } from './pages/Projects';
 import { Profile } from './pages/Profile';
 import { ProfileEdit } from './pages/ProfileEdit';
 import { Detail, NotFound } from './pages/Detail';
@@ -67,6 +68,8 @@ const router = createBrowserRouter([{
     { path: '/organizers', element: <Organisers /> },
     { path: '/organizers/submit', element: <OrganiserSubmit /> },
     { path: '/mentor-zone/new-competition', element: <OrganiserSubmit mode="mentor" /> },
+    { path: '/projects', element: <Projects /> },
+    { path: '/projects/:id', element: <ProjectPage /> },
     { path: '/consulting', element: <Consulting /> },
     { path: '/mentor-zone', element: <MentorZone /> },
     { path: '/verify-email', element: <VerifyEmail /> },

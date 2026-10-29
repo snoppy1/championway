@@ -458,3 +458,9 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 - Bug fixed: the application's competition-name field confirming a known name in the background (slow network) unticked the first consent on the last step. That auto-confirmation is now "quiet".
 - Checks: API 136/136 (new contact/helpsAt test), full Playwright 378 passed, build and check:i18n OK. Dev and test DBs migrated to 0032.
 - Production still needs migrations 0026–0032 before main is pushed.
+
+## 2026-10-29 — MacBook Air: admin check on dev and an import test
+- Every admin API answers 200 for an admin; payouts and disputes answer 404 "ฟีเจอร์นี้ยังไม่เปิด" (hiring paused, not in the nav). No console errors. Pages are slow to fill: /api/admin/overview ~3 s, listings ~2 s, /api/auth/me ~0.7 s, so the overview sits on "กำลังโหลด…" for several seconds.
+- Import by link works: https://contest-thailand.com/world-soil-day-2026/ → pending draft in about 20 s (name, org กรมพัฒนาที่ดิน, closes 2026-11-23, nationwide, 70,000 บาท). Left pending, not published.
+- The 12 "อ่านไม่สำเร็จ" items all failed on 7 Oct with "AI ตอบ HTTP 400" (the forced tool_choice bug fixed in 1c2db20). Retrying one (EGAT DIGIWAR ปี 8) now works → pending; 11 still need Retry. AI marked it as closed (1 Oct) in its note but it still lands in "รอตรวจ".
+- Gaps: no cron for imports (vercel.json has only release-payments and remind-confirmations), so the two enabled RSS sources last ran 7 Oct and only run on "ดึงตอนนี้". The overview counts only pending competition and mentor submissions, not pending imports (3), experiences or competition requests. National Software Contest on dev closes 2028-10-17, likely a typo.

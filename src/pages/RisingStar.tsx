@@ -220,13 +220,13 @@ function LoadingBody() {
 
 function LoadingList() {
   return <div className="shell" aria-hidden="true">
-    <div className="rs-layout">
+    <div className={RANKING_SHOWN ? 'rs-layout' : 'rs-layout rs-layout--solo'}>
       <div className="rs-lists">
         <div className="rs-skeleton rs-skeleton--row" />
         <div className="rs-skeleton rs-skeleton--row" />
         <div className="rs-skeleton rs-skeleton--row" />
       </div>
-      <div className="rs-skeleton rs-skeleton--upsell" />
+      {RANKING_SHOWN && <div className="rs-skeleton rs-skeleton--upsell" />}
     </div>
   </div>;
 }

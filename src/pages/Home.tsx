@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, RefObject } from 'react';
-import { Plus, RotateCcw } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useApi } from '../lib/useApi';
 import { useI18n } from '../i18n';
@@ -527,7 +527,7 @@ export function Home() {
     return () => clearTimeout(timer);
   }, [data, error, introData]);
   const ready = introData !== null;
-  const replay = useLandingMotion(ready && !search, refs);
+  useLandingMotion(ready && !search, refs);
 
   useEffect(() => { document.title = `ChampionWays — ${s.pageTitle}`; }, [s.pageTitle]);
   // ลิงก์ #how #faq #stories จากหน้าอื่น เลื่อนไปส่วนนั้นหลังหน้าวาดเสร็จ
@@ -554,6 +554,5 @@ export function Home() {
         <Faq coverRef={refs.cover} />
       </div>
     </div>
-    {!reduceMotion() && <button type="button" className="lp-replay" onClick={() => replay.current()}><RotateCcw size={13} aria-hidden="true" />{s.replay}</button>}
   </main>;
 }

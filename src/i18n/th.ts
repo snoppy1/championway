@@ -565,7 +565,6 @@ export const th: Messages = {
   },
   landing: {
     pageTitle: 'Hackathon/Case Mentoring Platform',
-    replay: 'เล่นฉากเปิดอีกครั้ง',
     h1a: 'ผู้ชนะงานแข่ง',
     h1b: 'เขา',
     h1accent: 'ทำได้ยังไงนะ?',

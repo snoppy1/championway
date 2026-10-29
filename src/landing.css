@@ -87,11 +87,6 @@
 .lp-slot.is-2 { left: max(3%, calc(50% - 590px)); bottom: 42px; rotate: -7deg; }
 .lp-slot.is-3 { right: max(3%, calc(50% - 590px)); bottom: 42px; rotate: 5deg; }
 .lp-hero__copy { position: relative; z-index: 2; width: min(920px, 100%); text-align: center; }
-.lp-replay {
-  position: fixed; z-index: 55; right: 18px; bottom: 18px; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 8px 12px; border-radius: 999px;
-  border: 1px solid rgba(48, 35, 79, .1); background: rgba(255, 255, 255, .8); backdrop-filter: blur(12px); color: #5f5870; font: 700 12px var(--body); cursor: pointer;
-}
-.lp-replay:hover { color: var(--lp-purple); background: #fff; }
 .lp-hero h1 { margin: 0 0 22px; font-family: var(--display); font-weight: 600; font-size: clamp(48px, 7.4vw, 94px); line-height: 1; letter-spacing: -.055em; }
 .lp-hero h1 > span { display: block; }
 .lp-hero h1 .lp-hero__soft { font-size: .75em; }

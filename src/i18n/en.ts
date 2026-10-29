@@ -569,7 +569,6 @@ export const en = {
   },
   landing: {
     pageTitle: 'Hackathon/Case Mentoring Platform',
-    replay: 'Replay intro',
     h1a: 'Ready to win?',
     h1b: 'meet your',
     h1accent: 'Mentor',

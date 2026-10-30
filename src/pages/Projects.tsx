@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Folder, Plus, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Lightbulb, MessageCircle, Plus, Rocket, Search, Sprout, Trophy, UserRound } from 'lucide-react';
 import { useAuth } from '../data/auth';
 import { useApi } from '../lib/useApi';
 import { useI18n } from '../i18n';
@@ -15,8 +15,10 @@ import '../projects.css';
    คลิกโปรเจกต์ → รายละเอียดกับเมนเทอร์ที่ปรึกษาอยู่ ยังไม่มีเมนเทอร์จึงมีปุ่มไปหน้าหาเมนเทอร์ (/match) */
 
 type ProjectItem = {
-  id: string; name: string; competitionName: string | null; stage: string; updatedAt: string;
+  id: string; name: string; start: string; competitionName: string | null; stage: string; updatedAt: string;
   open: { mentorName: string } | null; lastRequestId: string | null;
+  /** กำลังปรึกษา (contacted/claimed) ก่อน ไม่มีก็คนล่าสุดที่ปรึกษาจบแล้ว */
+  mentor: { state: 'consulting' | 'done'; id: string; name: string; avatar: string; photoUrl: string | null; stars: number | null } | null;
 };
 type ProjectDetail = {
   project: {
@@ -37,6 +39,66 @@ function useSignedIn(next: string) {
   return { ready: true, redirect: null };
 }
 
+const PROJECT_LIMIT = 20;
+const STAGES = ['idea', 'planning', 'prototype', 'improving', 'pitching'];
+// ไอคอนการ์ดตามจุดเริ่มต้นของโปรเจกต์ (ดีไซน์ "My Projects" 31 ต.ค. 2569)
+const startIcon: Record<string, { icon: typeof Trophy; tint: string; ink: string }> = {
+  has_competition: { icon: Trophy, tint: '#fff2d9', ink: '#c98a12' },
+  has_idea: { icon: Lightbulb, tint: '#fde6f2', ink: '#d6409f' },
+  build_skills: { icon: Sprout, tint: '#e4f4ec', ink: '#22855a' },
+};
+
+function ProjectCard({ item }: { item: ProjectItem }) {
+  const { t, lang } = useI18n();
+  const s = t.projects;
+  const look = startIcon[item.start] ?? startIcon.has_idea;
+  const Icon = look.icon;
+  const step = Math.max(0, STAGES.indexOf(item.stage));
+  const mentor = item.mentor;
+  const find = { pathname: '/match', state: { focusProject: item.id } satisfies LaterState };
+
+  return <article className="pj-card">
+    <div className="pj-card__top">
+      <span className="pj-card__icon" style={{ background: look.tint, color: look.ink }} aria-hidden="true"><Icon size={22} /></span>
+      <div className="pj-card__text">
+        <h2 className="pj-card__title"><Link to={`/projects/${item.id}`}>{item.name}</Link></h2>
+        <span className="pj-card__comp">{item.competitionName ?? t.match.noCompetition}</span>
+      </div>
+    </div>
+
+    <div className="pj-stage">
+      <div className="pj-stage__row"><span className="pj-stage__name">{t.match.stages[item.stage]}</span><span className="pj-stage__of">{s.stageOf(step + 1)}</span></div>
+      <div className="pj-stage__track" aria-hidden="true">
+        {STAGES.map((key, index) => <span key={key} className={index < step ? 'is-past' : index === step ? 'is-now' : undefined} />)}
+      </div>
+    </div>
+
+    <div className="pj-card__foot">
+      {!mentor ? <>
+        <span className="pj-who">
+          <span className="pj-who__empty" aria-hidden="true"><UserRound size={15} /></span>
+          <span className="pj-who__text"><b>{t.match.noMentorYet}</b><span>{s.noMentorSub}</span></span>
+        </span>
+        <Link className="pj-btn is-primary" to={find.pathname} state={find.state}>{s.findMentor}<ArrowRight size={14} aria-hidden="true" /></Link>
+      </> : <>
+        <span className="pj-who">
+          <span className={`pj-who__avatar${mentor.state === 'consulting' ? ' is-live' : ''}`}><Avatar initial={mentor.avatar} photoUrl={mentor.photoUrl} /></span>
+          <span className="pj-who__text">
+            <b>{mentor.name}</b>
+            <span className={mentor.state === 'consulting' ? 'is-live' : undefined}>
+              {mentor.state === 'consulting' ? s.consultingNow : mentor.stars !== null ? s.completedReviewed : s.completedCard}
+            </span>
+          </span>
+        </span>
+        {mentor.state === 'consulting'
+          ? <Link className="pj-btn" to={`/mentors/${mentor.id}`}><MessageCircle size={14} aria-hidden="true" />{s.contact}</Link>
+          : mentor.stars !== null && <span className="pj-stars" aria-label={s.rating(mentor.stars)}><span aria-hidden="true">★</span> {mentor.stars.toFixed(1)}</span>}
+      </>}
+    </div>
+    <span className="pj-card__updated">{t.match.updated(formatDate(item.updatedAt, lang))}</span>
+  </article>;
+}
+
 export function Projects() {
   const { t, lang } = useI18n();
   const s = t.projects;
@@ -47,35 +109,28 @@ export function Projects() {
   if (auth.redirect) return auth.redirect;
   const items = data?.items ?? [];
 
-  return <main id="main" tabIndex={-1} className="shell page up pj">
+  return <main id="main" tabIndex={-1} className="shell page pj">
     <header className="pj-head">
-      <div>
-        <h1>{s.title}</h1>
+      <div className="pj-head__copy">
+        <h1>{s.titleParts[0]}{lang === 'th' ? '' : ' '}<span className="pj-accent">{s.titleParts[1]}</span></h1>
         <p className="pj-muted">{s.lead}</p>
       </div>
-      {items.length > 0 && !data?.projectLimitReached && <Link className="primary-button" to="/match"><Plus size={16} aria-hidden="true" />{s.newProject}</Link>}
+      {items.length > 0 && <div className="pj-head__end">
+        <span className="pj-count">{s.count(items.length, PROJECT_LIMIT)}</span>
+        {!data?.projectLimitReached && <Link className="pj-new" to="/match"><span>{s.newProject}</span><span className="pj-new__plus" aria-hidden="true"><Plus size={16} /></span></Link>}
+      </div>}
     </header>
 
     {error && <p className="pj-error" role="alert">{error}</p>}
     {(loading || !auth.ready) && !data ? <p className="pj-muted" role="status">{s.loading}</p>
-      : items.length === 0 ? !error && <section className="panel pj-empty">
+      : items.length === 0 ? !error && <section className="pj-empty">
+        <span className="pj-empty__icon" aria-hidden="true"><Rocket size={28} /></span>
         <h2>{s.emptyTitle}</h2>
         <p className="pj-muted">{s.emptyText}</p>
-        <Link className="primary-button" to="/match"><Plus size={16} aria-hidden="true" />{s.newProject}</Link>
+        <Link className="pj-btn is-primary is-big" to="/match"><Plus size={16} aria-hidden="true" />{s.startFirst}</Link>
       </section>
       : <ul className="pj-list">
-        {items.map((item) => <li key={item.id}>
-          <Link className="pj-card" to={`/projects/${item.id}`}>
-            <span className="pj-card__icon" aria-hidden="true"><Folder size={22} /></span>
-            <span className="pj-card__text">
-              <span className="pj-card__title">{item.name}</span>
-              <span className="pj-muted">{item.competitionName ?? t.match.noCompetition}</span>
-              <span className="pj-card__meta"><span className="pj-pill">{t.match.stages[item.stage]}</span>{t.match.updated(formatDate(item.updatedAt, lang))}</span>
-              <span className={`pj-mentor${item.open ? ' is-on' : ''}`}>{item.open ? t.match.consultingWith(item.open.mentorName) : t.match.noMentorYet}</span>
-            </span>
-            <ArrowRight className="pj-card__go" size={18} aria-hidden="true" />
-          </Link>
-        </li>)}
+        {items.map((item) => <li key={item.id}><ProjectCard item={item} /></li>)}
       </ul>}
   </main>;
 }

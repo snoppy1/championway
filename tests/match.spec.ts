@@ -148,9 +148,11 @@ test('a first-time learner answers nine screens, gets ranked mentors and starts 
   await expect(page.locator('.main-nav a[href="/projects"]')).toHaveCount(1);
   await page.goto('/projects');
   const listed = page.locator('.pj-card', { hasText: 'Smart farm sensor' });
-  await expect(listed).toContainText(`กำลังปรึกษากับ ${mentor.name}`);
+  await expect(listed).toContainText(mentor.name);
+  await expect(listed).toContainText('กำลังปรึกษาอยู่');
+  await expect(listed.getByRole('link', { name: 'ติดต่อ' })).toHaveAttribute('href', `/mentors/${mentor.mentorId}`);
   await shot('projects');
-  await listed.click();
+  await listed.getByRole('link', { name: 'Smart farm sensor' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Smart farm sensor');
   await expect(page.locator('.pj-mentors')).toContainText(mentor.name);
   await expect(page.locator('.pj-mentors')).toContainText('กำลังปรึกษา');
@@ -170,11 +172,14 @@ test('my projects: empty list, and a project without a mentor links to finding o
   learners.push(learner);
   await signIn(page, learner, '/projects');
   await expect(page.getByRole('heading', { name: 'ยังไม่มีโปรเจกต์' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'โปรเจกต์ใหม่' })).toHaveAttribute('href', '/match');
+  await expect(page.getByRole('link', { name: 'เริ่มโปรเจกต์แรก' })).toHaveAttribute('href', '/match');
 
   await db.insert(projects).values({ id: `prj_${learner.id}`, userId: learner.id, name: 'Case deck', start: 'build_skills', stage: 'idea' });
   await page.reload();
-  await page.locator('.pj-card', { hasText: 'Case deck' }).click();
+  const deck = page.locator('.pj-card', { hasText: 'Case deck' });
+  await expect(deck).toContainText('ยังไม่มีเมนเทอร์');
+  await expect(deck).toContainText('ขั้นที่ 1 จาก 5');
+  await deck.getByRole('link', { name: 'Case deck' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/prj_${learner.id}$`));
   await expect(page.getByText('โปรเจกต์นี้ยังไม่มีเมนเทอร์')).toBeVisible();
   await expect(page.locator('.pj-facts')).toContainText('อยากพัฒนาทักษะ');

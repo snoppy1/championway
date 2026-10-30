@@ -153,22 +153,45 @@ async function openConsultations(projectIds: string[]) {
   return new Map(rows.map(({ projectId, ...row }) => [projectId, row]));
 }
 
+/** เมนเทอร์ที่แสดงบนการ์ดโปรเจกต์ (หน้า /projects): กำลังปรึกษาอยู่ก่อน ไม่มีก็คนล่าสุดที่ปรึกษาจบแล้ว พร้อมดาวที่รีวิวไว้ */
+async function cardMentors(projectIds: string[]) {
+  const out = new Map<string, { state: 'consulting' | 'done'; id: string; name: string; avatar: string; photoUrl: string | null; stars: number | null }>();
+  if (!projectIds.length) return out;
+  const rows = await db.select({
+    projectId: matchRequests.projectId, status: consultations.status, createdAt: consultations.createdAt,
+    id: mentors.id, name: mentors.name, avatar: mentors.avatar, photoUrl: mentors.photoUrl, stars: mentorReviews.stars,
+  }).from(consultations)
+    .innerJoin(matchRequests, eq(matchRequests.id, consultations.matchRequestId))
+    .innerJoin(mentors, eq(mentors.id, consultations.mentorId))
+    .leftJoin(mentorReviews, eq(mentorReviews.consultationId, consultations.id))
+    .where(and(inArray(matchRequests.projectId, projectIds), inArray(consultations.status, ['contacted', 'claimed', 'completed'])))
+    .orderBy(desc(consultations.createdAt));
+  for (const state of ['consulting', 'done'] as const) {
+    for (const row of rows) {
+      if (out.has(row.projectId) || (state === 'done') !== (row.status === 'completed')) continue;
+      out.set(row.projectId, { state, id: row.id, name: row.name, avatar: row.avatar, photoUrl: row.photoUrl, stars: row.stars ?? null });
+    }
+  }
+  return out;
+}
+
 matching.get('/projects', requireUser, async (c) => {
   const user = c.get('user')!;
   const rows = await db.select().from(projects).where(eq(projects.userId, user.id)).orderBy(desc(projects.updatedAt));
   const ids = rows.map((row) => row.id);
-  const [open, latest, today, profile] = await Promise.all([
+  const [open, latest, today, profile, cards] = await Promise.all([
     openConsultations(ids),
     ids.length ? db.selectDistinctOn([matchRequests.projectId], { projectId: matchRequests.projectId, id: matchRequests.id, createdAt: matchRequests.createdAt })
       .from(matchRequests).where(inArray(matchRequests.projectId, ids)).orderBy(matchRequests.projectId, desc(matchRequests.createdAt)) : [],
     requestsToday(user.id),
     profileOf(user.id),
+    cardMentors(ids),
   ]);
   const latestOf = new Map(latest.map((row) => [row.projectId, row]));
   return c.json({
     items: rows.map((row) => ({
       id: row.id, name: row.name, start: row.start, competitionKind: row.competitionKind, competitionName: row.competitionName || null,
-      stage: row.stage, updatedAt: row.updatedAt, open: open.get(row.id) ?? null, lastRequestId: latestOf.get(row.id)?.id ?? null,
+      stage: row.stage, updatedAt: row.updatedAt, open: open.get(row.id) ?? null, lastRequestId: latestOf.get(row.id)?.id ?? null, mentor: cards.get(row.id) ?? null,
     })),
     projectLimitReached: rows.length >= PROJECT_LIMIT,
     requestLimitReached: today >= REQUEST_LIMIT_PER_DAY,

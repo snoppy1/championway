@@ -3,6 +3,10 @@
 .pj {
   --up-ink: #211d2b; --up-muted: #716b7d; --pj-purple: #6d42ef;
   color: var(--up-ink);
+}
+/* สีพื้นหลังต้องเต็มจอ ไม่ใช่แค่ความกว้างของ .shell (ผู้ใช้แจ้ง 31 ต.ค. 2569) จึงวางเป็นชั้น fixed หลังหน้าแบบ .mf-wash ของ /match */
+.pj::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background-image: radial-gradient(ellipse at 10% 0%, rgba(216, 201, 255, .42), transparent 34%), radial-gradient(ellipse at 92% 12%, rgba(255, 226, 174, .3), transparent 28%);
 }
 /* รายการโปรเจกต์ตามดีไซน์ "My Projects" (31 ต.ค. 2569) */

@@ -54,6 +54,10 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 เพิ่มบันทึกใหม่ไว้บนสุด
 
+### 31 ตุลาคม 2569 — Windows: พื้นหลังหน้า My projects เต็มจอ
+
+- สีม่วง/ส้มของพื้นหลัง `/projects` เคยผูกกับ `.shell` จึงโดนตัดที่ 1180px ย้ายไปเป็น `.pj::before` แบบ fixed เต็มจอ เหมือน `.mf-wash` ของ `/match`
+
 ### 31 ตุลาคม 2569 — Windows: ตรวจความปลอดภัยทั้งเว็บ
 
 - อ่าน session, รหัสผ่าน, rate limit, Google OAuth, ลืมรหัสผ่าน, cron, Stripe webhook, สิทธิ์ของทุก route, ไฟล์, header ของ Vercel ไม่พบช่องโหว่ร้ายแรง

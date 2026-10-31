@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { join } from 'node:path';
 import { get, put } from '@vercel/blob';
 import { HTTPException } from 'hono/http-exception';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -25,6 +25,19 @@ export function fileProblem(file: File) {
   return '';
 }
 
+/* ชนิดไฟล์ที่เบราว์เซอร์บอกมาปลอมได้ ตรวจจากหัวไฟล์จริงอีกชั้น และตั้งนามสกุลจากชนิดที่ตรวจแล้ว
+   ไม่ใช้นามสกุลจากชื่อไฟล์ที่ผู้ใช้ตั้ง (ตรวจความปลอดภัย 31 ต.ค. 2569) */
+const EXTENSIONS: Record<string, string> = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'application/pdf': '.pdf' };
+
+function headerMatches(type: string, data: Buffer) {
+  const hex = (n: number) => data.subarray(0, n).toString('hex');
+  if (type === 'application/pdf') return data.subarray(0, 5).toString() === '%PDF-';
+  if (type === 'image/png') return hex(8) === '89504e470d0a1a0a';
+  if (type === 'image/jpeg') return hex(3) === 'ffd8ff';
+  if (type === 'image/webp') return data.subarray(0, 4).toString() === 'RIFF' && data.subarray(8, 12).toString() === 'WEBP';
+  return false;
+}
+
 export type StoredFile = typeof files.$inferSelect;
 
 /** ไฟล์บนที่เก็บแบบ private: path ขึ้นต้นด้วยคำนี้ตามด้วย URL ของ blob เปิดตรงไม่ได้ ต้องผ่าน API */
@@ -32,8 +45,10 @@ const PRIVATE = 'private:';
 let storeAccess: 'public' | 'private' = 'public';
 
 export async function storeFile(ownerType: string, ownerId: string, file: File) {
+  const data = Buffer.from(await file.arrayBuffer());
+  if (!headerMatches(file.type, data)) throw new HTTPException(400, { message: 'เนื้อไฟล์ไม่ตรงกับชนิดไฟล์ รับเฉพาะ JPG, PNG, WebP หรือ PDF' });
   const id = newId('fil');
-  const name = `${id}${extname(file.name) || ''}`;
+  const name = `${id}${EXTENSIONS[file.type] ?? ''}`;
   let path: string;
 
   if (blobConfigured) {
@@ -41,7 +56,7 @@ export async function storeFile(ownerType: string, ownerId: string, file: File) 
     /* ที่เก็บตอบผิดพลาด (คีย์หมดอายุ ตั้งที่เก็บเป็น private ฯลฯ) บอกสาเหตุจาก Vercel Blob ตรง ๆ
        ไม่ปล่อยเป็น 500 เปล่า ๆ ที่ตามหาสาเหตุไม่ได้ ข้อความของ Blob ไม่มีคีย์หรือค่าลับ */
     try {
-      const upload = (access: 'public' | 'private') => put(`submissions/${name}`, file, {
+      const upload = (access: 'public' | 'private') => put(`submissions/${name}`, data, {
         access, token: env.blobToken, addRandomSuffix: false, contentType: file.type,
       });
       /* ที่เก็บของ Vercel Blob ตั้งเป็น public หรือ private ได้ตอนสร้าง (dev ตั้งเป็น private ไว้)
@@ -61,7 +76,7 @@ export async function storeFile(ownerType: string, ownerId: string, file: File) 
     }
   } else {
     await mkdir(env.uploadDir, { recursive: true });
-    await writeFile(join(env.uploadDir, name), Buffer.from(await file.arrayBuffer()));
+    await writeFile(join(env.uploadDir, name), data);
     path = name;
   }
 

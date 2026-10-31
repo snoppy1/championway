@@ -25,7 +25,19 @@ import { experienceKinds, missingSections, teamRoles } from '../../src/data/matc
 import { beYear, issueCode, profileFields, profileMessage, resolveCompetitionName } from './mentor-profile.js';
 import type { Kind, Theme } from '../../src/data/focus.js';
 
+/* ลิงก์ที่หน้าเว็บเอาไปใส่ href ต้องเป็น http(s) เท่านั้น z.url() เฉย ๆ รับ javascript: และ data: ด้วย (ตรวจความปลอดภัย 31 ต.ค. 2569) */
+export const webUrl = (message?: string) => z.string().trim().url(message).max(500).refine((v) => /^https?:\/\//i.test(v), message ?? 'ลิงก์ต้องขึ้นต้นด้วย https://');
+
 export const publicApi = new Hono<AppEnv>();
+
+/* คำขอที่เปลี่ยนข้อมูลต้องมาจากเว็บของเราเอง เหมือน /api/auth /api/consult และ /api/matching */
+publicApi.use('*', async (c, next) => {
+  const origin = c.req.header('origin');
+  if (!['GET', 'HEAD'].includes(c.req.method) && origin && origin !== env.appOrigin) {
+    return c.json({ error: 'คำขอต้องมาจากเว็บนี้' }, 403);
+  }
+  await next();
+});
 
 /** ข้อความผิดพลาดต้องบอกว่าเป็นฟิลด์ไหน ไม่อย่างนั้นทั้งผู้กรอกและคนแก้บั๊กต้องเดาเอง */
 export function firstIssue(error: z.ZodError) {
@@ -250,8 +262,8 @@ const competitionFields = z.object({
   prizeNote: z.string().trim().max(200).optional(),
   fee: z.number().int().min(0).max(1000000).optional(),
   // ลิงก์ประกาศต้นทางบังคับเสมอ ทั้งเพื่อความน่าเชื่อถือและความถูกต้องทางกฎหมาย
-  sourceUrl: z.string().trim().url('ต้องมีลิงก์ประกาศต้นทางที่เปิดได้').max(500),
-  registerUrl: z.string().trim().url().max(500).optional(),
+  sourceUrl: webUrl('ต้องมีลิงก์ประกาศต้นทางที่เปิดได้'),
+  registerUrl: webUrl().optional(),
   /** id ของไฟล์ที่อัปโหลดไว้ก่อนหน้า เช่นโปสเตอร์ของงาน */
   fileIds: z.array(z.string().max(60)).max(3).default([]),
 });
@@ -262,7 +274,7 @@ const competitionSubmissionBody = competitionFields.extend({
   contactRole: z.string().trim().min(1).max(120),
   contactEmail: z.string().trim().toLowerCase().email().max(200),
   contactPhone: z.string().trim().min(1).max(40),
-  organizerUrl: z.string().trim().url('ลิงก์เว็บหรือเพจไม่ถูกต้อง').max(500),
+  organizerUrl: webUrl('ลิงก์เว็บหรือเพจไม่ถูกต้อง'),
 }).refine(teamOrder, teamOrderIssue);
 /* เมนเทอร์ขอเพิ่มเวทีที่เคยแข่งแต่ยังไม่มีในระบบ (ผู้ใช้ขอ 9 ต.ค. 2569) ใช้ฟอร์มเดียวกับผู้จัด
    แทนข้อมูลผู้ติดต่อด้วยผลที่ได้ ปี ไฟล์หลักฐาน และราคา ผู้ติดต่อคือตัวเมนเทอร์เอง */

@@ -54,6 +54,17 @@ Claude เป็น Art Director แตกงานให้ agent ใน `.clau
 
 เพิ่มบันทึกใหม่ไว้บนสุด
 
+### 31 ตุลาคม 2569 — Windows: ตรวจความปลอดภัยทั้งเว็บ
+
+- อ่าน session, รหัสผ่าน, rate limit, Google OAuth, ลืมรหัสผ่าน, cron, Stripe webhook, สิทธิ์ของทุก route, ไฟล์, header ของ Vercel ไม่พบช่องโหว่ร้ายแรง
+- แก้แล้ว:
+  - ลิงก์งานแข่ง (`sourceUrl` `registerUrl` `organizerUrl`) รับ `javascript:` กับ `data:` ได้ เพราะ `z.url()` ไม่จำกัด protocol เปลี่ยนเป็น `webUrl()` ใน `server/routes/public.ts` ใช้ทั้งฟอร์มผู้จัดและหน้าแอดมิน
+  - อัปโหลด `/api/files` และโปสเตอร์ เชื่อชนิดไฟล์จากเบราว์เซอร์อย่างเดียว ตอนนี้ตรวจหัวไฟล์จริง และตั้งนามสกุลจากชนิด ไม่ใช้นามสกุลจากชื่อไฟล์ (`server/lib/files.ts`)
+  - `publicApi` ยังไม่มีตัวกันคำขอข้ามเว็บ (Origin) เหมือน route อื่น เพิ่มแล้ว
+  - `npm audit` เหลือ 0: อัปเดต hono, @hono/node-server, undici, zod 4.6.7 และ override zod ใน `@vercel/cli-config`
+- เทสใหม่ `scripts/security-hardening.test.ts`
+- ยังต้องเช็กเอง: ที่เก็บ Vercel Blob ของ Production เป็น public หรือ private (ถ้า public ไฟล์หลักฐานเปิดได้ทุกคนที่มี URL), `/api/health` ของ prod บอก `payoutKey: missing`
+
 ### 31 ตุลาคม 2569 — Windows: หน้า My projects ตามดีไซน์ใหม่
 
 - `/projects` ทำตามไฟล์ Claude Design "My Projects": หัวข้อมีคำเน้นลายมือ ตัวนับ n / 20 ปุ่มโปรเจกต์ใหม่ การ์ดมีไอคอนตามจุดเริ่มต้น แถบขั้นตอน 5 ขั้น และท้ายการ์ด 3 แบบ

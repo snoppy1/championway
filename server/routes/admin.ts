@@ -23,7 +23,7 @@ import { staffNotificationKinds, staffNotificationSettings } from '../lib/staff-
 import type { StaffNotificationKind } from '../lib/staff-notify.js';
 import { fileProblem, fileUrl, filesOf, publicFile, storeFile } from '../lib/files.js';
 import { monthEdge } from '../lib/dates.js';
-import { firstIssue } from './public.js';
+import { firstIssue, webUrl } from './public.js';
 import { resolveCompetitionName, writeProfile } from './mentor-profile.js';
 import type { ProfileFields } from './mentor-profile.js';
 import { kindKeys, themeKeys } from '../../src/data/focus.js';
@@ -644,8 +644,8 @@ const listingBody = z.object({
   fee: z.number().int().min(0).max(1000000).nullish(),
   featured: z.boolean().default(false),
   keywords: z.array(z.string().trim().min(1).max(40)).max(12).default([]),
-  sourceUrl: z.string().trim().url('ต้องมีลิงก์ประกาศต้นทางที่เปิดได้').max(500),
-  registerUrl: z.string().trim().url().max(500).nullish(),
+  sourceUrl: webUrl('ต้องมีลิงก์ประกาศต้นทางที่เปิดได้'),
+  registerUrl: webUrl().nullish(),
   // รับเฉพาะโปสเตอร์ที่อัปโหลดผ่าน /admin/listings/poster (ไฟล์ของเราเอง) ไม่รับรูปจากเว็บอื่น
   posterUrl: z.string().trim().max(500).regex(posterPattern, 'อัปโหลดโปสเตอร์ผ่านปุ่มในฟอร์มเท่านั้น').nullish(),
   overview: z.string().trim().max(2000).nullish(),

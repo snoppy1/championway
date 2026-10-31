@@ -38,7 +38,7 @@
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.0",
     "stripe": "^23.0.0",
-    "zod": "^4.6.2"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
@@ -54,5 +54,10 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "$zod"
+    }
   }
 }
